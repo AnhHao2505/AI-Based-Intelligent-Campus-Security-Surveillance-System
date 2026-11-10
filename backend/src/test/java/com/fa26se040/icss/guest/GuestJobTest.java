@@ -60,13 +60,17 @@ public class GuestJobTest extends GuestTestSupport {
         GuestVisit done = newVisit(hostL2, GuestVisitStatus.APPROVED, now.minusHours(2), now.minusMinutes(1), List.of(internalArea), "Khách xong");
         Guest g = withPhoto(guestsOf(done.getId()).get(0), now.minusMinutes(1).plusHours(24));
         GuestVisit running = newVisit(hostL2, GuestVisitStatus.APPROVED, now.minusHours(1), now.plusHours(1), List.of(internalArea), "Khách đang ở");
+        resetRefreshCalls();
         jobService.completeApprovedVisits(now);
+        assertEquals(List.of(false), refreshCallsInTransaction, "L3: job chuyển COMPLETED -> báo AI 1 lần, sau khi các transaction đã commit");
         assertEquals(GuestVisitStatus.COMPLETED, visit(done.getId()).getStatus());
         assertNotNull(visit(done.getId()).getClosedAt());
         assertSystemAudit(audits(done.getId().toString(), AuditTargetType.GUEST_VISIT, AuditAction.COMPLETE));
         assertEquals(GuestVisitStatus.APPROVED, visit(running.getId()).getStatus());
         assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus(), "chưa tới end + retention");
+        resetRefreshCalls();
         jobService.completeApprovedVisits(now);
+        assertTrue(refreshCallsInTransaction.isEmpty(), "L3: không có lượt nào chuyển COMPLETED -> không báo AI");
         assertEquals(1, audits(done.getId().toString(), AuditTargetType.GUEST_VISIT, AuditAction.COMPLETE).size());
     }
 

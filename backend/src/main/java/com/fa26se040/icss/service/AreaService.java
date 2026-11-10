@@ -220,7 +220,8 @@ public class AreaService {
             int pendingNotApprovableCount,
             boolean eventActive,
             int pendingScheduleCount,
-            List<AreaException> blockers
+            List<AreaException> blockers,
+            List<com.fa26se040.icss.entity.GuestVisit> guestVisitsToClose
     ) {
         List<CancelCandidate> allToCancel() {
             List<CancelCandidate> all = new ArrayList<>(approvedToCancel);
@@ -293,8 +294,12 @@ public class AreaService {
             }
         }
 
+        // fix/type-change-guest-visits: lượt khách không còn hợp lệ với loại mới (BR-GV-04) -> xử lý như vô hiệu hoá khu vực
+        List<com.fa26se040.icss.entity.GuestVisit> guestVisitsToClose = guestVisitsInvalidatedByTypeChange(area, newLevel, now);
+
         return new TypeChangeEvaluation(currentLevel, newLevel, newAccessLevel, newExplicit, activeApCount,
-                approvedToCancel, pendingToCancel, pendingNotApprovable, eventActive, pendingSchedules.size(), blockers);
+                approvedToCancel, pendingToCancel, pendingNotApprovable, eventActive, pendingSchedules.size(), blockers,
+                guestVisitsToClose);
     }
 
     /**
@@ -379,6 +384,37 @@ public class AreaService {
         );
     }
 
+    /**
+     * fix/type-change-guest-visits: lượt khách chưa kết thúc (PENDING / APPROVED) chứa khu vực mà loại mới không nhận
+     * khách. Không có GuestVisitService (unit test dựng AreaService thiếu bean) thì coi như không có lượt khách.
+     */
+    private List<com.fa26se040.icss.entity.GuestVisit> guestVisitsInvalidatedByTypeChange(
+            Area area, AreaLevel newLevel, OffsetDateTime now) {
+        GuestVisitService guestVisitService = guestVisitServiceProvider != null
+                ? guestVisitServiceProvider.getIfAvailable() : null;
+        if (guestVisitService == null) {
+            return List.of();
+        }
+        return guestVisitService.findVisitsInvalidatedByTypeChange(area.getId(), newLevel, now);
+    }
+
+    /**
+     * fix/type-change-guest-visits: đổi loại thành công -> lượt khách không còn hợp lệ được đóng đúng như vô hiệu hoá
+     * khu vực (BR-AD-09): PENDING huỷ, APPROVED chưa kết thúc thu hồi, audit GUEST_VISIT / CANCEL hoặc REVOKE do ADMIN,
+     * báo host sau commit (GUEST_VISIT_CANCELLED_BY_SYSTEM / GUEST_VISIT_REVOKED). Chạy trong transaction đổi loại.
+     */
+    private void closeGuestVisitsOnTypeChange(Area area, TypeChangeEvaluation evaluation, User actor, OffsetDateTime now) {
+        if (evaluation.guestVisitsToClose().isEmpty()) {
+            return;
+        }
+        String reason = "Khu vực " + area.getName() + " đổi loại từ " + areaLevelLabel(evaluation.currentLevel())
+                + " sang " + areaLevelLabel(evaluation.newLevel()) + ", loại mới không nhận khách";
+        List<UUID> visitIds = evaluation.guestVisitsToClose().stream()
+                .map(com.fa26se040.icss.entity.GuestVisit::getId)
+                .toList();
+        guestVisitServiceProvider.getObject().closeForAreaDeactivation(visitIds, actor, reason, now);
+    }
+
     /** BR-TC-03: xem trước đổi loại (chỉ đọc). Cùng hàm đánh giá với PUT. */
     @Transactional(readOnly = true)
     public com.fa26se040.icss.dto.area.AreaTypeChangePreviewResponse previewTypeChange(UUID id, AreaLevel newLevel) {
@@ -403,6 +439,10 @@ public class AreaService {
                 .pendingRequestsToCancel(ev.pendingToCancel().stream().map(AreaService::toPreviewItem).toList())
                 .eventActive(ev.eventActive())
                 .pendingScheduleCount(ev.pendingScheduleCount())
+                .guestVisitsToCancelCount((int) ev.guestVisitsToClose().stream()
+                        .filter(v -> v.getStatus() == com.fa26se040.icss.enums.GuestVisitStatus.PENDING).count())
+                .guestVisitsToRevokeCount((int) ev.guestVisitsToClose().stream()
+                        .filter(v -> v.getStatus() == com.fa26se040.icss.enums.GuestVisitStatus.APPROVED).count())
                 .blockingReasons(ev.blockers().stream()
                         .map(b -> new com.fa26se040.icss.dto.area.AreaTypeChangePreviewResponse.BlockingReason(
                                 b.getErrorCode().getCode(), b.getMessage()))
@@ -832,6 +872,7 @@ public class AreaService {
                     );
                     List<com.fa26se040.icss.entity.AccessRequest> cancelled =
                             cancelRequestsBySystem(savedArea, evaluation.allToCancel(), now, AREA_TYPE_CHANGE_SOURCE);
+                    closeGuestVisitsOnTypeChange(savedArea, evaluation, actor, now);
                     notifyAfterTypeChange(savedArea, evaluation.currentLevel(), evaluation.newLevel(), reason, cancelled);
                 } else {
                     auditService.record(

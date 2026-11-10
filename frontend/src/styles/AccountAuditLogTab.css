@@ -1,0 +1,115 @@
+/* PR-AUDIT: tab "Nhật ký" màn Quản lý tài khoản (prefix aal-). Chỉ dùng token trong theme.css (light + dark). */
+
+.aal-container {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.aal-filter-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+}
+
+.aal-input {
+	flex: 1 1 220px;
+	min-width: 200px;
+}
+
+.aal-chip-group {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.aal-chip-group--actions {
+	margin-top: 4px;
+}
+
+.aal-chip {
+	border: 1px solid var(--theme-border);
+	background: var(--theme-bg-surface);
+	color: var(--theme-text-secondary);
+	border-radius: 999px;
+	padding: 6px 14px;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.aal-chip--small {
+	padding: 4px 10px;
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.aal-chip:hover {
+	border-color: var(--theme-border-hover);
+	background: var(--theme-bg-surface-hover);
+}
+
+.aal-chip--active {
+	background: var(--theme-primary-subtle);
+	border-color: var(--theme-primary-border);
+	color: var(--theme-primary);
+}
+
+.aal-chip:focus-visible,
+.aal-link-btn:focus-visible {
+	outline: 2px solid var(--theme-border-focus);
+	outline-offset: 2px;
+}
+
+.aal-row--clickable {
+	cursor: pointer;
+}
+
+.aal-row--clickable:hover {
+	background: var(--theme-bg-hover);
+}
+
+.aal-link-btn {
+	margin-top: 6px;
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--theme-primary);
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	text-decoration: underline;
+}
+
+.aal-mono {
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 12px;
+	color: var(--theme-text-secondary);
+}
+
+.aal-container .audit-val--old {
+	color: var(--theme-text-muted);
+	text-decoration: line-through;
+}
+
+.aal-container .audit-val--fail {
+	color: var(--theme-danger-text);
+	font-weight: 600;
+}
+
+.aal-container .pagination-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 12px 4px;
+	color: var(--theme-text-secondary);
+	font-size: 13px;
+}
+
+.aal-container .pagination-actions {
+	display: flex;
+	gap: 8px;
+}

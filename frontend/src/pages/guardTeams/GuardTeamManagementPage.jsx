@@ -789,12 +789,15 @@ export default function GuardTeamManagementPage() {
               {/* Badge điều động tăng cường (nếu có) */}
               {guard.activeDispatch && (
                 <span
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 shadow-xs"
-                  title={`Điều động tăng cường: ${guard.activeDispatch.toTeamName} (${guard.activeDispatch.shiftType ? (guard.activeDispatch.shiftType === 'SHIFT_MORNING' ? 'Ca Sáng (06-14h)' : guard.activeDispatch.shiftType === 'SHIFT_AFTERNOON' ? 'Ca Chiều (14-22h)' : 'Ca Đêm (22-06h)') + ' • ' : ''}${guard.activeDispatch.startDate} ~ ${guard.activeDispatch.endDate})${guard.activeDispatch.reason ? ' - Lý do: ' + guard.activeDispatch.reason : ''}`}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 shadow-xs"
+                  title={`Điều động: ${guard.activeDispatch.toTeamName} (${guard.activeDispatch.startDate} ~ ${guard.activeDispatch.endDate})${guard.activeDispatch.reason ? ' · ' + guard.activeDispatch.reason : ''}`}
                 >
-                  ⚡ {selectedTeam === guard.activeDispatch.toTeamId
-                    ? `Từ ${guard.teamName || guard.team?.teamName || 'đội khác'}`
-                    : guard.activeDispatch.toTeamName}
+                  <Zap size={10} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>
+                    {selectedTeam === guard.activeDispatch.toTeamId
+                      ? `Từ ${guard.teamName || guard.team?.teamName || 'đội khác'}`
+                      : guard.activeDispatch.toTeamName}
+                  </span>
                   {guard.activeDispatch.shiftType && (
                     <span className="font-normal opacity-85">
                       ({guard.activeDispatch.shiftType === 'SHIFT_MORNING' ? 'Sáng' : guard.activeDispatch.shiftType === 'SHIFT_AFTERNOON' ? 'Chiều' : 'Đêm'})
@@ -821,7 +824,7 @@ export default function GuardTeamManagementPage() {
             key={i}
             className={`matrix-td-slot ${isToday ? 'is-today' : ''}`}
           >
-            <div className="space-y-2 min-h-[90px]">
+            <div className="flex flex-col gap-2 min-h-[96px]">
               {guardDayShifts.map((shift) => {
                 const shiftConfig = SHIFT_TYPES[shift.shiftType] || SHIFT_TYPES.SHIFT_MORNING;
                 const Icon = shiftConfig.icon;
@@ -857,11 +860,12 @@ export default function GuardTeamManagementPage() {
                     {/* Top & Middle Content */}
                     <div>
                       {/* Header: Shift Title & Actions */}
-                      <div className="flex items-center justify-between font-bold">
-                        <span className="flex items-center gap-1">
-                          <Icon size={13} /> {shiftConfig.label}
+                      <div className="flex items-center justify-between gap-1.5 font-bold">
+                        <span className="flex items-center gap-1 whitespace-nowrap min-w-0">
+                          <Icon size={13} className="shrink-0" />
+                          <span className="truncate">{shiftConfig.label}</span>
                         </span>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5 shrink-0">
                           <button
                             onClick={() => {
                               setEditingShift(shift);
@@ -883,8 +887,8 @@ export default function GuardTeamManagementPage() {
                       </div>
 
                       {/* Time */}
-                      <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90">
-                        <Clock size={11} />
+                      <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold opacity-90 whitespace-nowrap">
+                        <Clock size={11} className="shrink-0" />
                         <span>
                           {(shift.startTime && shift.startTime.length >= 5 ? shift.startTime.substring(0, 5) : shift.startTime)} — {(shift.endTime && shift.endTime.length >= 5 ? shift.endTime.substring(0, 5) : shift.endTime)}
                         </span>
@@ -932,10 +936,10 @@ export default function GuardTeamManagementPage() {
                       {/* Cross-building shift badge (PR-1b) */}
                       {shift.crossBuilding && (
                         <div
-                          className="mt-1 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[10.5px] font-semibold flex items-center gap-1 border border-purple-200 dark:border-purple-800/60 opacity-95"
+                          className="mt-1 px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-[10.5px] font-semibold flex items-center gap-1 border border-sky-200 dark:border-sky-800/60 opacity-95"
                           title={shift.crossBuildingReason ? `Luân chuyển toà: ${shift.crossBuildingReason}` : 'Ca trực luân chuyển toà'}
                         >
-                          <Building2 size={11} className="shrink-0 text-purple-600 dark:text-purple-400" />
+                          <Building2 size={11} className="shrink-0 text-sky-600 dark:text-sky-400" />
                           <span className="truncate">
                             Luân chuyển{shift.buildingName ? `: ${shift.buildingName}` : ''}
                           </span>
@@ -960,7 +964,7 @@ export default function GuardTeamManagementPage() {
                       )}
 
                       {shift.isOvertime && (
-                        <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-200 dark:bg-amber-900/70 text-amber-900 dark:text-amber-200">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-200 dark:bg-amber-900/70 text-amber-900 dark:text-amber-200 shrink-0">
                           OT
                         </span>
                       )}
@@ -1014,7 +1018,7 @@ export default function GuardTeamManagementPage() {
             <span>Quản Lý Đội Bảo Vệ</span>
           </h1>
           <p className="schedule-header-subtitle">
-            Phân công ca trực theo đội, điều phối chốt an ninh và phê duyệt yêu cầu đổi/nghỉ ca
+            Lịch trực tuần, phân bổ đội và phê duyệt đổi/nghỉ ca
           </p>
         </div>
 
@@ -1025,17 +1029,17 @@ export default function GuardTeamManagementPage() {
                 type="button"
                 onClick={() => setShowExportModal(true)}
                 className="schedule-btn-secondary text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                title="Xuất bảng tổng hợp chấm công và tính lương ra file Excel"
+                title="Xuất bảng chấm công Excel"
               >
                 <FileSpreadsheet size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span>Xuất Excel Chấm Công</span>
+                <span>Xuất Excel</span>
               </button>
               {shifts.length > 0 && (
                 <button
                   type="button"
                   onClick={handleOpenBulkClear}
                   className="schedule-btn-secondary text-rose-600 hover:text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                  title="Xóa nhanh các ca trực tuần chưa diễn ra (để phân lại khi cần)"
+                  title="Xóa các ca chưa diễn ra trong tuần"
                 >
                   <Trash2 size={15} className="text-rose-500 shrink-0" />
                   <span>Xóa Lịch Tuần</span>
@@ -1047,7 +1051,7 @@ export default function GuardTeamManagementPage() {
                 className="schedule-btn-primary"
               >
                 <Wand2 size={16} className="shrink-0" />
-                <span>Phân Lịch Trực Cho Đội</span>
+                <span>Gán Lịch Trực</span>
               </button>
             </div>
           )}
@@ -1065,7 +1069,7 @@ export default function GuardTeamManagementPage() {
         </div>
       </div>
 
-      {/* 2. Navigation Tabs (Đồng bộ chuẩn ManageAccountPage) */}
+      {/* 2. Navigation Tabs */}
       <nav className="schedule-tabs" aria-label="Phân nhóm quản lý lịch trực và đội bảo vệ">
         <button
           type="button"
@@ -1082,7 +1086,7 @@ export default function GuardTeamManagementPage() {
           onClick={() => setActiveTab('TEAMS')}
         >
           <Users size={17} />
-          <span>Cơ Cấu Đội Bảo Vệ</span>
+          <span>Đội Bảo Vệ</span>
           <span className="schedule-tab-badge">
             {teams.length}
           </span>
@@ -1108,32 +1112,27 @@ export default function GuardTeamManagementPage() {
           onClick={() => setActiveTab('ROTATION_REPORT')}
         >
           <Building2 size={17} />
-          <span>Báo Cáo Luân Chuyển</span>
+          <span>Luân Chuyển Tòa Nhà</span>
         </button>
       </nav>
 
       {/* 3. TAB 1: WEEKLY SCHEDULE VIEW */}
       {activeTab === 'SCHEDULE' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Readiness KPI Cards */}
           <div className="schedule-kpi-grid">
         {/* Card 1: Total Guards */}
         <div className="schedule-kpi-card">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Tổng Quân Số Bảo Vệ
+              Quân Số Bảo Vệ
             </span>
             <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
               {totalGuardsCount} <span className="text-sm font-normal text-slate-500">nhân viên</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-2">
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> Đang hoạt động
-              </span>
-            </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-blue">
-            <Users size={22} />
+            <Users size={20} />
           </div>
         </div>
 
@@ -1141,18 +1140,18 @@ export default function GuardTeamManagementPage() {
         <div className="schedule-kpi-card">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Tổng Ca Tuần Này
+              Ca Tuần Này
             </span>
             <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-              {totalShiftsCount} <span className="text-sm font-normal text-slate-500">lượt ca</span>
+              {totalShiftsCount} <span className="text-sm font-normal text-slate-500">ca</span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               {weekDays[0].toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} —{' '}
               {weekDays[6].toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
             </p>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-purple">
-            <Calendar size={22} />
+            <Calendar size={20} />
           </div>
         </div>
 
@@ -1160,21 +1159,21 @@ export default function GuardTeamManagementPage() {
         <div className="schedule-kpi-card">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Ca Trực Hôm Nay
+              Ca Hôm Nay
             </span>
             <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-              {todayShifts.length} <span className="text-sm font-normal text-slate-500">ca trực</span>
+              {todayShifts.length} <span className="text-sm font-normal text-slate-500">ca</span>
             </div>
-            <div className="flex items-center gap-2 mt-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-              <span className="text-sky-600 dark:text-sky-400">{todayMorningCount} Ca Sáng</span>
-              <span>•</span>
-              <span className="text-amber-600 dark:text-amber-400">{todayAfternoonCount} Ca Chiều</span>
-              <span>•</span>
-              <span className="text-purple-600 dark:text-purple-400">{todayNightCount} Ca Đêm</span>
+            <div className="flex items-center gap-2 mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+              <span className="text-sky-600 dark:text-sky-400">{todayMorningCount} Sáng</span>
+              <span>·</span>
+              <span className="text-amber-600 dark:text-amber-400">{todayAfternoonCount} Chiều</span>
+              <span>·</span>
+              <span className="text-purple-600 dark:text-purple-400">{todayNightCount} Đêm</span>
             </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-amber">
-            <Clock size={22} />
+            <Clock size={20} />
           </div>
         </div>
       </div>
@@ -1258,10 +1257,10 @@ export default function GuardTeamManagementPage() {
                 value={selectedTeam}
                 onChange={(e) => handleTeamChange(e.target.value)}
                 options={[
-                  { value: 'ALL', label: '-- Tất cả đội bảo vệ --' },
+                  { value: 'ALL', label: 'Tất cả đội' },
                   ...teams.map((t) => {
                     const bName = getShortBuildingName(t.description);
-                    const suffix = bName ? ` — (${bName})` : '';
+                    const suffix = bName ? ` (${bName})` : '';
                     return { value: t.id, label: `${t.teamName}${suffix}` };
                   }),
                 ]}
@@ -1276,7 +1275,7 @@ export default function GuardTeamManagementPage() {
                 type="text"
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
-                placeholder="Tìm theo tên, mã NV, chốt..."
+                placeholder="Tìm tên, mã NV, chốt..."
                 className="schedule-search-input"
               />
               {searchKeyword && (
@@ -1359,10 +1358,10 @@ export default function GuardTeamManagementPage() {
                         <Users size={32} />
                       </div>
                       <h3 className="text-base font-bold text-slate-800 dark:text-white mb-1">
-                        Chưa tìm thấy nhân sự bảo vệ nào
+                        Không có nhân sự phù hợp
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mb-4">
-                        Hệ thống chưa có tài khoản bảo vệ phù hợp với bộ lọc hoặc từ khóa tìm kiếm.
+                        Thử đổi bộ lọc đội hoặc từ khóa tìm kiếm.
                       </p>
                     </div>
                   </td>
@@ -1378,7 +1377,7 @@ export default function GuardTeamManagementPage() {
                             <span className="flex items-center gap-2">
                               <Shield size={14} className="text-blue-600 dark:text-blue-400" />
                               <span>
-                                Quân số nòng cốt {(teams.find((t) => t.id === selectedTeam)?.teamName) || 'Đội'} ({officialMembers.length} bảo vệ • {officialShiftsCount} ca trực)
+                                Thành viên {(teams.find((t) => t.id === selectedTeam)?.teamName) || 'đội'} ({officialMembers.length} người · {officialShiftsCount} ca)
                               </span>
                             </span>
                           </div>
@@ -1388,18 +1387,15 @@ export default function GuardTeamManagementPage() {
                     </>
                   )}
 
-                  {/* Nhóm 2: Nhân sự điều động tăng cường sự kiện */}
+                  {/* Nhóm 2: Nhân sự điều động tăng cường */}
                   <tr className="bg-amber-50/90 dark:bg-amber-950/40 border-y border-amber-200 dark:border-amber-800/60">
                     <td colSpan={8} className="px-4 py-2 text-xs font-bold text-amber-800 dark:text-amber-200">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-2">
                           <Zap size={14} className="text-amber-600 fill-amber-500" />
                           <span>
-                            Nhân sự điều động tăng cường sự kiện ({dispatchedMembers.length} bảo vệ • {dispatchedShiftsCount} ca trực)
+                            Tăng cường từ đội khác ({dispatchedMembers.length} người · {dispatchedShiftsCount} ca)
                           </span>
-                        </span>
-                        <span className="text-[11px] font-normal text-amber-700 dark:text-amber-300">
-                          Được điều động từ các đội khác để hỗ trợ theo ca / sự kiện
                         </span>
                       </div>
                     </td>
@@ -1463,10 +1459,10 @@ export default function GuardTeamManagementPage() {
                 </div>
                 <div className="schedule-modal__header-text">
                   <h3 className="schedule-modal__title">
-                    {editingShift && editingShift.id ? 'Chỉnh Sửa Ca Trực' : 'Phân Bổ Ca Trực Mới'}
+                    {editingShift && editingShift.id ? 'Chỉnh Sửa Ca Trực' : 'Thêm Ca Trực'}
                   </h3>
                   <p className="schedule-modal__subtitle">
-                    Thiết lập nhân viên, thời gian và vị trí phân công an ninh
+                    Chọn nhân viên, khung giờ và khu vực trực
                   </p>
                 </div>
               </div>
@@ -1549,7 +1545,7 @@ export default function GuardTeamManagementPage() {
                     onChange={(e) => setShiftModalGuardId(e.target.value)}
                     required
                     options={[
-                      { value: '', label: '-- Chọn nhân viên bảo vệ --' },
+                      { value: '', label: 'Chọn nhân viên bảo vệ' },
                       ...guards.map((g) => ({ value: g.id, label: `${g.fullName} (${g.userCode || 'NV-BV'})` })),
                     ]}
                   />
@@ -1596,7 +1592,7 @@ export default function GuardTeamManagementPage() {
                             setShiftModalAreaId('');
                           }}
                           options={[
-                            { value: '', label: '-- Chọn toà nhà điều động đến --' },
+                            { value: '', label: 'Chọn tòa nhà' },
                             ...buildings.map((b) => ({ value: b.id, label: b.name })),
                           ]}
                         />
@@ -1606,20 +1602,20 @@ export default function GuardTeamManagementPage() {
                         <div className="p-2.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-start gap-2 text-xs text-amber-800 dark:text-amber-200">
                           <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600" />
                           <span>
-                            <strong>{selectedShiftGuard?.fullName || 'Bảo vệ'}</strong> thuộc đội ({guardHomeBuildingName}), ca này xếp ở <strong>{buildings.find((b) => b.id === shiftModalBuildingId)?.name || 'toà khác'}</strong>.
+                            <strong>{selectedShiftGuard?.fullName || 'Bảo vệ'}</strong> trực chính ở {guardHomeBuildingName}, ca này xếp tại <strong>{buildings.find((b) => b.id === shiftModalBuildingId)?.name || 'tòa khác'}</strong>.
                           </span>
                         </div>
                       )}
 
                       <div>
                         <label className="schedule-form-label text-xs">
-                          <span>Lý Do Luân Chuyển (không bắt buộc)</span>
+                          <span>Lý do luân chuyển (tùy chọn)</span>
                         </label>
                         <input
                           type="text"
                           value={shiftModalCrossBuildingReason}
                           onChange={(e) => setShiftModalCrossBuildingReason(e.target.value)}
-                          placeholder="Vd: Tăng cường an ninh sự kiện, bù quân số thiếu..."
+                          placeholder="Tăng cường sự kiện, bù quân số..."
                           className="schedule-form-input text-xs"
                         />
                       </div>
@@ -1687,7 +1683,7 @@ export default function GuardTeamManagementPage() {
                     value={shiftModalAreaId}
                     onChange={(e) => setShiftModalAreaId(e.target.value)}
                     options={[
-                      { value: '', label: '-- Không chỉ định khu vực cụ thể --' },
+                      { value: '', label: 'Không chỉ định khu vực' },
                       ...modalFilteredAreas.map((a) => ({
                         value: a.id,
                         label: `${a.name}${a.floor ? ` (${a.floor})` : ''}${a.building ? ` - ${a.building}` : ''}`
@@ -1696,7 +1692,7 @@ export default function GuardTeamManagementPage() {
                   />
                   {effectiveShiftBuildingName && effectiveShiftBuildingName !== 'Chưa gán toà' && (
                     <span className="text-[11px] text-slate-500">
-                      Đang lọc danh sách khu vực thuộc toà: <strong>{effectiveShiftBuildingName}</strong>
+                      Khu vực thuộc {effectiveShiftBuildingName}
                     </span>
                   )}
                 </div>
@@ -1788,10 +1784,10 @@ export default function GuardTeamManagementPage() {
                 </div>
                 <div className="schedule-modal__header-text">
                   <h3 className="schedule-modal__title text-rose-700 dark:text-rose-400">
-                    Xóa & Đặt Lại Lịch Trực Tuần
+                    Xóa Lịch Trực Tuần
                   </h3>
                   <p className="schedule-modal__subtitle">
-                    Thu hồi nhanh các ca trực chưa diễn ra khi phân công nhầm
+                    Chỉ xóa các ca chưa diễn ra
                   </p>
                 </div>
               </div>
@@ -1809,7 +1805,7 @@ export default function GuardTeamManagementPage() {
               {/* Week time frame info */}
               <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between text-xs">
                 <span className="text-slate-600 dark:text-slate-300">
-                  Tuần áp dụng: <strong>{weekDays[0].toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} — {weekDays[6].toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                  Tuần: <strong>{weekDays[0].toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} — {weekDays[6].toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
                 </span>
                 <span className="font-bold text-slate-800 dark:text-slate-100">
                   {shifts.length} ca trực
@@ -1819,7 +1815,7 @@ export default function GuardTeamManagementPage() {
               {/* Scope Selection */}
               <div className="space-y-2.5">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Chọn phạm vi muốn xóa:
+                  Phạm vi xóa:
                 </label>
 
                 <div className="space-y-2">
@@ -1838,10 +1834,10 @@ export default function GuardTeamManagementPage() {
                     />
                     <div>
                       <div className="font-bold text-slate-800 dark:text-slate-100">
-                        Xóa toàn bộ ca trực trong tuần
+                        Toàn bộ các đội
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                        Dọn sạch toàn bộ ca trực của tất cả các đội trong tuần này để phân công lại từ đầu.
+                        Xóa tất cả ca chưa diễn ra trong tuần này.
                       </div>
                     </div>
                   </label>
@@ -1862,10 +1858,10 @@ export default function GuardTeamManagementPage() {
                       />
                       <div className="flex-1">
                         <div className="font-bold text-slate-800 dark:text-slate-100">
-                          Chỉ xóa ca trực của một đội cụ thể
+                          Theo đội
                         </div>
                         <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 mb-2">
-                          Chỉ xóa các ca trực của các thành viên thuộc đội được chỉ định, giữ nguyên các đội khác.
+                          Chỉ xóa ca của đội được chọn.
                         </div>
 
                         {bulkClearScope === 'TEAM' && (
@@ -1885,7 +1881,7 @@ export default function GuardTeamManagementPage() {
               <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2.5">
                 <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
                 <div className="leading-relaxed text-[11px]">
-                  <strong>Bảo vệ dữ liệu an toàn:</strong> Hệ thống chỉ xóa các ca trực <strong>Chưa diễn ra (SCHEDULED)</strong>. Các ca đã điểm danh trực (<code>CHECKED_IN</code>) hoặc đã hoàn thành (<code>COMPLETED</code>) sẽ được bảo toàn nguyên vẹn.
+                  Các ca đang trực hoặc đã hoàn thành sẽ được giữ nguyên.
                 </div>
               </div>
             </div>
@@ -1908,8 +1904,8 @@ export default function GuardTeamManagementPage() {
                 <Trash2 size={14} />
                 <span>
                   {clearingShifts
-                    ? 'Đang Xóa...'
-                    : `Xác Nhận Xóa (${bulkClearTargetShiftsCount} Ca Trực)`}
+                    ? 'Đang xóa...'
+                    : `Xóa ${bulkClearTargetShiftsCount} ca`}
                 </span>
               </button>
             </div>

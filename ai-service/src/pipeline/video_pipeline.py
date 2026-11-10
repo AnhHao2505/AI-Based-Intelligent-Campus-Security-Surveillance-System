@@ -116,7 +116,8 @@ class VideoPipeline:
         self.visualizer = FrameVisualizer()
         self._last_heartbeat_time: Optional[float] = None
 
-    def _apply_access_decision(self, face_info, is_allowed: bool, access_reason: str, area_name: Optional[str], access_source: Optional[str] = None):
+    def _apply_access_decision(self, face_info, is_allowed: bool, access_reason: str, area_name: Optional[str],
+                               access_source: Optional[str] = None, access_deny_reason: Optional[str] = None):
         reason_lower = (access_reason or "").lower()
         if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
             face_info.matched_code = None
@@ -124,11 +125,13 @@ class VideoPipeline:
             face_info.is_authorized = False
             face_info.access_reason = "Đối tượng không xác định"
             face_info.access_source = None
+            face_info.access_deny_reason = None
         else:
             face_info.is_authorized = is_allowed
             face_info.access_reason = access_reason
             face_info.area_name = area_name
             face_info.access_source = access_source
+            face_info.access_deny_reason = access_deny_reason
         face_info.access_checked = True
         target_name = face_info.matched_name or face_info.matched_code or "Đối tượng"
         logger.info(
@@ -178,9 +181,10 @@ class VideoPipeline:
                 access_reason = res[1]
                 area_name = res[2]
                 access_source = res[3] if len(res) >= 4 else None
+                deny_reason = res[4] if len(res) >= 5 else None
                 existing = self.analysis_engine.active_tracks.get(track_id)
                 if existing and existing.face_info and existing.face_info.matched_code == new_code:
-                    self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source)
+                    self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason)
                     existing.roi_entry_logged = True
             except Exception as e:
                 logger.warning(f"[VideoPipeline] Lỗi khi ghi ENTRY cho mã mới {new_code}: {e}")
@@ -197,9 +201,10 @@ class VideoPipeline:
             access_reason = res[1]
             area_name = res[2]
             access_source = res[3] if len(res) >= 4 else None
+            deny_reason = res[4] if len(res) >= 5 else None
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing and existing.face_info and existing.face_info.matched_code == user_code:
-                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source)
+                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason)
                 if getattr(existing, "is_in_roi", False):
                     existing.roi_entry_logged = True
         except Exception as e:
@@ -220,7 +225,8 @@ class VideoPipeline:
             access_reason = cached[1]
             area_name = cached[2]
             access_source = cached[3] if len(cached) >= 4 else None
-            self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source)
+            deny_reason = cached[4] if len(cached) >= 5 else None
+            self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source, deny_reason)
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing:
                 existing.roi_entry_logged = True

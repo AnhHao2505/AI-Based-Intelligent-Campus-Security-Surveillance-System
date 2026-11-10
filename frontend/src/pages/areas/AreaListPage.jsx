@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
 	Building2,
@@ -15,11 +15,9 @@ import {
 	MapPinPlus,
 	Search,
 	AlertTriangle,
-	Compass,
 	Info,
 	ExternalLink,
 	RotateCcw,
-	Archive,
 } from "lucide-react";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaListView from "../../components/area/AreaListView";
@@ -27,8 +25,7 @@ import CampusMapView from "../../components/area/CampusMapView";
 import ErrorBoundary from "../../components/common/ErrorBoundary";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
-import { formatLocation } from "../../utils/formatLocation";
+import { LoadingState, ErrorState, Select } from "../../components/ui";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
 import {
@@ -45,23 +42,19 @@ import { getBuildings } from "../../services/buildingService";
 import {
 	AREA_LEVEL_OPTIONS,
 	getErrorMessage,
-	getLevelConfig,
 	normalizeAreaName,
 	validateAreaName,
 } from "../../utils/areaHelpers";
 import "../../styles/AreaListPage.css";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
 
-// BR-AR-COORD-01..03: toạ độ tuỳ chọn — trống cả hai = "chưa định vị" (null); chỉ nhập một ô thì từ chối
-const COORDINATE_PAIR_ERROR = "Phải nhập đủ cả vĩ độ và kinh độ, hoặc để trống cả hai.";
+// Toạ độ tâm bắt buộc khi tạo và khi sửa (khớp backend: tạo @NotNull, sửa ERR_AREA_006); thiếu ô nào cũng từ chối
+const COORDINATE_PAIR_ERROR = "Vui lòng nhập đủ vĩ độ và kinh độ.";
 const isBlankCoordinate = (value) => String(value ?? "").trim() === "";
 
 const validateCenterCoordinates = (latitude, longitude) => {
 	const latBlank = isBlankCoordinate(latitude);
 	const lngBlank = isBlankCoordinate(longitude);
-	if (latBlank && lngBlank) {
-		return { centerLatitude: null, centerLongitude: null };
-	}
 	if (latBlank || lngBlank) {
 		return { error: COORDINATE_PAIR_ERROR };
 	}
@@ -95,7 +88,7 @@ const coordinateFieldError = (value, min, max, label) => {
 	return null;
 };
 
-// V83: 3 loại, cấp cố định theo loại (Công khai 1, Bảo mật 2, Tuyệt mật 3)
+// V83: 3 loại, cấp cố định theo loại (Công khai 1, Bảo mật 2, Bảo mật cao 3)
 const AREA_LEVEL_CARDS = AREA_LEVEL_OPTIONS.map((cfg, i) => ({
 	value: cfg.code,
 	name: cfg.name,
@@ -116,36 +109,11 @@ export default function AreaListPage() {
 	const navigate = useNavigate();
 	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 
-	const [searchParams, setSearchParams] = useSearchParams();
-	const viewParam = searchParams.get("view");
-	const [activeView, setActiveView] = useState(viewParam === "map" ? "map" : "list");
+	// Split-View: Danh sách bên trái + Bản đồ khuôn viên bên phải
+	const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
 	const [isCreatingOnMap, setIsCreatingOnMap] = useState(false);
 
-	useEffect(() => {
-		if (viewParam === "map" && activeView !== "map") {
-			setActiveView("map");
-		} else if (!viewParam && activeView !== "list") {
-			setActiveView("list");
-		}
-	}, [viewParam, activeView]);
-
-	const handleViewChange = (newView) => {
-		setActiveView(newView);
-		setSearchParams((prev) => {
-			const next = new URLSearchParams(prev);
-			if (newView === "map") {
-				next.set("view", "map");
-			} else {
-				next.delete("view");
-			}
-			return next;
-		});
-	};
-
 	const handleStartCreateOnMap = () => {
-		if (activeView !== "map") {
-			handleViewChange("map");
-		}
 		setIsCreatingOnMap(true);
 	};
 
@@ -515,34 +483,6 @@ export default function AreaListPage() {
 				block: "nearest",
 			});
 		}
-	};
-
-	// Modal Handlers
-	const handleOpenCreateModal = () => {
-		const currentB =
-			selectedBuilding || availableBuildings[0]?.name || "Tòa Alpha";
-		const bObj = availableBuildings.find((b) => b.name === currentB);
-		const floorsForB = bObj?.floors || [];
-		const currentF =
-			selectedFloor && selectedFloor !== "ALL"
-				? selectedFloor
-				: floorsForB[0]?.name || "Tầng Trệt";
-		const currentFloorId =
-			floorsForB.find((f) => f.name === currentF)?.id || null;
-
-		setFormData({
-			name: "",
-			areaLevel: "PUBLIC",
-			building: currentB,
-			floor: currentF,
-			floorId: currentFloorId,
-			centerLatitude: "",
-			centerLongitude: "",
-			reason: "",
-		});
-		setModalError(null);
-		setNameError(null);
-		setCreateModalOpen(true);
 	};
 
 	// Lỗi khoảng giá trị của từng ô; BR-AR-COORD-02 (chỉ nhập một ô) hiện dưới ô đang trống
@@ -929,64 +869,11 @@ export default function AreaListPage() {
 				{/* Add Area Button Group */}
 				<div className="zone-toolbar__actions">
 					{isAdmin && (
-						<div
-							className="zone-view-toggle"
-							role="group"
-							aria-label="Chế độ hiển thị"
-						>
-							<button
-								type="button"
-								className={`zone-view-toggle__btn ${activeView === "list" ? "zone-view-toggle__btn--active" : ""}`}
-								onClick={() => handleViewChange("list")}
-								title="Xem dạng danh sách"
-							>
-								<Layers size={15} />
-								<span>Danh sách</span>
-							</button>
-							<button
-								type="button"
-								className={`zone-view-toggle__btn ${activeView === "map" ? "zone-view-toggle__btn--active" : ""}`}
-								onClick={() => handleViewChange("map")}
-								title="Xem trên bản đồ an ninh"
-							>
-								<Compass size={15} />
-								<span>Bản đồ</span>
-							</button>
-						</div>
-					)}
-
-					{isAdmin && activeView === "list" && (
-						<div
-							className="zone-view-toggle"
-							role="group"
-							aria-label="Lọc trạng thái khu vực"
-						>
-							<button
-								type="button"
-								className={`zone-view-toggle__btn ${!showDeactivated ? "zone-view-toggle__btn--active" : ""}`}
-								onClick={() => setShowDeactivated(false)}
-								title="Khu vực đang hoạt động"
-							>
-								<Layers size={15} />
-								<span>Đang hoạt động</span>
-							</button>
-							<button
-								type="button"
-								className={`zone-view-toggle__btn ${showDeactivated ? "zone-view-toggle__btn--active" : ""}`}
-								onClick={() => setShowDeactivated(true)}
-								title="Khu vực đã vô hiệu hóa"
-							>
-								<Archive size={15} />
-								<span>Đã vô hiệu hóa</span>
-							</button>
-						</div>
-					)}
-
-					{isAdmin && (
 						<button
 							type="button"
 							className="zone-toolbar__add-btn"
 							onClick={handleStartCreateOnMap}
+							title="Thêm vùng mới (chọn tọa độ trên bản đồ)"
 						>
 							<Plus
 								size={16}
@@ -998,148 +885,70 @@ export default function AreaListPage() {
 				</div>
 			</div>
 
-			{/* MAIN CONTENT: MAP VIEW OR LIST VIEW */}
-			{activeView === "map" ? (
-				<ErrorBoundary>
-					<CampusMapView
-						areas={floorAreas}
-						selectedAreaId={selectedAreaId}
-						cameraCounts={cameraCounts}
-						isAdmin={isAdmin}
-						isFacilityManager={isFacilityManager}
-						onSelectArea={(id) => handleSelectArea(id, false)}
-						onAreaUpdated={handleAreaUpdatedOnMap}
-						buildingsList={availableBuildings}
-						selectedBuilding={selectedBuilding}
-						selectedFloor={selectedFloor}
-						isCreatingArea={isCreatingOnMap}
-						onCancelCreateArea={() => setIsCreatingOnMap(false)}
-						onAreaCreated={async (newArea) => {
-							setIsCreatingOnMap(false);
-							await fetchData(newArea.id);
-						}}
-					/>
-				</ErrorBoundary>
-			) : (
-				<>
-			{/* Loading state */}
-			{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
+			{/* MAIN CONTENT: SPLIT-VIEW (MAP + AREA LIST) FOR BOTH ADMIN & FM */}
+			<div className={`zone-split-layout ${isLeftSidebarCollapsed ? "zone-split-layout--sidebar-collapsed" : ""}`}>
+				<aside className={`zone-split-sidebar ${isLeftSidebarCollapsed ? "zone-split-sidebar--collapsed" : ""}`}>
+					{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
 
-			{/* Lỗi tải danh sách: hiện lỗi + Thử lại, không hiện như danh sách rỗng */}
-			{!loading && pageError && !showDeactivated && (
-				<ErrorState
-					message={pageError}
-					onRetry={() => fetchData(selectedAreaId)}
-				/>
-			)}
-
-			{/* ============================================================ */}
-			{/* 2. MAIN CONTENT (LIST VIEW)                                 */}
-			{/* ============================================================ */}
-			{/* Step 6 (BR-AD-07): danh sách khu vực đã vô hiệu hóa + khôi phục — chỉ ADMIN */}
-			{isAdmin && showDeactivated && (
-				<section
-					className="zone-deactivated"
-					aria-label="Khu vực đã vô hiệu hóa"
-				>
-					<div className="zone-deactivated__header">
-						<div>
-							<h2 className="zone-deactivated__title">
-								Khu vực đã vô hiệu hóa
-							</h2>
-							<p className="zone-deactivated__subtitle">
-								Khôi phục chỉ mở lại khu vực. Nhân sự chỉ định, đơn truy cập,
-								lượt khách và camera đã gỡ không tự hồi phục.
-							</p>
-						</div>
-						<span className="zone-deactivated__count">
-							{deactivatedAreas.length} khu vực
-						</span>
-					</div>
-
-					{deactivatedLoading && (
-						<LoadingState
-							size="sm"
-							text="Đang tải khu vực đã vô hiệu hóa..."
-						/>
-					)}
-					{!deactivatedLoading && deactivatedError && (
+					{!loading && pageError && (
 						<ErrorState
-							size="sm"
-							message={deactivatedError}
-							onRetry={fetchDeactivatedAreas}
+							message={pageError}
+							onRetry={() => fetchData(selectedAreaId)}
 						/>
 					)}
-					{!deactivatedLoading &&
-						!deactivatedError &&
-						deactivatedAreas.length === 0 && (
-							<EmptyState
-								size="sm"
-								title="Không có khu vực nào đã vô hiệu hóa"
-							/>
-						)}
-					{!deactivatedLoading &&
-						!deactivatedError &&
-						deactivatedAreas.length > 0 && (
-							<div className="zone-deactivated__table-wrap">
-							<table className="zone-deactivated__table">
-								<thead>
-									<tr>
-										<th>Tên khu vực</th>
-										<th>Tòa nhà / Tầng</th>
-										<th>Loại</th>
-										<th aria-label="Thao tác" />
-									</tr>
-								</thead>
-								<tbody>
-									{deactivatedAreas.map((a) => (
-										<tr key={a.id}>
-											<td className="zone-deactivated__name">{a.name}</td>
-											<td>
-												{formatLocation(a.building, a.floor) || "—"}
-											</td>
-											<td>
-												{getLevelConfig(a.areaLevel).name}
-											</td>
-											<td className="zone-deactivated__actions">
-												<button
-													type="button"
-													className="area-btn-modal area-btn-modal--cancel zone-deactivated__restore-btn"
-													onClick={() => openRestoreModal(a)}
-												>
-													<RotateCcw size={14} />
-													<span>Khôi phục</span>
-												</button>
-											</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
-							</div>
-						)}
+
+					{!loading && !pageError && (
+						<AreaListView
+							floorAreas={floorAreas}
+							selectedFloor={selectedFloor}
+							selectedBuilding={selectedBuilding}
+							selectedAreaId={selectedAreaId}
+							cameraCounts={cameraCounts}
+							isAdmin={isAdmin}
+							isFacilityManager={isFacilityManager}
+							onSelectArea={(id) => handleSelectArea(id, false)}
+							onOpenCreateModal={handleStartCreateOnMap}
+							onOpenCamerasModal={handleOpenCamerasModal}
+							onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
+							onOpenEditModal={handleOpenEditModal}
+							onOpenDeactivateModal={handleOpenDeactivateModal}
+							showDeactivated={showDeactivated}
+							onToggleShowDeactivated={setShowDeactivated}
+							deactivatedAreas={deactivatedAreas}
+							deactivatedLoading={deactivatedLoading}
+							deactivatedError={deactivatedError}
+							onFetchDeactivated={fetchDeactivatedAreas}
+							onOpenRestoreModal={openRestoreModal}
+						/>
+					)}
+				</aside>
+
+				<section className="zone-split-map">
+					<ErrorBoundary>
+						<CampusMapView
+							areas={floorAreas}
+							selectedAreaId={selectedAreaId}
+							cameraCounts={cameraCounts}
+							isAdmin={isAdmin}
+							isFacilityManager={isFacilityManager}
+							onSelectArea={(id) => handleSelectArea(id, false)}
+							onAreaUpdated={handleAreaUpdatedOnMap}
+							buildingsList={availableBuildings}
+							selectedBuilding={selectedBuilding}
+							selectedFloor={selectedFloor}
+							isCreatingArea={isAdmin ? isCreatingOnMap : false}
+							onCancelCreateArea={() => setIsCreatingOnMap(false)}
+							onAreaCreated={async (newArea) => {
+								setIsCreatingOnMap(false);
+								await fetchData(newArea.id);
+							}}
+							hideRail={true}
+							isLeftSidebarCollapsed={isLeftSidebarCollapsed}
+							onToggleLeftSidebar={() => setIsLeftSidebarCollapsed((prev) => !prev)}
+						/>
+					</ErrorBoundary>
 				</section>
-			)}
-
-			{!loading && !pageError && !showDeactivated && (
-				<AreaListView
-					floorAreas={floorAreas}
-					selectedFloor={selectedFloor}
-					selectedBuilding={selectedBuilding}
-					selectedAreaId={selectedAreaId}
-					cameraCounts={cameraCounts}
-					isAdmin={isAdmin}
-					isFacilityManager={isFacilityManager}
-					onSelectArea={(id) => handleSelectArea(id, false)}
-					onOpenCreateModal={handleOpenCreateModal}
-					onOpenCamerasModal={handleOpenCamerasModal}
-					onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
-					onOpenEditModal={handleOpenEditModal}
-					onOpenDeactivateModal={handleOpenDeactivateModal}
-				/>
-			)}
-
-				</>
-			)}
+			</div>
 
 			{/* ============================================================ */}
 			{/* 4. MODALS (CREATE, EDIT, DEACTIVATE)                         */}
@@ -1359,7 +1168,6 @@ export default function AreaListPage() {
 										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
 									</div>
 								</div>
-								<div className="area-form-hint">Để trống cả hai nếu chưa xác định vị trí — khu vực sẽ ở trạng thái "Chưa định vị" và không hiện trên bản đồ.</div>
 							</div>
 
 							{/* 4. Phần chân: 2 nút chia đôi chiều rộng, gap 9px */}
@@ -1623,7 +1431,6 @@ export default function AreaListPage() {
 										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
 									</div>
 								</div>
-								<div className="area-form-hint">Để trống cả hai nếu chưa xác định vị trí — khu vực sẽ ở trạng thái "Chưa định vị" và không hiện trên bản đồ.</div>
 							</div>
 
 							<div className="area-modal__footer">

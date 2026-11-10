@@ -1,5 +1,8 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.ImportBatchAuditSnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccountAuditSnapshot;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.config.WebSocketSessionRegistry;
 import com.fa26se040.icss.dto.BulkImportResponse;
 import com.fa26se040.icss.dto.FaceDataResponseDto;
@@ -23,7 +26,6 @@ import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -37,17 +39,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -96,48 +92,8 @@ public class UserService {
     // KI-1: vô hiệu hoá / xoá tài khoản -> đóng phiên WebSocket đang mở của người đó (sau commit)
     private final WebSocketSessionRegistry webSocketSessionRegistry;
 
-    @org.springframework.beans.factory.annotation.Autowired(required = false)
-    private EdgeMqttControlService edgeMqttControlService;
-
-    @Value("${ai.service.url:http://localhost:8000}")
-    private String aiServiceUrl = "http://localhost:8000";
-
-    @Value("${icss.internal.service-key:}")
-    private String internalServiceKey;
-
-    // Cho phép mock/override HTTP caller trong unit test
-    private java.util.function.Consumer<String> refreshHttpCaller = url -> {
-        try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofMillis(1000))
-                    .build();
-            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder();
-            if (internalServiceKey != null && !internalServiceKey.isBlank()) {
-                reqBuilder.header("X-Service-Key", internalServiceKey);
-            }
-            HttpRequest request = reqBuilder
-                    .uri(URI.create(url))
-                    .POST(HttpRequest.BodyPublishers.noBody())
-                    .timeout(Duration.ofMillis(2000))
-                    .build();
-            client.send(request, HttpResponse.BodyHandlers.discarding());
-            log.info("Notified AI Service to refresh face cache via {}", url);
-        } catch (Exception e) {
-            log.warn("Could not notify AI Service to refresh face cache: {}", e.getMessage());
-        }
-    };
-
-    void setAiServiceUrl(String aiServiceUrl) {
-        this.aiServiceUrl = aiServiceUrl;
-    }
-
-    void setInternalServiceKey(String internalServiceKey) {
-        this.internalServiceKey = internalServiceKey;
-    }
-
-    void setRefreshHttpCaller(java.util.function.Consumer<String> refreshHttpCaller) {
-        this.refreshHttpCaller = refreshHttpCaller;
-    }
+    // Báo AI Service làm mới kho khuôn mặt sau commit (dùng chung với luồng khách)
+    private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
@@ -197,6 +153,10 @@ public class UserService {
             User savedUser = userRepository.save(user);
             // S4: khuôn mặt được đăng ký trước khi có User nên face_data.user_id còn trống -> gắn ngay (cùng transaction)
             faceDataService.linkToUser(normUserCode, savedUser);
+
+            // PR-AUDIT (B3): CREATE / USER_ACCOUNT cùng transaction — lỗi ghi audit -> tài khoản không được tạo
+            recordAccountAudit(com.fa26se040.icss.enums.AuditAction.CREATE, savedUser, null, accountSnapshot(savedUser),
+                    currentActor());
 
             // 6b. Gửi email thông tin tài khoản và mật khẩu khởi tạo — M-04a: chỉ sau khi transaction commit
             sendAccountSetupEmailAfterCommit(savedUser.getEmail(), savedUser.getFullName(), savedUser.getUserCode(), tempPassword);
@@ -289,17 +249,26 @@ public class UserService {
 
         boolean deactivating = Boolean.TRUE.equals(user.getIsActive());
         User actor = deactivating ? resolveAdminActor(currentAdminEmail) : null;
+        UserAccountAuditSnapshot before = accountSnapshot(user);
         OffsetDateTime now = OffsetDateTime.now();
         user.setIsActive(!user.getIsActive());
         user.setUpdatedAt(now);
         User updatedUser = userRepository.save(user);
 
         // BR-RQ-SP-05 + BR-AP-24: chỉ chiều vô hiệu hoá huỷ đơn và thu hồi AP; kích hoạt lại KHÔNG khôi phục gì
+        // PR-AUDIT (B3): DEACTIVATE / REACTIVATE + hệ quả, chung correlation với các audit huỷ đơn / thu hồi AP
         if (deactivating) {
+            int sessionsToClose = openSessionCount(userId);
             withActionCorrelation(() -> {
-                accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
-                assignedPersonnelService.revokeAllOfUser(userId, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DEACTIVATED, now);
+                int cancelled = accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+                int revoked = assignedPersonnelService.revokeAllOfUser(userId, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DEACTIVATED, now);
+                recordAccountAudit(com.fa26se040.icss.enums.AuditAction.DEACTIVATE, updatedUser, before,
+                        accountSnapshot(updatedUser).withEffects(cancelled, revoked, sessionsToClose), AuditActor.user(actor));
             });
+        } else {
+            AuditActor reactivatedBy = actorByEmail(currentAdminEmail);
+            withActionCorrelation(() -> recordAccountAudit(com.fa26se040.icss.enums.AuditAction.REACTIVATE, updatedUser, before,
+                    accountSnapshot(updatedUser), reactivatedBy));
         }
 
         log.info("Toggled active state for user {}: now {}", userId, updatedUser.getIsActive());
@@ -323,6 +292,8 @@ public class UserService {
         }
 
         User actor = resolveAdminActor(currentAdminEmail);
+        UserAccountAuditSnapshot before = accountSnapshot(user);
+        int sessionsToClose = openSessionCount(userId);
         OffsetDateTime now = OffsetDateTime.now();
         user.setDeletedAt(now);
         user.setIsActive(false);
@@ -330,14 +301,57 @@ public class UserService {
         userRepository.save(user);
 
         // BR-RQ-SP-05 + BR-AP-25: xoá tài khoản -> huỷ đơn người đó đứng tên và thu hồi AP (cùng transaction)
+        // PR-AUDIT (B3): DELETE / USER_ACCOUNT + hệ quả, chung correlation
         withActionCorrelation(() -> {
-            accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
-            assignedPersonnelService.revokeAllOfUser(userId, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DELETED, now);
+            int cancelled = accessRequestService.cancelActiveRequestsOfRequester(userId, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
+            int revoked = assignedPersonnelService.revokeAllOfUser(userId, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DELETED, now);
+            recordAccountAudit(com.fa26se040.icss.enums.AuditAction.DELETE, user, before,
+                    accountSnapshot(user).withEffects(cancelled, revoked, sessionsToClose), AuditActor.user(actor));
         });
 
         log.info("Soft-deleted user {}", userId);
         notifyAiServiceRefreshCache();
         closeWebSocketSessionsAfterCommit(List.of(userId));
+    }
+
+    // ------------------------------------------------------------------ PR-AUDIT helpers
+
+    private UserAccountAuditSnapshot accountSnapshot(User u) {
+        return UserAccountAuditSnapshot.of(u.getUserCode(), u.getRole() != null ? u.getRole().name() : null,
+                u.getAccessLevel(), u.getIsActive(), u.getDeletedAt() != null, faceDataService.hasFaceData(u.getUserCode()));
+    }
+
+    /** Số phiên WebSocket đang mở của user (sẽ bị đóng sau commit, KI-1). */
+    private int openSessionCount(UUID userId) {
+        Set<String> sessions = webSocketSessionRegistry.sessionIdsOf(userId);
+        return sessions != null ? sessions.size() : 0;
+    }
+
+    private AuditActor currentActor() {
+        return auditService.resolveCurrentActor("ACCOUNT_SERVICE");
+    }
+
+    /** e-mail có tài khoản -> actor USER; không có -> người đăng nhập hiện hành hoặc SYSTEM. */
+    private AuditActor actorByEmail(String email) {
+        if (email != null) {
+            User u = userRepository.findByEmail(email).orElse(null);
+            if (u != null) {
+                return AuditActor.user(u);
+            }
+        }
+        return currentActor();
+    }
+
+    private void recordAccountAudit(com.fa26se040.icss.enums.AuditAction action, User subject,
+                                    UserAccountAuditSnapshot before, UserAccountAuditSnapshot after, AuditActor actor) {
+        auditService.record(com.fa26se040.icss.enums.AuditTargetType.USER_ACCOUNT, action, subject.getId().toString(),
+                null, subject, before, after, null, actor);
+    }
+
+    private void recordBatchAudit(com.fa26se040.icss.enums.AuditAction action, UUID batchId,
+                                  ImportBatchAuditSnapshot after, AuditActor actor) {
+        auditService.record(com.fa26se040.icss.enums.AuditTargetType.USER_IMPORT_BATCH, action, batchId.toString(),
+                null, null, null, after, null, actor);
     }
 
     /** BR-AP-24/25: ADMIN đang thao tác, ghi vào revoked_by và audit USER (chk_audit_actor cần changed_by). */
@@ -371,32 +385,8 @@ public class UserService {
      * Thông báo cho AI Service làm mới cache khuôn mặt và quyền truy cập sau khi giao dịch DB đã commit thành công.
      */
     void notifyAiServiceRefreshCache() {
-        Runnable task = () -> CompletableFuture.runAsync(() -> {
-            if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
-                edgeMqttControlService.publishFaceCacheEvent("REFRESH", null);
-                if (aiServiceUrl == null || aiServiceUrl.isBlank()) {
-                    return;
-                }
-            }
-            String baseUrl = (aiServiceUrl != null && !aiServiceUrl.isBlank()) ? aiServiceUrl.trim() : "http://localhost:8000";
-            if (baseUrl.endsWith("/")) {
-                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-            }
-            String targetUrl = baseUrl + "/api/v1/faces/refresh-cache";
-            if (refreshHttpCaller != null) {
-                refreshHttpCaller.accept(targetUrl);
-            }
-        });
-
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    task.run();
-                }
-            });
-        } else {
-            task.run();
+        if (aiFaceCacheRefreshNotifier != null) {
+            aiFaceCacheRefreshNotifier.notifyAfterCommit();
         }
     }
 
@@ -473,20 +463,28 @@ public class UserService {
         User actor = resolveAdminActor(currentAdminEmail);
         // BR-RQ-SP-05 + BR-AP-25: huỷ đơn và thu hồi AP của từng tài khoản sắp bị gỡ (lấy trước câu UPDATE hàng loạt),
         // cùng transaction. BR-AP-27: khoá từng dòng users theo thứ tự id (cùng thứ tự với khoá người tham gia đơn).
-        List<UUID> usersToDelete = userRepository.findByImportBatchIdOrderByUserCodeAsc(batchId).stream()
+        List<User> activeBatchUsers = userRepository.findByImportBatchIdOrderByUserCodeAsc(batchId).stream()
                 .filter(u -> u.getDeletedAt() == null)
+                .toList();
+        List<UUID> usersToDelete = activeBatchUsers.stream()
                 .map(User::getId)
                 .sorted(Comparator.comparing(UUID::toString))
                 .toList();
+        List<String> codesToDelete = activeBatchUsers.stream().map(User::getUserCode).toList();
         OffsetDateTime now = OffsetDateTime.now();
+        int[] deleted = new int[1];
         withActionCorrelation(() -> {
             for (UUID uid : usersToDelete) {
                 userRepository.lockRowById(uid);
                 accessRequestService.cancelActiveRequestsOfRequester(uid, AccessRequestService.REQUESTER_INACTIVE_CANCEL_REASON);
                 assignedPersonnelService.revokeAllOfUser(uid, actor, AreaAssignedPersonnelService.REVOKE_REASON_USER_DELETED, now);
             }
+            deleted[0] = userRepository.softDeleteByImportBatchId(batchId);
+            // PR-AUDIT (B3): DELETE / USER_IMPORT_BATCH + danh sách mã, chung correlation với các audit huỷ đơn / thu hồi AP
+            recordBatchAudit(com.fa26se040.icss.enums.AuditAction.DELETE, batchId,
+                    ImportBatchAuditSnapshot.deleted(deleted[0], codesToDelete), AuditActor.user(actor));
         });
-        int deletedCount = userRepository.softDeleteByImportBatchId(batchId);
+        int deletedCount = deleted[0];
         log.info("Soft-deleted import batch {}: {} users affected", batchId, deletedCount);
         if (deletedCount > 0) {
             notifyAiServiceRefreshCache();
@@ -497,6 +495,12 @@ public class UserService {
 
     @Transactional
     public BatchRestoreResponse restoreBatch(UUID batchId) {
+        return restoreBatch(batchId, null);
+    }
+
+    /** PR-AUDIT: actorEmail = ADMIN đang thao tác (ghi vào audit RESTORE); null -> người đăng nhập hiện hành / SYSTEM. */
+    @Transactional
+    public BatchRestoreResponse restoreBatch(UUID batchId, String actorEmail) {
         if (!userRepository.existsByImportBatchId(batchId)) {
             throw new ResourceNotFoundException("Không tìm thấy lô import với mã: " + batchId);
         }
@@ -507,6 +511,7 @@ public class UserService {
         }
 
         Set<String> restoredCodes = new HashSet<>();
+        List<String> restoredUserCodes = new ArrayList<>();
         Set<String> restoredEmails = new HashSet<>();
         List<BatchRestoreSkippedUser> skippedUsers = new ArrayList<>();
         int restoredCount = 0;
@@ -553,9 +558,16 @@ public class UserService {
             userRepository.save(u);
 
             restoredCodes.add(normCode);
+            restoredUserCodes.add(u.getUserCode());
             restoredEmails.add(normEmail);
             restoredCount++;
         }
+
+        // PR-AUDIT (B3): RESTORE / USER_IMPORT_BATCH — số khôi phục, số bỏ qua, mã đã khôi phục
+        int restoredTotal = restoredCount;
+        AuditActor restoredBy = actorByEmail(actorEmail);
+        withActionCorrelation(() -> recordBatchAudit(com.fa26se040.icss.enums.AuditAction.RESTORE, batchId,
+                ImportBatchAuditSnapshot.restored(restoredTotal, skippedUsers.size(), restoredUserCodes), restoredBy));
 
         log.info("Restored import batch {}: {} restored, {} skipped", batchId, restoredCount, skippedUsers.size());
         if (restoredCount > 0) {

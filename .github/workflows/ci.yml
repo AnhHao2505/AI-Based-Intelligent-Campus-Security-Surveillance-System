@@ -89,3 +89,25 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+
+  mobile-test:
+    name: mobile-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          # Cùng bản Flutter với máy dev (flutter --version).
+          flutter-version: "3.44.6"
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter test

@@ -20,7 +20,11 @@ public enum AssignedPersonnelErrorCode {
     // BR-AP-30: chỉ thu hồi AP đang hiệu lực / sắp hiệu lực; AP đã hết hạn thì cấp tiếp bằng một đợt gán mới
     ERR_AP_012("ERR_AP_012", HttpStatus.CONFLICT, "Quyền đã hết hạn, không cần thu hồi. Muốn cấp tiếp, hãy gán đợt mới."),
     // BR-AP-28: validFrom không được ở quá khứ (cho phép lệch đồng hồ nhỏ)
-    ERR_AP_013("ERR_AP_013", HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu không được ở quá khứ");
+    ERR_AP_013("ERR_AP_013", HttpStatus.BAD_REQUEST, "Thời điểm bắt đầu không được ở quá khứ"),
+    // Ô "Hết giờ hành chính": bắt đầu (hoặc lúc cấp) đã qua giờ đóng cửa của ngày đó
+    ERR_AP_014("ERR_AP_014", HttpStatus.BAD_REQUEST, "Đã qua giờ đóng cửa của ngày bắt đầu nên không thể cấp quyền đến hết giờ hành chính. Hãy chọn thời điểm kết thúc cụ thể hoặc bắt đầu từ ngày khác"),
+    // Ô "Hết giờ hành chính" tự tính thời điểm kết thúc nên không nhận thêm validTo
+    ERR_AP_015("ERR_AP_015", HttpStatus.BAD_REQUEST, "Đã chọn \"Hết giờ hành chính\" thì không nhập thời điểm kết thúc");
 
     private final String code;
     private final HttpStatus httpStatus;

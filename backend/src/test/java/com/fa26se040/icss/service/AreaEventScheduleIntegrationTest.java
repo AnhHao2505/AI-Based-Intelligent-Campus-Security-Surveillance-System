@@ -224,6 +224,14 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .toList();
     }
 
+    /** Nhắc "lịch sắp diễn ra" gửi cho userId về đúng khu areaId (reference_id) — không đếm nhắc của lịch khu khác. */
+    private long countScheduleStartingOfArea(UUID userId, UUID areaId) {
+        return getNotificationsForUser(userId).stream()
+                .filter(n -> n.getType() == NotificationType.EVENT_MODE_SCHEDULE_STARTING)
+                .filter(n -> areaId.equals(n.getReferenceId()))
+                .count();
+    }
+
     /** Đếm audit của khu vực do chính test tạo — không đếm toàn bảng vì job xử lý cả lịch sót của test khác. */
     private long countAuditsOfArea(UUID areaId) {
         return auditLogRepository.count((root, query, cb) -> cb.equal(root.get("area").get("id"), areaId));
@@ -735,16 +743,14 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         AreaEventSchedule reloadedSchedule = eventScheduleRepository.findById(schedule.getId()).orElseThrow();
         assertNotNull(reloadedSchedule.getRemindedAt());
 
-        long countStarting = getNotificationsForUser(fmUser.getId()).stream()
-                .filter(n -> n.getType() == NotificationType.EVENT_MODE_SCHEDULE_STARTING)
-                .count();
+        // Chỉ đếm nhắc nhở thuộc khu của chính test (reference_id = khu): job xử lý cả lịch sót của test khác trên DB
+        // dùng chung, lịch có người tạo đã bị khoá thì nhắc mọi FM đang hoạt động, kể cả fmUser của test này.
+        long countStarting = countScheduleStartingOfArea(fmUser.getId(), internalArea.getId());
         assertEquals(1, countStarting);
 
         // 2. Chạy nhắc nhở lần 2 -> không gửi lại
         areaService.processScheduleReminders(now);
-        long countStarting2 = getNotificationsForUser(fmUser.getId()).stream()
-                .filter(n -> n.getType() == NotificationType.EVENT_MODE_SCHEDULE_STARTING)
-                .count();
+        long countStarting2 = countScheduleStartingOfArea(fmUser.getId(), internalArea.getId());
         assertEquals(1, countStarting2);
 
         // 3. Khi REMINDER_MINUTES = 0 -> không nhắc

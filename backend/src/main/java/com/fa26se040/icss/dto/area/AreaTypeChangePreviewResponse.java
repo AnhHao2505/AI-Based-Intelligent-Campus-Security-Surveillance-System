@@ -27,7 +27,10 @@ public record AreaTypeChangePreviewResponse(
         List<RequestItem> pendingRequestsToCancel,
         boolean eventActive,
         int pendingScheduleCount,
-        List<BlockingReason> blockingReasons
+        List<BlockingReason> blockingReasons,
+        // fix/type-change-guest-visits: số lượt khách PENDING sẽ bị huỷ / APPROVED sẽ bị thu hồi vì loại mới không nhận khách
+        int guestVisitsToCancelCount,
+        int guestVisitsToRevokeCount
 ) {
     /** Một đơn bị ảnh hưởng: người gửi + khung giờ. */
     public record RequestItem(

@@ -19,5 +19,11 @@ public enum AuditTargetType {
     // Phân phối sự cố (V90): luật severity, chính sách dispatch theo mức, danh mục vị trí trực
     INCIDENT_SEVERITY_RULE,
     INCIDENT_DISPATCH_POLICY,
-    DUTY_POST_TYPE
+    DUTY_POST_TYPE,
+    // PR-AUDIT (V112): tài khoản, lô import, đăng ký khuôn mặt, đăng nhập / đặt lại mật khẩu, cấu hình hệ thống
+    USER_ACCOUNT,
+    USER_IMPORT_BATCH,
+    FACE_REGISTRATION,
+    AUTH,
+    SYSTEM_CONFIG
 }

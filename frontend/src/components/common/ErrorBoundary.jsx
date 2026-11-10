@@ -54,7 +54,7 @@ export default class ErrorBoundary extends React.Component {
 						padding: "32px",
 						textAlign: "center",
 						background: "var(--theme-bg-surface, #ffffff)",
-						borderRadius: "12px",
+						borderRadius: "6px",
 						border: "1px solid var(--theme-border, #e2e8f0)",
 						margin: "20px auto",
 						maxWidth: "600px",
@@ -119,7 +119,7 @@ export default class ErrorBoundary extends React.Component {
 								color: "#ffffff",
 								background: "var(--theme-primary, #2563eb)",
 								border: "none",
-								borderRadius: "8px",
+								borderRadius: "4px",
 								cursor: "pointer",
 							}}
 						>

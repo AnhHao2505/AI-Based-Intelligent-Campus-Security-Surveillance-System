@@ -26,6 +26,17 @@ def parse_time_str(time_str: Optional[str]) -> Optional[Any]:
             continue
     return None
 
+# L4: mã lý do từ chối khách (GuestEntryDenyReason, backend trả ở denyReason) -> lý do ngắn trên cảnh báo
+GUEST_DENY_REASON_LABELS = {
+    "VISIT_NOT_ACTIVE": "Lượt khách không còn hiệu lực",
+    "OUTSIDE_WINDOW": "Ngoài giờ tiếp khách",
+    "AREA_NOT_IN_VISIT": "Khu vực không thuộc lượt khách",
+    "AREA_INACTIVE": "Khu vực tạm dừng hoạt động",
+    "AREA_TYPE_NOT_ALLOWED": "Loại khu vực không nhận khách",
+    "HOST_LOST_ACCESS": "Người tiếp đón mất quyền",
+    "BIOMETRIC_DELETED": "Dữ liệu khuôn mặt đã bị xoá",
+    "BIOMETRIC_NOT_READY": "Dữ liệu khuôn mặt chưa sẵn sàng",
+}
 
 class FrameAnalysisEngine:
     """
@@ -491,15 +502,17 @@ class FrameAnalysisEngine:
                     if access_source:
                         access_source = str(access_source).strip().upper()
 
-                    # Điểm 4, bước C: Rule ban đêm dựa trên trường `access_source` có cấu trúc từ Backend
+                    deny_reason_code = getattr(person.face_info, "access_deny_reason", None)
                     allowed_night_sources = getattr(settings, "NIGHT_ALLOWED_ACCESS_SOURCES", [
-                        "ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "INCIDENT_RESPONSE", "OPEN_EVENT", "GUEST_VISIT"
+                        "ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"
                     ])
 
                     is_night_authorized = False
                     if is_authorized:
                         if after_hours:
-                            if not access_source:
+                            if role == "GUARD":
+                                is_night_authorized = True
+                            elif not access_source:
                                 warn_key = f"{camera_code}:{matched_code}"
                                 last_warn = self._missing_source_warn_times.get(warn_key, 0.0)
                                 if (current_time - last_warn) >= 60.0:
@@ -556,7 +569,10 @@ class FrameAnalysisEngine:
                             else:
                                 event_type = "UNAUTHORIZED_PERSON"
                                 r_low = (clean_reason or "").lower()
-                                if not is_active:
+                                if deny_reason_code:
+                                    # L4: khách bị từ chối -> lý do theo mã backend trả
+                                    minimal_reason = GUEST_DENY_REASON_LABELS.get(deny_reason_code, "Không có quyền")
+                                elif not is_active:
                                     minimal_reason = "Tài khoản bị khóa"
                                 elif "backend không phản hồi" in r_low or "không thể kết nối" in r_low:
                                     minimal_reason = "Backend không phản hồi"

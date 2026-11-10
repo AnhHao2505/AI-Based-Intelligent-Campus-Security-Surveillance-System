@@ -49,6 +49,8 @@ public class GuestPhotoService {
     private final GuestBiometricService biometricService;
     private final GuestPhotoDeletionService photoDeletion;
     private final AuditService auditService;
+    // L3: gắn / gắn lại ảnh -> báo AI nạp lại kho khuôn mặt sau commit
+    private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
 
     /** Giới hạn kỹ thuật của ảnh đầu vào (property vận hành icss.guest.photo-max-kb), không phải tham số nghiệp vụ. */
     @Value("${icss.guest.photo-max-kb:2048}")
@@ -149,6 +151,7 @@ public class GuestPhotoService {
 
         auditService.record(AuditTargetType.GUEST, AuditAction.ATTACH_PHOTO, guest.getId().toString(), null, null,
                 before, GuestBiometricService.snapshot(guest, null), null, actor);
+        aiFaceCacheRefreshNotifier.notifyAfterCommit();
         return new GuestResponse(guest.getId(), guest.getFullName(), guest.getOrganization(), guest.getBiometricStatus(),
                 guest.getPhotoAttachedAt(), guest.getConsentNoticeVersion(), guest.getAnonymizedAt() != null);
     }

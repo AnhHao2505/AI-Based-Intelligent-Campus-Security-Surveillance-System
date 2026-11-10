@@ -187,9 +187,12 @@ public class GuestVisitReviewTest extends GuestTestSupport {
         GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, future(0), future(120), List.of(internalArea), "Khách có ảnh");
         Guest g = withPhoto(guestsOf(v.getId()).get(0), future(120).plusHours(24));
         String key = g.getPhotoObjectKey();
+        resetRefreshCalls();
         assertRejected(revoke(fm, v.getId(), 0L, null), 400, "ERR_GUEST_019");
+        assertTrue(refreshCallsInTransaction.isEmpty(), "L3: thu hồi bị từ chối -> không báo AI");
         MvcResult r = revoke(fm, v.getId(), 0L, REASON);
         assertEquals(200, status(r), r.getResponse().getContentAsString());
+        assertEquals(List.of(true), refreshCallsInTransaction, "L3: thu hồi -> báo AI làm mới kho khuôn mặt sau commit");
         GuestVisit after = visit(v.getId());
         assertEquals(GuestVisitStatus.REVOKED, after.getStatus());
         assertEquals(REASON, after.getRevokeReason());

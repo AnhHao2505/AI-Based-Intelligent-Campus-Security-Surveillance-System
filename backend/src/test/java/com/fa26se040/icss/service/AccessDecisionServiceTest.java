@@ -901,6 +901,7 @@ class AccessDecisionServiceTest {
         assertEquals(AccessSource.GUEST_VISIT, res.getSource());
         assertTrue(res.getFullName().contains("Khách Thăm Quan A"));
         assertTrue(res.getReason().contains("Khách tham quan hợp lệ"));
+        assertNull(res.getDenyReason(), "L4: khách được phép -> denyReason null");
     }
 
     @Test
@@ -925,6 +926,7 @@ class AccessDecisionServiceTest {
         assertEquals("CAM-01", res.getCameraCode());
         assertEquals(AccessSource.NONE, res.getSource());
         assertTrue(res.getReason().contains("không nằm trong danh sách tiếp đón"));
+        assertEquals("AREA_NOT_IN_VISIT", res.getDenyReason(), "L4: khách bị từ chối -> denyReason = mã lý do");
     }
 
     @Test
@@ -960,6 +962,7 @@ class AccessDecisionServiceTest {
         var res = accessDecisionService.checkCameraEntry("CAM-01", student.getUserCode(), at(9), "Vùng 1", "EXIT", 10.0);
         assertFalse(res.isAllowed(), "Người dùng không có thẩm quyền ra khỏi khu vực phải có allowed=false");
         assertTrue(res.getReason().contains("(Không có thẩm quyền)"));
+        assertNull(res.getDenyReason(), "L4: nhánh người dùng nội bộ không gán denyReason");
     }
 
     @Test
@@ -998,6 +1001,7 @@ class AccessDecisionServiceTest {
         assertEquals(AccessSource.NONE, res.getSource());
         assertTrue(res.getReason().contains("Khách rời khu vực"));
         assertTrue(res.getReason().contains("(Không có thẩm quyền)"));
+        assertEquals("OUTSIDE_WINDOW", res.getDenyReason(), "L4: nhánh EXIT của khách cũng gán denyReason");
     }
 
     @Test

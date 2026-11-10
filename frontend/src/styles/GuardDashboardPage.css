@@ -63,7 +63,7 @@
 .guard-dashboard-container.soc-theater-mode .camera-control-bar {
   flex-shrink: 0;
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   background: rgba(11, 15, 25, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
@@ -98,7 +98,7 @@
   background: #000000;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
+  border-radius: 3px;
 }
 
 /* Bố cục 1 Camera: Tự động khóa chiều cao để chiều rộng 16:9 không làm mất thanh dưới OSD */
@@ -132,7 +132,7 @@
   border: 1px solid rgba(56, 189, 248, 0.5);
   color: #38bdf8;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: 3px;
   font-size: 0.74rem;
   font-weight: 700;
   cursor: pointer;
@@ -164,7 +164,7 @@
   border: 1px solid rgba(245, 158, 11, 0.5);
   color: #fbbf24;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
@@ -202,7 +202,7 @@
   border: 1px solid rgba(56, 189, 248, 0.4);
   color: #e0f2fe;
   padding: 8px 14px;
-  border-radius: 10px;
+  border-radius: 5px;
   font-size: 0.82rem;
   font-weight: 600;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.2);
@@ -238,7 +238,7 @@
   padding: 10px 16px;
   background: var(--theme-bg-surface, #ffffff);
   border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: var(--theme-card-shadow);
   flex-wrap: wrap;
 }
@@ -267,7 +267,7 @@
   font-size: 0.7rem;
   font-weight: 800;
   padding: 3px 8px;
-  border-radius: 20px;
+  border-radius: 10px;
   letter-spacing: 0.6px;
 }
 
@@ -305,7 +305,7 @@
   border: 1px solid var(--theme-primary-border, #bfdbfe);
   color: var(--theme-primary, #2563eb);
   padding: 5px 11px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.775rem;
   font-weight: 700;
   cursor: pointer;
@@ -326,7 +326,7 @@
   border: 1px solid var(--theme-border, #e2e8f0);
   color: var(--theme-text-secondary, #475569);
   padding: 5px 11px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.775rem;
   font-weight: 700;
   cursor: pointer;
@@ -358,7 +358,7 @@
   border: 1px solid var(--theme-border, #e2e8f0);
   color: var(--theme-text-secondary, #475569);
   padding: 5px 11px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.775rem;
   font-weight: 700;
   cursor: pointer;
@@ -393,7 +393,7 @@
   border: 1px solid var(--theme-warning-border, #fcd34d);
   color: var(--theme-warning-text, #92400e);
   padding: 5px 10px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
@@ -413,7 +413,7 @@
   border: 1px solid var(--theme-danger-border, #fca5a5);
   color: var(--theme-danger-text, #991b1b);
   padding: 5px 10px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
@@ -462,7 +462,7 @@
   padding: 5px 10px;
   background: var(--theme-bg-surface, #ffffff);
   border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 8px;
+  border-radius: 4px;
   flex-wrap: wrap;
 }
 
@@ -491,13 +491,13 @@
   padding: 2px;
   background: var(--theme-bg-page, #f8fafc);
   border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 6px;
+  border-radius: 3px;
 }
 
 .camera-layout-option {
   padding: 3px 7px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
   color: var(--theme-text-secondary, #475569);
   font-size: 0.725rem;
@@ -522,7 +522,7 @@
   align-items: center;
   gap: 4px;
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   background: var(--theme-bg-page, #f8fafc);
   border: 1px solid var(--theme-border, #e2e8f0);
   color: var(--theme-text-secondary, #475569);
@@ -562,7 +562,7 @@
 
 .camera-quick-switcher::-webkit-scrollbar-thumb {
   background: var(--theme-border, #cbd5e1);
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .switcher-loading {
@@ -578,7 +578,7 @@
   align-items: center;
   gap: 5px;
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   background: var(--theme-bg-page, #f8fafc);
   border: 1px solid var(--theme-border, #e2e8f0);
   color: var(--theme-text-secondary, #475569);
@@ -683,7 +683,7 @@
   font-size: 0.62rem;
   font-weight: 800;
   padding: 1px 4px;
-  border-radius: 6px;
+  border-radius: 3px;
 }
 
 .cam-chip-btn.flashing {
@@ -766,7 +766,7 @@
   min-height: 360px;
   background: var(--theme-bg-surface, #ffffff);
   border: 1px dashed var(--theme-border, #e2e8f0);
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--theme-text-muted, #64748b);
   gap: 8px;
   font-size: 0.825rem;
@@ -775,7 +775,7 @@
 /* Khung chứa Video Viewport */
 .video-viewport-card {
   position: relative;
-  border-radius: 8px;
+  border-radius: 4px;
   overflow: hidden;
   background: #000000;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -878,7 +878,7 @@
   z-index: 25;
   color: #ffffff;
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-size: 0.74rem;
   font-weight: 800;
   display: flex;
@@ -941,7 +941,7 @@
   flex-direction: column;
   background: var(--theme-bg-surface, #ffffff);
   border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: var(--theme-card-shadow);
   height: calc(100vh - 100px);
   max-height: 820px;
@@ -978,7 +978,7 @@
   font-size: 0.78rem;
   font-weight: 800;
   padding: 2px 8px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--theme-bg-page, #f8fafc);
   border: 1px solid var(--theme-border, #e2e8f0);
   color: var(--theme-text-muted, #64748b);
@@ -1008,7 +1008,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
@@ -1037,7 +1037,7 @@
   font-size: 0.72rem;
   font-weight: 600;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
@@ -1059,7 +1059,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .soc-btn-clear:hover {
@@ -1137,7 +1137,7 @@
 .soc-incident-card {
   background: var(--theme-bg-page, #f8fafc);
   border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -1251,7 +1251,7 @@
   border: 1px solid var(--theme-primary-border, #bfdbfe);
   color: var(--theme-primary, #2563eb);
   padding: 4px 8px;
-  border-radius: 5px;
+  border-radius: 2.5px;
   font-size: 0.725rem;
   font-weight: 700;
   cursor: pointer;
@@ -1271,7 +1271,7 @@
   border: 1px solid var(--theme-primary-border, #bfdbfe);
   color: var(--theme-primary, #2563eb);
   padding: 4px 8px;
-  border-radius: 5px;
+  border-radius: 2.5px;
   font-size: 0.725rem;
   font-weight: 700;
   cursor: pointer;
@@ -1291,7 +1291,7 @@
   border: 1px solid rgba(148, 163, 184, 0.25);
   color: var(--theme-text-muted, #64748b);
   padding: 3px 7px;
-  border-radius: 5px;
+  border-radius: 2.5px;
   font-size: 0.7rem;
   font-weight: 600;
 }
@@ -1418,7 +1418,7 @@
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: var(--theme-danger, #ef4444);
   padding: 4px 8px;
-  border-radius: 5px;
+  border-radius: 2.5px;
   font-size: 0.725rem;
   font-weight: 700;
   cursor: pointer;
@@ -1447,7 +1447,7 @@
 .soc-evidence-modal-content {
   background: var(--theme-bg-surface-elevated, #ffffff);
   border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 12px;
+  border-radius: 6px;
   width: 100%;
   max-width: 760px;
   max-height: 90vh;
@@ -1487,7 +1487,7 @@
   color: var(--theme-text-muted, #64748b);
   cursor: pointer;
   padding: 4px;
-  border-radius: 6px;
+  border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1509,7 +1509,7 @@
 
 .soc-evidence-image-container {
   background: #090d16;
-  border-radius: 8px;
+  border-radius: 4px;
   overflow: hidden;
   border: 1px solid #1e293b;
   display: flex;
@@ -1546,7 +1546,7 @@
 .soc-evidence-meta-panel {
   background: var(--theme-bg-page, #f8fafc);
   border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
@@ -1586,7 +1586,7 @@
   border: 1px solid var(--theme-border, #cbd5e1);
   color: var(--theme-text-secondary, #334155);
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: 3px;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -1613,7 +1613,7 @@
   align-items: center;
   gap: 5px;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: 2px;
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid rgba(239, 68, 68, 0.4);
   color: #ef4444;

@@ -22,25 +22,72 @@
   margin-left: 76px;
 }
 
-/* Ensure top-level page containers inside app layout remain transparent to showcase background wave */
+/* Ensure top-level page containers inside app layout remain transparent to showcase ambient background */
 .app-layout__content > div,
+.canva-page-transition,
+.canva-page-transition > div,
+.account-page,
+.zone-page,
+.area-dashboard,
+.area-camera-container,
 .dashboard-page,
 .area-page-container,
 .manage-account-page,
 .guard-dashboard,
 .camera-page,
 .camera-page-container,
+.camera-list-page,
+.camera-detail-page,
 .audit-page-container,
+.audit-log-page,
 .user-access-level-page,
+.access-level-page,
 .event-management-page,
 .access-request-page,
-.guard-schedule-page {
+.guard-schedule-page,
+.recording-page,
+.notifications-page {
   background-color: transparent !important;
+}
+
+/* ==========================================================================
+   Canva-Style Presentation Transitions
+   Fluid float, cross-fade, and scale-glide across every route and page
+   (No persistent transform/filter/will-change so fixed modals always center on viewport)
+   ========================================================================== */
+.canva-page-transition {
+  width: 100%;
+  min-height: 100%;
+  animation: canvaPresentationSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes canvaPresentationSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.994);
+    filter: blur(2px);
+  }
+  65% {
+    filter: none;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
 }
 
 @media (max-width: 768px) {
   .app-layout__content {
     margin-left: 72px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canva-page-transition {
+    animation: none !important;
+    transform: none !important;
+    filter: none !important;
   }
 }
 

@@ -1,12 +1,16 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.BulkImportRowResult;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccountAuditSnapshot;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -41,6 +45,10 @@ public class UserBulkImportHelper {
     private final MinioStorageService minioStorageService;
     private final NotificationService notificationService;
     private final UserAccessLevelHelper userAccessLevelHelper;
+
+    /** PR-AUDIT: field injection để giữ constructor; null thì không ghi audit. */
+    @Autowired(required = false)
+    private AuditService auditService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public BulkImportRowResult processSingleRow(
@@ -130,6 +138,14 @@ public class UserBulkImportHelper {
             );
 
             faceDataService.registerFace(userCode, imageMultipart);
+
+            // PR-AUDIT (B3): CREATE / USER_ACCOUNT trong transaction riêng của dòng (correlation = importBatchId do
+            // UserBulkImportService đặt). Dòng lỗi rollback -> không có audit tài khoản (đã nằm trong số liệu của lô).
+            if (auditService != null) {
+                auditService.record(AuditTargetType.USER_ACCOUNT, AuditAction.CREATE, user.getId().toString(), null, user,
+                        null, UserAccountAuditSnapshot.of(user.getUserCode(), effectiveRole.name(), defaultAccessLevel,
+                                true, false, true), null, auditService.resolveCurrentActor("USER_BULK_IMPORT"));
+            }
 
             // 6c. Gửi email chứa mật khẩu — M-04a: sau khi transaction REQUIRES_NEW của dòng này commit
             sendAccountSetupEmailAfterCommit(email, fullName, userCode, tempPassword);

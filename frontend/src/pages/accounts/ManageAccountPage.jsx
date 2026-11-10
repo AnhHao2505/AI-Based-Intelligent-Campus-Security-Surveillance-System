@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
 	Users,
 	UserPlus,
@@ -19,6 +20,7 @@ import {
 	FileText,
 	Layers,
 	Eye,
+	History,
 } from "lucide-react";
 import {
 	getUsers,
@@ -42,6 +44,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
 import { formatDateTime } from "../../utils/formatDateTime";
 import useDialogA11y from "../../hooks/useDialogA11y";
+import AccountAuditLogTab from "./AccountAuditLogTab";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -76,8 +79,19 @@ const validateCreateField = (field, rawValue, isNormal) => {
 export default function ManageAccountPage() {
 	const { user: currentUser } = useAuth();
 
-	// Tab State: 'NORMAL' (default) | 'SYSTEM'
-	const [activeTab, setActiveTab] = useState("NORMAL");
+	// Tab State: 'NORMAL' (default) | 'SYSTEM' | 'LOG' (PR-AUDIT: nhật ký, chỉ ADMIN)
+	// ?tab=LOG&group=SYSTEM_CONFIG: mở thẳng tab Nhật ký lọc nhóm (liên kết từ màn Cấu hình hệ thống)
+	const [searchParams] = useSearchParams();
+	const isAdmin = currentUser?.role === ROLES.ADMIN;
+	const [activeTab, setActiveTab] = useState(() =>
+		searchParams.get("tab") === "LOG" && currentUser?.role === ROLES.ADMIN ? "LOG" : "NORMAL",
+	);
+	const [logInitialGroups] = useState(() => {
+		const group = searchParams.get("group");
+		return group ? [group] : [];
+	});
+	// F3: tài khoản được chọn bằng nút "Xem nhật ký"
+	const [logSubjectUser, setLogSubjectUser] = useState(null);
 
 	// Count Summary for Tab Badges (Populated automatically by getUsers)
 	const [counts, setCounts] = useState({ normalCount: 0, systemCount: 0 });
@@ -370,11 +384,13 @@ export default function ManageAccountPage() {
 		setLoading(true);
 		setError(null);
 		try {
+			const isLogTab = activeTab === "LOG";
 			const params = {
-				keyword: debouncedKeyword,
-				accountType: activeTab,
-				page: currentPage,
-				size: DEFAULT_PAGE_SIZE,
+				keyword: isLogTab ? "" : debouncedKeyword,
+				// Tab Nhật ký không có danh sách tài khoản: chỉ lấy số đếm cho badge của 2 tab kia
+				accountType: isLogTab ? "NORMAL" : activeTab,
+				page: isLogTab ? 0 : currentPage,
+				size: isLogTab ? 1 : DEFAULT_PAGE_SIZE,
 				sort: "createdAt,desc",
 			};
 			if (activeTab === "NORMAL" && statusFilter !== "") {
@@ -384,7 +400,7 @@ export default function ManageAccountPage() {
 			const data = await getUsers(params);
 
 			const pageObj = data?.users || data;
-			setUsers(pageObj?.content || []);
+			setUsers(isLogTab ? [] : pageObj?.content || []);
 			setTotalElements(pageObj?.totalElements || 0);
 			setTotalPages(pageObj?.totalPages || 1);
 
@@ -409,6 +425,7 @@ export default function ManageAccountPage() {
 	// Tab switching handler
 	const handleTabChange = (tab) => {
 		if (tab === activeTab) return;
+		if (tab !== "LOG") setLogSubjectUser(null);
 		setActiveTab(tab);
 		setCurrentPage(0);
 		setStatusFilter("");
@@ -769,7 +786,29 @@ export default function ManageAccountPage() {
 						{counts.systemCount.toLocaleString("vi-VN")}
 					</span>
 				</button>
+
+				{isAdmin && (
+					<button
+						type="button"
+						className={`account-tab-btn ${activeTab === "LOG" ? "account-tab-btn--active" : ""}`}
+						onClick={() => handleTabChange("LOG")}
+					>
+						<History size={15} />
+						<span>Nhật ký</span>
+					</button>
+				)}
 			</nav>
+
+			{activeTab === "LOG" && (
+				<AccountAuditLogTab
+					subjectUser={logSubjectUser}
+					onClearSubjectUser={() => setLogSubjectUser(null)}
+					initialGroups={logInitialGroups}
+				/>
+			)}
+
+			{activeTab !== "LOG" && (
+			<>
 
 			{/* Search & Toolbar */}
 			<div className="account-toolbar">
@@ -1034,6 +1073,25 @@ export default function ManageAccountPage() {
 													>
 														<Trash2 size={15} />
 													</button>
+
+													{isAdmin && (
+														<button
+															type="button"
+															className="account-action-btn"
+															title="Xem nhật ký"
+															aria-label={`Xem nhật ký của ${item.userCode}`}
+															onClick={() => {
+																setLogSubjectUser({
+																	id: item.id,
+																	userCode: item.userCode,
+																	fullName: item.fullName,
+																});
+																setActiveTab("LOG");
+															}}
+														>
+															<History size={15} />
+														</button>
+													)}
 												</div>
 											</td>
 										</tr>
@@ -1091,6 +1149,8 @@ export default function ManageAccountPage() {
 					</div>
 				)}
 			</div>
+			</>
+			)}
 
 			{/* ====================================================================
           CREATE STAFF ACCOUNT MODAL (MF1.1 Manual Creation with Face Image)
@@ -1142,7 +1202,7 @@ export default function ManageAccountPage() {
 									<div
 										style={{
 											padding: "10px 14px",
-											borderRadius: "6px",
+											borderRadius: "3px",
 											backgroundColor: "var(--theme-danger-bg)",
 											color: "var(--theme-danger)",
 											fontSize: "0.8125rem",
@@ -1357,7 +1417,7 @@ export default function ManageAccountPage() {
 													width: "120px",
 													height: "140px",
 													objectFit: "cover",
-													borderRadius: "8px",
+													borderRadius: "4px",
 													border: "2px solid var(--theme-primary)",
 												}}
 											/>
@@ -1385,7 +1445,7 @@ export default function ManageAccountPage() {
 												justifyContent: "center",
 												padding: "20px",
 												border: "2px dashed var(--theme-border-hover)",
-												borderRadius: "8px",
+												borderRadius: "4px",
 												cursor: "pointer",
 												backgroundColor: "var(--theme-bg-page)",
 												marginTop: "4px",
@@ -1829,7 +1889,7 @@ export default function ManageAccountPage() {
 										<div
 											style={{
 												padding: "10px 14px",
-												borderRadius: "6px",
+												borderRadius: "3px",
 												backgroundColor: "var(--theme-danger-bg)",
 												color: "var(--theme-danger)",
 												fontSize: "0.8125rem",
@@ -1926,7 +1986,7 @@ export default function ManageAccountPage() {
 												border: bulkZipFile
 													? "2px solid var(--theme-primary)"
 													: "2px dashed var(--theme-border-hover)",
-												borderRadius: "8px",
+												borderRadius: "4px",
 												cursor: "pointer",
 												backgroundColor: bulkZipFile
 													? "var(--theme-primary-light)"
@@ -2628,7 +2688,7 @@ export default function ManageAccountPage() {
 									style={{
 										padding: "8px 12px",
 										background: "var(--theme-primary-light)",
-										borderRadius: "6px",
+										borderRadius: "3px",
 										fontSize: "0.8125rem",
 										color: "var(--theme-info-text)",
 										lineHeight: "1.4",
@@ -2731,7 +2791,7 @@ export default function ManageAccountPage() {
 									style={{
 										padding: "8px 12px",
 										background: "var(--theme-warning-bg)",
-										borderRadius: "6px",
+										borderRadius: "3px",
 										fontSize: "0.8125rem",
 										color: "var(--theme-warning-text)",
 										lineHeight: "1.4",

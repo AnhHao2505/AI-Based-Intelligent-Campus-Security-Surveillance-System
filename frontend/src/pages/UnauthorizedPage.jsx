@@ -21,7 +21,7 @@ export default function UnauthorizedPage() {
           width: '100%',
           background: 'var(--theme-bg-surface)',
           border: '1px solid var(--theme-border)',
-          borderRadius: '12px',
+          borderRadius: '6px',
         }}
       >
         <EmptyState

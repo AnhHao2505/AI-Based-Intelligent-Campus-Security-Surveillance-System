@@ -48,16 +48,18 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         }
         mock_post.return_value = mock_resp
 
-        allowed, reason, area_name, source = self.matcher.check_camera_access("CAM-01", "GV001")
+        allowed, reason, area_name, source, deny_reason = self.matcher.check_camera_access("CAM-01", "GV001")
         self.assertTrue(allowed)
         self.assertEqual(reason, "Người dùng được gán vào khu vực")
         self.assertEqual(area_name, "Phòng Lab 01")
         self.assertEqual(source, "ASSIGNED_PERSONNEL")
+        self.assertIsNone(deny_reason)
 
         # Kiểm tra Cache RAM: Lần 2 không gọi requests.post nữa
         mock_post.reset_mock()
-        allowed2, reason2, area_name2, source2 = self.matcher.check_camera_access("CAM-01", "GV001")
+        allowed2, reason2, area_name2, source2, _deny2 = self.matcher.check_camera_access("CAM-01", "GV001")
         self.assertTrue(allowed2)
+        self.assertEqual(source2, "ASSIGNED_PERSONNEL")
         mock_post.assert_not_called()
 
     @patch('requests.post')
@@ -78,11 +80,33 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         }
         mock_post.return_value = mock_resp
 
-        allowed, reason, area_name, source = self.matcher.check_camera_access("CAM-01", "SE170123")
+        allowed, reason, area_name, source, _deny = self.matcher.check_camera_access("CAM-01", "SE170123")
         self.assertFalse(allowed)
         self.assertEqual(reason, "Không có quyền ra vào khu vực tại thời điểm này")
         self.assertEqual(area_name, "Phòng Lab 01")
         self.assertEqual(source, "NONE")
+
+    @patch('requests.post', side_effect=Exception("Backend connection refused"))
+    def test_backend_error_stale_cache_allowed_expired_61s_restricted_area_fails_closed(self, mock_post):
+        """3) backend lỗi + cache allowed=True đã hết hạn 61 giây, camera khu hạn chế → allowed=False"""
+        now = time.time()
+        cache_key = "CAM-01:SE170123"
+        self.matcher.access_cache[cache_key] = (True, "Quyền hợp lệ cũ", "Phòng Lab 01", now - 61.0, "ACCESS_LEVEL", None)
+
+        allowed, reason, area_name, source, deny_reason = self.matcher.check_camera_access("CAM-01", "SE170123", skip_cache=False)
+        self.assertFalse(allowed)
+        self.assertIn("Backend không phản hồi", reason)
+
+    @patch('requests.post', side_effect=Exception("Backend connection refused"))
+    def test_backend_error_stale_cache_denied_expired_300s_reused(self, mock_post):
+        """4) backend lỗi + cache allowed=False đã hết hạn 300 giây → dùng lại (allowed=False, lý do có "[Backend không phản hồi")"""
+        now = time.time()
+        cache_key = "CAM-01:SE170123"
+        self.matcher.access_cache[cache_key] = (False, "Từ chối cũ", "Phòng Lab 01", now - 300.0, "NONE", None)
+
+        allowed, reason, area_name, source, deny_reason = self.matcher.check_camera_access("CAM-01", "SE170123", skip_cache=False)
+        self.assertFalse(allowed)
+        self.assertIn("[Backend không phản hồi", reason)
 
     def test_frame_analysis_engine_unauthorized_alert_with_reason(self):
         """Test FrameAnalysisEngine sinh cảnh báo UNAUTHORIZED_ACCESS kèm đúng lý do từ checkEntry"""

@@ -50,6 +50,10 @@ public class SystemConfigService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;
 
+    /** PR-AUDIT: field injection để giữ constructor (test dựng service bằng tay); null thì không ghi audit. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AuditService auditService;
+
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
@@ -187,6 +191,16 @@ public class SystemConfigService {
                 .reason(reason)
                 .build();
         changeLogRepository.save(logEntry);
+
+        // PR-AUDIT (B3): UPDATE / SYSTEM_CONFIG cùng transaction (giữ change log riêng ở trên). Lỗi ghi audit -> rollback,
+        // cache bên dưới chưa bị ghi vì exception ném trước dòng cache.put.
+        if (auditService != null) {
+            auditService.record(com.fa26se040.icss.enums.AuditTargetType.SYSTEM_CONFIG,
+                    com.fa26se040.icss.enums.AuditAction.UPDATE, key, null, null,
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.SystemConfigAuditSnapshot(key, oldValue),
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.SystemConfigAuditSnapshot(key, value),
+                    reason, com.fa26se040.icss.dto.audit.AuditActor.user(actor));
+        }
 
         // Update in-memory cache immediately so in-transaction reads see the new value
         cache.put(key, value);

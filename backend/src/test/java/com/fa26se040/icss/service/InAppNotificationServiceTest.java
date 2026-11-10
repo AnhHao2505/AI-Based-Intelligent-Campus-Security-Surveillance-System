@@ -272,4 +272,111 @@ class InAppNotificationServiceTest {
         assertEquals(4, updated);
         verify(notificationRepository).markAllAsRead(eq(user1.getId()), any(OffsetDateTime.class));
     }
+
+    @Test
+    @DisplayName("getMyNotifications cho ADMIN trả về danh sách thông báo riêng của Admin")
+    void getMyNotifications_Admin_ReturnsAdminNotifications() {
+        User adminUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("admin@fpt.edu.vn")
+                .fullName("Admin")
+                .role(Role.ADMIN)
+                .isActive(true)
+                .build();
+
+        Notification notif = Notification.builder()
+                .id(UUID.randomUUID())
+                .recipient(adminUser)
+                .title("Thông báo cho Admin")
+                .message("Nội dung Admin")
+                .type(NotificationType.NEW_REQUEST_PENDING)
+                .isRead(false)
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        Pageable pageable = PageRequest.of(0, 10);
+        when(userRepository.findByEmail(adminUser.getEmail())).thenReturn(Optional.of(adminUser));
+        when(notificationRepository.findByRecipientIdOrderByCreatedAtDesc(adminUser.getId(), pageable))
+                .thenReturn(new PageImpl<>(List.of(notif), pageable, 1));
+
+        Page<NotificationResponse> result = inAppNotificationService.getMyNotifications(adminUser.getEmail(), pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        assertEquals("Thông báo cho Admin", result.getContent().get(0).title());
+    }
+
+    @Test
+    @DisplayName("getUnreadCount cho ADMIN trả về số lượng chưa đọc của chính Admin")
+    void getUnreadCount_Admin_ReturnsCount() {
+        User adminUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("admin@fpt.edu.vn")
+                .fullName("Admin")
+                .role(Role.ADMIN)
+                .isActive(true)
+                .build();
+
+        when(userRepository.findByEmail(adminUser.getEmail())).thenReturn(Optional.of(adminUser));
+        when(notificationRepository.countByRecipientIdAndIsReadFalse(adminUser.getId())).thenReturn(5L);
+
+        long count = inAppNotificationService.getUnreadCount(adminUser.getEmail());
+
+        assertEquals(5L, count);
+    }
+
+    @Test
+    @DisplayName("Người dùng không thể đánh dấu đã đọc thông báo của người khác")
+    void markAsRead_UserViewingOtherUserNotification_ThrowsAccessDenied() {
+        User adminUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("admin@fpt.edu.vn")
+                .fullName("Admin")
+                .role(Role.ADMIN)
+                .isActive(true)
+                .build();
+
+        UUID notifId = UUID.randomUUID();
+        Notification notif = Notification.builder()
+                .id(notifId)
+                .recipient(fmUser)
+                .title("Thông báo FM")
+                .message("Nội dung")
+                .type(NotificationType.NEW_REQUEST_PENDING)
+                .isRead(false)
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        when(userRepository.findByEmail(adminUser.getEmail())).thenReturn(Optional.of(adminUser));
+        when(notificationRepository.findById(notifId)).thenReturn(Optional.of(notif));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> {
+            inAppNotificationService.markAsRead(notifId, adminUser.getEmail());
+        });
+    }
+
+    @Test
+    @DisplayName("createForUsers loại bỏ ADMIN đối với thông báo ACCESS_REQUEST theo BR-NT-26")
+    void createForUsers_WhenAdminInRecipientsForAccessRequest_AdminIsExcluded() {
+        User adminUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("admin@fpt.edu.vn")
+                .fullName("Admin")
+                .role(Role.ADMIN)
+                .isActive(true)
+                .build();
+
+        when(notificationRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
+
+        List<Notification> created = inAppNotificationService.createForUsers(
+                List.of(fmUser, adminUser),
+                NotificationType.NEW_REQUEST_PENDING,
+                "Yêu cầu mới",
+                "Nội dung yêu cầu",
+                UUID.randomUUID()
+        );
+
+        assertEquals(1, created.size());
+        assertEquals(fmUser.getId(), created.get(0).getRecipient().getId());
+    }
 }

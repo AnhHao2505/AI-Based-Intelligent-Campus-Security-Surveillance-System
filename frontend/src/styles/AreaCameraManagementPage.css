@@ -7,7 +7,7 @@
   padding: 24px 32px;
   max-width: 1200px;
   margin: 0 auto;
-  background-color: var(--theme-bg-page);
+  background-color: transparent;
   min-height: calc(100vh - 64px);
   color: var(--theme-text-primary);
   display: flex;
@@ -68,7 +68,7 @@
 .area-selector-card {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 10px;
+  border-radius: 5px;
   padding: 16px 20px;
   margin-bottom: 24px;
   display: flex;
@@ -89,7 +89,7 @@
   max-width: 440px;
   background: var(--theme-bg-input);
   border: 1px solid var(--theme-input-border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 8px 14px;
   color: var(--theme-text-primary);
   font-size: 0.875rem;
@@ -114,7 +114,7 @@
    -------------------------------------------------------------------------- */
 .ai-alert-banner {
   padding: 12px 16px;
-  border-radius: 8px;
+  border-radius: 4px;
   margin-bottom: 20px;
   display: flex;
   align-items: center;
@@ -165,7 +165,7 @@
   min-width: 0;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 10px;
+  border-radius: 5px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -237,7 +237,7 @@
   height: 38px;
   background: var(--theme-bg-input);
   border: 1px solid var(--theme-input-border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 0 12px 0 36px;
   color: var(--theme-text-primary);
   font-size: 0.875rem;
@@ -303,7 +303,7 @@
 .camera-list::-webkit-scrollbar-thumb,
 .camera-list-scroll::-webkit-scrollbar-thumb {
   background: var(--theme-border-hover);
-  border-radius: 3px;
+  border-radius: 1.5px;
 }
 
 /* --------------------------------------------------------------------------
@@ -312,7 +312,7 @@
 .camera-item-card {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 10px 14px;
   display: flex;
   align-items: center;
@@ -485,7 +485,7 @@
   color: var(--brand-on-gradient);
   padding: 10px 22px;
   border: none;
-  border-radius: 8px;
+  border-radius: 4px;
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;

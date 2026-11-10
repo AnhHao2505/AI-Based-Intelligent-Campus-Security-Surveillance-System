@@ -83,7 +83,7 @@ export default function CameraGeneralTab({
 								background: "transparent",
 								border: "1px solid var(--theme-border)",
 								color: "var(--theme-info)",
-								borderRadius: "8px",
+								borderRadius: "4px",
 								padding: "0.6rem 1rem",
 								fontSize: "0.85rem",
 								cursor: "pointer",

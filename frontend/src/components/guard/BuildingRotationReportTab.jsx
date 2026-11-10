@@ -97,10 +97,10 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Báo Cáo Luân Chuyển Bảo Vệ Giữa Các Tòa Nhà
+                Thống Kê Luân Chuyển Tòa Nhà
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Thống kê tần suất phân ca theo tòa và tỷ lệ bảo vệ trực ngoài tòa nhà gốc của đội (BR-GB-08)
+                Số ca theo tòa nhà và các ca trực ngoài tòa gốc của đội
               </p>
             </div>
           </div>
@@ -110,10 +110,10 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
             onClick={fetchReport}
             disabled={loading}
             className="schedule-btn-secondary self-start sm:self-auto flex items-center gap-1.5"
-            title="Làm mới báo cáo"
+            title="Làm mới"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            <span>Tải Lại Báo Cáo</span>
+            <span>Tải lại</span>
           </button>
         </div>
 
@@ -122,7 +122,7 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
           <div>
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 flex items-center gap-1">
               <Calendar size={12} className="text-blue-500" />
-              <span>Từ Ngày</span>
+              <span>Từ ngày</span>
             </label>
             <input
               type="date"
@@ -135,7 +135,7 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
           <div>
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 flex items-center gap-1">
               <Calendar size={12} className="text-blue-500" />
-              <span>Đến Ngày</span>
+              <span>Đến ngày</span>
             </label>
             <input
               type="date"
@@ -148,13 +148,13 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
           <div>
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 flex items-center gap-1">
               <Users size={12} className="text-blue-500" />
-              <span>Lọc Theo Đội</span>
+              <span>Đội</span>
             </label>
             <Select
               value={selectedTeamId}
               onChange={(e) => setSelectedTeamId(e.target.value)}
               options={[
-                { value: 'ALL', label: '-- Tất cả các đội bảo vệ --' },
+                { value: 'ALL', label: 'Tất cả đội' },
                 ...teams.map((t) => ({ value: t.id, label: t.teamName })),
               ]}
             />
@@ -163,13 +163,13 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
           <div>
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 flex items-center gap-1">
               <Search size={12} className="text-blue-500" />
-              <span>Tìm Kiếm Nhân Sự</span>
+              <span>Tìm kiếm</span>
             </label>
             <input
               type="text"
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="Tìm theo tên, mã bảo vệ..."
+              placeholder="Tên, mã nhân viên..."
               className="w-full px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
@@ -182,7 +182,7 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
           <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Tổng Số Nhân Viên Bảo Vệ
+                Tổng Nhân Sự
               </p>
               <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mt-0.5">
                 {reportData.totalGuards} <span className="text-xs font-normal text-slate-400">người</span>
@@ -196,13 +196,13 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
           <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Đã Trực Luân Chuyển Tòa Khác
+                Đã Luân Chuyển
               </p>
-              <h3 className="text-xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-0.5">
+              <h3 className="text-xl font-extrabold text-orange-600 dark:text-orange-400 mt-0.5">
                 {reportData.guardsWithCrossBuildingShifts} <span className="text-xs font-normal text-slate-400">người</span>
               </h3>
             </div>
-            <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+            <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400">
               <ArrowRightLeft size={20} />
             </div>
           </div>
@@ -210,7 +210,7 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
           <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Tỷ Lệ Luân Chuyển Nhân Sự
+                Tỷ Lệ Luân Chuyển
               </p>
               <h3 className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
                 {reportData.totalGuards > 0
@@ -370,8 +370,8 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
                             Chưa luân chuyển
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                            <ArrowRightLeft size={11} className="text-indigo-600" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
+                            <ArrowRightLeft size={11} className="text-orange-600 dark:text-orange-400" />
                             Đã luân chuyển ({item.outsideTeamBuildingShifts} ca)
                           </span>
                         )}
@@ -387,11 +387,11 @@ export default function BuildingRotationReportTab({ teams = [], buildings = [] }
         {/* Footer Note */}
         <div className="p-3 bg-slate-50/70 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
           <span>
-            * Số ca <strong>Ngoài tòa đội</strong> được tính trên các ca không bị hủy trong khoảng ngày, dựa theo tòa nhà phụ trách hiện tại của đội (BR-GB-08).
+            Ngoài tòa đội được tính trên các ca không hủy trong khoảng ngày.
           </span>
           {reportData && (
             <span>
-              Tổng cộng <strong>{filteredItems.length}</strong> nhân sự hiển thị
+              <strong>{filteredItems.length}</strong> nhân sự
             </span>
           )}
         </div>

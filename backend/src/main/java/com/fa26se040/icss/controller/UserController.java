@@ -190,10 +190,13 @@ public class UserController {
     @PostMapping("/import-batches/{batchId}/restore")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<BatchRestoreResponse>> restoreBatch(
-            @PathVariable UUID batchId
+            @PathVariable UUID batchId,
+            Authentication authentication
     ) {
         log.info("Admin restoring import batch: {}", batchId);
-        BatchRestoreResponse response = userService.restoreBatch(batchId);
+        // PR-AUDIT: người khôi phục ghi vào audit RESTORE / USER_IMPORT_BATCH
+        String currentUserEmail = authentication != null ? authentication.getName() : null;
+        BatchRestoreResponse response = userService.restoreBatch(batchId, currentUserEmail);
         return ResponseEntity.ok(ApiResponse.success(response, "Khôi phục lô import thành công"));
     }
 

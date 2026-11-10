@@ -46,7 +46,7 @@ class FaceMatcher:
 
         self.db_params = self.cache.db_params
         self.embedder = FaceEmbedder(embedding_dim=512)
-        self.access_cache: Dict[str, Tuple[bool, str, Optional[str], float]] = {}
+        self.access_cache: Dict[str, Tuple[bool, str, Optional[str], float, Optional[str], Optional[str]]] = {}
         self.access_cache_ttl = getattr(settings, "ACCESS_DECISION_CACHE_TTL", 30.0)
         self._access_cache_lock = threading.Lock()
 
@@ -190,8 +190,9 @@ class FaceMatcher:
         self,
         camera_code: str,
         user_code: str
-    ) -> Optional[Tuple[bool, str, Optional[str], Optional[str]]]:
-        """Truy xuất nhanh quyền ra vào từ RAM cache, trả về None nếu cache miss hoặc hết hạn"""
+    ) -> Optional[Tuple[bool, str, Optional[str], Optional[str], Optional[str]]]:
+        """Truy xuất nhanh quyền ra vào từ RAM cache, trả về None nếu cache miss hoặc hết hạn.
+        Trả về: (is_allowed, reason, area_name, source, deny_reason)"""
         if not camera_code or not user_code:
             return None
         cache_key = f"{camera_code}:{user_code}"
@@ -199,13 +200,14 @@ class FaceMatcher:
         with self._access_cache_lock:
             if cache_key in self.access_cache:
                 entry = self.access_cache[cache_key]
-                if len(entry) >= 5:
-                    allowed, reason, area_name, expire_at, source = entry[:5]
-                else:
-                    allowed, reason, area_name, expire_at = entry[:4]
-                    source = None
+                allowed = entry[0]
+                reason = entry[1]
+                area_name = entry[2]
+                expire_at = entry[3]
+                source = entry[4] if len(entry) >= 5 else None
+                deny_reason = entry[5] if len(entry) >= 6 else None
                 if now < expire_at:
-                    return allowed, reason, area_name, source
+                    return allowed, reason, area_name, source, deny_reason
         return None
 
     def check_camera_access(
@@ -216,15 +218,17 @@ class FaceMatcher:
         event_direction: Optional[str] = None,
         duration_seconds: Optional[float] = None,
         skip_cache: bool = False
-    ) -> Tuple[bool, str, Optional[str], Optional[str]]:
+    ) -> Tuple[bool, str, Optional[str], Optional[str], Optional[str]]:
         """
         Kiểm tra quyền ra vào của user_code tại vị trí camera_code và ghi log chuyển động qua vùng ROI (VÀO / RA).
         Gọi API POST /api/access-control/check-entry của Spring Boot Backend (checkEntry).
         Có bộ đệm in-memory RAM (TTL 30s) khi đối soát nhanh.
-        Trả về: (is_allowed: bool, reason: str, area_name: Optional[str])
+        Trả về: (is_allowed: bool, reason: str, area_name: Optional[str], source: Optional[str], deny_reason: Optional[str])
+        source = AccessSource backend trả (ASSIGNED_PERSONNEL, ACCESS_LEVEL, OPEN_EVENT, ACCESS_REQUEST, GUEST_VISIT,
+        INCIDENT_RESPONSE, NONE); None khi không gọi được backend. deny_reason = mã GuestEntryDenyReason (chỉ khách bị từ chối).
         """
         if not camera_code or not user_code:
-            return False, "Thiếu thông tin camera hoặc người dùng", None, None
+            return False, "Thiếu thông tin camera hoặc người dùng", None, None, None
 
         cache_key = f"{camera_code}:{user_code}"
         now = time.time()
@@ -234,13 +238,14 @@ class FaceMatcher:
             with self._access_cache_lock:
                 if cache_key in self.access_cache:
                     entry = self.access_cache[cache_key]
-                    if len(entry) >= 5:
-                        allowed, reason, area_name, expire_at, source = entry[:5]
-                    else:
-                        allowed, reason, area_name, expire_at = entry[:4]
-                        source = None
+                    allowed = entry[0]
+                    reason = entry[1]
+                    area_name = entry[2]
+                    expire_at = entry[3]
+                    source = entry[4] if len(entry) >= 5 else None
+                    deny_reason = entry[5] if len(entry) >= 6 else None
                     if now < expire_at:
-                        return allowed, reason, area_name, source
+                        return allowed, reason, area_name, source, deny_reason
 
         # 2. Gọi API Backend Spring Boot (có retry 1 lần khi timeout/lỗi mạng)
         backend_url = getattr(settings, "BACKEND_API_URL", "http://localhost:8080")
@@ -281,6 +286,7 @@ class FaceMatcher:
                     area_name = data.get("areaName")
                     raw_source = data.get("source")
                     source = str(raw_source).strip().upper() if raw_source else None
+                    deny_reason = data.get("denyReason")
 
                     # Tự động loại bỏ khỏi Face RAM Cache nếu Backend phản hồi người dùng không tồn tại / đã bị xoá
                     reason_lower = (reason or "").lower()
@@ -292,10 +298,10 @@ class FaceMatcher:
                     else:
                         ttl = self.access_cache_ttl if allowed else min(self.access_cache_ttl, 5.0)
                         with self._access_cache_lock:
-                            self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl, source)
+                            self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl, source, deny_reason)
 
                     logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}, source={source}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
-                    return allowed, reason, area_name, source
+                    return allowed, reason, area_name, source, deny_reason
                 else:
                     last_error = f"HTTP {resp.status_code}"
                     logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code} (lần {attempt + 1})")
@@ -306,31 +312,46 @@ class FaceMatcher:
             if attempt == 0:
                 time.sleep(0.1)
 
-        # 3. Fallback Chính sách BUG-02 khi Backend lỗi / timeout:
-        # (ii) Stale-if-error: nếu có quyết định cũ trong access_cache (kể cả hết TTL) thì dùng tạm nếu chưa quá ACCESS_STALE_MAX_SECONDS
+        # 3. Fallback Chính sách BUG-02 khi Backend lỗi / timeout (Lucas K8):
+        # (ii) Stale-if-error: nếu có quyết định cũ trong access_cache (kể cả hết TTL)
         with self._access_cache_lock:
             if cache_key in self.access_cache:
                 entry = self.access_cache[cache_key]
-                if len(entry) >= 5:
-                    c_allowed, c_reason, c_area, c_expire_at, c_source = entry[:5]
-                else:
-                    c_allowed, c_reason, c_area, c_expire_at = entry[:4]
-                    c_source = None
-
+                c_allowed = entry[0]
+                c_reason = entry[1]
+                c_area = entry[2]
+                c_expire_at = entry[3]
+                c_source = entry[4] if len(entry) >= 5 else None
+                c_deny_reason = entry[5] if len(entry) >= 6 else None
+                stale_elapsed = now - c_expire_at
                 max_stale = getattr(settings, "ACCESS_STALE_MAX_SECONDS", 600.0)
-                if (now - c_expire_at) <= max_stale:
+
+                can_use_stale = False
+                if not c_allowed:
+                    if stale_elapsed <= max_stale:
+                        can_use_stale = True
+                    else:
+                        logger.warning(
+                            f"⚠️ [FaceMatcher] Backend không phản hồi ({last_error}). Cache cũ từ chối cho [{user_code}] "
+                            f"đã hết hạn quá {max_stale}s ({stale_elapsed:.1f}s) -> Bỏ qua stale cache."
+                        )
+                else:
+                    if stale_elapsed <= 60.0:
+                        can_use_stale = True
+                    else:
+                        logger.warning(
+                            f"⚠️ [FaceMatcher] Backend không phản hồi ({last_error}). Cache cũ cho phép cho [{user_code}] "
+                            f"đã hết hạn quá 60s ({stale_elapsed:.1f}s) -> Coi như không có cache."
+                        )
+
+                if can_use_stale:
                     logger.warning(
                         f"⚠️ [FaceMatcher] Backend không phản hồi ({last_error}). Dùng tạm cache cũ (stale-if-error) "
                         f"cho [{user_code}] tại [{camera_code}]: allowed={c_allowed}, reason={c_reason}"
                     )
-                    return c_allowed, f"[Backend không phản hồi - Dùng tạm cache] {c_reason}", c_area, c_source
-                else:
-                    logger.warning(
-                        f"⚠️ [FaceMatcher] Backend không phản hồi ({last_error}). Cache cũ cho [{user_code}] "
-                        f"đã hết hạn quá {max_stale}s ({now - c_expire_at:.1f}s) -> Bỏ qua stale cache."
-                    )
+                    return c_allowed, f"[Backend không phản hồi - Dùng tạm cache] {c_reason}", c_area, c_source, c_deny_reason
 
-        # (iii) Nếu hoàn toàn không có cache hoặc cache quá hạn stale:
+        # (iii) Nếu hoàn toàn không có cache hoặc cache không dùng được (quá hạn stale):
         is_public = self.is_camera_public(camera_code)
         if is_public:
             # Khu vực công cộng: chỉ ghi log cảnh báo, không chặn vi phạm
@@ -339,7 +360,7 @@ class FaceMatcher:
                 f"⚠️ [FaceMatcher] Backend không phản hồi khi xét quyền cho [{user_code}] "
                 f"tại camera công cộng [{camera_code}] ({last_error}). Cho phép lưu thông và chỉ ghi log."
             )
-            return True, f"[Backend không phản hồi] Khu vực công cộng - Cho phép lưu thông ({last_error})", area_name, None
+            return True, f"[Backend không phản hồi] Khu vực công cộng - Cho phép lưu thông ({last_error})", area_name, None, None
         else:
             # Khu vực hạn chế: duy trì Fail-Closed (allowed=False), ghi rõ 'Backend không phản hồi'
             area_name = self.get_camera_area_name(camera_code) or "Khu vực hạn chế"
@@ -347,4 +368,4 @@ class FaceMatcher:
                 f"🛑 [FaceMatcher] Backend không phản hồi khi xét quyền cho [{user_code}] "
                 f"tại khu vực hạn chế [{camera_code}] ({last_error}). Áp dụng Fail-Closed."
             )
-            return False, f"[Backend không phản hồi] Không thể xác thực quyền truy cập ({last_error})", area_name, None
+            return False, f"[Backend không phản hồi] Không thể xác thực quyền truy cập ({last_error})", area_name, None, None
