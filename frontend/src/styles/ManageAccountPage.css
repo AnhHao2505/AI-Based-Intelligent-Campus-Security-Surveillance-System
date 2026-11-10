@@ -31,7 +31,7 @@
   color: var(--brand-on-gradient);
   border: none;
   padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
@@ -77,7 +77,7 @@
   color: var(--theme-text-primary);
   border: 1px solid var(--theme-border);
   padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
@@ -186,7 +186,7 @@
   padding: 0 38px 0 42px;
   background-color: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.875rem;
   color: var(--theme-text-primary);
   outline: none;
@@ -228,7 +228,7 @@
 .account-table-card {
   background-color: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: var(--theme-card-shadow, 0 1px 3px rgba(0, 0, 0, 0.05));
   overflow: hidden;
   display: flex;
@@ -416,7 +416,7 @@
 .account-action-btn {
   width: 32px;
   height: 32px;
-  border-radius: 6px;
+  border-radius: 3px;
   border: 1px solid var(--theme-border);
   background-color: var(--theme-bg-surface);
   color: var(--theme-text-secondary);
@@ -473,7 +473,7 @@
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .account-action-link:hover {
@@ -537,7 +537,7 @@
   min-width: 34px;
   height: 34px;
   padding: 0 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   border: 1px solid var(--theme-border);
   background-color: var(--theme-bg-surface);
   color: var(--theme-text-primary);
@@ -612,7 +612,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 3px;
   font-size: 0.8125rem;
   font-weight: 500;
   background-color: var(--theme-bg-surface-elevated);
@@ -643,7 +643,7 @@
   );
   background-size: 400% 100%;
   animation: skeleton-shimmer 1.4s ease infinite;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 @keyframes skeleton-shimmer {
@@ -683,7 +683,7 @@
 .account-modal {
   background-color: var(--theme-modal-bg);
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   width: 100%;
   max-width: 520px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
@@ -724,7 +724,7 @@
   background-color: var(--theme-bg-surface-elevated);
   color: var(--theme-text-primary);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   border: 1px solid var(--theme-border);
 }
 
@@ -733,7 +733,7 @@
    -------------------------------------------------------------------------- */
 .account-dropzone {
   border: 2px dashed var(--theme-border);
-  border-radius: 10px;
+  border-radius: 5px;
   padding: 28px 20px;
   text-align: center;
   background-color: var(--theme-bg-canvas);
@@ -774,7 +774,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-radius: 8px;
+  border-radius: 4px;
   background-color: var(--theme-bg-surface-elevated);
   border: 1px solid var(--theme-border);
 }
@@ -802,7 +802,7 @@
   color: var(--theme-text-muted);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -816,7 +816,7 @@
 .account-import-info-box {
   background-color: var(--theme-bg-canvas);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 12px 16px;
   font-size: 0.8125rem;
   color: var(--theme-text-secondary);
@@ -836,7 +836,7 @@
   font-size: 0.8125rem;
   font-weight: 500;
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: 3px;
   cursor: pointer;
   align-self: flex-start;
   transition: all 0.15s ease;
@@ -856,7 +856,7 @@
 
 .account-import-stat {
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 4px;
   border: 1px solid var(--theme-border);
   background-color: var(--theme-bg-surface);
   text-align: center;
@@ -890,7 +890,7 @@
   max-height: 180px;
   overflow-y: auto;
   border: 1px solid var(--theme-danger-border);
-  border-radius: 6px;
+  border-radius: 3px;
   background-color: var(--theme-danger-bg);
   font-size: 0.775rem;
 }
@@ -948,7 +948,7 @@
 .account-modal__icon-badge {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -987,7 +987,7 @@
   color: var(--theme-text-muted);
   cursor: pointer;
   padding: 6px;
-  border-radius: 6px;
+  border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1034,7 +1034,7 @@
   height: 40px;
   padding: 0 12px;
   border: 1px solid var(--theme-input-border);
-  border-radius: 8px;
+  border-radius: 4px;
   background-color: var(--theme-bg-input);
   color: var(--theme-text-primary);
   font-size: 0.875rem;
@@ -1115,7 +1115,7 @@
 .account-confirm-user-info {
   background-color: var(--theme-bg-canvas);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 12px 16px;
   display: flex;
   flex-direction: column;
@@ -1146,7 +1146,7 @@
 
 .account-modal-btn {
   padding: 8px 18px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
@@ -1224,7 +1224,7 @@
   max-width: 420px;
   background-color: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 12px 16px;
   display: flex;
   align-items: center;
@@ -1323,7 +1323,7 @@
   padding: 12px 16px;
   background-color: var(--theme-bg-canvas);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .account-bulk-template-info {
@@ -1361,7 +1361,7 @@
   color: var(--brand-text);
   background-color: var(--theme-primary-light);
   border: 1px solid var(--theme-primary-border);
-  border-radius: 6px;
+  border-radius: 3px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
@@ -1383,7 +1383,7 @@
   padding: 12px;
   background-color: var(--theme-bg-surface-elevated);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1454,7 +1454,7 @@
   overflow-y: auto;
   overflow-x: auto;
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   background-color: var(--theme-bg-surface);
 }
 

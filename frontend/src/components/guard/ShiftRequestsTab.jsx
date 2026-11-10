@@ -411,31 +411,19 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
             <div className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400 mt-1">
               {stats.pending} <span className="text-sm font-normal text-slate-500">đơn</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
-              {stats.pending > 0 ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                  <span>Cần Quản lý xử lý</span>
-                </>
-              ) : (
-                <span className="text-slate-500 dark:text-slate-400 font-normal">
-                  Đã giải quyết hết
-                </span>
-              )}
-            </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-amber">
-            <Clock size={22} />
+            <Clock size={20} />
           </div>
         </div>
 
-        {/* Card 2: Đã Phê Duyệt (Màu xanh lá) */}
+        {/* Card 2: Đã Phê Duyệt */}
         <div
           onClick={() => setStatusFilter('APPROVED')}
           className={`schedule-kpi-card cursor-pointer select-none transition-all ${
             statusFilter === 'APPROVED' ? 'is-filter-active is-active-emerald' : ''
           }`}
-          title="Xem danh sách đơn đã phê duyệt"
+          title="Xem đơn đã duyệt"
         >
           <div>
             <span
@@ -445,28 +433,24 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                   : 'font-semibold text-slate-500 dark:text-slate-400'
               }`}
             >
-              Đã Phê Duyệt
+              Đã Duyệt
             </span>
             <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 mt-1">
               {stats.approved} <span className="text-sm font-normal text-slate-500">đơn</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 size={13} className="shrink-0" />
-              <span>{stats.approved > 0 ? 'Đã duyệt thành công' : 'Chưa có đơn duyệt'}</span>
-            </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-emerald">
-            <CheckCircle2 size={22} />
+            <CheckCircle2 size={20} />
           </div>
         </div>
 
-        {/* Card 3: Từ Chối (Màu đỏ) */}
+        {/* Card 3: Từ Chối */}
         <div
           onClick={() => setStatusFilter('REJECTED')}
           className={`schedule-kpi-card cursor-pointer select-none transition-all ${
             statusFilter === 'REJECTED' ? 'is-filter-active is-active-rose' : ''
           }`}
-          title="Xem danh sách đơn đã từ chối"
+          title="Xem đơn từ chối"
         >
           <div>
             <span
@@ -481,23 +465,19 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
             <div className="text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400 mt-1">
               {stats.rejected} <span className="text-sm font-normal text-slate-500">đơn</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-rose-600 dark:text-rose-400">
-              <XCircle size={13} className="shrink-0" />
-              <span>{stats.rejected > 0 ? 'Không được chấp thuận' : 'Không có đơn từ chối'}</span>
-            </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-rose">
-            <XCircle size={22} />
+            <XCircle size={20} />
           </div>
         </div>
 
-        {/* Card 4: Tất Cả Đơn (Màu xanh dương) */}
+        {/* Card 4: Tất Cả Đơn */}
         <div
           onClick={() => setStatusFilter('ALL')}
           className={`schedule-kpi-card cursor-pointer select-none transition-all ${
             statusFilter === 'ALL' ? 'is-filter-active is-active-blue' : ''
           }`}
-          title="Xem toàn bộ danh sách đơn"
+          title="Xem tất cả đơn"
         >
           <div>
             <span
@@ -507,18 +487,17 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                   : 'font-semibold text-slate-500 dark:text-slate-400'
               }`}
             >
-              Tất Cả Đơn
+              Tất Cả
             </span>
             <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
               {stats.total} <span className="text-sm font-normal text-slate-500">đơn</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-slate-600 dark:text-slate-400">
-              <ArrowRightLeft size={13} className="text-sky-600 dark:text-sky-400 shrink-0" />
-              <span>{stats.swaps} đổi ca • {stats.leaves} nghỉ trực</span>
+            <div className="flex items-center gap-1.5 mt-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+              <span>{stats.swaps} đổi ca · {stats.leaves} nghỉ trực</span>
             </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-blue">
-            <ClipboardList size={22} />
+            <ClipboardList size={20} />
           </div>
         </div>
       </div>
@@ -532,10 +511,10 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
               <ClipboardList size={16} />
             </div>
             <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-              {statusFilter === 'PENDING' && 'Đơn chờ phê duyệt'}
-              {statusFilter === 'APPROVED' && 'Đơn đã phê duyệt'}
-              {statusFilter === 'REJECTED' && 'Đơn đã từ chối'}
-              {statusFilter === 'ALL' && 'Toàn bộ danh sách yêu cầu'}
+              {statusFilter === 'PENDING' && 'Đơn chờ duyệt'}
+              {statusFilter === 'APPROVED' && 'Đơn đã duyệt'}
+              {statusFilter === 'REJECTED' && 'Đơn từ chối'}
+              {statusFilter === 'ALL' && 'Tất cả yêu cầu'}
             </span>
 
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80">
@@ -546,7 +525,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
           {/* Active type filter badge if not ALL */}
           {typeFilter !== 'ALL' && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800">
-              <span>{typeFilter === 'SWAP' ? '⇄ Đổi ca trực' : '📅 Nghỉ trực'}</span>
+              <span>{typeFilter === 'SWAP' ? 'Đổi ca trực' : 'Nghỉ trực'}</span>
               <button
                 type="button"
                 onClick={() => setTypeFilter('ALL')}
@@ -1119,9 +1098,9 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                   <UserX size={18} />
                 </div>
                 <div className="schedule-modal__header-text">
-                  <h3 className="schedule-modal__title">Duyệt Yêu Cầu Xin Nghỉ Trực</h3>
+                  <h3 className="schedule-modal__title">Duyệt Đơn Xin Nghỉ</h3>
                   <p className="schedule-modal__subtitle">
-                    Chỉ định nhân viên trực thay thế hoặc hủy hẳn ca trực
+                    Chọn người trực thay hoặc hủy ca
                   </p>
                 </div>
               </div>
@@ -1201,17 +1180,17 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                       }
                       required
                       options={[
-                        { value: '', label: '-- Chọn bảo vệ trực thay --' },
+                        { value: '', label: 'Chọn bảo vệ trực thay' },
                         ...leaveModal.substitutes.map((s) => ({
                           value: s.id,
                           label: `${s.fullName} (${s.userCode || 'NV-BV'}) — ${s.isSameTeam ? `[Cùng đội] ${s.teamName}` : s.teamName}`,
                         })),
-                        { value: 'CANCEL_SHIFT', label: '-- Hủy ca trực này (Không cần người trực thay) --' },
+                        { value: 'CANCEL_SHIFT', label: 'Hủy ca này (không cần người thay)' },
                       ]}
                     />
                   )}
                   <p className="text-[11px] text-slate-400 mt-1.5">
-                    Hệ thống tự động lọc các bảo vệ đang nghỉ trong ngày và đảm bảo nhịp sinh học nghỉ ngơi (ưu tiên cùng đội).
+                    Ưu tiên nhân sự cùng đội đang trống ca.
                   </p>
                 </div>
               </div>
@@ -1230,7 +1209,7 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                   disabled={leaveModal.submitting || !leaveModal.selectedSubstituteId}
                   className="schedule-btn-primary"
                 >
-                  {leaveModal.submitting ? 'Đang Xử Lý...' : 'Xác Nhận Phê Duyệt'}
+                  {leaveModal.submitting ? 'Đang xử lý...' : 'Xác nhận duyệt'}
                 </button>
               </div>
             </form>
@@ -1255,9 +1234,9 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
                   <XCircle size={18} />
                 </div>
                 <div className="schedule-modal__header-text">
-                  <h3 className="schedule-modal__title">Từ Chối Yêu Cầu Ca Trực</h3>
+                  <h3 className="schedule-modal__title">Từ Chối Yêu Cầu</h3>
                   <p className="schedule-modal__subtitle">
-                    Nhập lý do để thông báo lại cho nhân viên bảo vệ
+                    Lý do sẽ được gửi tới nhân viên
                   </p>
                 </div>
               </div>
@@ -1275,21 +1254,20 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
             <form onSubmit={handleSubmitReject}>
               <div className="schedule-modal__body space-y-3">
                 <p className="text-xs text-slate-600 dark:text-slate-300">
-                  Bạn đang từ chối yêu cầu của{' '}
+                  Từ chối yêu cầu của{' '}
                   <strong className="text-slate-900 dark:text-white">
                     {rejectDialog.request?.requesterName ||
                       rejectDialog.request?.requesterGuard?.fullName}
                   </strong>
-                  .
                 </p>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Lý Do Từ Chối (Tùy chọn)
+                    Lý do (tùy chọn)
                   </label>
                   <textarea
                     rows={3}
-                    placeholder="Ví dụ: Thiếu nhân sự trực chốt, không tìm được người thay thế hợp lệ..."
+                    placeholder="Thiếu nhân sự trực chốt..."
                     value={rejectDialog.reviewNote}
                     onChange={(e) =>
                       setRejectDialog((prev) => ({

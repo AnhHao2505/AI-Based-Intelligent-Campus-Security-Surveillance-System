@@ -1142,7 +1142,7 @@ export default function ManageAccountPage() {
 									<div
 										style={{
 											padding: "10px 14px",
-											borderRadius: "6px",
+											borderRadius: "3px",
 											backgroundColor: "var(--theme-danger-bg)",
 											color: "var(--theme-danger)",
 											fontSize: "0.8125rem",
@@ -1357,7 +1357,7 @@ export default function ManageAccountPage() {
 													width: "120px",
 													height: "140px",
 													objectFit: "cover",
-													borderRadius: "8px",
+													borderRadius: "4px",
 													border: "2px solid var(--theme-primary)",
 												}}
 											/>
@@ -1385,7 +1385,7 @@ export default function ManageAccountPage() {
 												justifyContent: "center",
 												padding: "20px",
 												border: "2px dashed var(--theme-border-hover)",
-												borderRadius: "8px",
+												borderRadius: "4px",
 												cursor: "pointer",
 												backgroundColor: "var(--theme-bg-page)",
 												marginTop: "4px",
@@ -1829,7 +1829,7 @@ export default function ManageAccountPage() {
 										<div
 											style={{
 												padding: "10px 14px",
-												borderRadius: "6px",
+												borderRadius: "3px",
 												backgroundColor: "var(--theme-danger-bg)",
 												color: "var(--theme-danger)",
 												fontSize: "0.8125rem",
@@ -1926,7 +1926,7 @@ export default function ManageAccountPage() {
 												border: bulkZipFile
 													? "2px solid var(--theme-primary)"
 													: "2px dashed var(--theme-border-hover)",
-												borderRadius: "8px",
+												borderRadius: "4px",
 												cursor: "pointer",
 												backgroundColor: bulkZipFile
 													? "var(--theme-primary-light)"
@@ -2628,7 +2628,7 @@ export default function ManageAccountPage() {
 									style={{
 										padding: "8px 12px",
 										background: "var(--theme-primary-light)",
-										borderRadius: "6px",
+										borderRadius: "3px",
 										fontSize: "0.8125rem",
 										color: "var(--theme-info-text)",
 										lineHeight: "1.4",
@@ -2731,7 +2731,7 @@ export default function ManageAccountPage() {
 									style={{
 										padding: "8px 12px",
 										background: "var(--theme-warning-bg)",
-										borderRadius: "6px",
+										borderRadius: "3px",
 										fontSize: "0.8125rem",
 										color: "var(--theme-warning-text)",
 										lineHeight: "1.4",

@@ -64,24 +64,24 @@ export default function ExportTimesheetModal({ isOpen, onClose, teams = [], curr
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-[1100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget && !loading) onClose();
       }}
     >
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all duration-200 animate-in zoom-in-95">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100dvh-2rem)] my-auto flex flex-col overflow-hidden transform transition-all duration-200 animate-in zoom-in-95">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 shrink-0">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 shadow-xs shrink-0">
               <FileSpreadsheet size={24} />
             </div>
             <div className="flex flex-col gap-0.5">
               <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-tight">
-                Xuất Báo Cáo Chấm Công
+                Xuất Bảng Chấm Công
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Tổng hợp công & tính lương bảo vệ (.xlsx)
+                Tổng hợp công & lương (.xlsx)
               </p>
             </div>
           </div>
@@ -97,7 +97,7 @@ export default function ExportTimesheetModal({ isOpen, onClose, teams = [], curr
         </div>
 
         {/* Form Body with explicit flex column & generous gap */}
-        <form onSubmit={handleExport} className="p-6 flex flex-col gap-5">
+        <form onSubmit={handleExport} className="p-6 flex flex-col gap-5 flex-1 min-h-0 overflow-y-auto">
           {error && (
             <div className="p-3.5 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 rounded-xl flex items-start gap-3 text-xs text-rose-700 dark:text-rose-300 leading-relaxed shadow-xs">
               <AlertCircle size={18} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
@@ -150,7 +150,7 @@ export default function ExportTimesheetModal({ isOpen, onClose, teams = [], curr
           <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 flex flex-col gap-3 shadow-xs">
             <div className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <FileSpreadsheet size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>Nội dung file Excel xuất ra:</span>
+              <span>Nội dung file</span>
             </div>
             <div className="flex flex-col gap-2 text-xs text-slate-600 dark:text-slate-300">
               <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-700/80">
@@ -158,7 +158,7 @@ export default function ExportTimesheetModal({ isOpen, onClose, teams = [], curr
                   Sheet 1
                 </span>
                 <span className="leading-relaxed">
-                  Bảng tổng hợp công, phụ cấp ca đêm, OT, trực thay và công thức tính lương tự động.
+                  Bảng công, phụ cấp đêm, OT, trực thay và tính lương.
                 </span>
               </div>
               <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-700/80">
@@ -166,7 +166,7 @@ export default function ExportTimesheetModal({ isOpen, onClose, teams = [], curr
                   Sheet 2
                 </span>
                 <span className="leading-relaxed">
-                  Nhật ký đối soát chi tiết từng ca trực và thời gian check-in / check-out.
+                  Chi tiết từng ca trực và giờ điểm danh vào/ra.
                 </span>
               </div>
             </div>
@@ -190,12 +190,12 @@ export default function ExportTimesheetModal({ isOpen, onClose, teams = [], curr
               {loading ? (
                 <>
                   <Loader2 size={15} className="animate-spin" />
-                  <span>Đang xuất file...</span>
+                  <span>Đang xuất...</span>
                 </>
               ) : (
                 <>
                   <Download size={15} />
-                  <span>Tải Báo Cáo Excel</span>
+                  <span>Tải file Excel</span>
                 </>
               )}
             </button>

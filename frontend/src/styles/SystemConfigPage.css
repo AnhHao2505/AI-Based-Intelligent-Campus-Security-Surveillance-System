@@ -24,7 +24,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.875rem;
   font-weight: 500;
   animation: syscfgFadeIn 0.2s ease-out;
@@ -105,7 +105,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 4px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--theme-text-secondary);
@@ -247,7 +247,7 @@
   color: var(--theme-text-muted);
   background: var(--theme-bg-input);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   border: 1px solid var(--theme-border);
 }
 
@@ -393,7 +393,7 @@
   max-height: 400px;
   overflow-y: auto;
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .syscfg-history-table {
@@ -438,7 +438,7 @@
 .syscfg-val-badge {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -466,7 +466,7 @@
   backdrop-filter: var(--theme-glass-blur, blur(16px));
   -webkit-backdrop-filter: var(--theme-glass-blur, blur(16px));
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: var(--theme-card-shadow, 0 4px 12px rgba(0, 0, 0, 0.05));
   overflow: hidden;
   box-sizing: border-box;

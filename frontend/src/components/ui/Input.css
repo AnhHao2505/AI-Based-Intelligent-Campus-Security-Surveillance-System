@@ -53,7 +53,7 @@
   padding: 0 12px;
   background-color: var(--theme-bg-input);
   border: 1px solid var(--theme-input-border);
-  border-radius: 8px;
+  border-radius: 4px;
   font-family: inherit;
   font-size: 0.875rem;
   color: var(--theme-text-primary);

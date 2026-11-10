@@ -326,10 +326,10 @@ export default function StaffingWizardModal({
             </div>
             <div className="flex flex-col gap-0.5">
               <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-tight">
-                Gán Lịch Trực Cho Đội Bảo Vệ
+                Gán Lịch Trực Theo Đội
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Tự động phân bổ ca trực theo khoảng thời gian cho Đội bảo vệ
+                Phân ca tự động theo khoảng ngày
               </p>
             </div>
           </div>
@@ -369,8 +369,8 @@ export default function StaffingWizardModal({
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit}>
-            <div className="px-6 sm:px-7 py-6 flex flex-col gap-6 max-h-[calc(85vh-130px)] overflow-y-auto">
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div className="px-6 sm:px-7 py-6 flex flex-col gap-6 flex-1 min-h-0 overflow-y-auto">
               {/* ERROR ALERT */}
               {error && (
                 <div className="p-3.5 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/80 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-start gap-3 shadow-xs">
@@ -381,16 +381,16 @@ export default function StaffingWizardModal({
 
               {/* 1. CHỌN ĐỘI BẢO VỆ */}
               <div className="flex flex-col gap-2.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  1. Chọn Đội Bảo Vệ Phụ Trách <span className="text-rose-500">*</span>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  1. Đội bảo vệ <span className="text-rose-500">*</span>
                 </label>
                 <Select
                   value={selectedTeamId}
                   onChange={(e) => handleSelectTeam(e.target.value)}
                   required
                   options={[
-                    { value: '', label: '-- Chọn đội bảo vệ để phân lịch --' },
-                    ...teams.map((t) => ({ value: t.id, label: `${t.teamName} — (${t.members?.length || 0} thành viên)` })),
+                    { value: '', label: 'Chọn đội bảo vệ' },
+                    ...teams.map((t) => ({ value: t.id, label: `${t.teamName} (${t.members?.length || 0} người)` })),
                   ]}
                 />
 
@@ -442,16 +442,16 @@ export default function StaffingWizardModal({
                   </div>
                 ) : (
                   <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-400 text-center">
-                    Vui lòng chọn một đội bảo vệ ở trên để áp dụng lịch trực
+                    Chọn một đội bảo vệ để xem định mức ca trực
                   </div>
                 )}
               </div>
 
               {/* 2. CHỌN THỜI GIAN TRỰC: NGÀY BẮT ĐẦU & KẾT THÚC */}
               <div className="flex flex-col gap-3">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                   <Calendar size={14} className="text-[#f37021]" />
-                  <span>2. Thời Gian Trực <span className="text-rose-500">*</span></span>
+                  <span>2. Thời gian trực <span className="text-rose-500">*</span></span>
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
@@ -526,9 +526,9 @@ export default function StaffingWizardModal({
 
               {/* 3. CHỌN TÒA NHÀ / CƠ SỞ PHỤ TRÁCH */}
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                   <Building2 size={14} className="text-[#f37021]" />
-                  <span>3. Tòa Nhà / Cơ Sở Phụ Trách <span className="text-rose-500">*</span></span>
+                  <span>3. Tòa nhà phụ trách <span className="text-rose-500">*</span></span>
                 </label>
                 <Select
                   value={building}
@@ -536,9 +536,6 @@ export default function StaffingWizardModal({
                   required
                   options={availableBuildings.map((bName) => ({ value: bName, label: bName }))}
                 />
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Cơ sở phân công trực tiếp để nhận cảnh báo AI Camera và kiểm soát an ninh
-                </p>
               </div>
             </div>
 
@@ -557,70 +554,67 @@ export default function StaffingWizardModal({
                 disabled={loading || !selectedTeamId || teamMemberCount === 0}
                 className="px-5 py-2.5 text-xs font-bold rounded-xl text-white bg-[#f37021] hover:bg-[#e05e10] active:scale-95 disabled:opacity-50 disabled:pointer-events-none shadow-xs transition flex items-center gap-2"
               >
-                {loading ? 'Đang Tạo Lịch...' : `Gán Lịch Cho ${activeTeam?.teamName || 'Đội Bảo Vệ'}`}
+                {loading ? 'Đang tạo lịch...' : `Gán lịch — ${activeTeam?.teamName || 'Đội bảo vệ'}`}
               </button>
             </div>
           </form>
         )}
+      </div>
 
-        {/* Hộp thoại xác nhận luân chuyển tòa nhà (Requirement 3) */}
-        {showCrossConfirm && (
-          <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-5 animate-in zoom-in-95">
-              <div className="flex items-start gap-3.5">
-                <div className="p-3 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 shrink-0 border border-amber-200 dark:border-amber-800">
-                  <AlertCircle size={24} />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                    Xác nhận tạo ca trực luân chuyển tòa nhà
-                  </h4>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    Đội <strong>{activeTeam?.teamName}</strong> có cơ sở phụ trách là <strong>{teamHomeBuildingName}</strong>, nhưng bạn đang phân lịch tại <strong>{building}</strong>.
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Toàn bộ các ca trực tự động sinh ra sẽ được đánh dấu là ca <strong>luân chuyển tòa nhà</strong>.
-                  </p>
-                </div>
+      {/* Hộp thoại xác nhận luân chuyển tòa nhà */}
+      {showCrossConfirm && (
+        <div className="fixed inset-0 z-[1200] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full max-h-[calc(100dvh-2rem)] my-auto overflow-y-auto p-6 shadow-2xl flex flex-col gap-5 animate-in zoom-in-95">
+            <div className="flex items-start gap-3.5">
+              <div className="p-3 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 shrink-0 border border-amber-200 dark:border-amber-800">
+                <AlertCircle size={24} />
               </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Lý do luân chuyển (không bắt buộc):
-                </label>
-                <input
-                  type="text"
-                  value={crossBuildingReason}
-                  onChange={(e) => setCrossBuildingReason(e.target.value)}
-                  placeholder="Ví dụ: Tăng cường trực sự kiện, hỗ trợ cơ sở thiếu quân số..."
-                  className="w-full h-11 px-4 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#f37021]"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowCrossConfirm(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCrossConfirm(false);
-                    doGenerate(true, crossBuildingReason);
-                  }}
-                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#f37021] hover:bg-[#e05e10] transition flex items-center gap-2"
-                >
-                  <span>Xác nhận & Tạo lịch</span>
-                  <ArrowRight size={14} />
-                </button>
+              <div className="flex flex-col gap-1">
+                <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                  Xác nhận ca luân chuyển
+                </h4>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  <strong>{activeTeam?.teamName}</strong> trực chính tại <strong>{teamHomeBuildingName}</strong>, nhưng lịch này xếp ở <strong>{building}</strong>. Các ca tạo ra sẽ được đánh dấu luân chuyển.
+                </p>
               </div>
             </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Lý do (tùy chọn):
+              </label>
+              <input
+                type="text"
+                value={crossBuildingReason}
+                onChange={(e) => setCrossBuildingReason(e.target.value)}
+                placeholder="Tăng cường sự kiện, bù quân số..."
+                className="w-full h-11 px-4 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#f37021]"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowCrossConfirm(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCrossConfirm(false);
+                  doGenerate(true, crossBuildingReason);
+                }}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#f37021] hover:bg-[#e05e10] transition flex items-center gap-2"
+              >
+                <span>Xác nhận</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

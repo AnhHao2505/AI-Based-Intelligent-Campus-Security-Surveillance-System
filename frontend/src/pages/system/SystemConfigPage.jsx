@@ -687,7 +687,7 @@ export default function SystemConfigPage() {
 							style={{
 								background: "var(--theme-bg-page)",
 								padding: "12px",
-								borderRadius: "8px",
+								borderRadius: "4px",
 								fontSize: "13.5px",
 								border: "1px solid var(--theme-border)",
 							}}

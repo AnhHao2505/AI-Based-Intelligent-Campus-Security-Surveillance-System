@@ -64,7 +64,7 @@
   align-items: center;
   width: fit-content;
   padding: 2px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   border: 1px solid transparent;
   font-size: 11px;
   font-weight: 600;
@@ -181,7 +181,7 @@
     padding: 4px 0;
     background-color: var(--theme-bg-surface);
     border: 1px solid var(--theme-border);
-    border-radius: 10px;
+    border-radius: 5px;
   }
 
   table.ui-table--mobile-card tbody tr:last-child {
@@ -226,17 +226,25 @@
    Baseline: Exponential Ease (cubic-bezier(0.16, 1, 0.3, 1))
    ========================================================================== */
 
-/* 1. Modal & Pop-up Backdrops */
+/* 1. Modal & Pop-up Backdrops — Always perfectly centered on full viewport */
 .ui-modal-backdrop,
 .area-modal-backdrop,
 .account-modal-backdrop,
 .schedule-modal-backdrop,
 .soc-evidence-modal-backdrop,
+.report-modal-backdrop,
 .roi-modal-overlay,
 .recording-player-modal-overlay,
 .aapm-modal-overlay,
 .modal-backdrop,
 .modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  overflow-y: auto !important;
   animation: unifiedBackdropFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
 }
 
@@ -255,13 +263,16 @@
 .account-modal,
 .schedule-modal,
 .soc-evidence-modal,
+.report-modal,
 .roi-modal-container,
 .recording-player-modal,
 .aapm-modal,
 .modal-dialog,
 .modal-content,
 [role="dialog"]:not(.ui-modal-backdrop):not(.area-modal-backdrop):not(.account-modal-backdrop):not(.schedule-modal-backdrop) {
-  animation: unifiedModalScaleUp 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  margin: auto !important;
+  max-height: calc(100dvh - 32px) !important;
+  animation: unifiedModalScaleUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 @keyframes unifiedModalScaleUp {
@@ -271,7 +282,7 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: none;
   }
 }
 
@@ -336,15 +347,18 @@
 
 .account-tab-btn:active,
 .schedule-tab-btn:active,
-.syscfg-tab-btn:active,
-/* 5. Canva-Style Tab Transitions for all In-Page Tabs & Tab Panels */
+.syscfg-tab-btn:active {
+  transform: scale(0.97);
+}
+
+/* 5. Canva-Style Tab Transitions for all In-Page Tabs & Tab Panels
+   (No persistent transform/will-change so fixed modals inside tabs stay viewport-centered) */
 [role="tabpanel"],
 .tab-content,
 .tab-pane,
 .tab-panel,
 .canva-tab-transition {
-  animation: canvaTabSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
-  will-change: transform, opacity;
+  animation: canvaTabSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes canvaTabSlideIn {
@@ -354,7 +368,7 @@
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: none;
   }
 }
 
@@ -434,7 +448,6 @@
 .table-container:hover,
 .account-table-wrap:hover,
 .zone-table-container:hover,
-.schedule-matrix-wrap:hover,
 .campus-rail-card:hover,
 .area-camera-item:hover,
 .guard-card:hover,
@@ -446,6 +459,11 @@
   border-color: var(--theme-border-hover);
   box-shadow: var(--theme-card-shadow-hover) !important;
   transform: translateY(-2px);
+}
+
+.schedule-matrix-wrap:hover {
+  border-color: var(--theme-border-hover);
+  box-shadow: var(--theme-card-shadow-hover) !important;
 }
 
 .ui-card:active,

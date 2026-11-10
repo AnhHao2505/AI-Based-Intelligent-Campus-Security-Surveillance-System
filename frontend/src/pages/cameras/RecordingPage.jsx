@@ -440,7 +440,7 @@ export default function RecordingPage() {
           style={{
             background: "var(--theme-bg-surface)",
             border: "1px dashed var(--theme-border)",
-            borderRadius: "12px",
+            borderRadius: "6px",
             padding: "60px 24px",
             textAlign: "center",
           }}
@@ -465,7 +465,7 @@ export default function RecordingPage() {
           style={{
             background: "rgba(239, 68, 68, 0.08)",
             border: "1px solid rgba(239, 68, 68, 0.3)",
-            borderRadius: "12px",
+            borderRadius: "6px",
             padding: "40px 24px",
             textAlign: "center",
           }}
@@ -482,7 +482,7 @@ export default function RecordingPage() {
           style={{
             background: "var(--theme-bg-surface)",
             border: "1px dashed var(--theme-border)",
-            borderRadius: "12px",
+            borderRadius: "6px",
             padding: "60px 24px",
             textAlign: "center",
           }}

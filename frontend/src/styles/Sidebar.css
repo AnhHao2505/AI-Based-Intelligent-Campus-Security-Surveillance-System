@@ -45,7 +45,7 @@
 
 .sidebar__header::-webkit-scrollbar-thumb {
   background: var(--theme-border);
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .sidebar__header::-webkit-scrollbar-track {
@@ -60,7 +60,7 @@
   width: 28px;
   height: 28px;
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--theme-bg-surface);
   color: var(--theme-text-muted);
   cursor: pointer;
@@ -140,7 +140,7 @@
 .sidebar__logo {
   width: 36px;
   height: 36px;
-  border-radius: 9px;
+  border-radius: 4.5px;
   background: var(--theme-bg-surface-elevated);
   display: flex;
   align-items: center;
@@ -200,7 +200,7 @@
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--theme-text-secondary);
   text-decoration: none;
   font-size: 0.85rem;
@@ -246,7 +246,7 @@
   margin-left: auto;
   font-size: 0.65rem;
   padding: 2px 6px;
-  border-radius: 6px;
+  border-radius: 3px;
   background: var(--theme-border);
   color: var(--theme-text-muted);
   text-transform: uppercase;
@@ -306,7 +306,7 @@
   padding: 8px 12px;
   background: var(--theme-bg-input);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--theme-text-secondary);
   font-size: 0.8rem;
   font-weight: 500;
@@ -322,7 +322,7 @@
 
 .sidebar__footer {
   padding: 12px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--theme-bg-surface-elevated);
   border: 1px solid var(--theme-border);
   display: flex;
@@ -377,7 +377,7 @@
   border: none;
   color: var(--theme-danger);
   padding: 6px;
-  border-radius: 6px;
+  border-radius: 3px;
   cursor: pointer;
   display: flex;
   align-items: center;

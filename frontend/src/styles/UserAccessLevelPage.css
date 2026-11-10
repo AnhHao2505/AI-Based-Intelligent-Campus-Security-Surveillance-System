@@ -36,7 +36,7 @@
   border-bottom: 2px solid transparent;
   cursor: pointer;
   transition: all 0.2s ease;
-  border-radius: 6px 6px 0 0;
+  border-radius: 3px 3px 0 0;
 }
 
 .access-level-tab:hover {
@@ -75,7 +75,7 @@
   align-items: flex-start;
   gap: 14px;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--brand-subtle);
   border: 1px solid var(--brand-subtle-border);
 }
@@ -122,7 +122,7 @@
 .tier-tag {
   display: inline-flex;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: 3px;
   font-size: 12px;
   line-height: 1.4;
 }
@@ -171,7 +171,7 @@
   width: 100%;
   height: 42px;
   padding: 0 36px 0 36px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   color: var(--theme-text-primary);
@@ -196,7 +196,7 @@
   border: none;
   background: transparent;
   color: var(--theme-text-muted);
-  border-radius: 4px;
+  border-radius: 2px;
   cursor: pointer;
 }
 
@@ -222,7 +222,7 @@
   gap: 12px;
   padding: 10px 14px;
   margin-bottom: 12px;
-  border-radius: 10px;
+  border-radius: 5px;
   background: var(--theme-info-bg);
   border: 1px solid var(--theme-info-border);
   color: var(--theme-info-text);
@@ -289,7 +289,7 @@
   align-items: flex-start;
   margin-top: 12px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 4px;
   border: 1px solid var(--theme-danger-border);
   background: var(--theme-danger-bg);
   color: var(--theme-danger-text);
@@ -299,7 +299,7 @@
 
 /* Table Card */
 .access-level-table-card {
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   overflow: hidden;
@@ -379,7 +379,7 @@
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   background: var(--brand-subtle);
   color: var(--brand-text);
   border: 1px solid var(--brand-subtle-border);
@@ -389,7 +389,7 @@
   display: inline-block;
   font-size: 11px;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-weight: 500;
   background: var(--theme-bg-subtle, rgba(255, 255, 255, 0.06));
   color: var(--theme-text-secondary);
@@ -426,7 +426,7 @@
 .preset-explicit-badge {
   display: inline-block;
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   font-size: 11px;
   font-weight: 600;
 }
@@ -465,7 +465,7 @@
 
 .audit-filters-card {
   padding: 16px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   display: flex;
@@ -514,7 +514,7 @@
 .audit-filter-input {
   height: 36px;
   padding: 0 10px;
-  border-radius: 6px;
+  border-radius: 3px;
   background: var(--theme-bg-page);
   border: 1px solid var(--theme-border);
   color: var(--theme-text-primary);
@@ -546,7 +546,7 @@
 .audit-badge {
   display: inline-block;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-size: 11px;
   font-weight: 600;
   width: fit-content;
@@ -715,7 +715,7 @@
   justify-content: center;
   gap: 16px;
   padding: 14px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--theme-bg-page);
   border: 1px solid var(--theme-border);
 }
@@ -736,7 +736,7 @@
   align-items: flex-start;
   gap: 10px;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(245, 158, 11, 0.08);
   border: 1px solid rgba(245, 158, 11, 0.25);
   color: var(--theme-warning);
@@ -769,7 +769,7 @@
 .form-textarea {
   width: 100%;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: 3px;
   background: var(--theme-bg-page);
   border: 1px solid var(--theme-border);
   color: var(--theme-text-primary);
@@ -825,7 +825,7 @@
   justify-content: space-between;
   background: rgba(99, 102, 241, 0.08);
   border: 1px solid rgba(99, 102, 241, 0.25);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 10px 14px;
   margin-bottom: 12px;
   font-size: 13px;
@@ -845,7 +845,7 @@
   background: rgba(99, 102, 241, 0.15);
   color: #6366f1;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-size: 12px;
 }
 
@@ -856,7 +856,7 @@
   background: transparent;
   border: 1px solid rgba(99, 102, 241, 0.4);
   color: #6366f1;
-  border-radius: 5px;
+  border-radius: 2.5px;
   padding: 4px 10px;
   font-size: 12px;
   font-weight: 500;
@@ -879,7 +879,7 @@
   cursor: pointer;
   font-size: 12px;
   padding: 4px 8px;
-  border-radius: 5px;
+  border-radius: 2.5px;
   white-space: nowrap;
   transition: all 0.15s ease;
 }
