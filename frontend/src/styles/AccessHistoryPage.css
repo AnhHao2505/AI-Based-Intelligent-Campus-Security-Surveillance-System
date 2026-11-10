@@ -27,7 +27,7 @@
 .ahp-card {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   overflow: hidden;
   box-shadow: var(--theme-card-shadow);
 }

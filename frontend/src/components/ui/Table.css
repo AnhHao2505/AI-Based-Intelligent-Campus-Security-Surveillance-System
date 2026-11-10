@@ -8,7 +8,7 @@
   box-sizing: border-box;
   background-color: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 10px;
+  border-radius: 5px;
   box-shadow: var(--theme-card-shadow);
 }
 
@@ -99,7 +99,7 @@
 .ui-table__skeleton-bar {
   height: 14px;
   background-color: var(--theme-border);
-  border-radius: 4px;
+  border-radius: 2px;
   opacity: 0.7;
 }
 

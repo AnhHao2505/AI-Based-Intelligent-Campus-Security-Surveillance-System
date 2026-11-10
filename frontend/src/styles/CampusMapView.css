@@ -40,7 +40,7 @@
   flex-direction: column;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   overflow: hidden;
   box-shadow: var(--theme-card-shadow);
   height: 100%;
@@ -71,7 +71,7 @@
 .campus-map-viewport .maplibregl-ctrl-group {
   background: var(--theme-bg-surface) !important;
   border: 1px solid var(--theme-border) !important;
-  border-radius: 8px !important;
+  border-radius: 4px !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
   overflow: hidden;
 }
@@ -98,7 +98,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--theme-border);
-  border-radius: 10px;
+  border-radius: 5px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
@@ -116,7 +116,7 @@
   color: var(--theme-primary);
   background: var(--theme-primary-light);
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   letter-spacing: 0.2px;
   white-space: nowrap;
 }
@@ -125,7 +125,7 @@
   padding: 4px 8px;
   font-size: 12px;
   font-weight: 500;
-  border-radius: 6px;
+  border-radius: 3px;
   border: 1px solid var(--theme-border);
   background: var(--theme-bg-surface);
   color: var(--theme-text-primary);
@@ -145,7 +145,7 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: 3px;
   border: 1px solid var(--theme-border);
   background: var(--theme-bg-surface);
   color: var(--theme-text-secondary);
@@ -166,7 +166,7 @@
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 7px;
+  border-radius: 3.5px;
   border: 1px solid var(--theme-border, #e2e8f0);
   background: var(--theme-bg-surface, #ffffff);
   color: var(--theme-text-primary, #0f172a);
@@ -196,7 +196,7 @@
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(8px);
   border: 1.5px solid var(--theme-border-hover);
-  border-radius: 20px;
+  border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -245,7 +245,7 @@
   background: rgba(15, 23, 42, 0.94);
   color: #f8fafc;
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: 5px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.2);
   font-size: 13px;
@@ -285,7 +285,7 @@
   padding: 4px 10px;
   font-size: 12px;
   font-weight: 500;
-  border-radius: 6px;
+  border-radius: 3px;
   border: none;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -335,7 +335,7 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 11.5px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
@@ -382,7 +382,7 @@
   flex-direction: column;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: var(--theme-card-shadow);
   overflow: hidden;
 }
@@ -431,7 +431,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: 4px;
   cursor: pointer;
   border: 1px solid transparent;
   transition: all 0.15s ease;
@@ -533,7 +533,7 @@
   gap: 8px;
   background: var(--theme-bg-canvas);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 10px 12px;
 }
 
@@ -570,7 +570,7 @@
   gap: 6px;
   height: 32px;
   padding: 0 12px;
-  border-radius: 6px;
+  border-radius: 3px;
   font-size: 12.5px;
   font-weight: 500;
   border: 1px solid var(--theme-border);
@@ -668,7 +668,7 @@
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   padding: 2px 7px;
-  border-radius: 6px;
+  border-radius: 3px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   border: 1px solid var(--theme-border, rgba(0, 0, 0, 0.1));
   white-space: nowrap;
@@ -722,7 +722,7 @@
   background: rgba(245, 158, 11, 0.12);
   border: 1px solid rgba(245, 158, 11, 0.25);
   padding: 2px 7px;
-  border-radius: 12px;
+  border-radius: 6px;
 }
 
 .campus-tag-unpositioned {
@@ -732,7 +732,7 @@
   background: var(--theme-bg-canvas);
   border: 1px dashed var(--theme-border);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .campus-detail-meta-val--coords {
@@ -768,7 +768,7 @@
   color: var(--theme-text-primary, inherit);
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -809,7 +809,7 @@
   padding: 4px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 10px;
+  border-radius: 5px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
   animation: campus-fade-in 0.12s ease-out;
 }
@@ -844,7 +844,7 @@
   width: 100%;
   padding: 7px 8px;
   border: none;
-  border-radius: 7px;
+  border-radius: 3.5px;
   background: transparent;
   text-align: left;
   font-family: inherit;
@@ -911,7 +911,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--theme-border-hover);
-  border-radius: 10px;
+  border-radius: 5px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   animation: campus-fade-in 0.15s ease-out;
 }
@@ -967,7 +967,7 @@
   font-size: 11.5px;
   color: #b91c1c;
   background: rgba(239, 68, 68, 0.1);
-  border-radius: 6px;
+  border-radius: 3px;
 }
 
 .campus-coord-editor__actions {
@@ -987,7 +987,7 @@
   font-size: 12px;
   font-weight: 600;
   font-family: inherit;
-  border-radius: 7px;
+  border-radius: 3.5px;
   cursor: pointer;
   transition: background 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
 }
@@ -1234,7 +1234,7 @@
   height: 100%;
   box-sizing: border-box;
   background: var(--theme-bg-surface);
-  border-radius: 12px;
+  border-radius: 6px;
   border: 1px solid var(--theme-border);
   box-shadow: var(--theme-card-shadow);
   overflow: hidden;
@@ -1265,7 +1265,7 @@
   justify-content: center;
   width: 26px;
   height: 26px;
-  border-radius: 6px;
+  border-radius: 3px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--theme-text-muted);
@@ -1283,7 +1283,7 @@
   margin: 8px 12px 0;
   padding: 6px 10px;
   font-size: 0.78125rem;
-  border-radius: 6px;
+  border-radius: 3px;
 }
 
 .campus-rail-card--create .campus-create-form-body {
@@ -1301,7 +1301,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--theme-primary-subtle);
   border: 1px solid var(--theme-primary-border);
   color: var(--theme-primary);
@@ -1349,7 +1349,7 @@
   height: 34px;
   padding: 0 10px;
   font-size: 0.84375rem;
-  border-radius: 8px;
+  border-radius: 4px;
   border: 1px solid var(--theme-input-border, var(--theme-border));
   background: var(--theme-bg-input);
   color: var(--theme-text-primary);
@@ -1387,7 +1387,7 @@
   min-height: 32px;
   height: 32px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   cursor: pointer;
@@ -1539,7 +1539,7 @@
   height: 38px;
   padding: 0 32px 0 12px;
   font-size: 0.84375rem;
-  border-radius: 8px;
+  border-radius: 4px;
   border: 1px solid var(--theme-input-border, var(--theme-border));
   background: var(--theme-bg-input);
   color: var(--theme-text-primary);
@@ -1573,7 +1573,7 @@
   width: 100%;
   height: 38px;
   padding: 0 16px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 0.84375rem;
   font-weight: 600;
   cursor: pointer;

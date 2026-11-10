@@ -282,7 +282,7 @@ export default function CameraListPage() {
 														style={{
 															fontSize: "0.8rem",
 															padding: "0.2rem 0.55rem",
-															borderRadius: "6px",
+															borderRadius: "3px",
 															display: "inline-block",
 														}}
 													>
