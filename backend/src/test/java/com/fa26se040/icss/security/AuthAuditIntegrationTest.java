@@ -59,6 +59,7 @@ class AuthAuditIntegrationTest extends AbstractIntegrationTest {
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private SystemConfigService systemConfigService;
     @Autowired private PasswordResetTokenRepository passwordResetTokenRepository;
+    @Autowired private JwtTokenProvider jwtTokenProvider;
 
     @MockBean private NotificationService notificationService;
     @MockBean private GoogleTokenVerifier googleTokenVerifier;
@@ -127,6 +128,28 @@ class AuthAuditIntegrationTest extends AbstractIntegrationTest {
                 + "AND new_value ->> 'email' = ?", action, email);
     }
 
+    /** X2: dòng của chuỗi KHÔNG khớp tài khoản — tra theo target_id "UNKNOWN:" + hash (test tự tính SHA-256). */
+    private List<Map<String, Object>> unknownAudits(String action, String typed) {
+        return jdbc.queryForList("SELECT target_id, subject_user_id, actor_type, actor_source, ip_address, user_agent, "
+                + "new_value::text AS new_json, new_value ->> 'email' AS email, new_value ->> 'emailHash' AS hash, "
+                + "new_value ->> 'failureReason' AS reason, new_value ->> 'method' AS method FROM audit_logs "
+                + "WHERE target_type = 'AUTH' AND action = ? AND target_id = ?", action, "UNKNOWN:" + sha16(typed));
+    }
+
+    private static String sha16(String typed) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(typed.trim().toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : d) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.substring(0, 16);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private static void assertNoSensitive(Map<String, Object> row) {
         String json = (String) row.get("new_json");
         assertThat(json).doesNotContain("password").doesNotContain("token").doesNotContain("http");
@@ -185,9 +208,13 @@ class AuthAuditIntegrationTest extends AbstractIntegrationTest {
             assertThat(bodyWithoutTimestamp(r)).isEqualTo(expected);
         }
 
-        Map<String, Object> unknownRow = authAudits("LOGIN_FAILED", unknown).get(0);
+        // X2: e-mail không khớp -> target_id = "UNKNOWN:" + hash, snapshot chỉ có bản đã che + hash
+        Map<String, Object> unknownRow = unknownAudits("LOGIN_FAILED", unknown).get(0);
         assertThat(unknownRow.get("reason")).isEqualTo("UNKNOWN_ACCOUNT");
-        assertThat(unknownRow.get("target_id")).isEqualTo(unknown);
+        assertThat(unknownRow.get("target_id")).isEqualTo("UNKNOWN:" + sha16(unknown));
+        assertThat(unknownRow.get("email")).isEqualTo("a***@fpt.edu.vn");
+        assertThat(unknownRow.get("hash")).isEqualTo(sha16(unknown));
+        assertThat((String) unknownRow.get("new_json")).doesNotContain(unknown);
         assertThat(unknownRow.get("subject_user_id")).isNull();
         assertThat(unknownRow.get("actor_type")).isEqualTo("SYSTEM");
         assertThat(unknownRow.get("actor_source")).isEqualTo("AUTH_LOGIN");
@@ -228,8 +255,10 @@ class AuthAuditIntegrationTest extends AbstractIntegrationTest {
             assertThat(row.get("subject_user_id")).isEqualTo(user.getId());
             assertThat((String) row.get("new_json")).contains("\"lockMinutes\": " + lockMinutes);
         });
-        assertThat(authAudits("ACCOUNT_LOCKED", unknown)).singleElement()
-                .satisfies(row -> assertThat(row.get("subject_user_id")).isNull());
+        assertThat(unknownAudits("ACCOUNT_LOCKED", unknown)).singleElement().satisfies(row -> {
+            assertThat(row.get("subject_user_id")).isNull();
+            assertThat((String) row.get("new_json")).doesNotContain(unknown);
+        });
     }
 
     private static GoogleIdToken.Payload payload(String email) {
@@ -251,8 +280,9 @@ class AuthAuditIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(origin(post("/api/auth/google"), randomIp()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"idToken\":\"aa-ok\"}")).andReturn();
 
-        assertThat(authAudits("LOGIN_FAILED", unregistered)).singleElement().satisfies(row -> {
+        assertThat(unknownAudits("LOGIN_FAILED", unregistered)).singleElement().satisfies(row -> {
             assertThat(row.get("reason")).isEqualTo("GOOGLE_NOT_REGISTERED");
+            assertThat((String) row.get("new_json")).doesNotContain(unregistered);
             assertThat(row.get("method")).isEqualTo("GOOGLE");
         });
         assertThat(authAudits("LOGIN_SUCCESS", active.getEmail())).singleElement()
@@ -278,6 +308,7 @@ class AuthAuditIntegrationTest extends AbstractIntegrationTest {
             assertNoSensitive(row);
         });
         assertThat(authAudits("PASSWORD_RESET_REQUESTED", unknown)).isEmpty();
+        assertThat(unknownAudits("PASSWORD_RESET_REQUESTED", unknown)).isEmpty();
 
         PasswordResetToken token = passwordResetTokenRepository.save(PasswordResetToken.builder()
                 .token(UUID.randomUUID().toString())
@@ -297,5 +328,53 @@ class AuthAuditIntegrationTest extends AbstractIntegrationTest {
         passwordResetTokenRepository.findAll().stream()
                 .filter(t -> user.getEmail().equals(t.getEmail()))
                 .forEach(passwordResetTokenRepository::delete);
+    }
+
+    // ------------------------------------------------------------------ audit-login-privacy
+
+    private int containing(String original) {
+        String like = "%" + original.toLowerCase(Locale.ROOT) + "%";
+        return jdbc.queryForObject("SELECT count(*) FROM audit_logs WHERE lower(target_id) LIKE ? "
+                + "OR lower(coalesce(old_value::text, '')) LIKE ? OR lower(coalesce(new_value::text, '')) LIKE ? "
+                + "OR lower(coalesce(reason, '')) LIKE ?", Integer.class, like, like, like, like);
+    }
+
+    @Test
+    @DisplayName("X2: chuỗi gõ sai không khớp tài khoản (\"MatKhau@123\", \"abc@x.vn\") không nằm ở cột nào; cùng chuỗi cùng hash; "
+            + "LOGIN_FAILED có IP, thao tác tài khoản (vô hiệu hoá) IP NULL")
+    void unmatchedLoginInput_neverStoredInClear_ipOnlyForAuth() throws Exception {
+        String ip = randomIp();
+        for (String typed : List.of("MatKhau@123", "abc@x.vn")) {
+            int before = unknownAudits("LOGIN_FAILED", typed).size();
+            assertThat(login(typed, password, ip).getResponse().getStatus()).isEqualTo(401);
+            // Lần 2 viết HOA: chuẩn hoá lower -> cùng hash (khoảng trắng hai đầu bị @Email chặn 400 trước khi tới đây)
+            assertThat(login(typed.toUpperCase(Locale.ROOT), password, ip).getResponse().getStatus()).isEqualTo(401);
+
+            List<Map<String, Object>> rows = unknownAudits("LOGIN_FAILED", typed);
+            assertThat(rows).hasSize(before + 2);
+            assertThat(rows).allSatisfy(row -> {
+                assertThat(row.get("hash")).isEqualTo(sha16(typed));
+                assertThat(row.get("reason")).isEqualTo("UNKNOWN_ACCOUNT");
+                assertThat(row.get("subject_user_id")).isNull();
+                assertThat(row.get("ip_address")).as("LOGIN_FAILED lưu IP").isNotNull();
+                assertThat(row.get("user_agent")).isNotNull();
+            });
+            assertThat(containing(typed)).as("không cột nào chứa chuỗi gốc " + typed).isZero();
+        }
+        // Có '@' nhưng không phải e-mail -> che toàn bộ; e-mail -> giữ ký tự đầu + tên miền
+        assertThat(unknownAudits("LOGIN_FAILED", "MatKhau@123")).allSatisfy(r -> assertThat(r.get("email")).isEqualTo("***"));
+        assertThat(unknownAudits("LOGIN_FAILED", "abc@x.vn")).allSatisfy(r -> assertThat(r.get("email")).isEqualTo("a***@x.vn"));
+
+        // Thao tác module ACCOUNT qua HTTP có IP -> audit để NULL (phương án b)
+        User target = newUser("ipn", Role.NORMAL_USER);
+        MvcResult toggle = mockMvc.perform(origin(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .patch("/api/users/{id}/toggle-active", target.getId()), ip)
+                        .header("Authorization", "Bearer " + jwtTokenProvider.generateToken(admin)))
+                .andReturn();
+        assertThat(toggle.getResponse().getStatus()).isEqualTo(200);
+        Map<String, Object> deactivate = jdbc.queryForMap("SELECT ip_address, user_agent FROM audit_logs "
+                + "WHERE target_type = 'USER_ACCOUNT' AND action = 'DEACTIVATE' AND target_id = ?", target.getId().toString());
+        assertThat(deactivate.get("ip_address")).isNull();
+        assertThat(deactivate.get("user_agent")).isNull();
     }
 }

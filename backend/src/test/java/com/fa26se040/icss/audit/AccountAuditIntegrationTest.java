@@ -197,9 +197,14 @@ class AccountAuditIntegrationTest extends AbstractIntegrationTest {
         }
     }
 
+    /**
+     * audit-login-privacy (phương án b): chỉ module AUTH ghi IP / user agent; thao tác tài khoản, lô, khuôn mặt,
+     * cấu hình để NULL dù gọi qua HTTP có IP. Tham số ip giữ để thấy request thật có IP.
+     */
     private static void assertHttpOrigin(Map<String, Object> row, String ip) {
-        assertThat(row.get("ip_address")).isEqualTo(ip);
-        assertThat(row.get("user_agent")).isEqualTo(UA);
+        assertThat(ip).isNotBlank();
+        assertThat(row.get("ip_address")).as("IP chỉ ghi cho AUTH").isNull();
+        assertThat(row.get("user_agent")).as("user agent chỉ ghi cho AUTH").isNull();
     }
 
     private JsonNode json(Map<String, Object> row, String col) throws Exception {
@@ -482,8 +487,9 @@ class AccountAuditIntegrationTest extends AbstractIntegrationTest {
         List<String> actions = new ArrayList<>();
         content.forEach(n -> actions.add(n.path("action").asText()));
         assertThat(actions).containsExactlyInAnyOrder("CREATE", "REGISTER_FACE");
-        assertThat(content.get(0).path("ipAddress").asText()).isEqualTo(ip);
-        assertThat(content.get(0).path("userAgent").asText()).isEqualTo(UA);
+        // audit-login-privacy: thao tác tài khoản không lưu IP / user agent
+        assertThat(content.get(0).path("ipAddress").isNull() || content.get(0).path("ipAddress").isMissingNode()).isTrue();
+        assertThat(content.get(0).path("userAgent").isNull() || content.get(0).path("userAgent").isMissingNode()).isTrue();
         assertThat(java.time.OffsetDateTime.parse(content.get(0).path("changedAt").asText()))
                 .isAfterOrEqualTo(java.time.OffsetDateTime.parse(content.get(1).path("changedAt").asText()));
 
@@ -513,7 +519,7 @@ class AccountAuditIntegrationTest extends AbstractIntegrationTest {
                 .hasMessageContaining("append-only");
         assertThatThrownBy(() -> jdbc.update("DELETE FROM audit_logs WHERE id = ?", auditId))
                 .hasMessageContaining("append-only");
-        assertThat(jdbc.queryForObject("SELECT ip_address FROM audit_logs WHERE id = ?", String.class, auditId))
-                .isEqualTo("10.40.0.19");
+        // UPDATE bị chặn -> giá trị không đổi (audit-login-privacy: dòng ACCOUNT không lưu IP nên vẫn NULL)
+        assertThat(jdbc.queryForObject("SELECT ip_address FROM audit_logs WHERE id = ?", String.class, auditId)).isNull();
     }
 }

@@ -37,16 +37,22 @@ public class AuthAuditRecorder {
 
     private final AuditService auditService;
 
+    /**
+     * X2: chuỗi người dùng gõ chỉ đi vào audit khi đã che / băm — xem {@link #identify(User, String)}.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void loginFailed(String email, User account, String method, String reason) {
-        auditService.record(AuditTargetType.AUTH, AuditAction.LOGIN_FAILED, targetId(account, email), null, account,
-                null, new AuthAuditSnapshot(email, method, reason, null), null, AuditActor.system(SOURCE_LOGIN));
+        Identity id = identify(account, email);
+        auditService.record(AuditTargetType.AUTH, AuditAction.LOGIN_FAILED, id.targetId(), null, account,
+                null, new AuthAuditSnapshot(id.email(), method, reason, null, id.hash()), null, AuditActor.system(SOURCE_LOGIN));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void accountLocked(String email, User account, int lockMinutes) {
-        auditService.record(AuditTargetType.AUTH, AuditAction.ACCOUNT_LOCKED, targetId(account, email), null, account,
-                null, new AuthAuditSnapshot(email, METHOD_PASSWORD, null, lockMinutes), null, AuditActor.system(SOURCE_LOGIN));
+        Identity id = identify(account, email);
+        auditService.record(AuditTargetType.AUTH, AuditAction.ACCOUNT_LOCKED, id.targetId(), null, account,
+                null, new AuthAuditSnapshot(id.email(), METHOD_PASSWORD, null, lockMinutes, id.hash()), null,
+                AuditActor.system(SOURCE_LOGIN));
     }
 
     @Transactional
@@ -69,13 +75,46 @@ public class AuthAuditRecorder {
                 account, null, new AuthAuditSnapshot(account.getEmail(), null, null, null), null, AuditActor.user(account));
     }
 
-    private static String targetId(User account, String email) {
+    /** Đối tượng của dòng audit đăng nhập thất bại / khoá: target_id + e-mail được phép lưu + hash (nếu không khớp). */
+    record Identity(String targetId, String email, String hash) {}
+
+    static final String UNKNOWN_PREFIX = "UNKNOWN:";
+    private static final java.util.regex.Pattern EMAIL_SHAPE =
+            java.util.regex.Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+
+    /**
+     * X2 (audit-login-privacy):
+     * <ul>
+     *   <li>Khớp tài khoản (kể cả đã khoá / đã xoá): target_id = userId, e-mail = e-mail CỦA TÀI KHOẢN — không lưu chuỗi
+     *       người dùng gõ.</li>
+     *   <li>Không khớp: target_id = "UNKNOWN:" + 16 hex đầu SHA-256(chuỗi trim + lower); e-mail = chuỗi đã che
+     *       (LogMasker.maskEmail khi có dạng e-mail đầy đủ a@b.c, ngược lại "***" — kể cả chuỗi có '@' nhưng không phải
+     *       e-mail, vd mật khẩu gõ nhầm ô "MatKhau@123", để không lộ phần sau '@'). Cùng chuỗi -> cùng hash, để đếm lần thử.</li>
+     *   <li>Không có chuỗi (token Google sai): target_id = "UNKNOWN", không e-mail, không hash.</li>
+     * </ul>
+     */
+    static Identity identify(User account, String typed) {
         if (account != null && account.getId() != null) {
-            return account.getId().toString();
+            return new Identity(account.getId().toString(), account.getEmail(), null);
         }
-        if (email == null || email.isBlank()) {
-            return "UNKNOWN";
+        String normalized = typed == null ? "" : typed.trim().toLowerCase(java.util.Locale.ROOT);
+        if (normalized.isEmpty()) {
+            return new Identity("UNKNOWN", null, null);
         }
-        return email.length() <= 100 ? email : email.substring(0, 100);
+        String hash = sha256Prefix(normalized);
+        String masked = EMAIL_SHAPE.matcher(normalized).matches()
+                ? com.fa26se040.icss.util.LogMasker.maskEmail(normalized)
+                : "***";
+        return new Identity(UNKNOWN_PREFIX + hash, masked, hash);
+    }
+
+    static String sha256Prefix(String value) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest).substring(0, 16);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 }

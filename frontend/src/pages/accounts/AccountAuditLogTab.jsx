@@ -30,6 +30,15 @@ const MODULE_OF_TARGET = {
 
 const yesNo = (v) => (v ? "Có" : "Không");
 
+// audit-login-privacy: luôn hiện e-mail đăng nhập ở dạng đã che (h***@miền). Giá trị đã che từ backend giữ nguyên.
+const EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const maskEmail = (value) => {
+	if (!value) return "—";
+	if (!EMAIL_SHAPE.test(value)) return value.includes("*") ? value : "***";
+	const at = value.lastIndexOf("@");
+	return `${value.charAt(0)}***@${value.slice(at + 1)}`;
+};
+
 /**
  * PR-AUDIT (F1–F3): tab "Nhật ký" của màn Quản lý tài khoản (chỉ ADMIN) — tài khoản, đăng nhập, cấu hình hệ thống.
  * @param {{ subjectUser?: {id: string, userCode: string, fullName: string} | null, onClearSubjectUser: () => void,
@@ -174,13 +183,21 @@ export default function AccountAuditLogTab({ subjectUser, onClearSubjectUser, in
 						{snap.fileName && <span className="text-muted-wrap">{snap.fileName}</span>}
 					</div>
 				);
-			case "AUTH":
+			case "AUTH": {
+				// target_id "UNKNOWN:<hash>" = chuỗi đã nhập không khớp tài khoản nào (backend chỉ lưu bản che + hash)
+				const unknown = typeof log.targetId === "string" && log.targetId.startsWith("UNKNOWN");
 				return (
 					<div className="flex-col-stack">
-						<span className="font-semibold">{snap.email || "—"}</span>
+						<span className="font-semibold">{maskEmail(snap.email)}</span>
 						{log.subjectUserCode && <span className="text-muted">{log.subjectUserCode}</span>}
+						{unknown && (
+							<span className="text-muted" title={snap.emailHash ? `Mã băm: ${snap.emailHash}` : undefined}>
+								Không có tài khoản
+							</span>
+						)}
 					</div>
 				);
+			}
 			case "SYSTEM_CONFIG":
 				return <span className="font-semibold aal-mono">{log.targetId}</span>;
 			default:

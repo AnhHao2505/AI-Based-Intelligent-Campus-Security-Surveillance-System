@@ -142,8 +142,9 @@ public class AuditService {
                 .reason(reason)
                 .correlationId(correlationId);
 
-        // PR-AUDIT (V112): IP + user agent của request hiện hành (null khi không có request: job, luồng nền)
-        HttpServletRequest request = currentRequest();
+        // PR-AUDIT (V112): IP + user agent của request hiện hành (null khi không có request: job, luồng nền).
+        // audit-login-privacy (phương án b): chỉ ghi cho module đăng nhập (AUTH); thao tác khác để NULL.
+        HttpServletRequest request = targetType == AuditTargetType.AUTH ? currentRequest() : null;
         if (request != null) {
             builder.ipAddress(truncate(request.getRemoteAddr(), 45))
                     .userAgent(truncate(request.getHeader("User-Agent"), 255));
