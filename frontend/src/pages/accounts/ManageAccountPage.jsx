@@ -1156,12 +1156,8 @@ export default function ManageAccountPage() {
           CREATE STAFF ACCOUNT MODAL (MF1.1 Manual Creation with Face Image)
           ==================================================================== */}
 			{modalType === "create" && (
-				<div
-					className="account-modal-backdrop"
-					onClick={(e) => {
-						if (e.target === e.currentTarget && !isSubmitting) closeModal();
-					}}
-				>
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ / Esc.
+				<div className="account-modal-backdrop">
 					<div
 						className="account-modal"
 						role="dialog"
@@ -1842,12 +1838,8 @@ export default function ManageAccountPage() {
           BULK IMPORT NORMAL USERS MODAL (MF1.2 Import .zip)
           ==================================================================== */}
 			{modalType === "bulkImport" && (
-				<div
-					className="account-modal-backdrop"
-					onClick={(e) => {
-						if (e.target === e.currentTarget && !isSubmitting) closeModal();
-					}}
-				>
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ / Esc.
+				<div className="account-modal-backdrop">
 					<div
 						className="account-modal"
 						role="dialog"
