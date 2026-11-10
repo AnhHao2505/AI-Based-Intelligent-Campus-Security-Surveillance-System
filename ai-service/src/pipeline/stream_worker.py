@@ -134,6 +134,9 @@ class CameraStreamWorker:
         self.lock = threading.Lock()
         self._active_clients_count: int = 0
         self._clients_lock = threading.Lock()
+        self.new_frame_event = threading.Event()
+        from ..utils.system_threads import enable_high_precision_timer
+        enable_high_precision_timer()
 
     def add_client(self):
         """Đăng ký client đang xem live-annotated stream (P1-05 Lazy Overlay)"""
@@ -271,6 +274,7 @@ class CameraStreamWorker:
                 with self.raw_frame_lock:
                     self.raw_frame = frame
                     self.frame_id += 1
+                self.new_frame_event.set()
         except Exception as e:
             logger.error(f"Lỗi ngoại lệ trong capture thread camera [{self.camera_code}]: {e}")
         finally:
@@ -311,7 +315,8 @@ class CameraStreamWorker:
                     frame = None
 
             if frame is None:
-                time.sleep(0.01)
+                self.new_frame_event.wait(timeout=0.005)
+                self.new_frame_event.clear()
                 continue
 
             last_analysis_time = time.time()
@@ -333,7 +338,7 @@ class CameraStreamWorker:
                     frame_counter = 0
                     active_cnt = len(self.pipeline.analysis_engine.active_tracks) if self.pipeline else 0
                     state_val = self.pipeline.state_machine.state.value if (self.pipeline and hasattr(self.pipeline, "state_machine")) else "N/A"
-                    logger.info(
+                    logger.debug(
                         f"📊 [StreamWorker:{self.camera_code}] Trạng thái: {self.processed_fps} FPS | Vùng: {state_val} | Người đang theo dõi: {active_cnt}"
                     )
 

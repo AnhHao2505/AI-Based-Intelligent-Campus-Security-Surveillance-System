@@ -22,6 +22,33 @@ ARCFACE_CANONICAL_5PTS = np.array([
     [70.7299, 92.2041]
 ], dtype=np.float32)
 
+def _ensure_cuda_dlls_loaded():
+    """Tự động phát hiện và nạp đường dẫn thư viện CUDA 12/cuDNN trên Windows (từ torch hoặc CUDA Toolkit)"""
+    if os.name != "nt":
+        return
+    candidates = []
+    try:
+        import torch
+        torch_lib = os.path.join(os.path.dirname(torch.__file__), "lib")
+        if os.path.exists(torch_lib):
+            candidates.append(torch_lib)
+    except Exception:
+        pass
+
+    cuda_path = os.environ.get("CUDA_PATH")
+    if cuda_path and os.path.exists(os.path.join(cuda_path, "bin")):
+        candidates.append(os.path.join(cuda_path, "bin"))
+
+    for p in candidates:
+        if hasattr(os, "add_dll_directory"):
+            try:
+                os.add_dll_directory(p)
+            except Exception:
+                pass
+        if p not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = p + os.pathsep + os.environ.get("PATH", "")
+
+
 class FaceEmbedder:
     """
     Module trích xuất đặc trưng khuôn mặt (Face Embedding) dạng Vector 512 chiều.
@@ -50,10 +77,16 @@ class FaceEmbedder:
             logger.warning(f"⚠️ [FaceEmbedder] Không tìm thấy file mô hình ArcFace tại '{self.model_path}', kích hoạt fallback.")
             return
 
+        _ensure_cuda_dlls_loaded()
+
         try:
-            # Ưu tiên CPUExecutionProvider (hoặc CUDAExecutionProvider nếu có GPU)
             available_providers = ort.get_available_providers()
-            providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if 'CUDAExecutionProvider' in available_providers else ['CPUExecutionProvider']
+            # Ưu tiên GPU CUDA trước, nếu không có hoặc lỗi thì tự động fallback về CPU
+            prefer_gpu = getattr(settings, "AI_PREFER_GPU", True)
+            providers = []
+            if prefer_gpu and "CUDAExecutionProvider" in available_providers:
+                providers.append("CUDAExecutionProvider")
+            providers.append("CPUExecutionProvider")
             
             from ..utils.system_threads import configure_system_threads
             opts = ort.SessionOptions()
@@ -61,14 +94,22 @@ class FaceEmbedder:
             num_threads = configure_system_threads()
             opts.intra_op_num_threads = num_threads
 
-            self.session = ort.InferenceSession(self.model_path, sess_options=opts, providers=providers)
+            try:
+                self.session = ort.InferenceSession(self.model_path, sess_options=opts, providers=providers)
+            except Exception as e_cuda:
+                if "CUDAExecutionProvider" in providers:
+                    logger.warning(f"⚠️ [FaceEmbedder] Không thể khởi tạo GPU CUDA: {e_cuda}. Tự động fallback sang CPUExecutionProvider.")
+                    self.session = ort.InferenceSession(self.model_path, sess_options=opts, providers=["CPUExecutionProvider"])
+                else:
+                    raise
+
             self.input_name = self.session.get_inputs()[0].name
             self.output_name = self.session.get_outputs()[0].name
             active_p = self.get_active_provider()
             if "CUDAExecutionProvider" in active_p:
                 logger.info(f"⚡ [FaceEmbedder] Kích hoạt GPU Acceleration qua ONNX CUDAExecutionProvider!")
             else:
-                logger.info(f"💻 [FaceEmbedder] Sử dụng ONNX CPUExecutionProvider (CPU inference).")
+                logger.info(f"💻 [FaceEmbedder] Sử dụng ONNX CPUExecutionProvider (CPU fallback).")
             logger.info(f"✅ [FaceEmbedder] Đã nạp thành công mô hình ArcFace ONNX [{self.model_path}] (Active Provider: {active_p})")
         except Exception as e:
             logger.error(f"❌ [FaceEmbedder] Lỗi khi nạp mô hình ArcFace: {e}")

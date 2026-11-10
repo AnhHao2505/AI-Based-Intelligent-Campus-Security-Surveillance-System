@@ -1,3 +1,32 @@
+import atexit
+
+_timer_period_active = False
+
+def enable_high_precision_timer():
+    """Kích hoạt độ phân giải 1ms cho Windows Multimedia Timer (triệt tiêu 15.6ms timer jitter) (Bottleneck #4)"""
+    global _timer_period_active
+    if os.name == "nt" and not _timer_period_active:
+        try:
+            import ctypes
+            if hasattr(ctypes, "windll") and hasattr(ctypes.windll, "winmm"):
+                ctypes.windll.winmm.timeBeginPeriod(1)
+                _timer_period_active = True
+                atexit.register(disable_high_precision_timer)
+        except Exception:
+            pass
+
+def disable_high_precision_timer():
+    """Khôi phục độ phân giải timer Windows khi kết thúc"""
+    global _timer_period_active
+    if os.name == "nt" and _timer_period_active:
+        try:
+            import ctypes
+            if hasattr(ctypes, "windll") and hasattr(ctypes.windll, "winmm"):
+                ctypes.windll.winmm.timeEndPeriod(1)
+                _timer_period_active = False
+        except Exception:
+            pass
+
 import os
 import cv2
 from typing import Optional
@@ -50,5 +79,6 @@ def configure_system_threads(num_threads: Optional[int] = None) -> int:
     except Exception:
         pass
 
+    enable_high_precision_timer()
     _configured_threads = threads
     return threads

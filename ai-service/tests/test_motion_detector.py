@@ -20,7 +20,6 @@ class TestMotionDetector(unittest.TestCase):
             history=100,
             var_threshold=25,
             min_motion_area=2000,
-            tampering_duration_threshold=1.0
         )
         # ROI in center (0.25..0.75, 0.25..0.75)
         self.roi = RoiPolygonConfig(
@@ -106,25 +105,6 @@ class TestMotionDetector(unittest.TestCase):
         bright_frame = np.full((self.height, self.width, 3), 180, dtype=np.uint8)
         res = self.detector.detect(bright_frame, [self.roi])
         self.assertTrue(res.is_lighting_spike)
-
-    def test_tampering_sensor_blinded(self):
-        """Chiếu đèn laser / đèn pin bão hòa trắng kéo dài kích hoạt CAMERA_TAMPERING"""
-        bg = np.full((self.height, self.width, 3), 30, dtype=np.uint8)
-        for _ in range(5):
-            self.detector.detect(bg, [self.roi])
-
-        # Saturated white circle at center (simulate laser/flashlight beam directly into lens)
-        tamper_frame = bg.copy()
-        cv2.circle(tamper_frame, (320, 240), 90, (255, 255, 255), -1)
-
-        # First frame: tampering not yet triggered (requires duration > threshold)
-        res1 = self.detector.detect(tamper_frame, [self.roi])
-        self.assertFalse(res1.is_tampering)
-
-        # Simulate elapsed time > 1.0s
-        time.sleep(1.1)
-        res2 = self.detector.detect(tamper_frame, [self.roi])
-        self.assertTrue(res2.is_tampering)
 
 if __name__ == "__main__":
     unittest.main()

@@ -151,11 +151,8 @@ class IncidentRecorder:
                     self.frame_queue.get_nowait()
                 except queue.Empty:
                     pass
-            if (frame.shape[1], frame.shape[0]) != (self.target_w, self.target_h):
-                small_frame = cv2.resize(frame, (self.target_w, self.target_h))
-            else:
-                small_frame = frame.copy()
-            self.frame_queue.put_nowait(small_frame)
+            # Bottleneck #3: Đẩy trực tiếp frame vào queue, việc resize chạy ngầm trong _recording_loop
+            self.frame_queue.put_nowait(frame)
         except Exception:
             pass
 

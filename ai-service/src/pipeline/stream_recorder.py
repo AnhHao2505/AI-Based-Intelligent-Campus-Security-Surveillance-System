@@ -395,7 +395,7 @@ def retry_pending_uploads(
                             logger.warning(f"Lỗi publish MQTT sau retry upload: {mex}")
                     try:
                         os.remove(norm_path)
-                        logger.info(f"🗑️ [Retry Uploader] Đã xóa file local sau khi upload bù thành công: {norm_path}")
+                        logger.debug(f"🗑️ [Retry Uploader] Đã xóa file local sau khi upload bù thành công: {norm_path}")
                     except Exception as rex:
                         logger.warning(f"Không thể xóa file {norm_path}: {rex}")
                     uploaded += 1
@@ -511,11 +511,8 @@ class StreamRecorder:
                     self.frame_queue.get_nowait()
                 except queue.Empty:
                     pass
-            if (frame.shape[1], frame.shape[0]) != (self.target_w, self.target_h):
-                small_frame = cv2.resize(frame, (self.target_w, self.target_h))
-            else:
-                small_frame = frame.copy()
-            self.frame_queue.put_nowait((now, small_frame))
+            # Bottleneck #3: Đẩy trực tiếp frame vào queue, việc resize (854x480) chạy ngầm trong _recording_loop
+            self.frame_queue.put_nowait((now, frame))
         except Exception:
             pass
 
@@ -546,7 +543,7 @@ class StreamRecorder:
                         self.fps,
                         self.frame_size,
                     )
-                logger.info(f"📹 [Recorder] Bắt đầu phiên ghi hình 1 phút (854x480): {self.current_file_path}")
+                logger.debug(f"📹 [Recorder] Bắt đầu phiên ghi hình 1 phút (854x480): {self.current_file_path}")
             except Exception as e:
                 logger.error(f"❌ [Recorder] Không thể mở VideoWriter ({self.temp_file_path}): {e}")
                 self.writer = None
@@ -705,7 +702,7 @@ class StreamRecorder:
                     get_security_mqtt_client().publish_recording_event(telemetry_payload)
                     try:
                         os.remove(file_path)
-                        logger.info(f"🗑️ [Recorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")
+                        logger.debug(f"🗑️ [Recorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")
                     except Exception as ex:
                         logger.warning(f"Không thể xóa file tạm {file_path}: {ex}")
 

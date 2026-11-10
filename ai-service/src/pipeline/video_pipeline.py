@@ -78,10 +78,7 @@ class VideoPipeline:
             history=500,
             var_threshold=25.0,
             min_motion_area=getattr(settings, "MIN_MOTION_AREA", 3000),
-            lighting_spike_ratio=0.70,
-            tampering_pixel_val=245,
-            tampering_area_ratio=0.05,
-            tampering_duration_threshold=1.5
+            lighting_spike_ratio=0.70
         )
         self.state_machine = ZoneStateMachine(
             cooldown_seconds=5.0,
@@ -90,16 +87,19 @@ class VideoPipeline:
 
         # Cấu hình tối ưu nhận diện khuôn mặt cho track chưa định danh (P0-02)
         self.face_scan_throttling_enabled = getattr(settings, "FACE_SCAN_THROTTLING_ENABLED", True)
-        self.face_scan_initial_interval = getattr(settings, "FACE_SCAN_INITIAL_INTERVAL", 0.4)
+        self.face_scan_initial_interval = getattr(settings, "FACE_SCAN_INITIAL_INTERVAL", 0.2)
         self.face_scan_initial_window = getattr(settings, "FACE_SCAN_INITIAL_WINDOW_SECONDS", 2.0)
-        self.face_scan_backoff_interval = getattr(settings, "FACE_SCAN_BACKOFF_INTERVAL", 1.0)
-        self.face_min_crop_size = getattr(settings, "FACE_MIN_CROP_SIZE", 30)
-        self.face_min_laplacian_variance = getattr(settings, "FACE_MIN_LAPLACIAN_VARIANCE", 50.0)
+        self.face_scan_backoff_interval = getattr(settings, "FACE_SCAN_BACKOFF_INTERVAL", 0.2)
+        self.face_min_crop_size = getattr(settings, "FACE_MIN_CROP_SIZE", 24)
+        self.face_min_laplacian_variance = getattr(settings, "FACE_MIN_LAPLACIAN_VARIANCE", 15.0)
         self._track_face_scan_times = {}
+        self._track_arcface_times = {}
+        self._last_occupied_motion_time: float = 0.0
+        self._cached_motion_res = None
+        self._suspicious_motion_start_time: Optional[float] = None
         self._last_suspicious_motion_time: float = 0.0
         self._suspicious_motion_cooldown: float = 5.0
-        self._last_tampering_time: float = 0.0
-        self._tampering_cooldown: float = 10.0
+        self.suspicious_motion_min_duration: float = float(getattr(settings, "SUSPICIOUS_MOTION_MIN_DURATION", 0.0))
         self._pending_access_checks = set()
         self._pending_checks_lock = threading.Lock()
         self.heartbeat_interval_seconds: float = float(getattr(settings, "MOTION_GATING_HEARTBEAT_SECONDS", 4.0))
@@ -200,7 +200,8 @@ class VideoPipeline:
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing and existing.face_info and existing.face_info.matched_code == user_code:
                 self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source)
-                existing.roi_entry_logged = True
+                if getattr(existing, "is_in_roi", False):
+                    existing.roi_entry_logged = True
         except Exception as e:
             logger.warning(f"[VideoPipeline] Lỗi kiểm tra quyền bất đồng bộ cho user {user_code}: {e}")
         finally:
@@ -423,7 +424,11 @@ class VideoPipeline:
         else:
             gray = face_crop
         var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-        return var < self.face_min_laplacian_variance
+        min_var = self.face_min_laplacian_variance
+        # Đối với khuôn mặt ở xa ngoài hành lang (< 35px), phương sai tự nhiên thấp hơn
+        if min(face_crop.shape[0], face_crop.shape[1]) < 35:
+            min_var = max(6.0, min_var * 0.5)
+        return var < min_var
 
     def is_bbox_in_roi(self, bbox: BoundingBox, frame_w: int, frame_h: int) -> Tuple[bool, str]:
         """
@@ -442,7 +447,7 @@ class VideoPipeline:
         elif self.roi_polygon and len(self.roi_polygon) >= 3:
             pts = scale_polygon_to_frame(self.roi_polygon, frame_w, frame_h) if (frame_w > 0 and frame_h > 0) else self.roi_polygon
             if is_point_in_polygon(bc, pts):
-                return True, "Vùng ROI"
+                return True, "Vùng ROI" 
 
         return False, ""
 
@@ -544,33 +549,40 @@ class VideoPipeline:
         # ------------------------------------------------------------------
         # 1. TIỀN XỬ LÝ CHUYỂN ĐỘNG BẰNG OPENCV MOTION DETECTOR (~1ms)
         # ------------------------------------------------------------------
-        motion_res = self.motion_detector.detect(
-            frame,
-            self.roi_polygons if self.roi_polygons else None
+        # Dynamic MOG2: Khi có người HỢP LỆ (AUTHORIZED) trong phòng, giảm tần suất xuống 3 lần/s
+        active_persons_list = list(self.analysis_engine.active_tracks.values())
+        has_authorized_person = any(
+            getattr(p, "security_display_state", "") == "AUTHORIZED" or 
+            (p.face_detected and p.face_info and p.face_info.matched_code and getattr(p.face_info, "is_authorized", False))
+            for p in active_persons_list
         )
+        has_unverified_or_threat = any(
+            getattr(p, "security_display_state", "NEUTRAL") in ("UNKNOWN", "UNAUTHORIZED", "INTRUSION", "VERIFYING")
+            for p in active_persons_list
+        )
+        is_safe_authorized_state = has_authorized_person and not has_unverified_or_threat
+
+        can_run_motion = True
+        if is_safe_authorized_state:
+            if (current_time - self._last_occupied_motion_time) < 0.33:
+                can_run_motion = False
+
+        if can_run_motion:
+            self._last_occupied_motion_time = current_time
+            motion_res = self.motion_detector.detect(
+                frame,
+                self.roi_polygons if self.roi_polygons else None
+            )
+            self._cached_motion_res = motion_res
+        else:
+            motion_res = self._cached_motion_res if self._cached_motion_res is not None else MotionResult()
         has_full_attr = getattr(motion_res, "has_motion_full", None)
         has_any_motion = has_full_attr if isinstance(has_full_attr, bool) else bool(getattr(motion_res, "has_motion", False))
         if has_any_motion:
-            logger.info(
+            logger.debug(
                 f"⚡ [VideoPipeline:{self.camera_code}] [MotionDetector] Phát hiện chuyển động (Full-Frame={has_any_motion}, ROI={getattr(motion_res, 'has_motion_roi', motion_res.has_motion)}): "
                 f"diện tích={motion_res.motion_area}px, số box ROI={len(motion_res.motion_boxes)}"
             )
-
-        # 1a. Kiểm tra hành vi phá hoại chiếu đèn (CAMERA_TAMPERING)
-        if motion_res.is_tampering:
-            if (current_time - self._last_tampering_time) >= self._tampering_cooldown:
-                self._last_tampering_time = current_time
-                logger.warning(
-                    f"🚨 [VideoPipeline:{self.camera_code}] [Tampering] PHÁT HIỆN HÀNH VI CHIẾU ĐÈN / LÀM MÙ CẢM BIẾN CAMERA!"
-                )
-                tamper_alert = SecurityAlertEvent(
-                    camera_code=self.camera_code,
-                    event_type="CAMERA_TAMPERING",
-                    details="Phát hiện hành vi chiếu đèn laser hoặc làm mù cảm biến camera",
-                    confidence=1.0,
-                    track_id=-1
-                )
-                early_alerts.append(tamper_alert)
 
         # 1b. Cổng Motion-Gating: Nếu ở IDLE và hoàn toàn không có chuyển động trên TOÀN BỘ KHUNG HÌNH
         #     Bỏ qua 100% suy luận Deep Learning nặng (YOLO26, YuNet, ArcFace) để giải phóng CPU/GPU.
@@ -590,7 +602,7 @@ class VideoPipeline:
                     self._last_idle_log_time = 0.0
                 if (current_time - self._last_idle_log_time) >= 5.0:
                     self._last_idle_log_time = current_time
-                    logger.info(
+                    logger.debug(
                         f"💤 [VideoPipeline:{self.camera_code}] [Motion-Gating] Trạng thái IDLE (phòng trống) -> Bỏ qua Deep Learning để tiết kiệm CPU/GPU"
                     )
                 if early_alerts:
@@ -609,7 +621,7 @@ class VideoPipeline:
                     return frame, [], []
             else:
                 self._last_heartbeat_time = current_time
-                logger.info(
+                logger.debug(
                     f"💓 [VideoPipeline:{self.camera_code}] [Heartbeat] Chạy thăm dò YOLO26 định kỳ ({self.heartbeat_interval_seconds}s) để rà soát người ngồi yên trong ROI"
                 )
 
@@ -620,7 +632,7 @@ class VideoPipeline:
         detected_tracks = self.human_detector.detect_and_track(frame, persist=True)
         current_frame_tids = {tid for tid, _ in detected_tracks if tid >= 0}
         if current_frame_tids or getattr(settings, "AI_LOG_VERBOSE_FRAMES", False):
-            logger.info(
+            logger.debug(
                 f"👁️ [VideoPipeline:{self.camera_code}] [HumanDetector] YOLO26 + ByteTrack: {len(detected_tracks)} người | Track IDs: {sorted(list(current_frame_tids))}"
             )
 
@@ -696,35 +708,54 @@ class VideoPipeline:
 
         # 2c. Phát hiện Đột nhập Ngụy trang (SUSPICIOUS_MOVING_OBJECT):
         # Có chuyển động đáng kể trong ROI nhưng YOLO không nhận diện được dáng người (và không phải do người tạo ra).
-        # Nếu có bất kỳ người nào đang ở gần mép ROI hoặc đang bước vào ROI, tuyệt đối KHÔNG kích hoạt cảnh báo ngụy trang!
+        # Tăng margin ức chế lên 80px để bao trọn bóng đổ, tà áo và vật dụng của người đi lại.
+        # Yêu cầu chuyển động phải duy trì liên tục >= 0.5 giây (15 frames ở 30 FPS) mới kích hoạt cảnh báo!
         has_roi_attr = getattr(motion_res, "has_motion_roi", None)
         has_roi_motion = has_roi_attr if isinstance(has_roi_attr, bool) else bool(getattr(motion_res, "has_motion", False))
         has_nearby_human = any(
-            self.is_bbox_near_or_in_roi(bbox, w, h, margin=40.0)
+            self.is_bbox_near_or_in_roi(bbox, w, h, margin=80.0)
             for _, bbox in detected_tracks
         ) or any(
-            self.is_bbox_near_or_in_roi(p.bbox, w, h, margin=40.0)
+            self.is_bbox_near_or_in_roi(p.bbox, w, h, margin=80.0)
             for p in self.analysis_engine.active_tracks.values()
             if (current_time - p.last_seen_time) <= self.analysis_engine.max_inactive_seconds
         )
+        has_recent_roi_human = any(
+            getattr(p, "has_entered_roi", False) and (current_time - p.last_seen_time) <= 3.0
+            for p in self.analysis_engine.active_tracks.values()
+        )
 
-        if has_roi_motion and not person_in_roi and not has_nearby_human and len(motion_res.motion_boxes) > 0:
-            if (current_time - self._last_suspicious_motion_time) >= self._suspicious_motion_cooldown:
-                self._last_suspicious_motion_time = current_time
-                cam_area_name = self.face_matcher.get_camera_area_name(self.camera_code) if self.face_matcher else None
-                loc_name = cam_area_name or "Khu vực giám sát"
-                logger.warning(
-                    f"🕵️ [VideoPipeline:{self.camera_code}] [SuspiciousMotion] CẢNH BÁO: Chuyển động nghi vấn ngụy trang trong ROI (Vị trí: {loc_name})"
-                )
+        is_suspicious_candidate = (
+            has_roi_motion
+            and not person_in_roi
+            and not has_nearby_human
+            and not has_recent_roi_human
+            and not is_safe_authorized_state
+            and len(motion_res.motion_boxes) > 0
+        )
 
-                anomaly_alert = SecurityAlertEvent(
-                    camera_code=self.camera_code,
-                    event_type="SUSPICIOUS_MOVING_OBJECT",
-                    details=f"[SUSPICIOUS_MOVING_OBJECT] Vị trí: {loc_name}",
-                    confidence=0.9,
-                    track_id=-1
-                )
-                early_alerts.append(anomaly_alert)
+        if is_suspicious_candidate:
+            if self._suspicious_motion_start_time is None:
+                self._suspicious_motion_start_time = current_time
+            if (current_time - self._suspicious_motion_start_time) >= self.suspicious_motion_min_duration:
+                if (current_time - self._last_suspicious_motion_time) >= self._suspicious_motion_cooldown:
+                    self._last_suspicious_motion_time = current_time
+                    cam_area_name = self.face_matcher.get_camera_area_name(self.camera_code) if self.face_matcher else None
+                    loc_name = cam_area_name or "Khu vực giám sát"
+                    logger.warning(
+                        f"🕵️ [VideoPipeline:{self.camera_code}] [SuspiciousMotion] CẢNH BÁO: Chuyển động nghi vấn ngụy trang trong ROI (Vị trí: {loc_name})"
+                    )
+
+                    anomaly_alert = SecurityAlertEvent(
+                        camera_code=self.camera_code,
+                        event_type="SUSPICIOUS_MOVING_OBJECT",
+                        details=f"[SUSPICIOUS_MOVING_OBJECT] Vị trí: {loc_name}",
+                        confidence=0.9,
+                        track_id=-1
+                    )
+                    early_alerts.append(anomaly_alert)
+        else:
+            self._suspicious_motion_start_time = None
 
         # ------------------------------------------------------------------
         # 3. QUÉT KHUÔN MẶT TRÊN TỪNG NGƯỜI (YUNET + ARCFACE)
@@ -738,6 +769,14 @@ class VideoPipeline:
             # Tối ưu hiệu năng: Nếu Track ID này đã nhận diện được danh tính trong active_tracks,
             # ByteTrack tiếp tục bám theo mượt mà mà không cần chạy lại YuNet + ArcFace + pgvector mỗi frame!
             existing = self.analysis_engine.active_tracks.get(track_id)
+            if not existing and hasattr(self.analysis_engine, "find_matching_parent_track"):
+                parent_res = self.analysis_engine.find_matching_parent_track(
+                    bbox=bbox,
+                    current_time=current_time,
+                    exclude_tids=current_frame_tids
+                )
+                if parent_res:
+                    existing = parent_res[1]
             is_reverifying = False
             if existing and existing.face_detected and existing.face_info and existing.face_info.matched_code:
                 # Nếu người này trước đó ở ngoài ROI, nay bước chân vào ROI:
@@ -766,20 +805,17 @@ class VideoPipeline:
                     continue
 
             if not is_reverifying:
-                # Track CHƯA định danh: Throttling theo thời gian (P0-02)
-                if self.face_scan_throttling_enabled:
-                    if track_id in self._track_face_scan_times:
+                # Track CHƯA định danh: Throttling theo vị trí ROI (Cascade Quality Gate)
+                if in_roi and existing and not getattr(existing, "was_in_roi", False):
+                    # Vừa bước chân chạm vào ROI -> Reset ngay timer để quét tức thì ở frame này
+                    self._track_face_scan_times.pop(track_id, None)
+                    self._track_arcface_times.pop(track_id, None)
+
+                if not in_roi:
+                    # NGOÀI ROI: Áp dụng throttling 1.0s/lần (Cách B - Thăm dò từ xa)
+                    if self.face_scan_throttling_enabled and track_id in self._track_face_scan_times:
                         last_scan_t = self._track_face_scan_times[track_id]
-                        first_seen_t = existing.first_seen_time if existing else last_scan_t
-                        track_age = current_time - first_seen_t
-
-                        if track_age < self.face_scan_initial_window:
-                            scan_interval = self.face_scan_initial_interval
-                        else:
-                            scan_interval = self.face_scan_backoff_interval
-
-                        # Thử lại nếu chưa đủ khoảng cách scan_interval
-                        if (current_time - last_scan_t) < (scan_interval - 1e-4):
+                        if (current_time - last_scan_t) < (self.face_scan_backoff_interval - 1e-4):
                             continue
 
             x1, y1, x2, y2 = bbox.to_int_xyxy()
@@ -815,7 +851,7 @@ class VideoPipeline:
                         if face_crop.size > 0:
                             # 2. Lọc độ mờ (Laplacian variance)
                             if self._is_face_blurry(face_crop):
-                                logger.info(
+                                logger.debug(
                                     f"⚠️ [VideoPipeline:{self.camera_code}] [FaceFilter] Track #{track_id}: Mặt bị mờ do chuyển động -> Bỏ qua ArcFace"
                                 )
                                 # Mặt bị mờ do chuyển động -> Bỏ qua, không xóa danh tính cũ và không phá vỡ grace period
@@ -823,11 +859,24 @@ class VideoPipeline:
                             crop_landmarks = None
                             if face_result.landmarks:
                                 crop_landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in face_result.landmarks]
-                            match = self.face_matcher.match_face(
-                                face_crop,
-                                threshold=settings.FACE_MATCH_THRESHOLD,
-                                landmarks=crop_landmarks
-                            )
+
+
+                            # Tầng 2: ArcFace Throttling (0.2s/lần trong ROI để chống bão CPU)
+                            match = None
+                            can_run_arcface = True
+                            if in_roi and not is_reverifying:
+                                if track_id in self._track_arcface_times:
+                                    last_arcface_t = self._track_arcface_times[track_id]
+                                    if (current_time - last_arcface_t) < (self.face_scan_initial_interval - 1e-4):
+                                        can_run_arcface = False
+
+                            if can_run_arcface:
+                                self._track_arcface_times[track_id] = current_time
+                                match = self.face_matcher.match_face(
+                                    face_crop,
+                                    threshold=settings.FACE_MATCH_THRESHOLD,
+                                    landmarks=crop_landmarks
+                                )
                             if match:
                                 if len(match) >= 5:
                                     code, name, score, is_active, role = match
@@ -937,12 +986,33 @@ class VideoPipeline:
                                             roi_label or "Vùng giám sát"
                                         )
                                 else:
-                                    # Người dùng đang ở ngoài vùng ROI: Trạng thái bình thường, không ghi log vi phạm
-                                    face_result.is_authorized = True
-                                    face_result.access_reason = "Đang ở ngoài vùng ROI"
-                                    face_result.access_checked = False
+                                    # Người dùng đang ở ngoài vùng ROI:
+                                    cached_decision = self.face_matcher.get_cached_access(self.camera_code, code) if self.face_matcher else None
+                                    if existing and getattr(existing, "has_entered_roi", False) and existing.face_info and getattr(existing.face_info, "access_checked", False):
+                                        # Giữ nguyên thẩm quyền đã được thẩm định khi vào ROI (Sticky State)
+                                        face_result.is_authorized = existing.face_info.is_authorized
+                                        face_result.access_reason = existing.face_info.access_reason
+                                        face_result.access_checked = True
+                                    elif cached_decision is not None:
+                                        face_result.is_authorized = cached_decision[0]
+                                        face_result.access_reason = cached_decision[1]
+                                        face_result.access_checked = True
+                                    else:
+                                        face_result.is_authorized = False
+                                        face_result.access_reason = "Đang ở ngoài vùng ROI"
+                                        face_result.access_checked = False
+                                        # Pre-warm: Tải trước quyền truy cập từ Backend ngay khi nhận diện ngoài hành lang
+                                        if self.face_matcher:
+                                            cache_key = f"{self.camera_code}:{code}"
+                                            should_submit = False
+                                            with self._pending_checks_lock:
+                                                if cache_key not in self._pending_access_checks:
+                                                    self._pending_access_checks.add(cache_key)
+                                                    should_submit = True
+                                            if should_submit and self.access_executor and not getattr(self.access_executor, "_shutdown", False):
+                                                self.access_executor.submit(self._async_resolve_camera_access, track_id, code, roi_label or "Vùng giám sát")
                             else:
-                                logger.info(
+                                logger.debug(
                                     f"❓ [VideoPipeline:{self.camera_code}] [FaceMatcher] Track #{track_id} -> Không khớp khuôn mặt trong CSDL (UNKNOWN)"
                                 )
 
@@ -969,6 +1039,9 @@ class VideoPipeline:
         for tid in list(self._track_face_scan_times.keys()):
             if tid not in active_tids:
                 del self._track_face_scan_times[tid]
+        for tid in list(self._track_arcface_times.keys()):
+            if tid not in active_tids:
+                del self._track_arcface_times[tid]
 
         if early_alerts:
             alerts = early_alerts + alerts
@@ -1014,7 +1087,7 @@ class VideoPipeline:
                     f"Loại=[{alert.event_type}], Track=#{alert.track_id}, Vị trí=[{alert.camera_code}], Chi tiết: {alert.details}"
                 )
                 ev_type = str(alert.event_type or "").upper()
-                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "OUT_OF_TIME", "UNKNOWN", "SUSPICIOUS_MOTION", "SUSPICIOUS_MOVING_OBJECT", "TAMPERING"]):
+                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "OUT_OF_TIME", "UNKNOWN", "SUSPICIOUS_MOTION", "SUSPICIOUS_MOVING_OBJECT"]):
                     try:
                         incident_recording_manager.start_incident_recording(
                             incident_id=alert.event_id or f"EVT-{int(time.time()*1000)}",

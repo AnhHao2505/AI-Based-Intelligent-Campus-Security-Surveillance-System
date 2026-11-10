@@ -67,22 +67,23 @@ class Settings(BaseSettings):
         validation_alias="MODEL_ARCFACE_PATH"
     )
     AI_DEVICE: str = Field(default="auto", validation_alias="AI_DEVICE")
+    AI_PREFER_GPU: bool = Field(default=True, validation_alias="AI_PREFER_GPU")
     
     # AI Thresholds & Business Rules
     DEFAULT_DETECTION_CONFIDENCE: float = 0.35
     DRAW_ONLY_IN_ROI: bool = Field(default=False, validation_alias="DRAW_ONLY_IN_ROI")
-    DEFAULT_FACE_CONFIDENCE: float = 0.60
+    DEFAULT_FACE_CONFIDENCE: float = 0.45
     DEFAULT_FACE_NMS_THRESHOLD: float = 0.30
-    FACE_MATCH_THRESHOLD: float = Field(default=0.65, validation_alias="FACE_MATCH_THRESHOLD")
+    FACE_MATCH_THRESHOLD: float = Field(default=0.50, validation_alias="FACE_MATCH_THRESHOLD")
     FACE_REVERIFY_SCORE_THRESHOLD: float = Field(default=0.82, validation_alias="FACE_REVERIFY_SCORE_THRESHOLD")
     FACE_REVERIFY_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="FACE_REVERIFY_MIN_INTERVAL_SECONDS")
     FACE_SCAN_THROTTLING_ENABLED: bool = Field(default=True, validation_alias="FACE_SCAN_THROTTLING_ENABLED")
-    FACE_SCAN_INITIAL_INTERVAL: float = Field(default=0.4, validation_alias="FACE_SCAN_INITIAL_INTERVAL")
+    FACE_SCAN_INITIAL_INTERVAL: float = Field(default=0.05, validation_alias="FACE_SCAN_INITIAL_INTERVAL")
     FACE_SCAN_INITIAL_WINDOW_SECONDS: float = Field(default=2.0, validation_alias="FACE_SCAN_INITIAL_WINDOW_SECONDS")
-    FACE_SCAN_BACKOFF_INTERVAL: float = Field(default=1.0, validation_alias="FACE_SCAN_BACKOFF_INTERVAL")
-    FACE_MIN_CROP_SIZE: int = Field(default=30, validation_alias="FACE_MIN_CROP_SIZE")
-    FACE_MIN_LAPLACIAN_VARIANCE: float = Field(default=50.0, validation_alias="FACE_MIN_LAPLACIAN_VARIANCE")
-    ANALYSIS_MAX_FPS: float = Field(default=10.0, validation_alias="ANALYSIS_MAX_FPS")
+    FACE_SCAN_BACKOFF_INTERVAL: float = Field(default=0.05, validation_alias="FACE_SCAN_BACKOFF_INTERVAL")
+    FACE_MIN_CROP_SIZE: int = Field(default=24, validation_alias="FACE_MIN_CROP_SIZE")
+    FACE_MIN_LAPLACIAN_VARIANCE: float = Field(default=15.0, validation_alias="FACE_MIN_LAPLACIAN_VARIANCE")
+    ANALYSIS_MAX_FPS: float = Field(default=30.0, validation_alias="ANALYSIS_MAX_FPS")
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"
@@ -93,9 +94,9 @@ class Settings(BaseSettings):
     DEFAULT_TRACK_MAX_INACTIVE_SECONDS: float = 2.0
     DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS: float = 30.0
     DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS: float = Field(default=30.0, validation_alias="DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS")
-    ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS: float = Field(default=1.8, validation_alias="ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS")
+    ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS: float = Field(default=1.5, validation_alias="ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS")
     CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS: float = 3.0
-    MAX_MOTION_TRACK_HOLD_SECONDS: float = 3.0
+    MAX_MOTION_TRACK_HOLD_SECONDS: float = Field(default=1.0, validation_alias="MAX_MOTION_TRACK_HOLD_SECONDS")
     MOTION_GATING_HEARTBEAT_SECONDS: float = Field(default=4.0, validation_alias="MOTION_GATING_HEARTBEAT_SECONDS")
     MIN_MOTION_AREA: int = Field(default=3000, validation_alias="MIN_MOTION_AREA")
     TIMEZONE: str = "Asia/Ho_Chi_Minh"
