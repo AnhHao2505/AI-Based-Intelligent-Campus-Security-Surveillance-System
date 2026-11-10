@@ -33,5 +33,7 @@ public enum NotificationType {
     // BR-IE-04 (V80): sự cố quá hạn chưa bảo vệ nào tiếp nhận -> báo FM
     INCIDENT_ESCALATED,
     // S5 (V84): ADMIN nhận khi sự cố cần leo thang mà không có Quản lý CSVC nào đang hoạt động
-    INCIDENT_ESCALATION_NO_FM
+    INCIDENT_ESCALATION_NO_FM,
+    // PR-AU (V111): ADMIN nhận khi một tài khoản có thật bị khoá đăng nhập tạm thời do sai mật khẩu nhiều lần
+    ACCOUNT_LOCKED
 }

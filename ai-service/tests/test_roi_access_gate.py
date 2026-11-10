@@ -3,12 +3,16 @@ import os
 import time
 from datetime import datetime
 import numpy as np
+import pytest
 
 # Thêm đường dẫn ai-service vào sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.core.entity import BoundingBox, Point, FaceDetectionResult, RoiPolygonConfig
 from src.pipeline.video_pipeline import VideoPipeline
+
+# VideoPipeline nạp YOLO thật (xem tests/conftest.py)
+pytestmark = pytest.mark.requires_model
 
 def test_roi_and_access_gate():
     # Sử dụng mốc giờ 14:00 chiều ban ngày để kiểm tra chuẩn xác kịch bản UNAUTHORIZED_PERSON
@@ -71,7 +75,7 @@ def test_roi_and_access_gate():
     in_roi, roi_label = pipeline.is_bbox_in_roi(inside_bbox, 1000, 1000)
     assert in_roi
     # Khi bước vào ROI, quyền truy cập sẽ được thẩm định:
-    is_allowed, reason, area, _source, _deny = pipeline.face_matcher.check_camera_access("CAM-002", "SE194249", roi_label=roi_label, event_direction="ENTRY")
+    is_allowed, reason, area, *rest = pipeline.face_matcher.check_camera_access("CAM-002", "SE194249", roi_label=roi_label, event_direction="ENTRY")
     # Đảm bảo lý do là không có thẩm quyền truy cập (thay vì người dùng chưa đăng ký) để kiểm thử chuẩn UNAUTHORIZED_PERSON
     if not is_allowed and ("không tồn tại" in (reason or "").lower()):
         reason = "Không có quyền truy cập vào khu vực này"

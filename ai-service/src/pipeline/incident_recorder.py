@@ -10,7 +10,16 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List, Callable
 
 from ..config import settings
-from .stream_recorder import _has_valid_moov_atom, _now_vn, build_recording_completed_payload
+from .stream_recorder import (
+    mark_upload_active,
+    mark_upload_finished,
+    is_upload_active,
+    _has_valid_moov_atom,
+    _now_vn,
+    build_recording_completed_payload,
+    enforce_local_recording_retention,
+    enforce_emergency_evidence_retention,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -142,11 +151,8 @@ class IncidentRecorder:
                     self.frame_queue.get_nowait()
                 except queue.Empty:
                     pass
-            if (frame.shape[1], frame.shape[0]) != (self.target_w, self.target_h):
-                small_frame = cv2.resize(frame, (self.target_w, self.target_h))
-            else:
-                small_frame = frame.copy()
-            self.frame_queue.put_nowait(small_frame)
+            # Bottleneck #3: Đẩy trực tiếp frame vào queue, việc resize chạy ngầm trong _recording_loop
+            self.frame_queue.put_nowait(frame)
         except Exception:
             pass
 
@@ -277,6 +283,9 @@ class IncidentRecorder:
         incident_event_id: str,
     ):
         def _upload_task():
+            if not mark_upload_active(file_path):
+                logger.warning(f"File {file_path} đang được upload, bỏ qua task trùng")
+                return
             try:
                 from ..integration.storage_service import storage_service
                 from ..integration.mqtt_client import get_security_mqtt_client
@@ -308,8 +317,13 @@ class IncidentRecorder:
                         logger.info(f"🗑️ [IncidentRecorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")
                     except Exception as ex:
                         logger.warning(f"Không thể xóa file tạm {file_path}: {ex}")
+                else:
+                    emergency_mb = getattr(settings, "EMERGENCY_DISK_FREE_MIN_MB", 500)
+                    enforce_emergency_evidence_retention(self.base_dir, emergency_free_mb=emergency_mb)
             except Exception as e:
                 logger.error(f"❌ [IncidentRecorder MinIO Upload Task] Lỗi: {e}")
+            finally:
+                mark_upload_finished(file_path)
 
         threading.Thread(target=_upload_task, daemon=True).start()
 
@@ -383,6 +397,13 @@ class IncidentRecordingManager:
             rec = self._recordings_by_camera.get(cam_code)
             if rec and rec.is_running:
                 rec.write_frame(frame)
+
+    def is_recording(self, camera_code: str) -> bool:
+        """Kiểm tra camera có đang trong phiên ghi hình sự cố hay không (P1-05 Lazy Overlay)"""
+        cam_code = camera_code.strip().upper()
+        with self._lock:
+            rec = self._recordings_by_camera.get(cam_code)
+            return bool(rec and rec.is_running)
 
     def stop_incident_recording(self, key: str) -> Optional[Dict[str, Any]]:
         clean_key = str(key).strip()

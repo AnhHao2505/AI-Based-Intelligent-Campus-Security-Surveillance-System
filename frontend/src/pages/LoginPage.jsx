@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import { useForm } from "react-hook-form";
@@ -58,6 +58,8 @@ export default function LoginPage({
 		defaultValues: { email: "", password: "" },
 	});
 
+	const pageRef = useRef(null);
+
 	// Switch to reset mode if token exists in URL, and dismiss any active toasts
 	useEffect(() => {
 		toast.dismiss();
@@ -65,6 +67,75 @@ export default function LoginPage({
 			setMode("reset");
 		}
 	}, [initialResetToken]);
+
+	// Interactive mouse parallax for login background
+	useEffect(() => {
+		const el = pageRef.current;
+		if (!el) return;
+
+		let targetX = 0;
+		let targetY = 0;
+		let currentX = 0;
+		let currentY = 0;
+		let rafId = null;
+
+		const updateVars = () => {
+			el.style.setProperty("--parallax-x", currentX.toFixed(4));
+			el.style.setProperty("--parallax-y", currentY.toFixed(4));
+		};
+
+		const tick = () => {
+			const ease = 0.1;
+			currentX += (targetX - currentX) * ease;
+			currentY += (targetY - currentY) * ease;
+
+			updateVars();
+
+			const settled =
+				Math.abs(targetX - currentX) < 0.0008 &&
+				Math.abs(targetY - currentY) < 0.0008;
+
+			if (settled) {
+				currentX = targetX;
+				currentY = targetY;
+				updateVars();
+				rafId = null;
+			} else {
+				rafId = requestAnimationFrame(tick);
+			}
+		};
+
+		const scheduleTick = () => {
+			if (rafId === null) {
+				rafId = requestAnimationFrame(tick);
+			}
+		};
+
+		const handleMouseMove = (e) => {
+			const rect = el.getBoundingClientRect();
+			if (!rect.width || !rect.height) return;
+			const relX = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+			const relY = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+			targetX = (relX - 0.5) * 2;
+			targetY = (relY - 0.5) * 2;
+			scheduleTick();
+		};
+
+		const handleMouseLeave = () => {
+			targetX = 0;
+			targetY = 0;
+			scheduleTick();
+		};
+
+		window.addEventListener("mousemove", handleMouseMove, { passive: true });
+		document.addEventListener("mouseleave", handleMouseLeave, { passive: true });
+
+		return () => {
+			window.removeEventListener("mousemove", handleMouseMove);
+			document.removeEventListener("mouseleave", handleMouseLeave);
+			if (rafId !== null) cancelAnimationFrame(rafId);
+		};
+	}, []);
 
 	const handleGoogleSuccess = async (credentialResponse) => {
 		setError(null);
@@ -76,29 +147,9 @@ export default function LoginPage({
 			navigate(role === ROLES.NORMAL_USER ? "/access-requests" : "/dashboard");
 		} catch (err) {
 			console.error("Google login failed:", err);
+			// BR-AU-32: chỉ hiện câu server trả, không đoán lý do (đoán lý do là lộ tài khoản nào tồn tại)
 			const rawMsg = (err?.message || "").trim();
-			const lower = rawMsg.toLowerCase();
-			let friendlyError = "";
-			if (
-				lower.includes("không tồn tại") ||
-				lower.includes("not exist") ||
-				lower.includes("not authorized")
-			) {
-				friendlyError =
-					"Tài khoản Google này chưa được cấp phép hoặc không tồn tại trên hệ thống.";
-			} else if (
-				lower.includes("vô hiệu hóa") ||
-				lower.includes("khóa") ||
-				lower.includes("disabled") ||
-				lower.includes("inactive")
-			) {
-				friendlyError =
-					"Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động. Vui lòng liên hệ quản trị viên.";
-			} else {
-				friendlyError =
-					rawMsg || "Đăng nhập Google thất bại. Vui lòng thử lại.";
-			}
-			setError(friendlyError);
+			setError(rawMsg || "Đăng nhập Google thất bại. Vui lòng thử lại.");
 		} finally {
 			setLoading(false);
 		}
@@ -144,43 +195,12 @@ export default function LoginPage({
 			setActiveTab("credentials");
 			sessionStorage.setItem("login_active_tab", "credentials");
 
+			// BR-AU-32: chỉ hiện câu server trả (một câu chung cho mọi lần thất bại, hoặc câu 429), không đoán lý do
 			const rawMsg = (err?.message || "").trim();
-			const lower = rawMsg.toLowerCase();
-
-			let friendlyError = "";
-			if (
-				lower.includes("không tồn tại") ||
-				lower.includes("does not exist") ||
-				lower.includes("not exist") ||
-				lower.includes("account not found") ||
-				lower.includes("user not found")
-			) {
-				friendlyError =
-					"Tài khoản không tồn tại trên hệ thống. Vui lòng kiểm tra lại địa chỉ email.";
-			} else if (
-				lower.includes("mật khẩu không chính xác") ||
-				lower.includes("mật khẩu") ||
-				lower.includes("password") ||
-				lower.includes("bad credentials")
-			) {
-				friendlyError =
-					"Mật khẩu không chính xác. Vui lòng kiểm tra lại mật khẩu.";
-			} else if (
-				lower.includes("vô hiệu hóa") ||
-				lower.includes("khóa") ||
-				lower.includes("deactivated") ||
-				lower.includes("disabled") ||
-				lower.includes("inactive")
-			) {
-				friendlyError =
-					"Tài khoản đã bị vô hiệu hóa hoặc không còn hoạt động. Vui lòng liên hệ quản trị viên.";
-			} else {
-				friendlyError =
-					rawMsg ||
-					"Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin đăng nhập.";
-			}
-
-			setError(friendlyError);
+			setError(
+				rawMsg ||
+					"Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin đăng nhập.",
+			);
 			credentialForm.setValue("password", "");
 			credentialForm.setFocus("password");
 		} finally {
@@ -235,12 +255,11 @@ export default function LoginPage({
 	};
 
 	return (
-		<div className="login-page">
-			{/* Animated background */}
-			<div className="login-bg">
-				<div className="login-bg-orb login-bg-orb--1" />
-				<div className="login-bg-orb login-bg-orb--2" />
-				<div className="login-bg-orb login-bg-orb--3" />
+		<div className="login-page" ref={pageRef}>
+			{/* Interactive mouse-parallax background */}
+			<div className="login-bg" aria-hidden="true">
+				<div className="login-bg__mesh" />
+				<div className="login-bg__grid" />
 			</div>
 
 			<div className="login-card">

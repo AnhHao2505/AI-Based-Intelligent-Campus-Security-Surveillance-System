@@ -30,7 +30,7 @@
   height: 38px;
   padding: 0 16px;
   font-size: 0.875rem;
-  border-radius: 8px;
+  border-radius: 4px;
   gap: 8px;
 }
 
@@ -38,7 +38,7 @@
   height: 32px;
   padding: 0 12px;
   font-size: 0.8125rem;
-  border-radius: 6px;
+  border-radius: 3px;
   gap: 6px;
 }
 

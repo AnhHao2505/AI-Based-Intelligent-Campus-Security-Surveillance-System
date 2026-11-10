@@ -28,7 +28,7 @@
   gap: 16px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   padding: 18px 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -45,7 +45,7 @@
   justify-content: center;
   width: 48px;
   height: 48px;
-  border-radius: 10px;
+  border-radius: 5px;
   font-size: 20px;
   flex-shrink: 0;
 }
@@ -92,7 +92,7 @@
 .recording-filter-card {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 14px;
+  border-radius: 7px;
   padding: 20px 24px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
   display: flex;
@@ -129,7 +129,7 @@
 .recording-filter-group select,
 .recording-filter-group input {
   height: 40px;
-  border-radius: 8px;
+  border-radius: 4px;
   border: 1px solid var(--theme-border);
   background: var(--theme-bg-input, var(--theme-bg-surface));
   color: var(--theme-text-primary);
@@ -155,7 +155,7 @@
   border-top: 1px dashed var(--theme-border);
   background: var(--theme-bg-hover, rgba(0, 0, 0, 0.02));
   padding: 14px 16px;
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .recording-custom-time-group {
@@ -174,7 +174,7 @@
 .recording-custom-time-group input[type="date"],
 .recording-custom-time-group input[type="time"] {
   height: 36px;
-  border-radius: 6px;
+  border-radius: 3px;
   border: 1px solid var(--theme-border);
   background: var(--theme-bg-surface);
   color: var(--theme-text-primary);
@@ -218,7 +218,7 @@
   align-items: center;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   overflow: hidden;
   padding: 2px;
 }
@@ -233,7 +233,7 @@
   background: transparent;
   color: var(--theme-text-secondary);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 3px;
   transition: all 0.2s;
 }
 
@@ -252,7 +252,7 @@
 .recording-card {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -334,7 +334,7 @@
   font-size: 11px;
   font-weight: 600;
   padding: 3px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -347,7 +347,7 @@
   font-size: 11px;
   font-weight: 600;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -389,7 +389,7 @@
   color: #00a3ff;
   background: rgba(0, 163, 255, 0.1);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 2px;
   letter-spacing: 0.5px;
 }
 
@@ -435,7 +435,7 @@
 .recording-table-container {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
@@ -472,7 +472,7 @@
 .recording-table-thumb {
   width: 64px;
   height: 38px;
-  border-radius: 6px;
+  border-radius: 3px;
   object-fit: cover;
   background: #000;
   cursor: pointer;
@@ -499,7 +499,7 @@
 .recording-player-modal {
   background: #111827;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
+  border-radius: 8px;
   width: 100%;
   max-width: 680px;
   max-height: 88vh;
@@ -537,7 +537,7 @@
   color: #9ca3af;
   cursor: pointer;
   padding: 6px;
-  border-radius: 6px;
+  border-radius: 3px;
   transition: color 0.2s, background 0.2s;
 }
 

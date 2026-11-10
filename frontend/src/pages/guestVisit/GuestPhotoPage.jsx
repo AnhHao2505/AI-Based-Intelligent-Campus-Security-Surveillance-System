@@ -259,7 +259,7 @@ export default function GuestPhotoPage() {
                   key={v.id}
                   style={{
                     border: '1px solid var(--theme-border)',
-                    borderRadius: '12px',
+                    borderRadius: '6px',
                     padding: '16px',
                     background: 'var(--theme-bg-surface-elevated, var(--theme-bg-surface))',
                   }}
@@ -455,7 +455,7 @@ export default function GuestPhotoPage() {
                 style={{
                   background: 'var(--theme-bg-input)',
                   border: '1px solid var(--theme-input-border)',
-                  borderRadius: '8px',
+                  borderRadius: '4px',
                   padding: '8px',
                   color: 'var(--theme-text-primary)',
                 }}
@@ -475,7 +475,7 @@ export default function GuestPhotoPage() {
                   gap: '8px',
                   padding: '12px',
                   border: '1px solid var(--theme-border)',
-                  borderRadius: '10px',
+                  borderRadius: '5px',
                   background: 'var(--theme-bg-desc)',
                 }}
               >
@@ -485,7 +485,7 @@ export default function GuestPhotoPage() {
                   style={{
                     maxWidth: '100%',
                     maxHeight: '220px',
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     objectFit: 'contain',
                   }}
                 />
@@ -501,7 +501,7 @@ export default function GuestPhotoPage() {
                 marginTop: '6px',
                 padding: '10px 12px',
                 border: '1px solid var(--theme-border)',
-                borderRadius: '8px',
+                borderRadius: '4px',
                 background: 'var(--theme-bg-desc)',
               }}
             >
@@ -571,7 +571,7 @@ export default function GuestPhotoPage() {
               <div
                 style={{
                   padding: '8px',
-                  borderRadius: '10px',
+                  borderRadius: '5px',
                   border: '1px solid var(--theme-border)',
                   background: 'var(--theme-bg-desc)',
                 }}
@@ -582,7 +582,7 @@ export default function GuestPhotoPage() {
                   style={{
                     maxWidth: '100%',
                     maxHeight: '340px',
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     objectFit: 'contain',
                     display: 'block',
                   }}

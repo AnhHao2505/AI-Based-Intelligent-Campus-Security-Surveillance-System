@@ -8,7 +8,6 @@ import {
   Search,
   AlertCircle,
   Shield,
-  UserCheck,
   UserX,
   Sun,
   Sunset,
@@ -942,37 +941,29 @@ export default function GuardTeamsTab({
         <div className="schedule-kpi-card">
           <div>
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              Tổng Số Đội Bảo Vệ
+              Tổng Đội Bảo Vệ
             </span>
             <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
               {teams.length} <span className="text-sm font-normal text-slate-500">đội</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-slate-600 dark:text-slate-400">
-              <Users size={13} className="text-blue-600 dark:text-blue-400 shrink-0" />
-              <span>Phân nhóm theo khu vực chốt</span>
-            </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-blue">
-            <Users size={22} />
+            <Users size={20} />
           </div>
         </div>
 
         <div className="schedule-kpi-card">
           <div>
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              Quân Số Đã Vào Đội
+              Đã Vào Đội
             </span>
             <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 mt-1">
               {totalAssignedGuards} / {linkedGuards.length}{' '}
               <span className="text-sm font-normal text-slate-500">nhân viên</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-              <Shield size={13} className="shrink-0" />
-              <span>Sẵn sàng nhận lịch ca trực</span>
-            </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-emerald">
-            <Shield size={22} />
+            <Shield size={20} />
           </div>
         </div>
 
@@ -985,22 +976,9 @@ export default function GuardTeamsTab({
               {Math.max(0, linkedGuards.length - totalAssignedGuards)}{' '}
               <span className="text-sm font-normal text-slate-500">nhân viên</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
-              {Math.max(0, linkedGuards.length - totalAssignedGuards) > 0 ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                  <span>Cần phân bổ vào đội</span>
-                </>
-              ) : (
-                <>
-                  <UserCheck size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-slate-500 dark:text-slate-400 font-normal">Đã phân bổ toàn bộ</span>
-                </>
-              )}
-            </div>
           </div>
           <div className="schedule-kpi-icon-wrap kpi-icon-amber">
-            <UserX size={22} />
+            <UserX size={20} />
           </div>
         </div>
       </div>
@@ -1075,8 +1053,8 @@ export default function GuardTeamsTab({
           </h3>
           <p className="schedule-empty-state__desc">
             {searchKeyword
-              ? 'Hãy thử tìm kiếm với từ khóa khác hoặc xóa nội dung ô tìm kiếm.'
-              : 'Hãy nhấn nút "Thêm Đội Mới" để thiết lập nhu cầu ca trực, nhận đề xuất quân số tự động và phân bổ các nhân viên bảo vệ vào đội.'}
+              ? 'Thử từ khóa khác hoặc xóa bộ lọc tìm kiếm.'
+              : 'Nhấn "Thêm Đội Mới" để tạo đội và phân bổ nhân sự.'}
           </p>
           {!searchKeyword && (
             <div className="schedule-empty-state__action">
@@ -1945,8 +1923,8 @@ export default function GuardTeamsTab({
                   </h3>
                   <p className="schedule-modal__subtitle">
                     {editingTeam
-                      ? 'Thiết lập thông tin đội bảo vệ'
-                      : 'Thiết lập số người/ca để tính quân số đề xuất cho đội'}
+                      ? 'Cập nhật tên đội và tòa nhà phụ trách'
+                      : 'Cấu hình tòa nhà, định mức ca và thành viên'}
                   </p>
                 </div>
               </div>
@@ -1993,9 +1971,9 @@ export default function GuardTeamsTab({
                       onInput={(e) => handleBuildingNameSelected(e.target.value)}
                       required={!editingTeam}
                       options={[
-                        ...(editingTeam ? [] : [{ value: '', label: '-- Chọn tòa nhà phụ trách (bắt buộc) --' }]),
+                        ...(editingTeam ? [] : [{ value: '', label: 'Chọn tòa nhà phụ trách' }]),
                         ...(editingTeam ? [
-                        { value: '', label: '-- Chưa gán tòa / Tùy chỉnh sau --' },
+                        { value: '', label: 'Chưa gán tòa' },
                         ] : []),
                         ...(buildings || []).map((b) => ({ value: b.name || b.id, label: b.name })),
                         ...(!buildings || buildings.length === 0

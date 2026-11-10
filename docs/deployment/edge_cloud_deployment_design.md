@@ -193,7 +193,7 @@ Khi mạng Internet trường học bị rớt hoặc Mosquitto Broker trên Clo
 ### 5.1. Cấu hình trên Cloud Server (File `.env`)
 ```properties
 # --- Mosquitto Authentication (Tự sinh bằng: openssl rand -hex 24) ---
-MQTT_AI_PASSWORD=4f8b9a2c1d3e5f7a0b2c4d6e8f1a3b5c7d9e1f3a5b7c9d1e
+MQTT_AI_PASSWORD=<set-in-env>
 MQTT_BACKEND_PASSWORD=a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
 
 # --- Backend Application Settings ---
@@ -209,9 +209,19 @@ MEDIAMTX_API_URL=
 # --- MinIO Storage ---
 MINIO_ENDPOINT=http://localhost:9000
 MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=your-super-strong-password-minio
-MINIO_KMS_SECRET_KEY=my-minio-key:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+MINIO_ROOT_PASSWORD=<set-in-env>
+MINIO_KMS_SECRET_KEY=<set-in-env>
+
+# --- Audit đăng nhập (H1): khoá HMAC băm chuỗi đăng nhập sai không khớp tài khoản (>= 32 ký tự, bắt buộc) ---
+# Tự sinh bằng: openssl rand -hex 32
+APP_SECURITY_AUDITHASHKEY=<set-in-env>
 ```
+
+> **Khoá băm audit (`APP_SECURITY_AUDITHASHKEY`)** — bắt buộc ở mọi môi trường chạy backend (dev, demo, cloud); thiếu hoặc
+> ngắn hơn 32 ký tự thì backend dừng ngay khi khởi động với thông báo nêu tên biến. Sinh một lần cho mỗi môi trường:
+> `openssl rand -hex 32` (64 ký tự hex), đặt vào `.env` / biến môi trường của server, không commit. Giữ nguyên khoá giữa
+> các lần triển khai: đổi khoá thì mã băm trong nhật ký cũ không còn so khớp được với mã băm mới (vẫn đọc được, chỉ không
+> gom chung lần thử của cùng một chuỗi trước và sau khi đổi).
 
 ### 5.2. Cấu hình trên Raspberry Pi / Edge Device (File `ai-service/.env`)
 ```properties
@@ -219,7 +229,7 @@ MINIO_KMS_SECRET_KEY=my-minio-key:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
 MQTT_BROKER_HOST=cloud.yourdomain.com      # hoặc IP Public của VPS Cloud
 MQTT_BROKER_PORT=1883                     # hoặc 8883 nếu dùng TLS
 MQTT_AI_USERNAME=icss-ai
-MQTT_AI_PASSWORD=4f8b9a2c1d3e5f7a0b2c4d6e8f1a3b5c7d9e1f3a5b7c9d1e
+MQTT_AI_PASSWORD=<set-in-env>
 
 # --- Cấu hình AlertOutbox (Lưu đĩa chống mất mạng) ---
 MQTT_OUTBOX_PATH=data/mqtt_outbox.sqlite3
@@ -231,12 +241,12 @@ MQTT_OUTBOX_MAX_AGE_HOURS=24.0
 # --- Kết nối MinIO Cloud để Upload Bằng chứng ---
 MINIO_ENDPOINT=cloud.yourdomain.com:9000
 MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=your-super-strong-password-minio
+MINIO_ROOT_PASSWORD=<set-in-env>
 MINIO_SECURE=false
 
 # --- API Backend Cloud (Dùng cho Outbound Check-Entry) ---
 API_BASE_URL=https://cloud.yourdomain.com
-INTERNAL_SERVICE_KEY=6F1529AAD1579850417A139978AB6DD091A2EBEE23E29A816B6A335968A48DB4
+INTERNAL_SERVICE_KEY=<set-in-env>
 ```
 
 ---

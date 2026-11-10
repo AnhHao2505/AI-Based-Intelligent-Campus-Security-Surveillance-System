@@ -56,7 +56,7 @@ def run_nfr01_benchmark(num_iterations: int = 30, max_allowed_latency_sec: float
 
         assert len(alerts) > 0, f"Lỗi: Không phát hiện cảnh báo ở lần lặp #{i}"
         alert = alerts[0]
-        assert alert.event_type == "UNAUTHORIZED_ACCESS"
+        assert alert.event_type in ("UNAUTHORIZED_PERSON", "UNAUTHORIZED_ACCESS")
 
         if i <= 5 or i % 10 == 0 or i == num_iterations:
             print(f"  Iteration #{i:02d}: Latency = {elapsed_ms:.3f} ms | Alert: {alert.event_type} (Track #{track_id})")

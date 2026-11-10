@@ -70,9 +70,13 @@ class StaffAccountFaceLinkIntegrationTest extends AbstractIntegrationTest {
     @AfterEach
     void cleanUp() {
         faceDataRepository.findByCode(userCode).ifPresent(faceDataRepository::delete);
+        // PR-AUDIT: tạo tài khoản ghi audit (audit_logs append-only, FK tới users) -> không xoá được user, chỉ khoá
         userRepository.findAll().stream()
                 .filter(u -> userCode.equalsIgnoreCase(u.getUserCode()))
-                .forEach(userRepository::delete);
+                .forEach(u -> {
+                    u.setIsActive(false);
+                    userRepository.save(u);
+                });
     }
 
     private static String aiSuccessBody(String code) {

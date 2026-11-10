@@ -87,6 +87,8 @@ class FaceDetectionResult:
     area_name: Optional[str] = None
     role: Optional[str] = "NORMAL_USER"
     access_checked: bool = False
+    access_source: Optional[str] = None
+    is_inherited: bool = False
 
 @dataclass
 class TrackedPerson:
@@ -94,6 +96,7 @@ class TrackedPerson:
     bbox: BoundingBox
     first_seen_time: float = field(default_factory=time.time)
     last_seen_time: float = field(default_factory=time.time)
+    yolo_last_seen_time: Optional[float] = None
     
     # Trạng thái trong vùng hạn chế (ROI)
     is_in_roi: bool = False
@@ -105,19 +108,33 @@ class TrackedPerson:
     # Thông tin khuôn mặt
     face_detected: bool = False
     face_info: Optional[FaceDetectionResult] = None
+    last_face_match_time: float = 0.0
     
     # Cờ trạng thái đã bắn thông báo
     alert_unauthorized_sent: bool = False
     alert_unknown_sent: bool = False
     alert_after_hours_sent: bool = False
+    is_inherited_identity: bool = False
+    
+    # Vòng đời trạng thái an ninh (Sticky Security State)
+    has_entered_roi: bool = False
+    roi_first_entered_time: Optional[float] = None
+    security_display_state: str = "NEUTRAL"  # NEUTRAL, VERIFYING, AUTHORIZED, UNAUTHORIZED, UNKNOWN, INTRUSION
+
+    def __post_init__(self):
+        if self.yolo_last_seen_time is None:
+            self.yolo_last_seen_time = self.first_seen_time
 
     def update_position(self, new_bbox: BoundingBox, current_time: float):
         self.bbox = new_bbox
         self.last_seen_time = current_time
+        self.yolo_last_seen_time = current_time
 
 @dataclass
 class MotionResult:
     has_motion: bool = False
+    has_motion_full: bool = False
+    has_motion_roi: bool = False
     motion_area: int = 0
     motion_boxes: List[BoundingBox] = field(default_factory=list)
     is_lighting_spike: bool = False
@@ -128,7 +145,7 @@ class MotionResult:
 class SecurityAlertEvent:
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     camera_code: str = "CAM-001"
-    event_type: str = "UNKNOWN_PERSON"  # UNKNOWN_PERSON, AUTHORIZED_PERSON, UNAUTHORIZED_PERSON, PERSON_INTRUSION, SUSPICIOUS_MOVING_OBJECT, CAMERA_TAMPERING
+    event_type: str = "UNKNOWN_PERSON"  # UNKNOWN_PERSON, AUTHORIZED_PERSON, UNAUTHORIZED_PERSON, PERSON_INTRUSION, SUSPICIOUS_MOVING_OBJECT
     track_id: int = -1
     duration_seconds: float = 0.0
     confidence: float = 1.0

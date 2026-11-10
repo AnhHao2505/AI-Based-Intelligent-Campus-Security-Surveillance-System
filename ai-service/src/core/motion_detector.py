@@ -14,7 +14,7 @@ class MotionDetector:
     - Áp dụng mặt nạ đa giác ROI chuẩn hóa (0.0..1.0)
     - Lọc nhiễu hạt và côn trùng bằng phép toán hình thái học Morphological Opening
     - Lọc kích thước đối tượng chuyển động tối thiểu (Contour Area)
-    - Phân biệt biến động ánh sáng phòng (Lighting Spike) và Chiếu đèn làm mù camera (Tampering)
+    - Phân biệt biến động ánh sáng phòng (Lighting Spike)
     """
 
     def __init__(
@@ -23,17 +23,12 @@ class MotionDetector:
         var_threshold: float = 25.0,
         min_motion_area: int = 3000,
         lighting_spike_ratio: float = 0.70,
-        tampering_pixel_val: int = 245,
-        tampering_area_ratio: float = 0.05,
-        tampering_duration_threshold: float = 1.5
+        **kwargs
     ):
         self.history = history
         self.var_threshold = var_threshold
         self.min_motion_area = min_motion_area
         self.lighting_spike_ratio = lighting_spike_ratio
-        self.tampering_pixel_val = tampering_pixel_val
-        self.tampering_area_ratio = tampering_area_ratio
-        self.tampering_duration_threshold = tampering_duration_threshold
 
         # Khởi tạo thuật toán trừ nền MOG2 (Bật detectShadows để loại bỏ bóng đổ trên sàn)
         self.subtractor = cv2.createBackgroundSubtractorMOG2(
@@ -47,9 +42,6 @@ class MotionDetector:
         # - dilate_kernel 15x15: Giãn nở kết nối các phần cơ thể (chân, tay, thân) thành 1 khối duy nhất
         self.morph_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
         self.dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
-
-        # Theo dõi sự kiện phá hoại chiếu đèn (Tampering State)
-        self._tampering_start_time: Optional[float] = None
         self._cached_roi_mask: Optional[np.ndarray] = None
         self._mask_cache_key = None
         self.max_processing_dim: int = 640
@@ -61,7 +53,6 @@ class MotionDetector:
             varThreshold=self.var_threshold,
             detectShadows=True
         )
-        self._tampering_start_time = None
         self._cached_roi_mask = None
         self._mask_cache_key = None
 
@@ -161,8 +152,7 @@ class MotionDetector:
     def detect(self, frame: np.ndarray, roi_polygons: Optional[List[RoiPolygonConfig]] = None) -> MotionResult:
         """
         Xử lý 1 khung hình video:
-        Tối ưu downscaling trước khi MOG2 để tăng tốc độ gấp 4-8 lần trên độ phân giải 1080p,
-        đồng thời áp dụng kiểm tra cấu trúc Laplacian nhằm triệt tiêu False Alarm của Tampering.
+        Tối ưu downscaling trước khi MOG2 để tăng tốc độ gấp 4-8 lần trên độ phân giải 1080p.
         """
         if frame is None or frame.size == 0:
             return MotionResult()
@@ -186,99 +176,79 @@ class MotionDetector:
             roi_pixel_count = proc_h * proc_w
 
         # ------------------------------------------------------------------
-        # 1. KIỂM TRA PHÁ HOẠI LÀM MÙ CẢM BIẾN (CAMERA TAMPERING / LASER BLINDING)
-        # ------------------------------------------------------------------
-        if len(proc_frame.shape) == 3:
-            gray = cv2.cvtColor(proc_frame, cv2.COLOR_BGR2GRAY)
-        else:
-            gray = proc_frame
-
-        saturated_mask = (gray >= self.tampering_pixel_val).astype(np.uint8) * 255
-        saturated_in_roi = cv2.bitwise_and(saturated_mask, saturated_mask, mask=roi_mask)
-        saturated_count = cv2.countNonZero(saturated_in_roi)
-        saturated_ratio = saturated_count / float(roi_pixel_count)
-
-        is_tampering = False
-        now = time.time()
-        # BUG-07: Phân biệt chớp sáng/tường trắng với hành vi chiếu đèn làm mù cảm biến:
-        # Khi laser/đèn pin chiếu trực tiếp vào lens, cấu trúc texture bên trong vùng bão hòa bị xóa sổ (Laplacian variance rất thấp)
-        if saturated_ratio >= self.tampering_area_ratio:
-            # Erode vùng bão hòa để loại bỏ ảnh hưởng bước nhảy độ sáng tại đường biên
-            sat_inner = cv2.erode(saturated_in_roi, self.morph_kernel)
-            if cv2.countNonZero(sat_inner) > 0:
-                lap = cv2.Laplacian(gray, cv2.CV_64F)
-                lap_var = float(np.var(lap[sat_inner > 0]))
-            else:
-                lap_var = 0.0
-
-            # Vùng tâm đèn pin/laser hoàn toàn phẳng, không có texture (lap_var < 25.0) hoặc tỷ lệ cháy sáng áp đảo (> 60%)
-            if lap_var < 25.0 or saturated_ratio > 0.60:
-                if self._tampering_start_time is None:
-                    self._tampering_start_time = now
-                elif (now - self._tampering_start_time) >= self.tampering_duration_threshold:
-                    is_tampering = True
-            else:
-                self._tampering_start_time = None
-        else:
-            self._tampering_start_time = None
-
-        # ------------------------------------------------------------------
-        # 2. TRỪ NỀN MOG2 & LỌC BÓNG ĐỔ (SHADOW FILTERING)
+        # 2. TRỪ NỀN MOG2 & LỌC BÓNG ĐỔ (SHADOW FILTERING) TRÊN TOÀN KHUNG HÌNH
         # ------------------------------------------------------------------
         raw_fg = self.subtractor.apply(proc_frame)
         _, fg_solid = cv2.threshold(raw_fg, 200, 255, cv2.THRESH_BINARY)
-        fg_roi = cv2.bitwise_and(fg_solid, fg_solid, mask=roi_mask)
+
+        # Lọc nhiễu hạt trên toàn khung hình bằng Morphological Opening
+        fg_full_cleaned = cv2.morphologyEx(fg_solid, cv2.MORPH_OPEN, self.morph_kernel)
+
+        # Kiểm tra chuyển động toàn khung hình (Full-frame Motion Gating)
+        full_motion_pixels = cv2.countNonZero(fg_full_cleaned)
+        min_area_proc = self.min_motion_area * (scale * scale)
+
+        full_frame_pixels = proc_w * proc_h
+        full_ratio = full_motion_pixels / float(full_frame_pixels)
+        is_full_lighting_spike = full_ratio >= self.lighting_spike_ratio
+
+        has_motion_full = (full_motion_pixels >= min_area_proc) and not is_full_lighting_spike
 
         # ------------------------------------------------------------------
-        # 3. KIỂM TRA CHỚP SÁNG ĐỘT NGỘT (LIGHTING SPIKE)
+        # 3. TRÍCH XUẤT CHUYỂN ĐỘNG BÊN TRONG VÙNG ROI (DÀNH CHO SUSPICIOUS_MOVING_OBJECT)
         # ------------------------------------------------------------------
-        raw_motion_pixels = cv2.countNonZero(fg_roi)
-        motion_ratio = raw_motion_pixels / float(roi_pixel_count)
-        is_lighting_spike = motion_ratio >= self.lighting_spike_ratio
-
-        # ------------------------------------------------------------------
-        # 4. LỌC NHIỄU HẠT & GIÃN NỞ HỢP NHẤT ĐỐI TƯỢNG (DILATION MERGE)
-        # ------------------------------------------------------------------
-        fg_cleaned = cv2.morphologyEx(fg_roi, cv2.MORPH_OPEN, self.morph_kernel)
-        fg_dilated = cv2.dilate(fg_cleaned, self.dilate_kernel, iterations=2)
-
-        contours, _ = cv2.findContours(fg_dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        has_custom_roi = bool(roi_polygons and len(roi_polygons) > 0)
+        if has_custom_roi:
+            fg_roi = cv2.bitwise_and(fg_full_cleaned, fg_full_cleaned, mask=roi_mask)
+            roi_motion_pixels = cv2.countNonZero(fg_roi)
+            roi_ratio = roi_motion_pixels / float(roi_pixel_count)
+            is_lighting_spike = roi_ratio >= self.lighting_spike_ratio
+        else:
+            fg_roi = fg_full_cleaned
+            roi_motion_pixels = full_motion_pixels
+            is_lighting_spike = is_full_lighting_spike
 
         raw_motion_boxes: List[BoundingBox] = []
         total_motion_area = 0
 
-        # Ngưỡng diện tích tỷ lệ theo scale
-        min_area_proc = self.min_motion_area * (scale * scale)
+        # Nếu trong ROI có pixel chuyển động vượt ngưỡng diện tích
+        if roi_motion_pixels >= min_area_proc and not is_lighting_spike:
+            fg_dilated = cv2.dilate(fg_roi, self.dilate_kernel, iterations=2)
+            contours, _ = cv2.findContours(fg_dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if area >= min_area_proc:
-                x, y, w, h = cv2.boundingRect(cnt)
-                # Phóng ngược về tọa độ gốc của frame
-                ox1 = float(x / scale)
-                oy1 = float(y / scale)
-                ox2 = float((x + w) / scale)
-                oy2 = float((y + h) / scale)
-                orig_area = int(area / (scale * scale))
-                raw_motion_boxes.append(BoundingBox(
-                    x1=ox1,
-                    y1=oy1,
-                    x2=ox2,
-                    y2=oy2,
-                    confidence=min(1.0, float(orig_area) / float(self.min_motion_area * 2))
-                ))
-                total_motion_area += orig_area
+            for cnt in contours:
+                area = cv2.contourArea(cnt)
+                if area >= min_area_proc:
+                    x, y, w, h = cv2.boundingRect(cnt)
+                    # Phóng ngược về tọa độ gốc của frame
+                    ox1 = float(x / scale)
+                    oy1 = float(y / scale)
+                    ox2 = float((x + w) / scale)
+                    oy2 = float((y + h) / scale)
+                    orig_area = int(area / (scale * scale))
+                    raw_motion_boxes.append(BoundingBox(
+                        x1=ox1,
+                        y1=oy1,
+                        x2=ox2,
+                        y2=oy2,
+                        confidence=min(1.0, float(orig_area) / float(self.min_motion_area * 2))
+                    ))
+                    total_motion_area += orig_area
 
         # Hợp nhất các bounding box ở gần nhau thành 1 khung duy nhất
         motion_boxes = self._merge_close_boxes(raw_motion_boxes, distance_thresh=50.0)
 
-        has_motion = len(motion_boxes) > 0 and not is_lighting_spike
+        has_motion_roi = len(motion_boxes) > 0 and not is_lighting_spike
+        # has_motion giữ tương thích: nếu có custom ROI thì là has_motion_roi, nếu không có ROI thì là has_motion_full
+        has_motion = has_motion_roi if has_custom_roi else has_motion_full
 
         return MotionResult(
             has_motion=has_motion,
+            has_motion_full=has_motion_full,
+            has_motion_roi=has_motion_roi,
             motion_area=total_motion_area,
             motion_boxes=motion_boxes,
             is_lighting_spike=is_lighting_spike,
-            is_tampering=is_tampering,
-            details=f"motion_pixels={raw_motion_pixels}, area={total_motion_area}, boxes={len(motion_boxes)}"
+            is_tampering=False,
+            details=f"full_pixels={full_motion_pixels}, roi_pixels={roi_motion_pixels}, area={total_motion_area}, boxes={len(motion_boxes)}"
         )

@@ -28,9 +28,15 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -136,6 +142,14 @@ public class AuditService {
                 .reason(reason)
                 .correlationId(correlationId);
 
+        // PR-AUDIT (V112): IP + user agent của request hiện hành (null khi không có request: job, luồng nền).
+        // audit-login-privacy (phương án b): chỉ ghi cho module đăng nhập (AUTH); thao tác khác để NULL.
+        HttpServletRequest request = targetType == AuditTargetType.AUTH ? currentRequest() : null;
+        if (request != null) {
+            builder.ipAddress(truncate(request.getRemoteAddr(), 45))
+                    .userAgent(truncate(request.getHeader("User-Agent"), 255));
+        }
+
         if (actor != null && "SYSTEM".equals(actor.getActorType())) {
             builder.actorType("SYSTEM")
                     .actorSource(actor.getActorSource())
@@ -235,8 +249,91 @@ public class AuditService {
                 cb != null ? cb.getUserCode() : null,
                 l.getActorSource(),
                 l.getCorrelationId(),
-                l.getChangedAt()
+                l.getChangedAt(),
+                l.getIpAddress(),
+                l.getUserAgent()
         );
+    }
+
+    /** PR-AUDIT: ba module của tab "Nhật ký" màn Quản lý tài khoản. */
+    public static final Set<String> ACCOUNT_LOG_MODULES = Set.of("ACCOUNT", "AUTH", "SYSTEM_CONFIG");
+
+    /**
+     * PR-AUDIT (B6): nhật ký tài khoản / đăng nhập / cấu hình. Chỉ trả module nằm trong cả ACCOUNT_LOG_MODULES lẫn
+     * audit_module_roles của role người gọi; xin module ngoài quyền -> 403. Sắp changedAt giảm dần khi không chỉ định.
+     */
+    @Transactional(readOnly = true)
+    public Page<AuditLogResponse> getAccountAuditLogs(
+            Collection<String> modules,
+            Collection<AuditAction> actions,
+            String subjectKeyword,
+            UUID subjectUserId,
+            String actorKeyword,
+            UUID correlationId,
+            OffsetDateTime fromDate,
+            OffsetDateTime toDate,
+            Pageable pageable,
+            String userRole
+    ) {
+        List<String> allowed = userRole != null
+                ? auditModuleRoleRepository.findModulesByRole(userRole).stream().filter(ACCOUNT_LOG_MODULES::contains).toList()
+                : List.of();
+        List<String> effectiveModules;
+        if (modules != null && !modules.isEmpty()) {
+            for (String m : modules) {
+                if (!allowed.contains(m)) {
+                    throw new AccessDeniedException("Bạn không có quyền truy cập nhật ký kiểm toán module: " + m);
+                }
+            }
+            effectiveModules = List.copyOf(modules);
+        } else {
+            effectiveModules = allowed;
+        }
+        if (effectiveModules.isEmpty()) {
+            throw new AccessDeniedException("Bạn không có quyền truy cập nhật ký tài khoản");
+        }
+
+        Pageable effectivePageable = pageable;
+        if (pageable.getSort().isUnsorted()) {
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "changedAt"));
+        }
+        String subjectUserCode = subjectUserId != null
+                ? userRepository.findById(subjectUserId).map(User::getUserCode).orElse(null)
+                : null;
+        Specification<AuditLog> spec = AuditLogSpecification.accountLogFilter(effectiveModules, actions, subjectKeyword,
+                subjectUserId, subjectUserCode, actorKeyword, correlationId, fromDate, toDate);
+        return auditLogRepository.findAll(spec, effectivePageable).map(this::mapToResponse);
+    }
+
+    /**
+     * PR-AUDIT: người thực hiện cho thao tác gọi qua HTTP — user đang đăng nhập (SecurityContext, name = e-mail).
+     * Không có phiên (gọi trực tiếp từ job / test) -> actor SYSTEM với nguồn fallbackSource.
+     */
+    @Transactional(readOnly = true)
+    public AuditActor resolveCurrentActor(String fallbackSource) {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getName() != null && !"anonymousUser".equals(auth.getName())) {
+            User user = userRepository.findByEmail(auth.getName()).orElse(null);
+            if (user != null) {
+                return AuditActor.user(user);
+            }
+        }
+        return AuditActor.system(fallbackSource);
+    }
+
+    private static HttpServletRequest currentRequest() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
+            return attrs.getRequest();
+        }
+        return null;
+    }
+
+    private static String truncate(String value, int max) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= max ? value : value.substring(0, max);
     }
 
     private <T> String serialize(T obj) {

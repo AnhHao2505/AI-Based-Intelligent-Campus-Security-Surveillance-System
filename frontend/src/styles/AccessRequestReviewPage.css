@@ -40,7 +40,7 @@
   gap: 1rem;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 0.75rem;
+  border-radius: 0.375rem;
   padding: 0.875rem 1.25rem;
   margin-bottom: 1.25rem;
   flex-wrap: wrap;
@@ -56,7 +56,7 @@
   padding: 0.45rem 0.875rem;
   font-size: 0.8125rem;
   font-weight: 600;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   border: 1px solid var(--theme-border);
   background: var(--theme-bg-surface);
   color: var(--theme-text-secondary);
@@ -114,7 +114,7 @@
   height: 42px;
   padding: 0 0.75rem 0 2.2rem;
   font-size: 0.875rem;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   border: 1px solid var(--theme-input-border);
   background: var(--theme-bg-input);
   color: var(--theme-text-primary);
@@ -132,7 +132,7 @@
 /* Alerts */
 .arr-alert {
   padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   font-size: 0.875rem;
   display: flex;
   align-items: center;
@@ -157,7 +157,7 @@
   background: var(--theme-danger-bg);
   border: 1px solid var(--theme-danger-border);
   color: var(--theme-danger-text);
-  border-radius: 0.375rem;
+  border-radius: 0.1875rem;
   font-size: 0.8125rem;
 }
 
@@ -172,7 +172,7 @@
 .arr-table-card {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 0.75rem;
+  border-radius: 0.375rem;
   box-shadow: var(--theme-card-shadow);
   overflow: hidden;
 }
@@ -342,7 +342,7 @@
 .arr-btn-icon {
   width: 32px;
   height: 32px;
-  border-radius: 0.375rem;
+  border-radius: 0.1875rem;
   border: 1px solid var(--theme-border);
   background: var(--theme-bg-surface);
   color: var(--theme-text-secondary);
@@ -408,7 +408,7 @@
 .arr-modal {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 0.75rem;
+  border-radius: 0.375rem;
   max-width: 620px;
   width: 100%;
   max-height: 90vh;
@@ -442,7 +442,7 @@
   cursor: pointer;
   color: var(--theme-text-muted);
   padding: 0.25rem;
-  border-radius: 0.375rem;
+  border-radius: 0.1875rem;
 }
 
 .arr-modal__close:hover {
@@ -477,7 +477,7 @@
   background: var(--theme-bg-page);
   border: 1px solid var(--theme-border);
   padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   font-size: 0.8125rem;
   display: flex;
   flex-direction: column;
@@ -531,7 +531,7 @@
   padding: 0.625rem 0.875rem;
   font-size: 0.875rem;
   border: 1px solid var(--theme-input-border);
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   background: var(--theme-bg-input);
   color: var(--theme-text-primary);
   min-height: 90px;
@@ -561,7 +561,7 @@
 .arr-detail-box {
   background: var(--theme-bg-page);
   padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   font-size: 0.875rem;
   border: 1px solid var(--theme-border);
   color: var(--theme-text-primary);
@@ -591,7 +591,7 @@
   background: var(--theme-bg-page);
   border: 1px solid var(--theme-border);
   padding: 0.625rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
 }
 
 /* Pagination */

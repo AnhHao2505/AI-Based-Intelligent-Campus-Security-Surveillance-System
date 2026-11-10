@@ -34,7 +34,7 @@
 .audit-log-page .section-card {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   overflow: hidden;
 }
@@ -55,7 +55,7 @@
   max-width: 450px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 0 14px;
   height: 38px;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -112,7 +112,7 @@
   padding: 0 12px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--theme-text-primary);
   font-size: 14px;
   outline: none;
@@ -129,7 +129,7 @@
   display: flex;
   align-items: center;
   background: var(--theme-bg-page);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 3px;
   height: 42px;
   box-sizing: border-box;
@@ -140,7 +140,7 @@
   padding: 0 10px;
   height: 100%;
   border: none;
-  border-radius: 6px;
+  border-radius: 3px;
   background: transparent;
   color: var(--theme-text-secondary);
   font-size: 14px;
@@ -169,7 +169,7 @@
   height: 42px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--theme-text-secondary);
   cursor: pointer;
   flex-shrink: 0;
@@ -250,7 +250,7 @@
 .category-badge {
   display: inline-flex;
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-size: 11px;
   font-weight: 600;
   border: 1px solid transparent;
@@ -287,7 +287,7 @@
   align-items: center;
   gap: 5px;
   padding: 3px 10px;
-  border-radius: 4px;
+  border-radius: 2px;
   font-size: 11px;
   font-weight: 600;
   border: 1px solid transparent;
@@ -341,7 +341,7 @@
   padding: 0 12px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--theme-text-secondary);
   font-size: 14px;
   font-weight: 500;

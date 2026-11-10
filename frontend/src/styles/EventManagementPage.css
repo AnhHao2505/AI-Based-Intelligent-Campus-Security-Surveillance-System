@@ -17,7 +17,7 @@
 .evm-card {
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: var(--theme-card-shadow);
   overflow: hidden;
 }
@@ -54,7 +54,7 @@
   height: 42px;
   padding: 0 12px 0 36px;
   border: 1px solid var(--theme-input-border);
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--theme-bg-input);
   color: var(--theme-text-primary);
   font-family: inherit;
@@ -91,7 +91,7 @@
   height: 42px;
   padding: 0 10px;
   border: 1px solid var(--theme-input-border);
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--theme-bg-input);
   color: var(--theme-text-primary);
   font-family: inherit;
@@ -114,7 +114,7 @@
   padding: 0 12px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--theme-text-secondary);
   font-family: inherit;
   font-size: 14px;
@@ -131,7 +131,7 @@
   height: 42px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--theme-text-secondary);
   cursor: pointer;
 }
@@ -251,7 +251,7 @@
   width: 32px;
   height: 32px;
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--theme-bg-surface);
   color: var(--theme-text-secondary);
   cursor: pointer;
@@ -275,7 +275,7 @@
   height: 32px;
   padding: 0 10px;
   border: 1px solid var(--theme-danger-border);
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--theme-danger-bg);
   color: var(--theme-danger-text);
   font-family: inherit;
@@ -302,7 +302,7 @@
   align-items: flex-start;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 4px;
   font-size: 13px;
   line-height: 1.45;
 }

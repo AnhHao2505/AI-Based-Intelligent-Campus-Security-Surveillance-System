@@ -330,7 +330,7 @@ function AccessResultsPanel({ days }) {
 								contentStyle={{
 									background: "var(--theme-bg-surface)",
 									border: "1px solid var(--theme-border)",
-									borderRadius: 8,
+									borderRadius: 4,
 									color: "var(--theme-text-primary)",
 									fontSize: 12,
 								}}

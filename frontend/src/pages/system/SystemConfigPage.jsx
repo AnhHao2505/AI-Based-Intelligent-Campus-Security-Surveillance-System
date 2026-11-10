@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
 	Save,
 	RotateCcw,
@@ -49,6 +49,7 @@ const CONFIG_SUBGROUPS = {
 };
 
 export default function SystemConfigPage() {
+	const navigate = useNavigate();
 	const reasonLimits = useReasonLimits();
 	const [configs, setConfigs] = useState([]);
 	const [editedValues, setEditedValues] = useState({});
@@ -299,6 +300,16 @@ export default function SystemConfigPage() {
 			<PageHeader
 				title="Cấu hình hệ thống"
 				description="Quản lý các tham số nghiệp vụ toàn trường. Mọi thay đổi sẽ có hiệu lực ngay lập tức mà không cần khởi động lại hệ thống."
+				actions={
+					// PR-AUDIT (F5): mở tab Nhật ký màn Quản lý tài khoản, lọc sẵn nhóm Cấu hình (mọi khoá, kèm IP)
+					<Button
+						variant="outline"
+						icon={History}
+						onClick={() => navigate("/admin/accounts?tab=LOG&group=SYSTEM_CONFIG")}
+					>
+						Xem nhật ký thay đổi
+					</Button>
+				}
 			/>
 
 			{/* Notifications / Alerts */}
@@ -687,7 +698,7 @@ export default function SystemConfigPage() {
 							style={{
 								background: "var(--theme-bg-page)",
 								padding: "12px",
-								borderRadius: "8px",
+								borderRadius: "4px",
 								fontSize: "13.5px",
 								border: "1px solid var(--theme-border)",
 							}}
