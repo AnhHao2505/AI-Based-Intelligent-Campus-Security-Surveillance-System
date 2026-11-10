@@ -112,6 +112,11 @@ class TrackedPerson:
     alert_unknown_sent: bool = False
     alert_after_hours_sent: bool = False
     is_inherited_identity: bool = False
+    
+    # Vòng đời trạng thái an ninh (Sticky Security State)
+    has_entered_roi: bool = False
+    roi_first_entered_time: Optional[float] = None
+    security_display_state: str = "NEUTRAL"  # NEUTRAL, VERIFYING, AUTHORIZED, UNAUTHORIZED, UNKNOWN, INTRUSION
 
     def __post_init__(self):
         if self.yolo_last_seen_time is None:
@@ -137,7 +142,7 @@ class MotionResult:
 class SecurityAlertEvent:
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     camera_code: str = "CAM-001"
-    event_type: str = "UNKNOWN_PERSON"  # UNKNOWN_PERSON, AUTHORIZED_PERSON, UNAUTHORIZED_PERSON, PERSON_INTRUSION, SUSPICIOUS_MOVING_OBJECT, CAMERA_TAMPERING
+    event_type: str = "UNKNOWN_PERSON"  # UNKNOWN_PERSON, AUTHORIZED_PERSON, UNAUTHORIZED_PERSON, PERSON_INTRUSION, SUSPICIOUS_MOVING_OBJECT
     track_id: int = -1
     duration_seconds: float = 0.0
     confidence: float = 1.0

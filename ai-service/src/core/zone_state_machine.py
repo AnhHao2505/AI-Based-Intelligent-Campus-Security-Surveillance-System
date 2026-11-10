@@ -132,8 +132,7 @@ class ZoneStateMachine:
 
         if self._state != old_state:
             logger.info(
-                "🔄 [ZoneStateMachine] Chuyển trạng thái: %s ➔ %s (motion=%s, person_in_roi=%s)",
-                old_state.value, self._state.value, has_motion, person_in_roi
+                f"🔄 [Trạng thái Vùng] Chuyển trạng thái: {old_state.value} ➔ {self._state.value} (motion={has_motion}, in_roi={person_in_roi})"
             )
 
         return self._state
