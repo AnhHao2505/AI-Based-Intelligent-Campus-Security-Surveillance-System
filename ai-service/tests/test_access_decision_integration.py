@@ -12,7 +12,7 @@ from unittest.mock import patch, MagicMock
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.core.face_matcher import FaceMatcher
 from src.core.entity import FaceDetectionResult, BoundingBox

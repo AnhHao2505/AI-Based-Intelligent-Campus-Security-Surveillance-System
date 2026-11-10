@@ -19,10 +19,12 @@ import pytest
 
 
 def pytest_configure(config):
-    # Marker requires_model: test dựng VideoPipeline / CameraStreamWorker thật -> HumanDetector nạp YOLO (models/yolo26n.pt).
-    # File trọng số *.pt bị .gitignore nên checkout trên CI không có; ultralytics sẽ tự tải từ GitHub (mạng ngoài, ~5 MB,
-    # dễ chập chờn). Job ai-service-test trên CI chạy `pytest -m "not requires_model"`; máy dev có model thì chạy đủ.
-    # Danh sách hiện tại (13 test):
+    # Marker requires_model: test cần trọng số model thật, không có trong git (bị .gitignore):
+    #   - dựng VideoPipeline / CameraStreamWorker thật -> HumanDetector nạp YOLO (models/yolo26n.pt);
+    #     thiếu file thì ultralytics tự tải từ GitHub (mạng ngoài, dễ chập chờn).
+    #   - dựng FaceEmbedder thật -> ArcFace (models/w600k_r50.onnx); thiếu file thì tự tải ~166 MB từ HuggingFace.
+    # Job ai-service-test trên CI chạy `pytest -m "not requires_model"`; máy dev có model thì chạy đủ.
+    # Danh sách hiện tại (14 test):
     #   test_motion_gated_pipeline.py::TestMotionGatedPipeline (2 test)
     #   test_suppress_dual_warning_roi.py::TestSuppressDualWarningROI (3 test)
     #   test_p1_05_lazy_overlay.py (cả file, 3 test)
@@ -31,9 +33,10 @@ def pytest_configure(config):
     #   test_roi_access_gate.py::test_roi_and_access_gate
     #   test_sticky_security_state.py::test_pipeline_sticky_state_with_track_switch
     #   test_point04_access_source_parsing.py::test_apply_access_decision_populates_face_info_access_source
+    #   test_face_registration.py::test_face_embedder_and_registration (ArcFace)
     config.addinivalue_line(
         "markers",
-        "requires_model: cần trọng số model thật (yolo26n.pt, không có trong git); bỏ qua trên CI",
+        "requires_model: cần trọng số model thật (yolo26n.pt / w600k_r50.onnx, không có trong git); bỏ qua trên CI",
     )
 
 
