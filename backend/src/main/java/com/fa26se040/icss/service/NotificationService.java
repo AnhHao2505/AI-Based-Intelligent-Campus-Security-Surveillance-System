@@ -95,6 +95,39 @@ public class NotificationService {
         }
     }
 
+    /**
+     * PR-AU: báo chủ tài khoản rằng đăng nhập bị khoá tạm vì sai mật khẩu nhiều lần. Chạy nền trên mailExecutor;
+     * lỗi gửi chỉ ghi WARN. Không ghi IP, mật khẩu hay lý do chi tiết vào mail / log.
+     */
+    @Async(AsyncConfig.MAIL_EXECUTOR)
+    public void sendAccountLockedEmail(String toEmail, String fullName, int failedAttempts, int lockMinutes) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setTo(toEmail);
+            helper.setSubject("[Campus Security] Cảnh báo: tài khoản tạm khoá đăng nhập");
+
+            String htmlContent = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;'>"
+                    + "<h2 style='color: #D0021B; text-align: center;'>Tài khoản tạm khoá đăng nhập</h2>"
+                    + "<p>Xin chào <strong>" + htmlEscape(fullName != null ? fullName : "") + "</strong>,</p>"
+                    + "<p>Hệ thống ghi nhận " + failedAttempts + " lần đăng nhập sai mật khẩu liên tiếp vào tài khoản <strong>"
+                    + htmlEscape(toEmail) + "</strong>. Để bảo vệ tài khoản, đăng nhập bị khoá tạm thời trong "
+                    + lockMinutes + " phút.</p>"
+                    + "<p>Nếu đó là bạn, hãy chờ hết thời gian khoá rồi thử lại, hoặc dùng chức năng <strong>Quên mật khẩu</strong>.</p>"
+                    + "<p>Nếu không phải bạn, hãy đổi mật khẩu ngay sau khi hết thời gian khoá và báo cho quản trị viên.</p>"
+                    + "<hr style='border: none; border-top: 1px solid #eee; margin-top: 30px;' />"
+                    + "<p style='font-size: 12px; color: #888;'>Email này được tự động gửi từ hệ thống Campus Security. Vui lòng không trả lời email này.</p>"
+                    + "</div>";
+
+            helper.setText(htmlContent, true);
+            mailSender.send(message);
+            log.info("Account locked email successfully sent to {}", toEmail);
+        } catch (Exception e) {
+            log.warn("Failed to send account locked email to {}: {}", toEmail, describe(e));
+        }
+    }
+
     /** Loại lỗi + thông điệp, không kèm stack trace (M-04c). */
     private static String describe(Exception e) {
         return e.getClass().getSimpleName() + ": " + e.getMessage();

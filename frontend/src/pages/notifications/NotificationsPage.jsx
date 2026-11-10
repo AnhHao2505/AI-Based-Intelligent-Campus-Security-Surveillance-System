@@ -97,6 +97,12 @@ export default function NotificationsPage() {
       return;
     }
 
+    // PR-AU (V111): ACCOUNT_LOCKED (ADMIN được báo khi một tài khoản bị khoá đăng nhập tạm thời) -> màn Quản lý tài khoản
+    if (notif.type === 'ACCOUNT_LOCKED') {
+      navigate('/admin/accounts');
+      return;
+    }
+
     // BR-NT-26: thông báo đơn truy cập / lượt khách cũ đã lỡ gửi cho ADMIN (ADMIN không duyệt đơn, không duyệt / làm host khách)
     // -> chỉ đánh dấu đã đọc, không chuyển trang. GUEST_PHOTO_REQUIRED vẫn dẫn tới trang Ảnh khách.
     const notifRefType = notif.referenceType || notif.reference_type;
@@ -334,6 +340,13 @@ export default function NotificationsPage() {
       case 'INCIDENT_ESCALATION_NO_FM':
         return (
           <div className="notif-icon-box notif-icon-box--denied" title="Không có Quản lý CSVC nhận leo thang">
+            <ShieldAlert size={16} />
+          </div>
+        );
+      // PR-AU (V111): tài khoản bị khoá đăng nhập tạm thời do sai mật khẩu nhiều lần (ADMIN)
+      case 'ACCOUNT_LOCKED':
+        return (
+          <div className="notif-icon-box notif-icon-box--denied" title="Tài khoản bị khoá đăng nhập tạm thời">
             <ShieldAlert size={16} />
           </div>
         );
