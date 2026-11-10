@@ -2905,8 +2905,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							setActiveTool("CUSTOM_WALL");
 							setDraftPoints([]);
 						}}
-						title="Vách ngăn [W]"
-						aria-label="Vách ngăn [W]"
+						title="Tường [W]"
+						aria-label="Tường [W]"
 					>
 						<Ruler size={17} />
 						<span className="digitizer-rail-key">W</span>
