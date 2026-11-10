@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import { useForm } from "react-hook-form";
@@ -58,6 +58,8 @@ export default function LoginPage({
 		defaultValues: { email: "", password: "" },
 	});
 
+	const pageRef = useRef(null);
+
 	// Switch to reset mode if token exists in URL, and dismiss any active toasts
 	useEffect(() => {
 		toast.dismiss();
@@ -65,6 +67,75 @@ export default function LoginPage({
 			setMode("reset");
 		}
 	}, [initialResetToken]);
+
+	// Interactive mouse parallax for login background
+	useEffect(() => {
+		const el = pageRef.current;
+		if (!el) return;
+
+		let targetX = 0;
+		let targetY = 0;
+		let currentX = 0;
+		let currentY = 0;
+		let rafId = null;
+
+		const updateVars = () => {
+			el.style.setProperty("--parallax-x", currentX.toFixed(4));
+			el.style.setProperty("--parallax-y", currentY.toFixed(4));
+		};
+
+		const tick = () => {
+			const ease = 0.1;
+			currentX += (targetX - currentX) * ease;
+			currentY += (targetY - currentY) * ease;
+
+			updateVars();
+
+			const settled =
+				Math.abs(targetX - currentX) < 0.0008 &&
+				Math.abs(targetY - currentY) < 0.0008;
+
+			if (settled) {
+				currentX = targetX;
+				currentY = targetY;
+				updateVars();
+				rafId = null;
+			} else {
+				rafId = requestAnimationFrame(tick);
+			}
+		};
+
+		const scheduleTick = () => {
+			if (rafId === null) {
+				rafId = requestAnimationFrame(tick);
+			}
+		};
+
+		const handleMouseMove = (e) => {
+			const rect = el.getBoundingClientRect();
+			if (!rect.width || !rect.height) return;
+			const relX = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+			const relY = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+			targetX = (relX - 0.5) * 2;
+			targetY = (relY - 0.5) * 2;
+			scheduleTick();
+		};
+
+		const handleMouseLeave = () => {
+			targetX = 0;
+			targetY = 0;
+			scheduleTick();
+		};
+
+		window.addEventListener("mousemove", handleMouseMove, { passive: true });
+		document.addEventListener("mouseleave", handleMouseLeave, { passive: true });
+
+		return () => {
+			window.removeEventListener("mousemove", handleMouseMove);
+			document.removeEventListener("mouseleave", handleMouseLeave);
+			if (rafId !== null) cancelAnimationFrame(rafId);
+		};
+	}, []);
 
 	const handleGoogleSuccess = async (credentialResponse) => {
 		setError(null);
@@ -184,12 +255,11 @@ export default function LoginPage({
 	};
 
 	return (
-		<div className="login-page">
-			{/* Animated background */}
-			<div className="login-bg">
-				<div className="login-bg-orb login-bg-orb--1" />
-				<div className="login-bg-orb login-bg-orb--2" />
-				<div className="login-bg-orb login-bg-orb--3" />
+		<div className="login-page" ref={pageRef}>
+			{/* Interactive mouse-parallax background */}
+			<div className="login-bg" aria-hidden="true">
+				<div className="login-bg__mesh" />
+				<div className="login-bg__grid" />
 			</div>
 
 			<div className="login-card">

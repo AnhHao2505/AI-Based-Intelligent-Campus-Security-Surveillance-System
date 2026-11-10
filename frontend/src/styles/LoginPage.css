@@ -3,6 +3,8 @@
    ========================================================================== */
 
 .login-page {
+  --parallax-x: 0;
+  --parallax-y: 0;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -10,6 +12,7 @@
   justify-content: center;
   background-color: #060911;
   position: relative;
+  z-index: 1;
   overflow: hidden;
   padding: 24px 16px 48px;
   box-sizing: border-box;
@@ -21,35 +24,45 @@
 }
 
 /* ==========================================================================
-   LoginPage Ambient Background — Minimal High-Tech Security Atmosphere
+   LoginPage Interactive Background — Multi-layer Mouse Parallax
    ========================================================================== */
-.login-page::before {
-  content: '';
+.login-bg {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-image: 
-    radial-gradient(ellipse 75% 50% at 85% 10%, rgba(243, 112, 33, 0.36) 0%, transparent 55%),
-    radial-gradient(ellipse 65% 50% at 15% 20%, rgba(3, 78, 162, 0.36) 0%, transparent 55%),
-    radial-gradient(circle, rgba(148, 163, 184, 0.35) 1.25px, transparent 1.25px);
-  background-size: 100% 100%, 100% 100%, 24px 24px;
-  opacity: 1;
-  transition: opacity 0.3s ease;
+  overflow: hidden;
 }
 
-[data-theme="light"] .login-page::before {
-  background-image: 
-    radial-gradient(ellipse 75% 50% at 85% 10%, rgba(243, 112, 33, 0.30) 0%, transparent 55%),
-    radial-gradient(ellipse 65% 50% at 15% 20%, rgba(3, 78, 162, 0.24) 0%, transparent 55%),
-    radial-gradient(circle, rgba(100, 116, 139, 0.56) 1.25px, transparent 1.25px);
-  background-size: 100% 100%, 100% 100%, 24px 24px;
+.login-bg__mesh {
+  position: absolute;
+  inset: -100px;
+  background-image:
+    radial-gradient(ellipse 75% 50% at 85% 15%, rgba(243, 112, 33, 0.40) 0%, transparent 58%),
+    radial-gradient(ellipse 65% 50% at 15% 25%, rgba(3, 78, 162, 0.40) 0%, transparent 58%),
+    radial-gradient(circle at 55% 88%, rgba(243, 112, 33, 0.16) 0%, transparent 45%);
+  transform: translate3d(calc(var(--parallax-x) * -55px), calc(var(--parallax-y) * -55px), 0);
+  will-change: transform;
 }
 
-/* Background elements disabled to maintain clean surface */
-.login-bg,
-.login-bg-orb {
-  display: none;
+[data-theme="light"] .login-bg__mesh {
+  background-image:
+    radial-gradient(ellipse 75% 50% at 85% 15%, rgba(243, 112, 33, 0.34) 0%, transparent 58%),
+    radial-gradient(ellipse 65% 50% at 15% 25%, rgba(3, 78, 162, 0.28) 0%, transparent 58%),
+    radial-gradient(circle at 55% 88%, rgba(243, 112, 33, 0.12) 0%, transparent 45%);
+}
+
+.login-bg__grid {
+  position: absolute;
+  inset: -80px;
+  background-image: radial-gradient(circle, rgba(148, 163, 184, 0.42) 1.35px, transparent 1.35px);
+  background-size: 24px 24px;
+  transform: translate3d(calc(var(--parallax-x) * 32px), calc(var(--parallax-y) * 32px), 0);
+  will-change: transform;
+}
+
+[data-theme="light"] .login-bg__grid {
+  background-image: radial-gradient(circle, rgba(100, 116, 139, 0.58) 1.35px, transparent 1.35px);
 }
 
 /* --- Surveillance Login Card --- */
