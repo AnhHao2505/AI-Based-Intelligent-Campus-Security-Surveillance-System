@@ -30,4 +30,18 @@ public final class LogMasker {
         }
         return value.charAt(0) + MASK + "@" + domain;
     }
+
+    private static final java.util.regex.Pattern EMAIL_IN_TEXT =
+            java.util.regex.Pattern.compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}");
+
+    /**
+     * Che mọi e-mail xuất hiện trong một đoạn text (ví dụ thông điệp lỗi SMTP "550 <user@domain> rejected"), phần còn
+     * lại giữ nguyên. {@code null -> null}.
+     */
+    public static String maskEmailsIn(String text) {
+        if (text == null) {
+            return null;
+        }
+        return EMAIL_IN_TEXT.matcher(text).replaceAll(m -> java.util.regex.Matcher.quoteReplacement(maskEmail(m.group())));
+    }
 }

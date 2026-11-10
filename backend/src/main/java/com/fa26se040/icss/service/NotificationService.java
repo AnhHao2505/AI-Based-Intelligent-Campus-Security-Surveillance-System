@@ -1,6 +1,7 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.config.AsyncConfig;
+import com.fa26se040.icss.util.LogMasker;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,10 +51,10 @@ public class NotificationService {
 
             helper.setText(htmlContent, true);
             mailSender.send(message);
-            log.info("Reset password email successfully sent to {}", toEmail);
+            log.info("Reset password email successfully sent to {}", LogMasker.maskEmail(toEmail));
         } catch (Exception e) {
             // 6.4: không ghi link đặt lại mật khẩu ra log (ai đọc log cũng chiếm được tài khoản)
-            log.warn("Failed to send reset password email to {}: {}", toEmail, describe(e));
+            log.warn("Failed to send reset password email to {}: {}", LogMasker.maskEmail(toEmail), describe(e));
         }
     }
 
@@ -88,10 +89,10 @@ public class NotificationService {
 
             helper.setText(htmlContent, true);
             mailSender.send(message);
-            log.info("Staff account setup email successfully sent to {}", toEmail);
+            log.info("Staff account setup email successfully sent to {}", LogMasker.maskEmail(toEmail));
         } catch (Exception e) {
             // 6.4: không ghi mật khẩu tạm ra log; người dùng dùng "Quên mật khẩu" khi email không tới
-            log.warn("Failed to send staff account setup email to {}: {}", toEmail, describe(e));
+            log.warn("Failed to send staff account setup email to {}: {}", LogMasker.maskEmail(toEmail), describe(e));
         }
     }
 
@@ -122,14 +123,15 @@ public class NotificationService {
 
             helper.setText(htmlContent, true);
             mailSender.send(message);
-            log.info("Account locked email successfully sent to {}", toEmail);
+            log.info("Account locked email successfully sent to {}", LogMasker.maskEmail(toEmail));
         } catch (Exception e) {
-            log.warn("Failed to send account locked email to {}: {}", toEmail, describe(e));
+            log.warn("Failed to send account locked email to {}: {}", LogMasker.maskEmail(toEmail), describe(e));
         }
     }
 
     /** Loại lỗi + thông điệp, không kèm stack trace (M-04c). */
     private static String describe(Exception e) {
-        return e.getClass().getSimpleName() + ": " + e.getMessage();
+        // PR-AU2: thông điệp lỗi SMTP thường chứa địa chỉ người nhận -> che e-mail trong thông điệp
+        return e.getClass().getSimpleName() + ": " + LogMasker.maskEmailsIn(e.getMessage());
     }
 }

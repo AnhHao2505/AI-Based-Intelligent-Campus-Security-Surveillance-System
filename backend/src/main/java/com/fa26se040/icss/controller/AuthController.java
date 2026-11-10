@@ -9,6 +9,7 @@ import com.fa26se040.icss.dto.UserInfo;
 import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.security.AuthIpRateLimiter;
 import com.fa26se040.icss.service.AuthService;
+import com.fa26se040.icss.util.LogMasker;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> sendResetLink(@Valid @RequestBody ForgotPasswordRequest request,
                                                            HttpServletRequest httpRequest) {
         authIpRateLimiter.check(httpRequest.getRemoteAddr());
-        log.info("Received request to send reset password link to: {}", request.getEmail());
+        log.info("Received request to send reset password link to: {}", LogMasker.maskEmail(request.getEmail()));
         authService.sendResetLink(request);
         // S2: cùng status và cùng câu dù e-mail có tồn tại hay không
         return ResponseEntity.ok(ApiResponse.success(FORGOT_PASSWORD_MESSAGE));
@@ -53,7 +54,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<AuthResponse>> localLogin(@Valid @RequestBody LoginRequest request,
                                                                 HttpServletRequest httpRequest) {
         authIpRateLimiter.check(httpRequest.getRemoteAddr());
-        log.info("Received local login request for email: {}", request.getEmail());
+        log.info("Received local login request for email: {}", LogMasker.maskEmail(request.getEmail()));
         AuthResponse response = authService.authenticateLocalUser(request);
         return ResponseEntity.ok(ApiResponse.success(response, "Đăng nhập thành công"));
     }

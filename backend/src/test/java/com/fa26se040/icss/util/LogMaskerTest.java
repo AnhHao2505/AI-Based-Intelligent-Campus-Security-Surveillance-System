@@ -39,4 +39,13 @@ class LogMaskerTest {
         assertThat(LogMasker.maskEmail("@fpt.edu.vn")).isEqualTo("***@fpt.edu.vn");
         assertThat(LogMasker.maskEmail("  an@fpt.edu.vn ")).isEqualTo("a***@fpt.edu.vn");
     }
+
+    @Test
+    @DisplayName("maskEmailsIn: che mọi e-mail trong thông điệp lỗi, giữ phần còn lại; null -> null")
+    void maskEmailsInText() {
+        assertThat(LogMasker.maskEmailsIn("550 5.1.1 <hao.nguyen@fpt.edu.vn>: Recipient address rejected; cc an@gmail.com"))
+                .isEqualTo("550 5.1.1 <h***@fpt.edu.vn>: Recipient address rejected; cc a***@gmail.com");
+        assertThat(LogMasker.maskEmailsIn("Connection refused")).isEqualTo("Connection refused");
+        assertThat(LogMasker.maskEmailsIn(null)).isNull();
+    }
 }
