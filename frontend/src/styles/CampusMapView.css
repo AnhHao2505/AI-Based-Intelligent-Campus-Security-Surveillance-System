@@ -84,7 +84,7 @@
   border-bottom: none !important;
 }
 
-/* Floating Glassmorphism Controls (Top Left) */
+/* Floating Top Controls (Top Left) */
 .campus-map-floating-bar {
   position: absolute;
   top: 14px;
@@ -92,14 +92,13 @@
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.96);
   border: 1px solid var(--theme-border);
   border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 [data-theme="dark"] .campus-map-floating-bar {
@@ -1638,5 +1637,286 @@
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3D BUILDING & FLOOR SLICING DOCK (Production Vector Map - Select/Options)
+   -------------------------------------------------------------------------- */
+.campus-3d-slicer-dock {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.campus-3d-slicer-select-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] .campus-3d-slicer-select-row {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.campus-3d-slicer-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.campus-3d-slicer-select-icon {
+  position: absolute;
+  left: 9px;
+  color: var(--theme-text-muted, #64748b);
+  pointer-events: none;
+}
+
+.campus-3d-slicer-select-arrow {
+  position: absolute;
+  right: 8px;
+  color: var(--theme-text-muted, #64748b);
+  pointer-events: none;
+}
+
+.campus-3d-slicer-select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 32px;
+  padding: 0 26px 0 27px;
+  border-radius: 7px;
+  border: 1px solid var(--theme-border, #cbd5e1);
+  background: var(--theme-bg-input, #f8fafc);
+  color: var(--theme-text-primary, #0f172a);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.campus-3d-slicer-select:hover {
+  border-color: var(--theme-primary, #f37021);
+}
+
+.campus-3d-slicer-select:focus-visible {
+  outline: 2px solid var(--theme-primary, #f37021);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .campus-3d-slicer-select {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .campus-3d-slicer-select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.campus-3d-route-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #e0f2fe;
+  font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+}
+
+.campus-3d-route-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: #f8fafc;
+  cursor: pointer;
+}
+
+/* 3D Route: Pedestrian Start Marker */
+.campus-route-pedestrian-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  cursor: default;
+}
+
+.campus-route-pedestrian-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.45);
+  animation: campusRoutePulse 1.8s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes campusRoutePulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.campus-route-pedestrian-badge {
+  position: relative;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+}
+
+/* 3D Route: Destination Teardrop Pin Marker */
+.campus-route-dest-pin {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+  cursor: default;
+}
+
+.campus-route-dest-pin__svg {
+  display: block;
+}
+
+.campus-route-dest-pin__shadow {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: -1;
+}
+
+/* Clickable 3D Building Overview Pill */
+.campus-bldg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
+}
+
+.campus-bldg-pill:hover {
+  transform: translateY(-2px);
+  border-color: var(--theme-primary, #f37021);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+}
+
+.campus-bldg-pill:focus-visible {
+  outline: 2px solid var(--theme-primary, #f37021);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .campus-bldg-pill {
+  background: rgba(15, 23, 42, 0.94);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #f8fafc;
+}
+
+.campus-bldg-pill__name {
+  letter-spacing: -0.01em;
+}
+
+.campus-bldg-pill__badge {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(3, 78, 162, 0.1);
+  color: #034ea2;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme="dark"] .campus-bldg-pill__badge {
+  background: rgba(56, 189, 248, 0.18);
+  color: #bae6fd;
+}
+
+.campus-3d-slicer-floors {
+  animation: campusFloorBarReveal 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes campusFloorBarReveal {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.campus-3d-slicer-hint {
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .campus-3d-slicer-hint {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #cbd5e1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campus-bldg-pill,
+  .campus-3d-slicer-floors,
+  .campus-route-pedestrian-pulse {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

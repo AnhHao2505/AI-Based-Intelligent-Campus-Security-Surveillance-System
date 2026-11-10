@@ -3388,6 +3388,53 @@
   color: #60a5fa;
 }
 
+/* Sidebar Building & Floor Filters */
+.zone-sidebar-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--theme-border, #e2e8f0);
+  background: var(--theme-bg-surface, #ffffff);
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .zone-sidebar-filters {
+  background: #0f172a;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.zone-sidebar-filter-item {
+  position: relative;
+  min-width: 0;
+}
+
+.zone-sidebar-filter-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--theme-text-muted, #64748b);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ui-select-group--sidebar {
+  width: 100%;
+}
+
+.ui-select-group--sidebar .ui-select__field {
+  height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 24px 0 26px;
+  border-radius: 6px;
+}
+
+.ui-select-group--sidebar .ui-select__arrow {
+  right: 7px;
+}
+
 /* Sidebar Search Box */
 .zone-sidebar-search-box {
   position: relative;
