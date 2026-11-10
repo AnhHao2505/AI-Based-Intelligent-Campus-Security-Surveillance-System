@@ -60,6 +60,7 @@ class AuthAuditIntegrationTest extends AbstractIntegrationTest {
     @Autowired private SystemConfigService systemConfigService;
     @Autowired private PasswordResetTokenRepository passwordResetTokenRepository;
     @Autowired private JwtTokenProvider jwtTokenProvider;
+    @org.springframework.beans.factory.annotation.Value("${app.security.audit-hash-key}") private String auditHashKey;
 
     @MockBean private NotificationService notificationService;
     @MockBean private GoogleTokenVerifier googleTokenVerifier;
@@ -128,7 +129,7 @@ class AuthAuditIntegrationTest extends AbstractIntegrationTest {
                 + "AND new_value ->> 'email' = ?", action, email);
     }
 
-    /** X2: dòng của chuỗi KHÔNG khớp tài khoản — tra theo target_id "UNKNOWN:" + hash (test tự tính SHA-256). */
+    /** X2 + H1: dòng của chuỗi KHÔNG khớp tài khoản — tra theo target_id "UNKNOWN:" + hash (test tự tính HMAC-SHA256). */
     private List<Map<String, Object>> unknownAudits(String action, String typed) {
         return jdbc.queryForList("SELECT target_id, subject_user_id, actor_type, actor_source, ip_address, user_agent, "
                 + "new_value::text AS new_json, new_value ->> 'email' AS email, new_value ->> 'emailHash' AS hash, "
@@ -136,16 +137,18 @@ class AuthAuditIntegrationTest extends AbstractIntegrationTest {
                 + "WHERE target_type = 'AUTH' AND action = ? AND target_id = ?", action, "UNKNOWN:" + sha16(typed));
     }
 
-    private static String sha16(String typed) {
+    /** H1: 16 hex đầu HMAC-SHA256 với khoá của profile test (application-test.yml), tính độc lập với code chính. */
+    private String sha16(String typed) {
         try {
-            byte[] d = java.security.MessageDigest.getInstance("SHA-256")
-                    .digest(typed.trim().toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8));
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(auditHashKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] d = mac.doFinal(typed.trim().toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8));
             StringBuilder hex = new StringBuilder();
             for (byte b : d) {
                 hex.append(String.format("%02x", b));
             }
             return hex.substring(0, 16);
-        } catch (java.security.NoSuchAlgorithmException e) {
+        } catch (java.security.GeneralSecurityException e) {
             throw new IllegalStateException(e);
         }
     }
