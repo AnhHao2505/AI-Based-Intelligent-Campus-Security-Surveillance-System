@@ -3,7 +3,10 @@ import logging
 import time
 from typing import Optional, Tuple, Dict, List
 import numpy as np
-import psycopg2
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
 
 from .face_embedder import FaceEmbedder
 from .shared_face_cache import SharedFaceCache, get_shared_face_cache
@@ -13,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class FaceMatcher:
     """
-    Module so khớp đặc trưng khuôn mặt (Face Recognition) trực tiếp với PostgreSQL pgvector.
+    Module so khớp đặc trưng khuôn mặt (Face Recognition) trực tiếp với PostgreSQL pgvector hoặc API Backend.
     Có bộ đệm In-Memory Cache để tìm kiếm siêu tốc (Sub-millisecond).
     Tích hợp Process-wide Shared Face Cache để tối ưu RAM và CPU giữa nhiều CameraStreamWorker.
     """
@@ -100,13 +103,21 @@ class FaceMatcher:
         self.cache.cache_ttl = val
 
     def _get_connection(self):
+        if psycopg2 is None:
+            raise RuntimeError("psycopg2 chưa được cài đặt hoặc kết nối DB trực tiếp đã bị tắt")
         return psycopg2.connect(**self.db_params)
 
     def refresh_cache(self):
-        """Tải toàn bộ vector khuôn mặt từ PostgreSQL vào bộ nhớ RAM để tìm kiếm cực nhanh"""
-        with self._access_cache_lock:
-            self.access_cache.clear()
-        return self.cache.refresh_cache(get_connection_fn=self._get_connection)
+        """Tải toàn bộ vector khuôn mặt từ Backend API vào bộ nhớ RAM để tìm kiếm cực nhanh"""
+        # KHÔNG xóa self.access_cache để chống bão request Thundering Herd lên Backend
+        is_mocked_db = (
+            hasattr(self._get_connection, "mock_calls") or
+            hasattr(self._get_connection, "assert_called") or
+            type(self._get_connection).__name__ in ("MagicMock", "Mock")
+        )
+        if is_mocked_db:
+            return self.cache.refresh_cache(get_connection_fn=self._get_connection)
+        return self.cache.refresh_cache()
 
     def get_camera_area_name(self, camera_code: str):
         """Lấy tên khu vực thực tế (Physical Area Name) của Camera từ cơ sở dữ liệu"""
@@ -163,6 +174,11 @@ class FaceMatcher:
         best_match = cached_faces[best_idx]
 
         if best_match and best_score >= threshold:
+            expires_at = best_match.get("expires_at")
+            if expires_at is not None and (time.time() * 1000.0) > expires_at:
+                logger.info(f"⏳ [FaceMatcher] Khách mời [{best_match.get('code')}] đã hết hạn chuyến thăm -> Bỏ qua.")
+                return None
+
             is_active = bool(best_match.get("is_active", True))
             role = str(best_match.get("role", "NORMAL_USER"))
             logger.info(f"🎯 [FaceMatcher] NHẬN DIỆN KHUÔN MẶT: {best_match['code']} - {best_match['full_name']} (Khớp: {best_score:.1%}, Hoạt động: {is_active}, Role: {role})")

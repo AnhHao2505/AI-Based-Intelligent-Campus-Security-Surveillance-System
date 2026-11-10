@@ -358,16 +358,9 @@ class EdgeMqttAgent:
                 pass
 
     def _handle_face_cache_refresh(self):
-        count = 0
-        default_pipe = self.default_pipeline_getter() if self.default_pipeline_getter else None
-        if default_pipe and getattr(default_pipe, "face_matcher", None):
-            default_pipe.face_matcher.refresh_cache()
-            count += 1
-        for worker in list(self.active_workers.values()):
-            if getattr(worker, "pipeline", None) and getattr(worker.pipeline, "face_matcher", None):
-                worker.pipeline.face_matcher.refresh_cache()
-                count += 1
-        logger.info(f"🔄 [EdgeAgent] Đã làm mới Face Cache cho {count} pipeline(s) qua MQTT.")
+        from ..core.shared_face_cache import get_shared_face_cache
+        success = get_shared_face_cache().refresh_cache()
+        logger.info(f"🔄 [EdgeAgent] Đã làm mới Shared Face Cache qua MQTT (kết quả: {success}).")
 
     # ------------------------------------------------------------------
     # 3. SYNCHRONOUS RPC REQUEST -> REPLY HANDLERS

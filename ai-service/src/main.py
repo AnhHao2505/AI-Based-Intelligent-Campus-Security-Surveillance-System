@@ -551,25 +551,14 @@ async def process_face_registration(
 @app.post("/api/v1/faces/refresh-cache", dependencies=[Depends(require_service_key)])
 async def refresh_faces_cache():
     """
-    Xóa và làm mới cache khuôn mặt cùng quyền truy cập ngay lập tức trong RAM AI.
-    Được gọi khi tài khoản bị vô hiệu hóa, kích hoạt lại hoặc xóa mềm.
+    Làm mới cache khuôn mặt ngay lập tức trong RAM AI qua API nội bộ.
+    Không xóa access_cache để tránh làm gián đoạn luồng thẩm định quyền ra vào.
     """
     from .core.shared_face_cache import get_shared_face_cache
-    get_shared_face_cache().refresh_cache()
-    count = 0
-    if default_pipeline and getattr(default_pipeline, "face_matcher", None):
-        with default_pipeline.face_matcher._access_cache_lock:
-            default_pipeline.face_matcher.access_cache.clear()
-        count += 1
-    with active_workers_lock:
-        workers = list(active_workers.values())
-    for worker in workers:
-        if getattr(worker, "pipeline", None) and getattr(worker.pipeline, "face_matcher", None):
-            with worker.pipeline.face_matcher._access_cache_lock:
-                worker.pipeline.face_matcher.access_cache.clear()
-            count += 1
-    logger.info(f"🔄 [FaceCache] Đã làm mới face cache tức thì cho {count} pipeline(s).")
-    return {"success": True, "pipelines_refreshed": count}
+    success = get_shared_face_cache().refresh_cache()
+    logger.info(f"🔄 [FaceCache] Đã làm mới face cache tức thì qua webhook (kết quả: {success}).")
+    return {"success": bool(success), "pipelines_refreshed": 1 if success else 0}
+
 
 class StreamStartRequest(BaseModel):
     camera_code: str
