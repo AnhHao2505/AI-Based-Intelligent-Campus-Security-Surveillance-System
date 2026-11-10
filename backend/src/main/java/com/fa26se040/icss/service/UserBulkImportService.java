@@ -2,12 +2,17 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.BulkImportResponse;
 import com.fa26se040.icss.dto.BulkImportRowResult;
+import com.fa26se040.icss.context.AuditContext;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.ImportBatchAuditSnapshot;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.MaxRecordsExceededException;
 import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -48,6 +53,10 @@ public class UserBulkImportService {
     private final UserBulkImportHelper userBulkImportHelper;
     private final SystemConfigService systemConfigService;
 
+    /** PR-AUDIT: field injection để giữ constructor (test dựng service bằng tay); null thì không ghi audit. */
+    @Autowired(required = false)
+    private AuditService auditService;
+
     private static class ParsedMetadata {
         final List<String[]> rows;
         final String sourceFileName;
@@ -78,6 +87,8 @@ public class UserBulkImportService {
     public BulkImportResponse bulkImportNormalUsers(MultipartFile zipFile) {
         validateZipFile(zipFile);
         File tempZip = createTempZipFile(zipFile);
+        // PR-AUDIT: mọi audit của lô (IMPORT + CREATE từng tài khoản + REGISTER_FACE) dùng correlation_id = importBatchId
+        UUID previousCorrelation = AuditContext.getCorrelationId();
 
         try {
             try (ZipFile zf = new ZipFile(tempZip)) {
@@ -128,6 +139,7 @@ public class UserBulkImportService {
                 }
 
                 UUID importBatchId = UUID.randomUUID();
+                AuditContext.setCorrelationId(importBatchId);
                 log.info("Bulk import normal users batch {} started from {}, file: {}",
                         importBatchId, metadata.sourceFileName, zipFile.getOriginalFilename());
 
@@ -219,6 +231,7 @@ public class UserBulkImportService {
 
                 log.info("Bulk import normal users batch {} finished: total={}, success={}, failed={}",
                         importBatchId, dataRowCount, successCount, failureCount);
+                recordImportAudit("NORMAL", zipFile.getOriginalFilename(), importBatchId, dataRowCount, successCount, failureCount);
 
                 return BulkImportResponse.builder()
                         .importBatchId(importBatchId)
@@ -232,6 +245,7 @@ public class UserBulkImportService {
                 throw new IllegalArgumentException("Không thể đọc file ZIP: " + e.getMessage());
             }
         } finally {
+            restoreCorrelation(previousCorrelation);
             cleanupTempZip(tempZip);
         }
     }
@@ -246,6 +260,8 @@ public class UserBulkImportService {
     public BulkImportResponse bulkImportStaffUsers(MultipartFile zipFile) {
         validateZipFile(zipFile);
         File tempZip = createTempZipFile(zipFile);
+        // PR-AUDIT: mọi audit của lô (IMPORT + CREATE từng tài khoản + REGISTER_FACE) dùng correlation_id = importBatchId
+        UUID previousCorrelation = AuditContext.getCorrelationId();
 
         try {
             try (ZipFile zf = new ZipFile(tempZip)) {
@@ -296,6 +312,7 @@ public class UserBulkImportService {
                 }
 
                 UUID importBatchId = UUID.randomUUID();
+                AuditContext.setCorrelationId(importBatchId);
                 log.info("Bulk import staff users batch {} started from {}, file: {}",
                         importBatchId, metadata.sourceFileName, zipFile.getOriginalFilename());
 
@@ -404,6 +421,7 @@ public class UserBulkImportService {
 
                 log.info("Bulk import staff users batch {} finished: total={}, success={}, failed={}",
                         importBatchId, dataRowCount, successCount, failureCount);
+                recordImportAudit("STAFF", zipFile.getOriginalFilename(), importBatchId, dataRowCount, successCount, failureCount);
 
                 return BulkImportResponse.builder()
                         .importBatchId(importBatchId)
@@ -417,6 +435,7 @@ public class UserBulkImportService {
                 throw new IllegalArgumentException("Không thể đọc file ZIP: " + e.getMessage());
             }
         } finally {
+            restoreCorrelation(previousCorrelation);
             cleanupTempZip(tempZip);
         }
     }
@@ -430,6 +449,24 @@ public class UserBulkImportService {
         if (dataRowCount > maxRows) {
             throw new MaxRecordsExceededException("File dữ liệu chứa " + dataRowCount + " bản ghi, vượt quá số lượng tối đa "
                     + maxRows + " bản ghi cho phép.");
+        }
+    }
+
+    /** PR-AUDIT (B3): IMPORT / USER_IMPORT_BATCH — người import, tên file, luồng, tổng / thành công / thất bại. */
+    private void recordImportAudit(String flow, String fileName, UUID batchId, int total, int success, int failure) {
+        if (auditService == null) {
+            return;
+        }
+        auditService.record(AuditTargetType.USER_IMPORT_BATCH, AuditAction.IMPORT, batchId.toString(), null, null,
+                null, ImportBatchAuditSnapshot.imported(flow, fileName, total, success, failure), null,
+                auditService.resolveCurrentActor("USER_BULK_IMPORT"));
+    }
+
+    private static void restoreCorrelation(UUID previous) {
+        if (previous != null) {
+            AuditContext.setCorrelationId(previous);
+        } else {
+            AuditContext.clearCorrelationId();
         }
     }
 

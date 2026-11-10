@@ -90,7 +90,11 @@ class AuthPasswordResetIntegrationTest extends AbstractIntegrationTest {
                 passwordResetTokenRepository.findAll().stream()
                         .filter(t -> u.getEmail().equals(t.getEmail()))
                         .forEach(passwordResetTokenRepository::delete));
-        userRepository.deleteAllById(createdIds);
+        // PR-AUDIT: đặt lại mật khẩu ghi audit (append-only, FK tới users) -> không xoá được user, chỉ khoá
+        userRepository.findAllById(createdIds).forEach(u -> {
+            u.setIsActive(false);
+            userRepository.save(u);
+        });
     }
 
     private User newUser(String tag, boolean isActive, OffsetDateTime deletedAt) {

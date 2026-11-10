@@ -105,7 +105,9 @@ class PasswordResetTokenConfigIntegrationTest extends AbstractIntegrationTest {
         passwordResetTokenRepository.findAll().stream()
                 .filter(t -> target.getEmail().equals(t.getEmail()))
                 .forEach(passwordResetTokenRepository::delete);
-        userRepository.delete(target);
+        // PR-AUDIT: yêu cầu đặt lại mật khẩu ghi audit (append-only, FK tới users) -> chỉ khoá, không xoá
+        target.setIsActive(false);
+        userRepository.save(target);
         // admin có dòng trong system_configuration_change_logs -> chỉ vô hiệu hoá, không xoá
         admin.setIsActive(false);
         userRepository.save(admin);
