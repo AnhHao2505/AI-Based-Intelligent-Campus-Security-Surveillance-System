@@ -3,7 +3,7 @@ import { History, RotateCcw, Link, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAuditLogs } from "../../services/accessControlService";
 import { getAreas } from "../../services/areaService";
-import { ROLES } from "../../constants/roles";
+import { ROLES, ROLE_LABELS } from "../../constants/roles";
 import { getLevelConfig } from "../../utils/areaHelpers";
 import { formatDate, formatTime, formatDateTime } from "../../utils/formatDateTime";
 import { formatLocation } from "../../utils/formatLocation";
@@ -69,13 +69,40 @@ const AUDIT_FIELD_LABELS = {
 	anonymized: "Ẩn danh hóa",
 };
 
-const summarizeSnapshotFields = (snap) => {
-	const labels = [
-		...new Set(Object.keys(snap).map((key) => AUDIT_FIELD_LABELS[key]).filter(Boolean)),
-	];
+const isBlankValue = (v) => v === null || v === undefined;
+
+// So sánh sâu; null và undefined (hoặc khoá vắng mặt) coi như bằng nhau
+const isSameAuditValue = (a, b) => {
+	if (isBlankValue(a) && isBlankValue(b)) return true;
+	if (a === b) return true;
+	if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+	if (Array.isArray(a) !== Array.isArray(b)) return false;
+	if (Array.isArray(a) && a.length !== b.length) return false;
+	const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+	return [...keys].every((k) => isSameAuditValue(a[k], b[k]));
+};
+
+// Khoá thực sự thay đổi: có cả cũ và mới -> khoá khác giá trị; chỉ mới (tạo) / chỉ cũ (xoá) -> khoá có giá trị
+const changedSnapshotKeys = (oldSnap, newSnap) => {
+	if (oldSnap && newSnap) {
+		const keys = new Set([...Object.keys(oldSnap), ...Object.keys(newSnap)]);
+		return [...keys].filter((k) => !isSameAuditValue(oldSnap[k], newSnap[k]));
+	}
+	const snap = newSnap || oldSnap || {};
+	return Object.keys(snap).filter((k) => !isBlankValue(snap[k]));
+};
+
+const summarizeSnapshotFields = (oldSnap, newSnap) => {
+	const keys = changedSnapshotKeys(oldSnap, newSnap);
+	if (keys.length === 0) return "Không đổi trường nào";
+	const labels = [...new Set(keys.map((key) => AUDIT_FIELD_LABELS[key]).filter(Boolean))];
 	if (labels.length === 0) return "Xem chi tiết";
 	return labels.length > 3 ? `${labels.slice(0, 3).join(", ")}, …` : labels.join(", ");
 };
+
+// Trạng thái tài khoản trong snapshot USER_ACCOUNT (giống tab Nhật ký của Quản lý tài khoản)
+const accountStatusLabel = (v) =>
+	v?.deleted ? "Đã xoá" : v?.isActive ? "Đang hoạt động" : "Đã vô hiệu hoá";
 
 const MODULE_OPTIONS_ADMIN = [
 	{ value: "", label: "Tất cả phân hệ" },
@@ -499,13 +526,67 @@ export default function AuditLogPage() {
 			);
 		}
 
-		// Default JSON fallback summary
+		// USER_ACCOUNT: hiện như tab Nhật ký của Quản lý tài khoản. Snapshot không có e-mail / mật khẩu / token.
+		if (targetType === "USER_ACCOUNT") {
+			const newV = newValue || {};
+			if (action === "CREATE") {
+				return (
+					<div className="audit-detail-rules">
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Vai trò:</span>
+							<strong className="audit-val--new">{ROLE_LABELS[newV.role] || newV.role || "—"}</strong>
+						</div>
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Cấp truy cập:</span>
+							<strong className="audit-val--new">Cấp {newV.accessLevel ?? "—"}</strong>
+						</div>
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Có khuôn mặt:</span>
+							<strong className="audit-val--new">{newV.hasFaceData ? "Có" : "Không"}</strong>
+						</div>
+					</div>
+				);
+			}
+			return (
+				<div className="audit-detail-rules">
+					<div className="audit-detail-row">
+						<span className="audit-row-label">Trạng thái:</span>
+						<span>{accountStatusLabel(oldValue)}</span>
+						<span className="audit-arrow">→</span>
+						<strong className="audit-val--new">{accountStatusLabel(newValue)}</strong>
+					</div>
+					{newV.cancelledRequests != null && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Đơn bị huỷ:</span>
+							<strong>{newV.cancelledRequests}</strong>
+						</div>
+					)}
+					{newV.revokedAssignments != null && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Nhân sự chỉ định bị thu hồi:</span>
+							<strong>{newV.revokedAssignments}</strong>
+						</div>
+					)}
+					{newV.websocketSessionsToClose != null && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Phiên kết nối bị đóng:</span>
+							<strong>{newV.websocketSessionsToClose}</strong>
+						</div>
+					)}
+				</div>
+			);
+		}
+
+		// Default JSON fallback summary: chỉ liệt kê trường thực sự thay đổi
 		const snap = newValue || oldValue;
 		if (!snap) return null;
+		const isObjectSnap = (v) => v == null || typeof v === "object";
 		return (
 			<div className="audit-detail-rules">
 				<span className="audit-val--json-summary">
-					{typeof snap === "object" ? summarizeSnapshotFields(snap) : String(snap)}
+					{isObjectSnap(oldValue) && isObjectSnap(newValue)
+						? summarizeSnapshotFields(oldValue, newValue)
+						: String(snap)}
 				</span>
 			</div>
 		);
