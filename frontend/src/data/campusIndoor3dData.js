@@ -932,10 +932,11 @@ export function isPortalNode(node) {
 }
 
 /**
- * Geometric Outdoor inference: a Floor-0 node lying outside all drawn Floor-0 building boundaries is Outdoor.
+ * Geometric Outdoor inference: a Floor-0 node lying outside all drawn Floor-0 building boundaries
+ * OR sitting inside a central `VOID` courtyard hole (e.g. Hồ Sen) is Outdoor.
  * Falls back safely when no Floor-0 boundaries exist yet for an arbitrary building.
  */
-export function isNodeOutdoor(boundaries, node) {
+export function isNodeOutdoor(boundaries, node, precomputedModels = null) {
 	if (!node || !Array.isArray(node.coords)) return false;
 	if ((Number(node.floorOrder) || 0) !== 0) return false;
 	const floor0Bounds = (boundaries || []).filter(
@@ -944,7 +945,27 @@ export function isNodeOutdoor(boundaries, node) {
 	if (floor0Bounds.length === 0) {
 		return node.type === "OUTDOOR" || node.building === "OUTDOOR";
 	}
-	if (findBoundaryContainingPoint(floor0Bounds, node.coords, 0)) {
+	const containingBound = findBoundaryContainingPoint(
+		floor0Bounds,
+		node.coords,
+		0,
+	);
+	if (containingBound) {
+		if (precomputedModels) {
+			const cBldg =
+				resolveCanonicalBuildingName(containingBound.building) ||
+				containingBound.building;
+			const model = precomputedModels.get(`${cBldg}__0`);
+			if (
+				model?.faces?.some(
+					(f) =>
+						f.role === "VOID" &&
+						isPointInPolygonWithHoles(node.coords, f.ring, f.holes || []),
+				)
+			) {
+				return true;
+			}
+		}
 		return false;
 	}
 	if (node.building && node.building !== "OUTDOOR") {
@@ -959,9 +980,9 @@ export function isNodeOutdoor(boundaries, node) {
 /**
  * Infer effective building ownership ("OUTDOOR" vs canonical building name) from Floor-0 boundaries.
  */
-export function resolveNodeBuilding(boundaries, node) {
+export function resolveNodeBuilding(boundaries, node, precomputedModels = null) {
 	if (!node) return "";
-	if (isNodeOutdoor(boundaries, node)) return "OUTDOOR";
+	if (isNodeOutdoor(boundaries, node, precomputedModels)) return "OUTDOOR";
 	if ((Number(node.floorOrder) || 0) === 0) {
 		const matched = findBoundaryContainingPoint(boundaries, node.coords, 0);
 		if (matched?.building) return matched.building;
@@ -971,19 +992,30 @@ export function resolveNodeBuilding(boundaries, node) {
 
 /**
  * Check whether a nav node belongs on the Studio canvas for (activeBuilding, activeFloorOrder).
- * Ground courtyard outdoor nodes appear across all buildings on Floor 0 without leaking indoor nodes between buildings.
+ * Supports `"ALL"` wildcards for both building & floor while keeping outdoor courtyard nodes visible on Floor 0.
  */
 export function isNodeVisibleOnFloor(
 	boundaries,
 	node,
 	activeBuilding,
 	activeFloorOrder,
+	precomputedModels = null,
 ) {
 	if (!node) return false;
-	const floor = Number(activeFloorOrder) || 0;
-	if ((Number(node.floorOrder) || 0) !== floor) return false;
-	if (floor === 0 && isNodeOutdoor(boundaries, node)) return true;
-	const ownerBldg = resolveNodeBuilding(boundaries, node);
+	const nodeFloor = Number(node.floorOrder) || 0;
+	const isAllFloors =
+		activeFloorOrder === "ALL" ||
+		activeFloorOrder === null ||
+		activeFloorOrder === undefined;
+	if (!isAllFloors && nodeFloor !== (Number(activeFloorOrder) || 0)) {
+		return false;
+	}
+	const isAllBuildings = !activeBuilding || activeBuilding === "ALL";
+	if (nodeFloor === 0 && isNodeOutdoor(boundaries, node, precomputedModels)) {
+		return true;
+	}
+	if (isAllBuildings) return true;
+	const ownerBldg = resolveNodeBuilding(boundaries, node, precomputedModels);
 	return matchesBuilding(ownerBldg, activeBuilding);
 }
 
@@ -3116,6 +3148,8 @@ export function buildVector3dLayers({
 				},
 			});
 
+			const doorFrameColor = isGhost ? "#e2e8f0" : "#f59e0b";
+
 			// 3D Low Threshold Sill (0.06m high warm architectural threshold across doorway opening)
 			boundaryWalls.push({
 				type: "Feature",
@@ -3128,7 +3162,7 @@ export function buildVector3dLayers({
 					floorOrder: model.floorOrder,
 					isGhost,
 					isContextBuilding,
-					color: isGhost ? "#e2e8f0" : "#f59e0b",
+					color: doorFrameColor,
 					baseHeight: floorBase + FLOOR_SLAB_HEIGHT,
 					extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT + 0.055,
 				},
@@ -3138,7 +3172,7 @@ export function buildVector3dLayers({
 				},
 			});
 
-			// 3D Upper Door Header / Lintel on 2.85m Perimeter Walls (from 2.10m to 2.85m) so doorway reads as a real architectural portal
+			// 3D Upper Door Header / Lintel on 2.85m Perimeter Walls (from 2.10m to 2.85m), matching threshold color
 			if (geom.isPerimeter) {
 				const lintelPoly = buildWallSegmentPolygon(
 					geom.jambA,
@@ -3159,7 +3193,7 @@ export function buildVector3dLayers({
 							floorOrder: model.floorOrder,
 							isGhost,
 							isContextBuilding,
-							color: isGhost ? "#cbd5e1" : "#475569",
+							color: doorFrameColor,
 							baseHeight: floorBase + FLOOR_SLAB_HEIGHT + 2.1,
 							extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT + BOUNDARY_WALL_HEIGHT,
 						},
@@ -3317,7 +3351,12 @@ export function buildAllGraphEdges(store) {
  * Check whether an intra-floor segment should sit at Outdoor courtyard elevation (`z = 0.06m`)
  * using pure Floor-0 boundary geometry rather than legacy node labels.
  */
-function isSegmentOutdoorGeometry(boundaries, a, b) {
+function isSegmentOutdoorGeometry(
+	boundaries,
+	a,
+	b,
+	precomputedModels = null,
+) {
 	const aFloor = Number(a?.floorOrder) || 0;
 	const bFloor = Number(b?.floorOrder) || 0;
 	if (aFloor !== bFloor || aFloor !== 0) return false;
@@ -3325,14 +3364,23 @@ function isSegmentOutdoorGeometry(boundaries, a, b) {
 		(bnd) => (Number(bnd.floorOrder) || 0) === 0,
 	);
 	if (floor0Bounds.length === 0) {
-		return isNodeOutdoor(boundaries, a) && isNodeOutdoor(boundaries, b);
+		return (
+			isNodeOutdoor(boundaries, a, precomputedModels) &&
+			isNodeOutdoor(boundaries, b, precomputedModels)
+		);
 	}
 	const mid = [
 		(a.coords[0] + b.coords[0]) / 2,
 		(a.coords[1] + b.coords[1]) / 2,
 	];
 	return (
-		(isNodeOutdoor(boundaries, a) && isNodeOutdoor(boundaries, b)) ||
+		(isNodeOutdoor(boundaries, a, precomputedModels) &&
+			isNodeOutdoor(boundaries, b, precomputedModels)) ||
+		isNodeOutdoor(
+			boundaries,
+			{ floorOrder: 0, coords: mid },
+			precomputedModels,
+		) ||
 		!findBoundaryContainingPoint(floor0Bounds, mid, 0)
 	);
 }
@@ -3389,25 +3437,231 @@ export function computeDigitizedRoute({
 		adj.get(vId).push({ to: uId, weight });
 	}
 
-	const getFloorPool = (bldg, flOrder) => {
+	const floor0Bounds = boundaries.filter(
+		(b) => (Number(b.floorOrder) || 0) === 0,
+	);
+	const findVoidCourtyardBuilding = (coords) => {
+		if (!Array.isArray(coords) || floor0Bounds.length === 0) return null;
+		const matched = findBoundaryContainingPoint(floor0Bounds, coords, 0);
+		if (!matched?.building) return null;
+		const cBldg =
+			resolveCanonicalBuildingName(matched.building) || matched.building;
+		const model0 = floorModels.get(`${cBldg}__0`);
+		const insideVoid = model0?.faces?.some(
+			(f) =>
+				f.role === "VOID" &&
+				isPointInPolygonWithHoles(coords, f.ring, f.holes || []),
+		);
+		return insideVoid ? cBldg : null;
+	};
+
+	const findContainingRoom = (coords, bldg, flOrder) => {
+		if (!bldg || bldg === "OUTDOOR" || bldg === "ALL") return null;
+		const cBldg = resolveCanonicalBuildingName(bldg) || bldg;
+		const model = floorModels.get(`${cBldg}__${Number(flOrder) || 0}`);
+		if (!model) return null;
+		return (
+			model.faces.find(
+				(f) =>
+					f.role === "ROOM" &&
+					isPointInPolygonWithHoles(coords, f.ring, f.holes || []),
+			) || null
+		);
+	};
+
+	// Same-room check: if start and end sit strictly inside the exact same ROOM on the same floor,
+	// route inside that room (via internal room navNodes if connected, else direct line) instead of bouncing out to a perimeter DOOR.
+	const startRoom = findContainingRoom(
+		startCoords,
+		startBuilding,
+		startFloorOrder,
+	);
+	const endRoom = findContainingRoom(endCoords, endBuilding, endFloorOrder);
+	if (
+		startRoom &&
+		endRoom &&
+		startRoom.id === endRoom.id &&
+		Number(startFloorOrder) === Number(endFloorOrder) &&
+		matchesBuilding(startBuilding, endBuilding)
+	) {
+		const sFloor = Number(startFloorOrder) || 0;
+		const cBldg = resolveCanonicalBuildingName(startBuilding) || startBuilding;
+		const roomInternalNodes = nodes.filter(
+			(n) =>
+				(Number(n.floorOrder) || 0) === sFloor &&
+				!isPortalNode(n) &&
+				isPointInPolygonWithHoles(n.coords, startRoom.ring, startRoom.holes || []),
+		);
+		let intraCoords = [startCoords, endCoords];
+		let intraNodes = [
+			{
+				id: "__same_room_direct__",
+				type: "NODE",
+				building: cBldg,
+				floorOrder: sFloor,
+				coords: endCoords,
+			},
+		];
+		if (roomInternalNodes.length >= 2) {
+			const internalIds = new Set(roomInternalNodes.map((n) => n.id));
+			let sInt = roomInternalNodes[0];
+			let eInt = roomInternalNodes[0];
+			let sMin = Infinity;
+			let eMin = Infinity;
+			for (const rn of roomInternalNodes) {
+				const ds = haversineMeters(startCoords, rn.coords);
+				if (ds < sMin) {
+					sMin = ds;
+					sInt = rn;
+				}
+				const de = haversineMeters(endCoords, rn.coords);
+				if (de < eMin) {
+					eMin = de;
+					eInt = rn;
+				}
+			}
+			// Mini Dijkstra strictly inside roomInternalNodes
+			const rDist = new Map([[sInt.id, 0]]);
+			const rPrev = new Map();
+			const rVis = new Set();
+			while (true) {
+				let uId = null;
+				let best = Infinity;
+				for (const [id, d] of rDist.entries()) {
+					if (!rVis.has(id) && d < best) {
+						best = d;
+						uId = id;
+					}
+				}
+				if (!uId || uId === eInt.id) break;
+				rVis.add(uId);
+				for (const edge of adj.get(uId) || []) {
+					if (!internalIds.has(edge.to) || rVis.has(edge.to)) continue;
+					const alt = best + edge.weight;
+					if (alt < (rDist.get(edge.to) ?? Infinity)) {
+						rDist.set(edge.to, alt);
+						rPrev.set(edge.to, uId);
+					}
+				}
+			}
+			const subPath = [];
+			let currR = eInt.id;
+			while (currR) {
+				subPath.unshift(nodeMap.get(currR));
+				if (currR === sInt.id) break;
+				currR = rPrev.get(currR);
+			}
+			if (subPath[0]?.id === sInt.id && sInt.id !== eInt.id) {
+				intraCoords = [startCoords, ...subPath.map((n) => n.coords), endCoords];
+				intraNodes = subPath;
+			}
+		}
+		let directMeters = 0;
+		for (let k = 0; k < intraCoords.length - 1; k++) {
+			directMeters += haversineMeters(intraCoords[k], intraCoords[k + 1]);
+		}
+		return {
+			pathNodes: intraNodes,
+			totalDistanceMeters: Math.round(directMeters),
+			floorsClimbed: 0,
+			estimatedSeconds: Math.max(1, Math.round(directMeters / 1.45)),
+			geojson: {
+				type: "FeatureCollection",
+				features: [
+					{
+						type: "Feature",
+						properties: {
+							floorOrder: sFloor,
+							building: cBldg,
+							isOutdoor: false,
+							isStair: false,
+						},
+						geometry: {
+							type: "LineString",
+							coordinates: intraCoords,
+						},
+					},
+				],
+			},
+		};
+	}
+
+	const outerGatewayDoorIds = new Set();
+	const courtyardGatewayDoorMap = new Map(); // canonicalBuilding -> Set(doorNodeId)
+
+	const getFloorPool = (
+		bldg,
+		flOrder,
+		coords = null,
+		{
+			excludeVirtualDoors = false,
+			outdoorZone = null,
+			preferOuterGatewayDoors = false,
+		} = {},
+	) => {
 		const fl = Number(flOrder) || 0;
 		const floorNodes = nodes.filter((n) => (Number(n.floorOrder) || 0) === fl);
 		if (bldg === "OUTDOOR") {
-			const outPool = floorNodes.filter((n) => isNodeOutdoor(boundaries, n));
-			if (outPool.length > 0) return outPool;
-		} else if (bldg && bldg !== "ALL") {
-			const bldgPool = floorNodes.filter(
+			if (fl !== 0) return [];
+			const voidBldg =
+				outdoorZone === "VOID"
+					? null
+					: coords
+						? findVoidCourtyardBuilding(coords)
+						: null;
+			if (outdoorZone === "VOID" || voidBldg) {
+				const targetBldg = outdoorZone === "VOID" ? null : voidBldg;
+				const voidPool = floorNodes.filter((n) => {
+					const nVoid = findVoidCourtyardBuilding(n.coords);
+					return targetBldg ? nVoid === targetBldg : Boolean(nVoid);
+				});
+				if (!excludeVirtualDoors && targetBldg) {
+					for (const dId of courtyardGatewayDoorMap.get(targetBldg) || []) {
+						const dn = nodeMap.get(dId);
+						if (dn && (adj.get(dId) || []).length > 0) voidPool.push(dn);
+					}
+				}
+				return voidPool;
+			}
+
+			// Strictly exterior campus ground (exclude VOID courtyard holes & indoor buildings)
+			const exteriorNodes = floorNodes.filter((n) => {
+				if (floor0Bounds.length === 0) {
+					return n.type === "OUTDOOR" || n.building === "OUTDOOR";
+				}
+				if (findBoundaryContainingPoint(floor0Bounds, n.coords, 0)) {
+					return false;
+				}
+				return isNodeOutdoor(boundaries, n, floorModels);
+			});
+			if (excludeVirtualDoors) return exteriorNodes;
+			if (exteriorNodes.length > 0 && !preferOuterGatewayDoors) {
+				return exteriorNodes;
+			}
+			const connectedOuterDoors = [];
+			for (const dId of outerGatewayDoorIds) {
+				const dn = nodeMap.get(dId);
+				if (dn && (adj.get(dId) || []).length > 0) {
+					connectedOuterDoors.push(dn);
+				}
+			}
+			// Never leak indoor STAIRS/CORRIDOR nodes behind solid perimeter walls!
+			return exteriorNodes.length > 0
+				? [...exteriorNodes, ...connectedOuterDoors]
+				: connectedOuterDoors;
+		}
+		if (bldg && bldg !== "ALL") {
+			return floorNodes.filter(
 				(n) =>
-					!isNodeOutdoor(boundaries, n) &&
-					matchesBuilding(resolveNodeBuilding(boundaries, n), bldg),
+					!isNodeOutdoor(boundaries, n, floorModels) &&
+					matchesBuilding(resolveNodeBuilding(boundaries, n, floorModels), bldg),
 			);
-			if (bldgPool.length > 0) return bldgPool;
 		}
 		return floorNodes.length > 0 ? floorNodes : nodes;
 	};
 
-	const connectCoordsToPool = (targetNodeId, coords, bldg, flOrder) => {
-		const pool = getFloorPool(bldg, flOrder);
+	const connectCoordsToPool = (targetNodeId, coords, bldg, flOrder, poolOpts = {}) => {
+		const pool = getFloorPool(bldg, flOrder, coords, poolOpts);
 		if (pool.length === 0) return { node: null, edgePair: null };
 		const poolIds = new Set(pool.map((n) => n.id));
 		let bestNode = pool[0];
@@ -3458,7 +3712,9 @@ export function computeDigitizedRoute({
 				id: vId,
 				type: "NODE",
 				building:
-					bldg === "OUTDOOR" ? "OUTDOOR" : resolveNodeBuilding(boundaries, u),
+					bldg === "OUTDOOR"
+						? "OUTDOOR"
+						: resolveNodeBuilding(boundaries, u, floorModels),
 				floorOrder: Number(u.floorOrder) || 0,
 				coords: projCoord,
 				isVirtual: true,
@@ -3540,17 +3796,49 @@ export function computeDigitizedRoute({
 					isPointInPolygonWithHoles(sidePt, f.ring, f.holes || []),
 				);
 				if ((!sideFace || sideFace?.role === "VOID") && model.floorOrder === 0) {
-					const att = connectCoordsToPool(
-						`${dNodeId}_out`,
-						door.coords,
-						"OUTDOOR",
-						0,
-					);
-					if (att.node) {
-						const w = haversineMeters(door.coords, att.node.coords);
-						adj.get(dNodeId).push({ to: att.node.id, weight: w });
-						adj.get(att.node.id).push({ to: dNodeId, weight: w });
-						linkedToCorridorOrOutdoor = true;
+					const sideInVoid =
+						sideFace?.role === "VOID" ||
+						Boolean(findVoidCourtyardBuilding(sidePt));
+					const sideStrictlyOutside =
+						!sideInVoid &&
+						(floor0Bounds.length === 0 ||
+							!findBoundaryContainingPoint(floor0Bounds, sidePt, 0));
+
+					if (sideStrictlyOutside) {
+						outerGatewayDoorIds.add(dNodeId);
+						const att = connectCoordsToPool(
+							`${dNodeId}_out`,
+							door.coords,
+							"OUTDOOR",
+							0,
+							{ excludeVirtualDoors: true, outdoorZone: "EXTERIOR" },
+						);
+						if (att.node) {
+							const w = haversineMeters(door.coords, att.node.coords);
+							adj.get(dNodeId).push({ to: att.node.id, weight: w });
+							adj.get(att.node.id).push({ to: dNodeId, weight: w });
+							linkedToCorridorOrOutdoor = true;
+						}
+					} else if (sideInVoid) {
+						const cBldg =
+							resolveCanonicalBuildingName(model.building) || model.building;
+						if (!courtyardGatewayDoorMap.has(cBldg)) {
+							courtyardGatewayDoorMap.set(cBldg, new Set());
+						}
+						courtyardGatewayDoorMap.get(cBldg).add(dNodeId);
+						const att = connectCoordsToPool(
+							`${dNodeId}_void`,
+							sidePt,
+							"OUTDOOR",
+							0,
+							{ excludeVirtualDoors: true, outdoorZone: "VOID" },
+						);
+						if (att.node) {
+							const w = haversineMeters(door.coords, att.node.coords);
+							adj.get(dNodeId).push({ to: att.node.id, weight: w });
+							adj.get(att.node.id).push({ to: dNodeId, weight: w });
+							linkedToCorridorOrOutdoor = true;
+						}
 					}
 				} else if (sideFace?.role === "ROOM") {
 					if (!doorRoomLinks.has(sideFace.id)) {
@@ -3603,7 +3891,7 @@ export function computeDigitizedRoute({
 		}
 	}
 
-	const attachEndpoint = (tempId, coords, bldg, flOrder) => {
+	const attachEndpoint = (tempId, coords, bldg, flOrder, poolOpts = {}) => {
 		if (bldg && bldg !== "OUTDOOR" && bldg !== "ALL") {
 			const cBldg = resolveCanonicalBuildingName(bldg) || bldg;
 			const model = floorModels.get(`${cBldg}__${Number(flOrder) || 0}`);
@@ -3631,77 +3919,135 @@ export function computeDigitizedRoute({
 			}
 		}
 
-		const att = connectCoordsToPool(tempId, coords, bldg, flOrder);
+		const att = connectCoordsToPool(tempId, coords, bldg, flOrder, poolOpts);
 		return { node: att.node, edgePair: att.edgePair };
 	};
 
-	const startAttach = attachEndpoint(
+	const runDijkstraPass = (sAttach, eAttach) => {
+		const sNode = sAttach.node;
+		const eNode = eAttach.node;
+		if (!sNode || !eNode) return { sNode, eNode, pathNodes: [] };
+
+		// Connect start & end directly if both T-junction projected onto the exact same corridor edge
+		if (sAttach.edgePair && eAttach.edgePair) {
+			const [su, sv] = sAttach.edgePair;
+			const [eu, ev] = eAttach.edgePair;
+			if ((su === eu && sv === ev) || (su === ev && sv === eu)) {
+				const directDist = haversineMeters(sNode.coords, eNode.coords);
+				adj.get(sNode.id).push({ to: eNode.id, weight: directDist });
+				adj.get(eNode.id).push({ to: sNode.id, weight: directDist });
+			}
+		}
+
+		const gScore = new Map(Array.from(nodeMap.keys(), (id) => [id, Infinity]));
+		const prev = new Map();
+		const visited = new Set();
+		gScore.set(sNode.id, 0);
+
+		while (visited.size < nodeMap.size) {
+			let uId = null;
+			let best = Infinity;
+			for (const [id, s] of gScore.entries()) {
+				if (!visited.has(id) && s < best) {
+					best = s;
+					uId = id;
+				}
+			}
+			if (!uId || uId === eNode.id) break;
+			visited.add(uId);
+
+			for (const edge of adj.get(uId) || []) {
+				if (visited.has(edge.to)) continue;
+				const alt = best + edge.weight;
+				if (alt < gScore.get(edge.to)) {
+					gScore.set(edge.to, alt);
+					prev.set(edge.to, uId);
+				}
+			}
+		}
+
+		const foundPath = [];
+		let curr = eNode.id;
+		while (curr) {
+			foundPath.unshift(nodeMap.get(curr));
+			if (curr === sNode.id) break;
+			curr = prev.get(curr);
+		}
+		return { sNode, eNode, pathNodes: foundPath };
+	};
+
+	let startAttach = attachEndpoint(
 		"__virtual_start__",
 		startCoords,
 		startBuilding,
 		startFloorOrder,
 	);
-	const endAttach = attachEndpoint(
+	let endAttach = attachEndpoint(
 		"__virtual_end__",
 		endCoords,
 		endBuilding,
 		endFloorOrder,
 	);
-	const startNode = startAttach.node;
-	const endNode = endAttach.node;
+	let { sNode: startNode, eNode: endNode, pathNodes } = runDijkstraPass(
+		startAttach,
+		endAttach,
+	);
+
+	// Fallback if exterior sidewalk nodes were disconnected from a building's own outer perimeter DOOR(s)
+	if (
+		(pathNodes.length === 0 || pathNodes[0]?.id !== startNode?.id) &&
+		outerGatewayDoorIds.size > 0 &&
+		(startBuilding === "OUTDOOR" || endBuilding === "OUTDOOR")
+	) {
+		const retryStart =
+			startBuilding === "OUTDOOR"
+				? attachEndpoint(
+						"__virtual_start_gw__",
+						startCoords,
+						startBuilding,
+						startFloorOrder,
+						{ preferOuterGatewayDoors: true },
+					)
+				: startAttach;
+		const retryEnd =
+			endBuilding === "OUTDOOR"
+				? attachEndpoint(
+						"__virtual_end_gw__",
+						endCoords,
+						endBuilding,
+						endFloorOrder,
+						{ preferOuterGatewayDoors: true },
+					)
+				: endAttach;
+		const retryRes = runDijkstraPass(retryStart, retryEnd);
+		if (
+			retryRes.pathNodes.length > 0 &&
+			retryRes.pathNodes[0]?.id === retryRes.sNode?.id
+		) {
+			startNode = retryRes.sNode;
+			endNode = retryRes.eNode;
+			pathNodes = retryRes.pathNodes;
+		}
+	}
+
 	if (!startNode || !endNode) {
-		setDiag(
-			"NO_FLOOR_POOL",
-			"Không tìm thấy nút đồ thị nào trên tầng được chọn để bắt đầu dẫn đường.",
-		);
+		if (
+			(startBuilding === "OUTDOOR" && !startNode) ||
+			(endBuilding === "OUTDOOR" && !endNode)
+		) {
+			setDiag(
+				"MISSING_ENTRANCE_LINK",
+				"Không có nút Ngoài sân hoặc Cửa [D] trên tường bao Tầng G nối ra/vào tòa nhà.",
+			);
+		} else {
+			setDiag(
+				"NO_FLOOR_POOL",
+				"Không tìm thấy nút đồ thị nào trên tầng được chọn để bắt đầu dẫn đường.",
+			);
+		}
 		return null;
 	}
 
-	// Connect start & end directly if both T-junction projected onto the exact same corridor edge
-	if (startAttach.edgePair && endAttach.edgePair) {
-		const [su, sv] = startAttach.edgePair;
-		const [eu, ev] = endAttach.edgePair;
-		if ((su === eu && sv === ev) || (su === ev && sv === eu)) {
-			const directDist = haversineMeters(startNode.coords, endNode.coords);
-			adj.get(startNode.id).push({ to: endNode.id, weight: directDist });
-			adj.get(endNode.id).push({ to: startNode.id, weight: directDist });
-		}
-	}
-
-	const gScore = new Map(Array.from(nodeMap.keys(), (id) => [id, Infinity]));
-	const prev = new Map();
-	const visited = new Set();
-	gScore.set(startNode.id, 0);
-
-	while (visited.size < nodeMap.size) {
-		let uId = null;
-		let best = Infinity;
-		for (const [id, s] of gScore.entries()) {
-			if (!visited.has(id) && s < best) {
-				best = s;
-				uId = id;
-			}
-		}
-		if (!uId || uId === endNode.id) break;
-		visited.add(uId);
-
-		for (const edge of adj.get(uId) || []) {
-			if (visited.has(edge.to)) continue;
-			const alt = best + edge.weight;
-			if (alt < gScore.get(edge.to)) {
-				gScore.set(edge.to, alt);
-				prev.set(edge.to, uId);
-			}
-		}
-	}
-
-	const pathNodes = [];
-	let curr = endNode.id;
-	while (curr) {
-		pathNodes.unshift(nodeMap.get(curr));
-		if (curr === startNode.id) break;
-		curr = prev.get(curr);
-	}
 	if (pathNodes.length === 0 || pathNodes[0]?.id !== startNode.id) {
 		if (Number(startFloorOrder) !== Number(endFloorOrder)) {
 			setDiag(
@@ -3731,11 +4077,13 @@ export function computeDigitizedRoute({
 		boundaries,
 		{ floorOrder: startFloorOrder, coords: startCoords, building: startBuilding, type: startBuilding === "OUTDOOR" ? "OUTDOOR" : "NODE" },
 		startNode,
+		floorModels,
 	);
 	const endLegOutdoor = isSegmentOutdoorGeometry(
 		boundaries,
 		endNode,
 		{ floorOrder: endFloorOrder, coords: endCoords, building: endBuilding, type: endBuilding === "OUTDOOR" ? "OUTDOOR" : "NODE" },
+		floorModels,
 	);
 
 	const features = [
@@ -3760,9 +4108,10 @@ export function computeDigitizedRoute({
 		totalMeters += haversineMeters(a.coords, b.coords);
 		floorsClimbed += Math.abs(b.floorOrder - a.floorOrder);
 		const isStair = a.floorOrder !== b.floorOrder;
-		const isOutdoor = !isStair && isSegmentOutdoorGeometry(boundaries, a, b);
-		const bldgA = resolveNodeBuilding(boundaries, a);
-		const bldgB = resolveNodeBuilding(boundaries, b);
+		const isOutdoor =
+			!isStair && isSegmentOutdoorGeometry(boundaries, a, b, floorModels);
+		const bldgA = resolveNodeBuilding(boundaries, a, floorModels);
+		const bldgB = resolveNodeBuilding(boundaries, b, floorModels);
 		const segBuilding = isOutdoor
 			? "OUTDOOR"
 			: bldgA && bldgA !== "OUTDOOR"
@@ -4252,7 +4601,7 @@ export function mergeOrSplitNavNodeOnDrop({
 export function buildOrientedDoorGeometry(
 	door,
 	wallSegments = [],
-	{ minWidthMeters = 0.5, maxWidthMeters = 5.0 } = {},
+	{ minWidthMeters = 0.5, maxWidthMeters = 10.0 } = {},
 ) {
 	if (!door || !Array.isArray(door.coords)) return null;
 	const { toM, toDeg } = toLocalMetersFactory(door.coords);
@@ -4444,13 +4793,18 @@ export function syncPortalAcrossBuildingFloors(
 		});
 
 		if (!hasIntraFloorEdge) {
+			const floorModels = buildFloorWallGraphModels(store);
 			const candidates = nextNodes.filter(
 				(n) =>
 					n.id !== portalOnFloor.id &&
 					Number(n.floorOrder) === fl &&
-					!isNodeOutdoor(store.buildingBoundaries || [], n) &&
+					!isNodeOutdoor(store.buildingBoundaries || [], n, floorModels) &&
 					matchesBuilding(
-						resolveNodeBuilding(store.buildingBoundaries || [], n) || n.building,
+						resolveNodeBuilding(
+							store.buildingBoundaries || [],
+							n,
+							floorModels,
+						) || n.building,
 						bldg,
 					),
 			);

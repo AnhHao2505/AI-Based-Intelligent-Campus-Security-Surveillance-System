@@ -52,11 +52,9 @@ import {
 	DoorOpen,
 } from "lucide-react";
 import {
-	BOUNDARY_WALL_HEIGHT,
 	DEFAULT_BUILDINGS_META,
 	FLOOR_ELEVATION_STEP,
 	FLOOR_SLAB_HEIGHT,
-	INTERIOR_WALL_HEIGHT,
 	loadGeometryStore,
 	saveGeometryStore,
 	createDefaultGeometryStore,
@@ -383,6 +381,19 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		};
 	}, []);
 
+	const isAllBuildings = activeBuilding === "ALL";
+	const isAllFloors = activeFloorOrder === "ALL";
+	const isAllScope = isAllBuildings || isAllFloors;
+	const scopeFloorNum = isAllFloors ? null : Number(activeFloorOrder) || 0;
+
+	const activeCanonicalBuilding = useMemo(
+		() =>
+			isAllBuildings
+				? "ALL"
+				: resolveCanonicalBuildingName(activeBuilding) || activeBuilding,
+		[isAllBuildings, activeBuilding],
+	);
+
 	const currentBuildingMeta = useMemo(
 		() =>
 			DEFAULT_BUILDINGS_META.find((b) => b.name === activeBuilding) ||
@@ -390,42 +401,113 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		[activeBuilding],
 	);
 
+	const buildingFloorOptions = useMemo(() => {
+		if (!isAllBuildings) return currentBuildingMeta.floors || [];
+		const byOrder = new Map();
+		for (const b of DEFAULT_BUILDINGS_META) {
+			for (const fl of b.floors || []) {
+				if (!byOrder.has(fl.floorOrder)) byOrder.set(fl.floorOrder, fl);
+			}
+		}
+		return Array.from(byOrder.values()).sort(
+			(a, b) => a.floorOrder - b.floorOrder,
+		);
+	}, [isAllBuildings, currentBuildingMeta]);
+
 	const currentFloorMeta = useMemo(
 		() =>
 			currentBuildingMeta.floors.find(
-				(f) => f.floorOrder === activeFloorOrder,
+				(f) => f.floorOrder === (scopeFloorNum ?? 0),
 			) || currentBuildingMeta.floors[0],
-		[currentBuildingMeta, activeFloorOrder],
+		[currentBuildingMeta, scopeFloorNum],
+	);
+
+	// Helper: resolve 4-corner calibrated PNG bounds for any (buildingName, floorOrder)
+	const resolveFloorPngCorners = useCallback(
+		(bldgName, flOrder, flMeta) => {
+			const key = `${bldgName}__${flOrder}`;
+			const cal = store.floorCalibrations?.[key];
+			if (cal?.corners && cal.corners.length === 4) {
+				return cal.corners;
+			}
+			if (flMeta?.defaultBounds?.corners?.length === 4) {
+				return flMeta.defaultBounds.corners;
+			}
+			const b = cal ||
+				flMeta?.defaultBounds || {
+					west: 106.80895,
+					east: 106.81015,
+					north: 10.84156,
+					south: 10.84088,
+				};
+			return [
+				[b.west, b.north], // NW
+				[b.east, b.north], // NE
+				[b.east, b.south], // SE
+				[b.west, b.south], // SW
+			];
+		},
+		[store.floorCalibrations],
 	);
 
 	// PNG 4-Corner Calibration Bounds: [NW, NE, SE, SW]
-	const currentPngCorners = useMemo(() => {
-		const key = `${activeBuilding}__${activeFloorOrder}`;
-		const cal = store.floorCalibrations?.[key];
-		if (cal?.corners && cal.corners.length === 4) {
-			return cal.corners;
+	const currentPngCorners = useMemo(
+		() =>
+			resolveFloorPngCorners(
+				isAllBuildings ? currentBuildingMeta.name : activeBuilding,
+				scopeFloorNum ?? 0,
+				currentFloorMeta,
+			),
+		[
+			resolveFloorPngCorners,
+			isAllBuildings,
+			currentBuildingMeta,
+			activeBuilding,
+			scopeFloorNum,
+			currentFloorMeta,
+		],
+	);
+
+	// Visible blueprint PNG overlays (supports "ALL" buildings & floors safely by showing base Floor G or selected floor)
+	const visiblePngOverlays = useMemo(() => {
+		if (!layerVisibility.png) return [];
+		if (!isAllBuildings && !isAllFloors) {
+			if (!currentFloorMeta?.pngUrl) return [];
+			return [
+				{
+					id: `${activeCanonicalBuilding}__${scopeFloorNum}`,
+					url: currentFloorMeta.pngUrl,
+					corners: liveCorners && liveCorners.length === 4 ? liveCorners : currentPngCorners,
+				},
+			];
 		}
-		if (currentFloorMeta?.defaultBounds?.corners?.length === 4) {
-			return currentFloorMeta.defaultBounds.corners;
+		const targetFl = scopeFloorNum ?? 0;
+		const targetBuildings = isAllBuildings
+			? DEFAULT_BUILDINGS_META
+			: [currentBuildingMeta];
+		const list = [];
+		for (const bMeta of targetBuildings) {
+			const flMeta =
+				bMeta.floors.find((f) => f.floorOrder === targetFl) || bMeta.floors[0];
+			if (!flMeta?.pngUrl) continue;
+			list.push({
+				id: `${bMeta.id}__${flMeta.floorOrder}`,
+				url: flMeta.pngUrl,
+				corners: resolveFloorPngCorners(bMeta.name, flMeta.floorOrder, flMeta),
+			});
 		}
-		const b = cal ||
-			currentFloorMeta?.defaultBounds || {
-				west: 106.80895,
-				east: 106.81015,
-				north: 10.84156,
-				south: 10.84088,
-			};
-		return [
-			[b.west, b.north], // NW
-			[b.east, b.north], // NE
-			[b.east, b.south], // SE
-			[b.west, b.south], // SW
-		];
+		return list;
 	}, [
-		store.floorCalibrations,
-		activeBuilding,
-		activeFloorOrder,
+		layerVisibility.png,
+		isAllBuildings,
+		isAllFloors,
+		activeCanonicalBuilding,
+		scopeFloorNum,
 		currentFloorMeta,
+		currentBuildingMeta,
+		currentPngCorners,
+		liveCorners,
+		resolveFloorPngCorners,
 	]);
 
 	// Effective corners during drag or idle
@@ -564,9 +646,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		return next;
 	}, [store, liveNavNodeDrag, liveVertexDrag]);
 
-	const activeCanonicalBuilding = useMemo(
-		() => resolveCanonicalBuildingName(activeBuilding) || activeBuilding,
-		[activeBuilding],
+	const matchesScope = useCallback(
+		(bldg, flOrder) =>
+			(isAllBuildings || matchesBuilding(bldg, activeBuilding)) &&
+			(isAllFloors || Number(flOrder) === scopeFloorNum),
+		[isAllBuildings, activeBuilding, isAllFloors, scopeFloorNum],
 	);
 
 	// Derived Mappedin Wall Graph floor models (Planar Face Extraction, Wall Segments, Dead-ends & Doors)
@@ -575,12 +659,57 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		[effectiveStore],
 	);
 
-	const currentFloorModel = useMemo(
-		() =>
-			floorWallModels.get(`${activeCanonicalBuilding}__${activeFloorOrder}`) ||
-			null,
-		[floorWallModels, activeCanonicalBuilding, activeFloorOrder],
-	);
+	const matchingFloorModels = useMemo(() => {
+		if (!isAllBuildings && !isAllFloors) {
+			const m = floorWallModels.get(
+				`${activeCanonicalBuilding}__${scopeFloorNum}`,
+			);
+			return m ? [m] : [];
+		}
+		return Array.from(floorWallModels.values()).filter((m) =>
+			matchesScope(m.building, m.floorOrder),
+		);
+	}, [
+		floorWallModels,
+		isAllBuildings,
+		isAllFloors,
+		activeCanonicalBuilding,
+		scopeFloorNum,
+		matchesScope,
+	]);
+
+	const currentFloorModel = useMemo(() => {
+		if (!isAllBuildings && !isAllFloors) {
+			return (
+				floorWallModels.get(`${activeCanonicalBuilding}__${scopeFloorNum}`) ||
+				null
+			);
+		}
+		if (matchingFloorModels.length === 0) return null;
+		return {
+			building: activeBuilding,
+			floorOrder: activeFloorOrder,
+			faces: matchingFloorModels.flatMap((m) =>
+				(m.faces || []).map((f) => ({
+					...f,
+					building: f.building || m.building,
+					floorOrder: f.floorOrder ?? m.floorOrder,
+				})),
+			),
+			wallSegments: matchingFloorModels.flatMap((m) => m.wallSegments || []),
+			deadEndPoints: matchingFloorModels.flatMap((m) => m.deadEndPoints || []),
+			exteriorRings: matchingFloorModels.flatMap((m) => m.exteriorRings || []),
+		};
+	}, [
+		floorWallModels,
+		isAllBuildings,
+		isAllFloors,
+		activeCanonicalBuilding,
+		scopeFloorNum,
+		matchingFloorModels,
+		activeBuilding,
+		activeFloorOrder,
+	]);
 
 	const currentFloorFaces = useMemo(
 		() => currentFloorModel?.faces || [],
@@ -601,6 +730,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					n,
 					activeBuilding,
 					activeFloorOrder,
+					floorWallModels,
 				),
 			),
 		[
@@ -608,27 +738,24 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			effectiveStore.buildingBoundaries,
 			activeBuilding,
 			activeFloorOrder,
+			floorWallModels,
 		],
 	);
 
 	const currentFloorWalls = useMemo(
 		() =>
-			(effectiveStore.walls || []).filter(
-				(w) =>
-					matchesBuilding(w.building, activeBuilding) &&
-					Number(w.floorOrder) === activeFloorOrder,
+			(effectiveStore.walls || []).filter((w) =>
+				matchesScope(w.building, w.floorOrder),
 			),
-		[effectiveStore.walls, activeBuilding, activeFloorOrder],
+		[effectiveStore.walls, matchesScope],
 	);
 
 	const currentFloorDoors = useMemo(
 		() =>
-			(effectiveStore.doors || []).filter(
-				(d) =>
-					matchesBuilding(d.building, activeBuilding) &&
-					Number(d.floorOrder) === activeFloorOrder,
+			(effectiveStore.doors || []).filter((d) =>
+				matchesScope(d.building, d.floorOrder),
 			),
-		[effectiveStore.doors, activeBuilding, activeFloorOrder],
+		[effectiveStore.doors, matchesScope],
 	);
 
 	// Switch camera pitch when toggling 2D (0°) vs 3D (52°)
@@ -645,17 +772,17 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		}
 	}, []);
 
-	// Fly to active building when changed
+	// Fly to active building (or full campus midpoint when "ALL" selected)
 	useEffect(() => {
 		if (!isOpen || !mapRef.current) return;
 		mapRef.current.flyTo({
-			center: currentBuildingMeta.center,
-			zoom: 18.6,
+			center: isAllBuildings ? [106.81065, 10.84095] : currentBuildingMeta.center,
+			zoom: isAllBuildings ? 17.3 : 18.6,
 			pitch: is3dPreviewRef.current ? 52 : 0,
 			bearing: is3dPreviewRef.current ? -12 : 0,
 			duration: 600,
 		});
-	}, [activeBuilding, isOpen, currentBuildingMeta]);
+	}, [activeBuilding, isAllBuildings, isOpen, currentBuildingMeta]);
 
 	// Clear stale floor/building selections whenever switching building or floor
 	useEffect(() => {
@@ -668,7 +795,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		setTestRouteStart(null);
 	}, [activeBuilding, activeFloorOrder, selectEntity]);
 
-	// Collect vertices & segments strictly from currently visible Wall Graph & Nav Graph layers on this floor
+	// Collect vertices & segments strictly from currently visible Wall Graph & Nav Graph layers in scope
 	const existingGeometryForSnapping = useMemo(() => {
 		const vertices = [];
 		const segments = [];
@@ -678,8 +805,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		if (layerVisibility.walls) {
 			for (const w of store.walls || []) {
 				if (
-					matchesBuilding(w.building, activeBuilding) &&
-					Number(w.floorOrder) === activeFloorOrder &&
+					matchesScope(w.building, w.floorOrder) &&
 					Array.isArray(w.line) &&
 					w.line.length >= 2
 				) {
@@ -700,11 +826,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 		if (layerVisibility.doors) {
 			for (const d of store.doors || []) {
-				if (
-					matchesBuilding(d.building, activeBuilding) &&
-					Number(d.floorOrder) === activeFloorOrder &&
-					Array.isArray(d.coords)
-				) {
+				if (matchesScope(d.building, d.floorOrder) && Array.isArray(d.coords)) {
 					vertices.push({
 						coord: d.coords,
 						ownerId: d.id,
@@ -718,7 +840,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			const visibleNodeMap = new Map();
 			for (const n of store.navNodes || []) {
 				if (
-					isNodeVisibleOnFloor(boundaries, n, activeBuilding, activeFloorOrder)
+					isNodeVisibleOnFloor(
+						boundaries,
+						n,
+						activeBuilding,
+						activeFloorOrder,
+						floorWallModels,
+					)
 				) {
 					vertices.push({
 						coord: n.coords,
@@ -730,17 +858,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			}
 			// Ghost Portals from other floors of the same building for 1-click vertical shaft alignment
 			if (
+				!isAllFloors &&
 				activeTool === "NAV_GRAPH" &&
 				(activeNodeType === "STAIRS" || activeNodeType === "ELEVATOR")
 			) {
 				for (const n of store.navNodes || []) {
 					if (!isPortalNode(n)) continue;
-					if (Number(n.floorOrder) === activeFloorOrder) continue;
+					if (Number(n.floorOrder) === scopeFloorNum) continue;
 					const nb =
-						resolveNodeBuilding(boundaries, n) ||
+						resolveNodeBuilding(boundaries, n, floorWallModels) ||
 						resolveCanonicalBuildingName(n.building) ||
 						n.building;
-					if (!matchesBuilding(nb, activeBuilding)) continue;
+					if (!isAllBuildings && !matchesBuilding(nb, activeBuilding)) continue;
 					vertices.push({
 						coord: n.coords,
 						ownerId: `ghost-${n.id}`,
@@ -775,6 +904,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		store.navNodes,
 		store.navEdges,
 		currentFloorModel,
+		floorWallModels,
+		matchesScope,
+		isAllBuildings,
+		isAllFloors,
+		scopeFloorNum,
 		activeBuilding,
 		activeFloorOrder,
 		activeTool,
@@ -826,12 +960,15 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	const assignFaceRole = useCallback(
 		(face, nextRole) => {
 			if (!face || !nextRole) return;
+			const targetBldg =
+				face.building || (isAllBuildings ? currentBuildingMeta.name : activeBuilding);
+			const targetFl = face.floorOrder ?? scopeFloorNum ?? 0;
 			const seed = face.seedCoord || getPolygonInteriorPoint(face.ring, face.holes);
 			setStore((prev) => {
 				const filtered = (prev.faceAssignments || []).filter((fa) => {
 					if (
-						!matchesBuilding(fa.building, activeBuilding) ||
-						Number(fa.floorOrder) !== activeFloorOrder ||
+						!matchesBuilding(fa.building, targetBldg) ||
+						Number(fa.floorOrder) !== Number(targetFl) ||
 						!fa.seedCoord
 					) {
 						return true;
@@ -845,8 +982,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								...filtered,
 								{
 									id: `fa-${Date.now()}`,
-									building: activeBuilding,
-									floorOrder: activeFloorOrder,
+									building: targetBldg,
+									floorOrder: Number(targetFl),
 									seedCoord: seed,
 									role: nextRole,
 								},
@@ -859,18 +996,30 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			});
 			const roleLabel =
 				nextRole === "ROOM"
-					? "Phòng (3D)"
+					? "Phòng"
 					: nextRole === "VOID"
-						? "Khoét rỗng (Void)"
+						? "Giếng trời / Sân"
 						: "Hành lang";
-			showToast(`Đã chuyển vùng thành ${roleLabel}.`);
+			showToast(`Đã đổi thành ${roleLabel}.`);
 		},
-		[activeBuilding, activeFloorOrder, setStore, showToast],
+		[
+			isAllBuildings,
+			currentBuildingMeta,
+			activeBuilding,
+			scopeFloorNum,
+			setStore,
+			showToast,
+		],
 	);
 
 	// Commit Wall Graph Polyline Draft (ROOM_POLY [P] or WALL_DRAW [W])
 	const finishPolygonDraft = useCallback(
 		(closeOverride = null) => {
+			if (isAllScope) {
+				showToast("Chọn 1 tòa và 1 tầng cụ thể để vẽ tường.");
+				setDraftPoints([]);
+				return;
+			}
 			const minPts = activeTool === "WALL_DRAW" ? 2 : 3;
 			if (draftPoints.length < minPts) return;
 
@@ -889,7 +1038,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					{
 						id: newWallId,
 						building: activeBuilding,
-						floorOrder: activeFloorOrder,
+						floorOrder: scopeFloorNum,
 						line,
 					},
 				];
@@ -898,7 +1047,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					nextAssignments.push({
 						id: `fa-${Date.now()}`,
 						building: activeBuilding,
-						floorOrder: activeFloorOrder,
+						floorOrder: scopeFloorNum,
 						seedCoord: getPolygonInteriorPoint(line),
 						role: "ROOM",
 					});
@@ -913,19 +1062,20 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 			selectEntity("WALL", newWallId);
 			if (activeTool === "ROOM_POLY") {
-				showToast("Đã dựng khung tường & gán vùng Phòng 3D!");
+				showToast("Đã tạo phòng.");
 			} else if (shouldClose) {
-				showToast("Đã khép kín mạng tường (tạo vùng mới thành công)!");
+				showToast("Đã khép kín vùng.");
 			} else {
-				showToast("Đã thêm đoạn tường mới.");
+				showToast("Đã thêm tường.");
 			}
 			setDraftPoints([]);
 		},
 		[
+			isAllScope,
 			draftPoints,
 			activeTool,
 			activeBuilding,
-			activeFloorOrder,
+			scopeFloorNum,
 			selectEntity,
 			setStore,
 			showToast,
@@ -953,15 +1103,15 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		if (targets.length === 0) return;
 		setStore((prev) => {
 			const nextAssignments = (prev.faceAssignments || []).filter((fa) => {
-				if (
-					!matchesBuilding(fa.building, activeBuilding) ||
-					Number(fa.floorOrder) !== activeFloorOrder ||
-					!fa.seedCoord
-				) {
-					return true;
-				}
-				return !targets.some((f) =>
-					isPointInPolygonWithHoles(fa.seedCoord, f.ring, f.holes || []),
+				if (!fa.seedCoord) return true;
+				return !targets.some(
+					(f) =>
+						matchesBuilding(
+							fa.building,
+							f.building || (isAllBuildings ? fa.building : activeBuilding),
+						) &&
+						Number(fa.floorOrder) === Number(f.floorOrder ?? scopeFloorNum) &&
+						isPointInPolygonWithHoles(fa.seedCoord, f.ring, f.holes || []),
 				);
 			});
 			return synchronizeCompatibilityGeometry({
@@ -972,12 +1122,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		});
 		const count = targets.length;
 		setSelectedRoomIds([]);
-		showToast(`Đã chuyển ${count} vùng chọn về Hành lang (chọn Tường + Del nếu muốn xóa tường).`);
+		showToast(`Đã gỡ vai trò ${count} vùng.`);
 	}, [
 		selectedRoomIds,
 		currentFloorFaces,
+		isAllBuildings,
 		activeBuilding,
-		activeFloorOrder,
+		scopeFloorNum,
 		setStore,
 		showToast,
 	]);
@@ -1058,10 +1209,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		if (isDirty) {
 			setConfirmModal({
 				isOpen: true,
-				title: "Thay đổi chưa được lưu",
-				message:
-					"Bạn có các thao tác số hóa chưa được lưu vào hệ thống. Bạn có muốn thoát mà không lưu không?",
-				confirmLabel: "Bỏ qua & Thoát",
+				title: "Thay đổi chưa lưu",
+				message: "Thay đổi chưa lưu. Vẫn thoát?",
+				confirmLabel: "Thoát",
 				confirmVariant: "danger",
 				onConfirm: () => {
 					setConfirmModal((m) => ({ ...m, isOpen: false }));
@@ -1081,12 +1231,12 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
 		a.href = url;
-		a.download = `campus_indoor_3d_${activeBuilding.toLowerCase().replace(/\s+/g, "_")}.json`;
+		a.download = `campus_indoor_3d_${(isAllBuildings ? "all" : activeBuilding).toLowerCase().replace(/\s+/g, "_")}.json`;
 		a.click();
 		URL.revokeObjectURL(url);
-		showToast("Đã tải xuống file GeoJSON dữ liệu không gian!");
+		showToast("Đã xuất file JSON.");
 		setMoreMenuOpen(false);
-	}, [store, activeBuilding, showToast]);
+	}, [store, isAllBuildings, activeBuilding, showToast]);
 
 	// Import GeoJSON (auto-migrates legacy v2 JSON cleanly into Wall Graph v3)
 	const handleImportGeoJSON = useCallback(
@@ -1100,7 +1250,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					if (parsed && typeof parsed === "object") {
 						setStore(migrateStoreToWallGraph(parsed));
 						selectEntity(null);
-						showToast("Đã nhập dữ liệu hình học & chuẩn hóa Wall Graph thành công!");
+						showToast("Đã nhập dữ liệu JSON.");
 					}
 				} catch {
 					showToast("File JSON không hợp lệ.");
@@ -1115,25 +1265,29 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 	// Clone all walls, face roles & doors on current floor to next floor
 	const handleCloneRoomsToNextFloor = useCallback(() => {
+		if (isAllScope) {
+			showToast("Chọn 1 tòa và 1 tầng cụ thể để sao chép.");
+			return;
+		}
 		const nextOrder =
-			(activeFloorOrder + 1) % currentBuildingMeta.floors.length;
+			((scopeFloorNum ?? 0) + 1) % currentBuildingMeta.floors.length;
 		const srcWalls = (store.walls || []).filter(
 			(w) =>
 				matchesBuilding(w.building, activeBuilding) &&
-				Number(w.floorOrder) === activeFloorOrder,
+				Number(w.floorOrder) === scopeFloorNum,
 		);
 		const srcAssigns = (store.faceAssignments || []).filter(
 			(fa) =>
 				matchesBuilding(fa.building, activeBuilding) &&
-				Number(fa.floorOrder) === activeFloorOrder,
+				Number(fa.floorOrder) === scopeFloorNum,
 		);
 		const srcDoors = (store.doors || []).filter(
 			(d) =>
 				matchesBuilding(d.building, activeBuilding) &&
-				Number(d.floorOrder) === activeFloorOrder,
+				Number(d.floorOrder) === scopeFloorNum,
 		);
 		if (srcWalls.length === 0) {
-			showToast("Tầng hiện tại chưa có tường/phòng nào để sao chép.");
+			showToast("Tầng này chưa có tường.");
 			return;
 		}
 		const ts = Date.now();
@@ -1166,13 +1320,14 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				doors: [...(prev.doors || []), ...clonedDoors],
 			}),
 		);
-		showToast(`Đã sao chép ${clonedWalls.length} tường & cấu trúc tầng sang tầng kế tiếp!`);
+		showToast(`Đã sao chép ${clonedWalls.length} tường lên tầng kế tiếp.`);
 	}, [
+		isAllScope,
 		store.walls,
 		store.faceAssignments,
 		store.doors,
 		activeBuilding,
-		activeFloorOrder,
+		scopeFloorNum,
 		currentBuildingMeta,
 		setStore,
 		showToast,
@@ -1180,10 +1335,14 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 	// In-App Clear all walls, face roles & doors on active floor
 	const handleClearCurrentFloorRooms = useCallback(() => {
+		if (isAllScope) {
+			showToast("Chọn 1 tòa và 1 tầng cụ thể để xóa tầng.");
+			return;
+		}
 		setConfirmModal({
 			isOpen: true,
-			title: "Xóa hình học tầng này?",
-			message: `Hành động này sẽ xóa tất cả tường, vùng phòng và cửa đã vẽ tại ${currentFloorMeta.name} của ${activeBuilding}. Thao tác này có thể hoàn tác bằng Ctrl+Z.`,
+			title: "Xóa toàn bộ tầng này?",
+			message: `Xóa tất cả tường, vùng và cửa tại ${currentFloorMeta.name} (${activeBuilding})?`,
 			confirmLabel: "Xóa sạch tầng",
 			confirmVariant: "danger",
 			onConfirm: () => {
@@ -1195,31 +1354,39 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							(w) =>
 								!(
 									matchesBuilding(w.building, activeBuilding) &&
-									Number(w.floorOrder) === activeFloorOrder
+									Number(w.floorOrder) === scopeFloorNum
 								),
 						),
 						faceAssignments: (prev.faceAssignments || []).filter(
 							(fa) =>
 								!(
 									matchesBuilding(fa.building, activeBuilding) &&
-									Number(fa.floorOrder) === activeFloorOrder
+									Number(fa.floorOrder) === scopeFloorNum
 								),
 						),
 						doors: (prev.doors || []).filter(
 							(d) =>
 								!(
 									matchesBuilding(d.building, activeBuilding) &&
-									Number(d.floorOrder) === activeFloorOrder
+									Number(d.floorOrder) === scopeFloorNum
 								),
 						),
 					}),
 				);
 				selectEntity(null);
 				setConfirmModal((m) => ({ ...m, isOpen: false }));
-				showToast("Đã làm trống toàn bộ hình học tầng hiện tại.");
+				showToast("Đã làm trống tầng hiện tại.");
 			},
 		});
-	}, [activeBuilding, activeFloorOrder, currentFloorMeta, selectEntity, setStore, showToast]);
+	}, [
+		isAllScope,
+		activeBuilding,
+		scopeFloorNum,
+		currentFloorMeta,
+		selectEntity,
+		setStore,
+		showToast,
+	]);
 
 	// In-App Reset default template
 	const handleResetDefaultTemplate = useCallback(() => {
@@ -1561,6 +1728,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							n,
 							activeBuilding,
 							activeFloorOrder,
+							floorWallModels,
 						),
 					);
 					let bestPx = 12;
@@ -1608,6 +1776,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			shiftKeyDown,
 			store.navNodes,
 			store.buildingBoundaries,
+			floorWallModels,
 			activeBuilding,
 			activeFloorOrder,
 		],
@@ -1885,6 +2054,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 			// 2. 2-Click Room Box Macro -> draws 4 connected walls + assigns ROOM face
 			if (activeTool === "ROOM_BOX") {
+				if (isAllScope) {
+					showToast("Chọn 1 tòa và 1 tầng cụ thể để vẽ phòng.");
+					setDraftPoints([]);
+					return;
+				}
 				if (layerLocks.walls || layerLocks.faces) {
 					showToast("Lớp tường hoặc vùng đang bị khóa.");
 					return;
@@ -1900,7 +2074,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						minSideMeters: 0.25,
 					});
 					if (!quadRing) {
-						showToast("Khung phòng quá hẹp, vui lòng chọn 2 góc cách xa hơn.");
+						showToast("Khung phòng quá hẹp.");
 						setDraftPoints([]);
 						return;
 					}
@@ -1912,7 +2086,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							(fa) =>
 								!(
 									matchesBuilding(fa.building, activeBuilding) &&
-									Number(fa.floorOrder) === activeFloorOrder &&
+									Number(fa.floorOrder) === scopeFloorNum &&
 									fa.seedCoord &&
 									isPointInPolygonWithHoles(fa.seedCoord, quadRing, [])
 								),
@@ -1925,7 +2099,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								{
 									id: newWallId,
 									building: activeBuilding,
-									floorOrder: activeFloorOrder,
+									floorOrder: scopeFloorNum,
 									line: quadRing,
 								},
 							],
@@ -1934,7 +2108,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								{
 									id: `fa-box-${Date.now()}`,
 									building: activeBuilding,
-									floorOrder: activeFloorOrder,
+									floorOrder: scopeFloorNum,
 									seedCoord: boxSeed,
 									role: "ROOM",
 								},
@@ -1942,11 +2116,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						});
 					});
 					selectEntity("WALL", newWallId);
-					showToast(
-						axisAligned
-							? "Đã dựng hộp tường ngang (0°) & gán Phòng."
-							: "Đã dựng hộp tường theo góc mặt bằng & gán Phòng.",
-					);
+					showToast(axisAligned ? "Đã tạo phòng (0°)." : "Đã tạo phòng.");
 					setDraftPoints([]);
 				}
 				return;
@@ -1954,6 +2124,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 			// 3. Mappedin-style Face Slice Macro -> inserts dividing Wall dividing closed face into 2 sub-faces
 			if (activeTool === "ROOM_SLICE") {
+				if (isAllScope) {
+					showToast("Chọn 1 tòa và 1 tầng cụ thể để chia vùng.");
+					setDraftPoints([]);
+					return;
+				}
 				if (layerLocks.walls || layerLocks.faces) {
 					showToast("Lớp tường hoặc vùng đang bị khóa.");
 					return;
@@ -1995,7 +2170,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								(fa) =>
 									!(
 										matchesBuilding(fa.building, activeBuilding) &&
-										Number(fa.floorOrder) === activeFloorOrder &&
+										Number(fa.floorOrder) === scopeFloorNum &&
 										fa.seedCoord &&
 										isPointInPolygonWithHoles(
 											fa.seedCoord,
@@ -2011,14 +2186,14 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											{
 												id: `fa-slice-a-${ts}`,
 												building: activeBuilding,
-												floorOrder: activeFloorOrder,
+												floorOrder: scopeFloorNum,
 												seedCoord: sliceRes.seedA,
 												role: targetFace.role,
 											},
 											{
 												id: `fa-slice-b-${ts}`,
 												building: activeBuilding,
-												floorOrder: activeFloorOrder,
+												floorOrder: scopeFloorNum,
 												seedCoord: sliceRes.seedB,
 												role: targetFace.role,
 											},
@@ -2031,7 +2206,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									{
 										id: sliceWallId,
 										building: activeBuilding,
-										floorOrder: activeFloorOrder,
+										floorOrder: scopeFloorNum,
 										line: sliceRes.line,
 									},
 								],
@@ -2039,9 +2214,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							});
 						});
 						selectEntity("WALL", sliceWallId);
-						showToast("Đã dựng vách chia đôi vùng (bảo toàn vai trò & tự cắt đỉnh).");
+						showToast("Đã chia đôi vùng.");
 					} else {
-						showToast("Đường cắt chưa đi xuyên qua vùng khép kín nào.");
+						showToast("Đường cắt chưa đi qua vùng nào.");
 					}
 					setDraftPoints([]);
 				}
@@ -2050,6 +2225,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 			// 4. Unified Wall Graph Draw [W] (closed loop or multi-segment partition) & Polygon Room Macro [P]
 			if (activeTool === "WALL_DRAW" || activeTool === "ROOM_POLY") {
+				if (isAllScope) {
+					showToast("Chọn 1 tòa và 1 tầng cụ thể để vẽ tường.");
+					setDraftPoints([]);
+					return;
+				}
 				if (layerLocks.walls || (activeTool === "ROOM_POLY" && layerLocks.faces)) {
 					showToast("Lớp tường hoặc vùng đang bị khóa.");
 					return;
@@ -2082,14 +2262,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				return;
 			}
 
-			// 5. Wall-mounted Door Tool [D]: Snaps strictly onto Wall Graph segments (carves 1.2m passage)
+			// 5. Wall-mounted Door Tool [D]: Snaps strictly onto Wall Graph segments (carves passage)
 			if (activeTool === "DOOR") {
+				if (isAllScope) {
+					showToast("Chọn 1 tòa và 1 tầng cụ thể để gắn cửa.");
+					return;
+				}
 				if (layerLocks.doors) {
 					showToast("Lớp Cửa đang bị khóa.");
 					return;
 				}
 				if (!snapResult) {
-					showToast("Click trực tiếp lên một đoạn tường để gắn Cửa [D].");
+					showToast("Click lên tường để gắn cửa.");
 					return;
 				}
 				const newDoorId = `door-${Date.now()}`;
@@ -2102,7 +2286,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							{
 								id: newDoorId,
 								building: activeBuilding,
-								floorOrder: activeFloorOrder,
+								floorOrder: scopeFloorNum,
 								coords: snapResult.coord,
 								widthMeters: 1.2,
 							},
@@ -2110,12 +2294,16 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					}),
 				);
 				selectEntity("DOOR", newDoorId);
-				showToast("Đã gắn Cửa 1.2m lên tường (tự khoét 3D & thông luồng A*).");
+				showToast("Đã gắn Cửa 1.2m.");
 				return;
 			}
 
-			// 5. Navigation Graph Tool (Unified NODE + Edge & STAIRS/ELEVATOR Portals)
+			// 6. Navigation Graph Tool (Unified NODE + Edge & STAIRS/ELEVATOR Portals)
 			if (activeTool === "NAV_GRAPH") {
+				if (isAllFloors) {
+					showToast("Chọn 1 tầng cụ thể để vẽ đồ thị.");
+					return;
+				}
 				if (layerLocks.navGraph) {
 					showToast("Lớp đồ thị đang bị khóa.");
 					return;
@@ -2126,7 +2314,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						boundaries,
 						n,
 						activeBuilding,
-						activeFloorOrder,
+						scopeFloorNum,
+						floorWallModels,
 					),
 				);
 
@@ -2179,15 +2368,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				);
 				const isPortal =
 					activeNodeType === "STAIRS" || activeNodeType === "ELEVATOR";
-				const isOutdoorPt =
-					!isPortal &&
-					activeFloorOrder === 0 &&
-					floor0Bounds.length > 0 &&
-					!isPointIndoorOnFloor(store, activeBuilding, 0, pt, floorWallModels);
 				const containedFloor0 =
-					activeFloorOrder === 0
+					scopeFloorNum === 0
 						? findBoundaryContainingPoint(floor0Bounds, pt, 0)
 						: null;
+				const targetBldgForNode =
+					containedFloor0?.building ||
+					(isAllBuildings ? currentBuildingMeta.name : activeBuilding);
+				const isOutdoorPt =
+					!isPortal &&
+					scopeFloorNum === 0 &&
+					floor0Bounds.length > 0 &&
+					!isPointIndoorOnFloor(store, targetBldgForNode, 0, pt, floorWallModels);
 
 				// Auto-inherit portalGroupId when snapping onto a Ghost Portal from another floor
 				let resolvedPortalGroupId =
@@ -2196,10 +2388,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					const ghostMatch = (store.navNodes || []).find(
 						(n) =>
 							isPortalNode(n) &&
-							Number(n.floorOrder) !== activeFloorOrder &&
+							Number(n.floorOrder) !== scopeFloorNum &&
 							matchesBuilding(
-								resolveNodeBuilding(boundaries, n) || n.building,
-								activeBuilding,
+								resolveNodeBuilding(boundaries, n, floorWallModels) || n.building,
+								targetBldgForNode,
 							) &&
 							Math.hypot(n.coords[0] - pt[0], n.coords[1] - pt[1]) < 0.000018,
 					);
@@ -2213,10 +2405,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				const newNode = {
 					id: newNodeId,
 					type: activeNodeType,
-					building: isOutdoorPt
-						? "OUTDOOR"
-						: containedFloor0?.building || activeBuilding,
-					floorOrder: activeFloorOrder,
+					building: isOutdoorPt ? "OUTDOOR" : targetBldgForNode,
+					floorOrder: scopeFloorNum,
 					coords: pt,
 					...(isPortal
 						? {
@@ -2262,31 +2452,61 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				return;
 			}
 
-			// 6. Live A* Route Tester (with courtyard VOID hole awareness & diagnostic error toast)
+			// 7. Live A* Route Tester (works cleanly across single floor OR "ALL" scope)
 			if (activeTool === "TEST_ROUTE") {
 				const floor0Bounds = (store.buildingBoundaries || []).filter(
 					(b) => (Number(b.floorOrder) || 0) === 0,
 				);
+				const mapInst = mapRef.current?.getMap?.();
+				let hitBuilding = null;
+				let hitFloor = null;
+				if (mapInst && e?.point) {
+					const candidateLayers = [
+						"studio-rooms-extrusion",
+						"studio-slab-layer",
+						"studio-faces-fill",
+					].filter((id) => Boolean(mapInst.getLayer?.(id)));
+					if (candidateLayers.length > 0) {
+						const hits = mapInst.queryRenderedFeatures(e.point, {
+							layers: candidateLayers,
+						});
+						const props = hits?.[0]?.properties;
+						if (props?.building) hitBuilding = props.building;
+						if (props?.floorOrder != null) hitFloor = Number(props.floorOrder);
+					}
+				}
+
+				const resolvedFloor =
+					hitFloor != null ? hitFloor : scopeFloorNum ?? 0;
+				const containedBnd =
+					resolvedFloor === 0
+						? findBoundaryContainingPoint(floor0Bounds, raw, 0)
+						: null;
+				const resolvedBldg =
+					hitBuilding ||
+					containedBnd?.building ||
+					(isAllBuildings ? "OUTDOOR" : activeBuilding);
 				const clickIsOutdoor =
-					activeFloorOrder === 0 &&
-					floor0Bounds.length > 0 &&
-					!isPointIndoorOnFloor(
-						store,
-						activeBuilding,
-						0,
-						raw,
-						floorWallModels,
-					);
-				const clickBuilding = clickIsOutdoor ? "OUTDOOR" : activeBuilding;
+					resolvedBldg === "OUTDOOR" ||
+					(resolvedFloor === 0 &&
+						floor0Bounds.length > 0 &&
+						!isPointIndoorOnFloor(
+							store,
+							resolvedBldg,
+							0,
+							raw,
+							floorWallModels,
+						));
+				const clickBuilding = clickIsOutdoor ? "OUTDOOR" : resolvedBldg;
 
 				if (!testRouteStart) {
 					setTestRouteStart({
 						coords: raw,
 						building: clickBuilding,
-						floorOrder: activeFloorOrder,
+						floorOrder: clickIsOutdoor ? 0 : resolvedFloor,
 					});
 					showToast(
-						`Đã chọn điểm đi (${clickIsOutdoor ? "Ngoài sân" : activeBuilding}). Click tiếp điểm đến.`,
+						`Điểm đi: ${clickIsOutdoor ? "Ngoài sân" : clickBuilding}. Click điểm đến.`,
 					);
 				} else {
 					const diag = {};
@@ -2297,7 +2517,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						startFloorOrder: testRouteStart.floorOrder,
 						endCoords: raw,
 						endBuilding: clickBuilding,
-						endFloorOrder: activeFloorOrder,
+						endFloorOrder: clickIsOutdoor ? 0 : resolvedFloor,
 						diagnosticsOut: diag,
 					});
 					setTestRouteResult(res);
@@ -2309,7 +2529,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					} else {
 						showToast(
 							diag.message ||
-								"Không tìm thấy đường đi giữa 2 điểm này (kiểm tra lại dây nối đồ thị [N] hoặc Cửa [D]).",
+								"Không tìm thấy đường giữa 2 điểm này (kiểm tra [N] hoặc [D]).",
 						);
 					}
 				}
@@ -2317,11 +2537,15 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		},
 		[
 			activeTool,
+			isAllScope,
+			isAllBuildings,
+			isAllFloors,
+			scopeFloorNum,
+			currentBuildingMeta,
 			layerLocks,
 			layerVisibility,
 			draftPoints,
 			activeBuilding,
-			activeFloorOrder,
 			selectedRoomIds,
 			currentFloorFaces,
 			currentFloorWalls,
@@ -2619,7 +2843,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			];
 			const halfDist = approximateDistanceMeters(door.coords, raw);
 			const nextW = Number(
-				Math.max(0.5, Math.min(5.0, halfDist * 2)).toFixed(2),
+				Math.max(0.5, Math.min(10.0, halfDist * 2)).toFixed(2),
 			);
 			setLiveVertexDrag({
 				kind: "DOOR_WIDTH",
@@ -2639,7 +2863,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			];
 			const halfDist = approximateDistanceMeters(door.coords, raw);
 			const nextW = Number(
-				Math.max(0.5, Math.min(5.0, halfDist * 2)).toFixed(2),
+				Math.max(0.5, Math.min(10.0, halfDist * 2)).toFixed(2),
 			);
 			setLiveVertexDrag(null);
 			setStore((prev) =>
@@ -2680,7 +2904,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		[setStore, showToast],
 	);
 
-	// Build 3D vector preview layers (only show lower ghost floors & context buildings in 3D Preview)
+	// Build 3D vector preview layers (only show lower ghost floors & context buildings in 3D Preview or ALL view)
 	const vector3d = useMemo(
 		() =>
 			buildVector3dLayers({
@@ -2688,9 +2912,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				selectedBuilding: activeBuilding,
 				activeFloorOrder,
 				viewRole: "STUDIO",
-				showOtherBuildingsInFocus: is3dPreview,
+				showOtherBuildingsInFocus: is3dPreview || isAllBuildings,
 			}),
-		[effectiveStore, activeBuilding, activeFloorOrder, is3dPreview],
+		[effectiveStore, activeBuilding, activeFloorOrder, is3dPreview, isAllBuildings],
 	);
 
 	const vector3dSplit = useMemo(
@@ -2727,7 +2951,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		return { type: "FeatureCollection", features };
 	}, [layerVisibility.walls, currentFloorWalls, selectedWallId]);
 
-	// 2D Extracted Planar Faces GeoJSON (ROOM / CORRIDOR / VOID) on active floor
+	// 2D Extracted Planar Faces GeoJSON (ROOM / CORRIDOR / VOID) on active scope
 	const studioFacesGeoJSON = useMemo(() => {
 		if (!layerVisibility.faces) {
 			return { type: "FeatureCollection", features: [] };
@@ -2739,6 +2963,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				id: f.id,
 				properties: {
 					id: f.id,
+					building: f.building || activeBuilding,
+					floorOrder: f.floorOrder ?? scopeFloorNum ?? 0,
 					role: f.role,
 					areaSqm: f.areaSqm,
 					isSelected: selectedRoomIds.includes(f.id),
@@ -2749,19 +2975,30 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				},
 			})),
 		};
-	}, [layerVisibility.faces, currentFloorFaces, selectedRoomIds]);
+	}, [
+		layerVisibility.faces,
+		currentFloorFaces,
+		activeBuilding,
+		scopeFloorNum,
+		selectedRoomIds,
+	]);
 
-	// 2D Wall-Mounted Doors GeoJSON on active floor (Oriented Rectangular Door Frame Polygon + Midpoint Node + Live Ghost Preview)
+	// 2D Wall-Mounted Doors GeoJSON in scope (Oriented Rectangular Door Frame Polygon + Midpoint Node + Live Ghost Preview)
 	const studioDoorsGeoJSON = useMemo(() => {
 		if (!layerVisibility.doors) {
 			return { type: "FeatureCollection", features: [] };
 		}
-		const wallSegs = currentFloorModel?.wallSegments || [];
 		const features = [];
 
 		for (const d of currentFloorDoors) {
 			if (!Array.isArray(d.coords)) continue;
-			const geom = buildOrientedDoorGeometry(d, wallSegs);
+			const doorBldg = resolveCanonicalBuildingName(d.building) || d.building;
+			const doorModel = floorWallModels.get(
+				`${doorBldg}__${Number(d.floorOrder) || 0}`,
+			);
+			const doorSegs =
+				doorModel?.wallSegments || currentFloorModel?.wallSegments || [];
+			const geom = buildOrientedDoorGeometry(d, doorSegs);
 			if (!geom) continue;
 			const isSel = d.id === selectedDoorId;
 
@@ -2818,7 +3055,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		}
 
 		// Live Ghost Door Box Preview while hovering over a wall with [D] tool
-		if (activeTool === "DOOR" && snappedCoord) {
+		if (activeTool === "DOOR" && snappedCoord && !isAllScope) {
+			const wallSegs = currentFloorModel?.wallSegments || [];
 			const ghostGeom = buildOrientedDoorGeometry(
 				{ id: "door-preview", coords: snappedCoord, widthMeters: 1.2 },
 				wallSegs,
@@ -2861,10 +3099,12 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	}, [
 		layerVisibility.doors,
 		currentFloorDoors,
+		floorWallModels,
 		currentFloorModel,
 		selectedDoorId,
 		activeTool,
 		snappedCoord,
+		isAllScope,
 	]);
 
 	// 2D Deduplicated Corner/Junction Dots & Open Dead-end Dots across active walls (renders at zoom >= 16.5 for Mappedin snap clarity)
@@ -2947,7 +3187,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		return ids;
 	}, [activeTool, is3dPreview, layerVisibility, layerLocks]);
 
-	// Build Nav Graph GeoJSON for current building/floor (+ outdoor on Floor 0), with symbol portal layer, connected floor badges & ghost portals
+	// Build Nav Graph GeoJSON for current scope (+ outdoor on Floor 0), with symbol portal layer, connected floor badges & ghost portals
 	const navGraphLayers = useMemo(() => {
 		const boundaries = effectiveStore.buildingBoundaries || [];
 		const allEdges = buildAllGraphEdges(effectiveStore);
@@ -2955,7 +3195,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			(effectiveStore.navNodes || []).map((n) => [n.id, n]),
 		);
 		const visibleNodes = (effectiveStore.navNodes || []).filter((n) =>
-			isNodeVisibleOnFloor(boundaries, n, activeBuilding, activeFloorOrder),
+			isNodeVisibleOnFloor(
+				boundaries,
+				n,
+				activeBuilding,
+				activeFloorOrder,
+				floorWallModels,
+			),
 		);
 		const visibleIds = new Set(visibleNodes.map((n) => n.id));
 		const edgeFeatures = [];
@@ -2965,7 +3211,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			const v = nodeMap.get(vId);
 			if (!u || !v) continue;
 			const isVertical = u.floorOrder !== v.floorOrder;
-			// Do NOT render cross-floor vertical edges as diagonal 2D lines across the flat 2D floor plan (Image 2 fix)
+			// Do NOT render cross-floor vertical edges as flat diagonal 2D lines unless in 3D preview
 			if (isVertical && !is3dPreview) continue;
 			if (isVertical) {
 				if (!visibleIds.has(u.id) && !visibleIds.has(v.id)) continue;
@@ -2984,16 +3230,16 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			});
 		}
 
-		// Map portalGroupId -> sorted floor labels in this building for 2D/3D badge display
+		// Map (canonicalBuilding__portalGroupId) -> sorted floor labels for 2D/3D badge display
 		const portalFloorsByGroup = new Map();
 		for (const n of effectiveStore.navNodes || []) {
 			if (!isPortalNode(n) || !n.portalGroupId) continue;
 			const nb =
-				resolveNodeBuilding(boundaries, n) ||
-				resolveCanonicalBuildingName(n.building) ||
-				n.building;
-			if (!matchesBuilding(nb, activeBuilding)) continue;
-			const gk = n.portalGroupId.trim().toUpperCase();
+				resolveCanonicalBuildingName(
+					resolveNodeBuilding(boundaries, n, floorWallModels) || n.building,
+				) || n.building;
+			if (!isAllBuildings && !matchesBuilding(nb, activeBuilding)) continue;
+			const gk = `${nb}__${n.portalGroupId.trim().toUpperCase()}`;
 			if (!portalFloorsByGroup.has(gk)) portalFloorsByGroup.set(gk, new Set());
 			portalFloorsByGroup.get(gk).add(Number(n.floorOrder) || 0);
 		}
@@ -3006,14 +3252,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			const isSel =
 				n.id === selectedNavNodeId || n.id === liveNavNodeDrag?.id;
 			const isHead = n.id === chainLastNodeId;
-			const outdoor = isNodeOutdoor(boundaries, n);
+			const outdoor = isNodeOutdoor(boundaries, n, floorWallModels);
 			const floorOrder = Number(n.floorOrder) || 0;
 			const heightOffset = Number(
 				(floorOrder * FLOOR_ELEVATION_STEP + FLOOR_SLAB_HEIGHT + 0.35).toFixed(2),
 			);
 
 			if (isPortalNode(n)) {
-				const gk = (n.portalGroupId || "").trim().toUpperCase();
+				const nb =
+					resolveCanonicalBuildingName(
+						resolveNodeBuilding(boundaries, n, floorWallModels) || n.building,
+					) || n.building;
+				const gk = `${nb}__${(n.portalGroupId || "").trim().toUpperCase()}`;
 				const floorsSet = portalFloorsByGroup.get(gk);
 				const sortedFl = floorsSet
 					? Array.from(floorsSet).sort((a, b) => a - b)
@@ -3021,7 +3271,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				const stackBadge =
 					sortedFl.length > 1
 						? `↕ ${sortedFl.map(formatFloorShort).join("·")}`
-						: `Tầng ${formatFloorShort(floorOrder)} (chưa nối tầng)`;
+						: `Tầng ${formatFloorShort(floorOrder)}`;
 
 				portalFeatures.push({
 					type: "Feature",
@@ -3065,6 +3315,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		// Ghost Portals from other floors of the same building (visible when placing STAIRS/ELEVATOR in NAV_GRAPH)
 		const ghostPortalFeatures = [];
 		if (
+			!isAllFloors &&
 			activeTool === "NAV_GRAPH" &&
 			(activeNodeType === "STAIRS" || activeNodeType === "ELEVATOR")
 		) {
@@ -3074,14 +3325,14 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					.map((n) => n.portalGroupId.trim().toUpperCase()),
 			);
 			for (const n of effectiveStore.navNodes || []) {
-				if (!isPortalNode(n) || Number(n.floorOrder) === activeFloorOrder) {
+				if (!isPortalNode(n) || Number(n.floorOrder) === scopeFloorNum) {
 					continue;
 				}
 				const nb =
-					resolveNodeBuilding(boundaries, n) ||
+					resolveNodeBuilding(boundaries, n, floorWallModels) ||
 					resolveCanonicalBuildingName(n.building) ||
 					n.building;
-				if (!matchesBuilding(nb, activeBuilding)) continue;
+				if (!isAllBuildings && !matchesBuilding(nb, activeBuilding)) continue;
 				const gk = (n.portalGroupId || "").trim().toUpperCase();
 				if (gk && seenGroups.has(gk)) continue;
 				if (gk) seenGroups.add(gk);
@@ -3114,6 +3365,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		effectiveStore,
 		activeBuilding,
 		activeFloorOrder,
+		isAllBuildings,
+		isAllFloors,
+		scopeFloorNum,
+		floorWallModels,
 		activeTool,
 		activeNodeType,
 		is3dPreview,
@@ -3203,6 +3458,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						n,
 						activeBuilding,
 						activeFloorOrder,
+						floorWallModels,
 					),
 			) || null
 		);
@@ -3212,6 +3468,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		selectedNavNodeId,
 		activeBuilding,
 		activeFloorOrder,
+		floorWallModels,
 	]);
 
 	const singleSelectedWall = useMemo(() => {
@@ -3226,11 +3483,17 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 	const singleSelectedDoorGeom = useMemo(() => {
 		if (!singleSelectedDoor) return null;
-		return buildOrientedDoorGeometry(
-			singleSelectedDoor,
-			currentFloorModel?.wallSegments || [],
-		);
-	}, [singleSelectedDoor, currentFloorModel]);
+		const doorBldg =
+			resolveCanonicalBuildingName(singleSelectedDoor.building) ||
+			singleSelectedDoor.building;
+		const doorSegs =
+			floorWallModels.get(
+				`${doorBldg}__${Number(singleSelectedDoor.floorOrder) || 0}`,
+			)?.wallSegments ||
+			currentFloorModel?.wallSegments ||
+			[];
+		return buildOrientedDoorGeometry(singleSelectedDoor, doorSegs);
+	}, [singleSelectedDoor, floorWallModels, currentFloorModel]);
 
 	// Geometry Validator Engine (Nav Graph + Unified Wall Graph + Door Connectivity)
 	const validationIssues = useMemo(() => {
@@ -3243,7 +3506,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			connectedNodeIds.add(b);
 		}
 
-		// 1. Isolated Nav Nodes on current floor
+		// 1. Isolated Nav Nodes in scope
 		for (const n of currentFloorNodes) {
 			if (!connectedNodeIds.has(n.id)) {
 				const metaLabel = NODE_DISPLAY_META[n.type]?.label || n.type;
@@ -3253,8 +3516,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					type: "NODE",
 					targetId: n.id,
 					coords: n.coords,
-					title: `Nút mồ côi: ${metaLabel}`,
-					desc: `Nút tại [${n.coords[0].toFixed(5)}, ${n.coords[1].toFixed(5)}] chưa được nối vào đồ thị.`,
+					title: `Nút lẻ: ${metaLabel}`,
+					desc: "Nút chưa nối vào mạng đường đi.",
 				});
 			}
 		}
@@ -3262,7 +3525,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		// 2. Unmatched Portals for STAIRS / ELEVATOR (strictly scoped per canonical building)
 		const portalKey = (n) => {
 			const bldg = resolveCanonicalBuildingName(
-				resolveNodeBuilding(boundaries, n) || n.building,
+				resolveNodeBuilding(boundaries, n, floorWallModels) || n.building,
 			);
 			return `${bldg.toUpperCase()}__${n.portalGroupId.trim().toUpperCase()}`;
 		};
@@ -3282,14 +3545,16 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					(other) => other.floorOrder !== n.floorOrder,
 				);
 				if (otherFloors.length === 0) {
+					const ownerBldg =
+						resolveNodeBuilding(boundaries, n, floorWallModels) || n.building;
 					issues.push({
 						id: `portal-${n.id}`,
 						level: "error",
 						type: "NODE",
 						targetId: n.id,
 						coords: n.coords,
-						title: `Thang thiếu tầng đối ứng (${n.portalGroupId})`,
-						desc: `Chưa có nút thang ${n.portalGroupId} ở các tầng khác của ${activeBuilding}.`,
+						title: `Thang chưa nối tầng (${n.portalGroupId})`,
+						desc: `Thiếu tầng đối ứng trong ${ownerBldg}.`,
 					});
 				}
 			}
@@ -3302,16 +3567,19 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				level: "warning",
 				type: "WALL_PT",
 				coords: pt,
-				title: "Đầu tường hở (chưa khép kín)",
-				desc: "Đầu mút tường chưa chạm vào đoạn tường khác để tạo thành vùng khép kín.",
+				title: "Đầu tường hở",
+				desc: "Đầu tường chưa khép vào góc tường khác.",
 			});
 		});
 
 		// 4. Doors not sitting on any wall segment (> 0.55m)
-		const floorWallSegs = currentFloorModel?.wallSegments || [];
 		for (const d of currentFloorDoors) {
 			if (!Array.isArray(d.coords)) continue;
-			const nearWall = floorWallSegs.some(
+			const doorBldg = resolveCanonicalBuildingName(d.building) || d.building;
+			const doorSegs =
+				floorWallModels.get(`${doorBldg}__${Number(d.floorOrder) || 0}`)
+					?.wallSegments || [];
+			const nearWall = doorSegs.some(
 				(ws) => distancePointToSegmentMeters(d.coords, ws.a, ws.b) <= 0.55,
 			);
 			if (!nearWall) {
@@ -3321,8 +3589,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					type: "DOOR",
 					targetId: d.id,
 					coords: d.coords,
-					title: "Cửa bị lệch khỏi tường",
-					desc: "Cửa chưa bám lên đoạn tường nào trên tầng hiện tại — A* và đục 3D sẽ bỏ qua.",
+					title: "Cửa lệch tường",
+					desc: "Cửa chưa nằm trên đoạn tường nào.",
 				});
 			}
 		}
@@ -3331,6 +3599,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		for (const rm of currentFloorRooms) {
 			const hasDoor = currentFloorDoors.some((d) => {
 				if (!Array.isArray(d.coords)) return false;
+				if (rm.building && !matchesBuilding(d.building, rm.building)) return false;
+				if (
+					rm.floorOrder != null &&
+					Number(d.floorOrder) !== Number(rm.floorOrder)
+				) {
+					return false;
+				}
 				for (let i = 0; i < (rm.ring?.length || 0) - 1; i++) {
 					if (
 						distancePointToSegmentMeters(d.coords, rm.ring[i], rm.ring[i + 1]) <=
@@ -3348,8 +3623,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					type: "ROOM",
 					targetId: rm.id,
 					coords: rm.seedCoord || rm.ring?.[0],
-					title: "Phòng chưa gắn cửa [D]",
-					desc: "Nên đặt ít nhất 1 cửa [D] trên vách phòng để lộ trình A* đi đúng qua lối cửa.",
+					title: "Phòng chưa có cửa [D]",
+					desc: "Đặt 1 cửa [D] trên vách để dẫn đường vào phòng.",
 				});
 			}
 		}
@@ -3357,11 +3632,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		return issues;
 	}, [
 		store,
+		floorWallModels,
 		currentFloorNodes,
 		currentFloorModel,
 		currentFloorDoors,
 		currentFloorRooms,
-		activeBuilding,
 	]);
 
 	if (!isOpen) return null;
@@ -3393,10 +3668,6 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							Floor Digitizer
 						</h1>
 						<div className="digitizer-brand__meta">
-							<span>{activeBuilding}</span>
-							<span>/</span>
-							<span>{currentFloorMeta.name}</span>
-							<span>/</span>
 							<span
 								className={`digitizer-brand__status ${isDirty ? "is-dirty" : "is-saved"}`}
 							>
@@ -3417,11 +3688,12 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							value={activeBuilding}
 							onChange={(e) => {
 								setActiveBuilding(e.target.value);
-								setActiveFloorOrder(0);
+								setActiveFloorOrder((prev) => (prev === "ALL" ? "ALL" : 0));
 								setDraftPoints([]);
 								setChainLastNodeId(null);
 							}}
 						>
+							<option value="ALL">Toàn khuôn viên</option>
 							{DEFAULT_BUILDINGS_META.map((b) => (
 								<option key={b.id} value={b.name}>
 									{b.name}
@@ -3439,12 +3711,14 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							aria-label="Chọn Tầng"
 							value={String(activeFloorOrder)}
 							onChange={(e) => {
-								setActiveFloorOrder(Number(e.target.value));
+								const val = e.target.value;
+								setActiveFloorOrder(val === "ALL" ? "ALL" : Number(val));
 								setDraftPoints([]);
 								setChainLastNodeId(null);
 							}}
 						>
-							{currentBuildingMeta.floors.map((fl) => (
+							<option value="ALL">Tất cả tầng</option>
+							{buildingFloorOptions.map((fl) => (
 								<option key={fl.id} value={String(fl.floorOrder)}>
 									{fl.shortLabel}
 								</option>
@@ -3748,46 +4022,60 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						<span className="digitizer-hud__text">
 							{activeTool === "SELECT" &&
 								(selectedRoomIds.length > 0
-									? `Đã chọn ${selectedRoomIds.length} vùng [Đổi vai trò ROOM/CORRIDOR/VOID bên phải · Shift: chọn thêm]`
+									? `Đã chọn ${selectedRoomIds.length} vùng · Đổi loại vùng ở bảng phải`
 									: singleSelectedNavNode
-										? `${NODE_DISPLAY_META[singleSelectedNavNode.type]?.label || singleSelectedNavNode.type} [Kéo để di chuyển / gộp nút · Del: xóa]`
+										? `${NODE_DISPLAY_META[singleSelectedNavNode.type]?.label || singleSelectedNavNode.type} · Kéo để di chuyển · Del: xóa`
 										: singleSelectedDoor
-											? `Cửa gắn tường (${singleSelectedDoor.widthMeters || 1.2}m) [Kéo 2 chốt mép để chỉnh rộng · Kéo tâm để trượt · Del: xóa]`
+											? `Cửa ${singleSelectedDoor.widthMeters || 1.2}m · Kéo mép chỉnh rộng · Kéo tâm trượt · Del: xóa`
 											: singleSelectedWall
-												? `Đoạn tường [Kéo góc để di chuyển mối hàn (Giữ Alt: tách rời) · + để bẻ góc · Del: xóa]`
-												: "Chọn đối tượng [Click vùng để đổi Phòng/Hành lang/Void · Click tường hoặc cửa để sửa]")}
+												? "Tường · Kéo góc chỉnh chung (Alt: tách) · Del: xóa"
+												: "Chọn vùng, tường, cửa hoặc nút [Shift+Kéo: chọn nhiều]")}
 
 							{activeTool === "ROOM_BOX" &&
-								(draftPoints.length === 0
-									? "Click điểm 1 để dựng hộp tường Phòng [B · Giữ Shift: ngang 0°]"
-									: shiftKeyDown
-										? "Click điểm 2 (Chế độ ngang 0°) [Esc: hủy]"
-										: "Click điểm 2 để hoàn tất [Giữ Shift: ngang 0° · Esc: hủy]")}
+								(isAllScope
+									? "Chọn 1 tòa và 1 tầng cụ thể để vẽ phòng"
+									: draftPoints.length === 0
+										? "Click 2 góc để tạo phòng [Shift: ngang 0°]"
+										: shiftKeyDown
+											? "Click góc thứ 2 (Ngang 0°) [Esc: hủy]"
+											: "Click góc thứ 2 [Shift: ngang 0° · Esc: hủy]")}
 
 							{activeTool === "ROOM_SLICE" &&
-								(draftPoints.length === 0
-									? "Click điểm 1 để kéo vách chia đôi vùng [S]"
-									: "Click điểm 2 xuyên qua vùng cần chia [Esc: hủy]")}
+								(isAllScope
+									? "Chọn 1 tòa và 1 tầng cụ thể để chia vùng"
+									: draftPoints.length === 0
+										? "Click 2 điểm băng qua vùng cần chia [S]"
+										: "Click điểm cuối xuyên qua vùng [Esc: hủy]")}
 
 							{activeTool === "ROOM_POLY" &&
-								`Đa giác Phòng: ${draftPoints.length} điểm [Click điểm đầu / Enter: khép kín, Esc: hủy]`}
+								(isAllScope
+									? "Chọn 1 tòa và 1 tầng cụ thể để vẽ phòng"
+									: `Đa giác phòng: ${draftPoints.length} điểm · Enter hoặc click điểm đầu để khép kín`)}
 
 							{activeTool === "WALL_DRAW" &&
-								`Vẽ tường: ${draftPoints.length} điểm [Click điểm đầu (≥3): khép kín · Click điểm cuối / Enter (≥2): kết thúc · Esc: hủy]`}
+								(isAllScope
+									? "Chọn 1 tòa và 1 tầng cụ thể để vẽ tường"
+									: `Vẽ tường: ${draftPoints.length} điểm · Click điểm đầu: khép vùng · Enter: kết thúc`)}
 
 							{activeTool === "DOOR" &&
-								"Rê chuột dọc tường & Click để gắn Cửa (hộp chữ nhật đục tường 3D & trung điểm làm Node A*) [D]"}
+								(isAllScope
+									? "Chọn 1 tòa và 1 tầng cụ thể để gắn cửa"
+									: "Click lên tường để gắn Cửa [D]")}
 
 							{activeTool === "NAV_GRAPH" &&
-								`Đồ thị (${NODE_DISPLAY_META[activeNodeType]?.label || activeNodeType}): Click đặt / nối Trung điểm Cửa · Kéo trùng nút để tự gộp [Esc: ngắt]`}
+								(isAllFloors
+									? "Chọn 1 tầng cụ thể để vẽ đồ thị"
+									: `Đồ thị (${NODE_DISPLAY_META[activeNodeType]?.label || activeNodeType}): Click đặt & nối nút (bắt vào tâm cửa) [Esc: ngắt]`)}
 
 							{activeTool === "TEST_ROUTE" &&
 								(!testRouteStart
 									? "Click điểm xuất phát [T]"
-									: "Click điểm đến để tìm đường")}
+									: "Click điểm đến")}
 
 							{activeTool === "CALIBRATE_PNG" &&
-								"Kéo 4 góc để co giãn · Chốt trên để xoay · Chốt tâm để di chuyển"}
+								(isAllScope
+									? "Chọn 1 tòa và 1 tầng cụ thể để căn bản vẽ"
+									: "Kéo 4 góc để co giãn · Chốt trên để xoay · Chốt tâm để dịch chuyển")}
 						</span>
 
 						{((draftPoints.length >= 3 && activeTool === "ROOM_POLY") ||
@@ -3865,12 +4153,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					{/* Bottom Telemetry Strip */}
 					<div className="digitizer-telemetry-bar">
 						<div className="digitizer-telemetry-item">
-							<span>Tọa độ:</span>
-							<strong>
-								{hoverCoord
-									? `${hoverCoord[0].toFixed(6)}, ${hoverCoord[1].toFixed(6)}`
-									: "106.809xxx, 10.841xxx"}
-							</strong>
+							{hoverCoord && (
+								<strong>
+									{hoverCoord[0].toFixed(6)}, {hoverCoord[1].toFixed(6)}
+								</strong>
+							)}
 							{snapType && (
 								<span
 									className="digitizer-telemetry-chip"
@@ -3883,31 +4170,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 													: "#38bdf8",
 									}}
 								>
-									Snap{" "}
 									{snapType === "VERTEX"
-										? "Đỉnh"
+										? "Bắt đỉnh"
 										: snapType === "MIDPOINT"
 											? "Trung điểm"
-											: "Cạnh"}{" "}
+											: "Trên cạnh"}{" "}
 									[Alt: Tắt]
 								</span>
 							)}
 						</div>
 
 						<div className="digitizer-telemetry-item">
-							<span className="digitizer-telemetry-chip">
-								{activeBuilding} · {currentFloorMeta.shortLabel}
-							</span>
-							<span className="digitizer-telemetry-chip">
-								Cao độ: {currentFloorMeta.baseElevation}m -{" "}
-								{currentFloorMeta.ceilingElevation}m
-							</span>
-						</div>
-
-						<div className="digitizer-telemetry-item">
 							<strong>{currentFloorRooms.length} Phòng</strong>
-							<span>·</span>
-							<strong>{currentFloorWalls.length} Tường</strong>
 							<span>·</span>
 							<strong>{currentFloorDoors.length} Cửa</strong>
 							<span>·</span>
@@ -3982,16 +4256,17 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							</Source>
 						)}
 
-						{/* 1. Blueprint PNG Tracing Overlay */}
-						{layerVisibility.png && currentFloorMeta?.pngUrl && (
+						{/* 1. Blueprint PNG Tracing Overlay(s) */}
+						{visiblePngOverlays.map((ov) => (
 							<Source
-								id="studio-png-blueprint"
+								key={ov.id}
+								id={`studio-png-blueprint-${ov.id}`}
 								type="image"
-								url={currentFloorMeta.pngUrl}
-								coordinates={activeCorners}
+								url={ov.url}
+								coordinates={ov.corners}
 							>
 								<Layer
-									id="studio-png-blueprint-layer"
+									id={`studio-png-blueprint-layer-${ov.id}`}
 									type="raster"
 									paint={{
 										"raster-opacity": pngOpacity,
@@ -3999,7 +4274,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									}}
 								/>
 							</Source>
-						)}
+						))}
 
 						{/* 2. Ghost Lower Floors (3D Preview only) */}
 						{is3dPreview && (layerVisibility.walls || layerVisibility.faces) && (
@@ -4928,7 +5203,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							})}
 
 						{/* 10. Minimalist CAD PNG Calibration Handles & Frame */}
-						{activeTool === "CALIBRATE_PNG" && (
+						{activeTool === "CALIBRATE_PNG" && !isAllScope && (
 							<>
 								{pngCalibrationGeoJSON && (
 									<Source
@@ -5050,7 +5325,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							onClick={() => setActiveInspectorTab("layers")}
 						>
 							<Layers size={12} />
-							<span>Thao tác</span>
+							<span>Lớp & Vùng</span>
 							<span className="digitizer-inspector-badge">
 								{currentFloorFaces.length}
 							</span>
@@ -5083,7 +5358,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										<span className="digitizer-prop-title">
 											<Square size={13} />
 											{selectedRoomIds.length === 1
-												? "Vùng khép kín (Planar Face)"
+												? "Vùng chọn"
 												: `Đã chọn ${selectedRoomIds.length} vùng`}
 										</span>
 									</div>
@@ -5092,13 +5367,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										<>
 											<div className="digitizer-field">
 												<label className="digitizer-field-label">
-													Vai trò vùng (Mappedin Role):
+													Loại vùng:
 												</label>
 												<div className="digitizer-chip-row">
 													{[
-														{ id: "ROOM", label: "Phòng (3D)", accent: "#0284c7" },
+														{ id: "ROOM", label: "Phòng", accent: "#0284c7" },
 														{ id: "CORRIDOR", label: "Hành lang", accent: "#10b981" },
-														{ id: "VOID", label: "Khoét rỗng", accent: "#ef4444" },
+														{ id: "VOID", label: "Giếng trời / Sân", accent: "#ef4444" },
 													].map((roleOpt) => (
 														<button
 															key={roleOpt.id}
@@ -5135,9 +5410,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											</div>
 											{(singleSelectedFace.holes?.length || 0) > 0 && (
 												<div className="digitizer-prop-row">
-													<label>Lỗ khoét (Void):</label>
+													<label>Khoét rỗng:</label>
 													<span className="digitizer-prop-val">
-														{singleSelectedFace.holes.length} lỗ lồng
+														{singleSelectedFace.holes.length} vùng lồng
 													</span>
 												</div>
 											)}
@@ -5177,7 +5452,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											onClick={deleteSelectedRooms}
 										>
 											<Trash2 size={12} />
-											<span>Về Hành lang</span>
+											<span>Gỡ vai trò</span>
 										</button>
 										<button
 											type="button"
@@ -5197,7 +5472,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									<div className="digitizer-prop-header">
 										<span className="digitizer-prop-title">
 											<Route size={13} />
-											Nút đồ thị ({singleSelectedNavNode.id})
+											Nút đồ thị
 										</span>
 									</div>
 
@@ -5239,17 +5514,16 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											{isNodeOutdoor(
 												store.buildingBoundaries,
 												singleSelectedNavNode,
+												floorWallModels,
 											)
-												? "Ngoài sân trường (Tầng 0)"
-												: `Trong nhà · ${resolveNodeBuilding(store.buildingBoundaries, singleSelectedNavNode) || activeBuilding}`}
-										</span>
-									</div>
-
-									<div className="digitizer-prop-row">
-										<label>Tọa độ:</label>
-										<span className="digitizer-prop-val">
-											{singleSelectedNavNode.coords[0].toFixed(5)},{" "}
-											{singleSelectedNavNode.coords[1].toFixed(5)}
+												? "Ngoài sân (Tầng G)"
+												: resolveNodeBuilding(
+														store.buildingBoundaries,
+														singleSelectedNavNode,
+														floorWallModels,
+													) ||
+													singleSelectedNavNode.building ||
+													activeBuilding}
 										</span>
 									</div>
 
@@ -5258,32 +5532,21 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										<>
 											<div className="digitizer-field">
 												<label className="digitizer-field-label">
-													Trục xuyên tầng (portalGroupId):
-												</label>
-												<input
-													type="text"
-													className="digitizer-field-input"
-													value={singleSelectedNavNode.portalGroupId || ""}
-													onChange={(e) => {
-														const val = e.target.value.trim().toUpperCase();
-														setStore((prev) => ({
-															...prev,
-															navNodes: (prev.navNodes || []).map((n) =>
-																n.id === singleSelectedNavNode.id
-																	? { ...n, portalGroupId: val }
-																	: n,
-															),
-														}));
-													}}
-													placeholder="VD: HCM_STAIR_W"
-												/>
-											</div>
-
-											<div className="digitizer-field">
-												<label className="digitizer-field-label">
-													Tầng kết nối thẳng trục ({activeBuilding}):
+													Thông tầng:
 												</label>
 												{(() => {
+													const portalBldg =
+														resolveNodeBuilding(
+															store.buildingBoundaries || [],
+															singleSelectedNavNode,
+															floorWallModels,
+														) ||
+														singleSelectedNavNode.building ||
+														currentBuildingMeta.name;
+													const portalBldgMeta =
+														DEFAULT_BUILDINGS_META.find((b) =>
+															matchesBuilding(b.name, portalBldg),
+														) || currentBuildingMeta;
 													const gk = (
 														singleSelectedNavNode.portalGroupId || ""
 													)
@@ -5301,8 +5564,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 																		resolveNodeBuilding(
 																			store.buildingBoundaries || [],
 																			n,
+																			floorWallModels,
 																		) || n.building,
-																		activeBuilding,
+																		portalBldg,
 																	),
 															)
 															.map((n) => Number(n.floorOrder) || 0),
@@ -5310,7 +5574,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 													connectedFloors.add(
 														Number(singleSelectedNavNode.floorOrder) || 0,
 													);
-													const allFloors = currentBuildingMeta.floors || [];
+													const allFloors = portalBldgMeta.floors || [];
 
 													return (
 														<>
@@ -5346,14 +5610,14 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 																				);
 																				showToast(
 																					isChecked
-																						? `Đã gỡ kết nối ${flMeta.name} khỏi trục thang.`
-																						: `Đã tạo & căn thẳng trục thang sang ${flMeta.name}.`,
+																						? `Đã gỡ ${flMeta.shortLabel} khỏi trục.`
+																						: `Đã đồng bộ lên ${flMeta.shortLabel}.`,
 																				);
 																			}}
 																			title={
 																				isCurrent
-																					? "Tầng hiện tại của nút đang chọn"
-																					: "Bật/tắt để tự động tạo & căn thẳng trục thang trên tầng này"
+																					? "Tầng hiện tại"
+																					: "Bật/tắt tầng kết nối"
 																			}
 																		>
 																			{isChecked ? "✓ " : "+ "}
@@ -5376,24 +5640,41 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 																			targetFloorOrders: allFlOrders,
 																		}),
 																	);
-																	showToast(
-																		`Đã đồng bộ thẳng trục thang xuyên tất cả ${allFlOrders.length} tầng (${activeBuilding})!`,
-																	);
+																	showToast("Đã đồng bộ tất cả tầng.");
 																}}
 															>
 																<ArrowUpDown size={12} />
-																<span>Đồng bộ thẳng trục lên mọi tầng</span>
+																<span>Đồng bộ tất cả tầng</span>
 															</button>
 														</>
 													);
 												})()}
 											</div>
+
+											<details className="digitizer-portal-advanced">
+												<summary>
+													Mã trục nâng cao ({singleSelectedNavNode.portalGroupId || "Chưa đặt"})
+												</summary>
+												<input
+													type="text"
+													className="digitizer-field-input"
+													value={singleSelectedNavNode.portalGroupId || ""}
+													onChange={(e) => {
+														const val = e.target.value.trim().toUpperCase();
+														setStore((prev) => ({
+															...prev,
+															navNodes: (prev.navNodes || []).map((n) =>
+																n.id === singleSelectedNavNode.id
+																	? { ...n, portalGroupId: val }
+																	: n,
+															),
+														}));
+													}}
+													placeholder="VD: HCM_STAIR_W"
+												/>
+											</details>
 										</>
 									)}
-
-									<p className="digitizer-prop-hint">
-										Giữ chuột và kéo trực tiếp nút tròn hoặc biểu tượng thang để di chuyển (hỗ trợ Pixel Snap &amp; Undo).
-									</p>
 
 									<div className="digitizer-btn-row">
 										<button
@@ -5424,7 +5705,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									<div className="digitizer-prop-header">
 										<span className="digitizer-prop-title">
 											<Ruler size={13} />
-											Vách tường ({singleSelectedWall.id})
+											Đoạn tường
 										</span>
 									</div>
 
@@ -5447,38 +5728,14 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									</div>
 
 									<div className="digitizer-prop-row">
-										<label>Số chốt:</label>
+										<label>Số điểm:</label>
 										<span className="digitizer-prop-val">
-											{(singleSelectedWall.line || []).length} điểm
+											{(singleSelectedWall.line || []).length}
 										</span>
 									</div>
 
-									{singleSelectedWall.line?.length >= 2 && (
-										<>
-											<div className="digitizer-prop-row">
-												<label>Điểm đầu:</label>
-												<span className="digitizer-prop-val">
-													{singleSelectedWall.line[0][0].toFixed(5)},{" "}
-													{singleSelectedWall.line[0][1].toFixed(5)}
-												</span>
-											</div>
-											<div className="digitizer-prop-row">
-												<label>Điểm cuối:</label>
-												<span className="digitizer-prop-val">
-													{singleSelectedWall.line[
-														singleSelectedWall.line.length - 1
-													][0].toFixed(5)}
-													,{" "}
-													{singleSelectedWall.line[
-														singleSelectedWall.line.length - 1
-													][1].toFixed(5)}
-												</span>
-											</div>
-										</>
-									)}
-
 									<p className="digitizer-prop-hint">
-										Kéo các chốt tròn vàng cam để chỉnh đầu mút, nhấn + trên cạnh để thêm điểm gập khúc, hoặc Delete để xóa.
+										Kéo đầu mút để nối · Giữ Alt để tách · + để bẻ góc.
 									</p>
 
 									<div className="digitizer-btn-row">
@@ -5488,7 +5745,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											onClick={() => deleteWallById(singleSelectedWall.id)}
 										>
 											<Trash2 size={12} />
-											<span>Xóa vách</span>
+											<span>Xóa tường</span>
 										</button>
 										<button
 											type="button"
@@ -5508,26 +5765,26 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									<div className="digitizer-prop-header">
 										<span className="digitizer-prop-title">
 											<DoorOpen size={13} />
-											Cửa trên tường ({singleSelectedDoor.id})
+											Cửa
 										</span>
 									</div>
 
 									<div className="digitizer-field">
 										<label className="digitizer-field-label">
-											Bề rộng cửa linh hoạt (0.5m – 5.0m):
+											Bề rộng (m):
 										</label>
 										<div className="digitizer-door-width-controls">
 											<input
 												type="range"
 												min="0.5"
-												max="5.0"
+												max="10"
 												step="0.05"
 												value={Number(singleSelectedDoor.widthMeters) || 1.2}
 												onChange={(e) => {
 													const nextW = Number(
 														Math.max(
 															0.5,
-															Math.min(5.0, Number(e.target.value) || 1.2),
+															Math.min(10.0, Number(e.target.value) || 1.2),
 														).toFixed(2),
 													);
 													setStore((prev) =>
@@ -5548,14 +5805,14 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											<input
 												type="number"
 												min="0.5"
-												max="5.0"
+												max="10"
 												step="0.05"
 												value={Number(singleSelectedDoor.widthMeters) || 1.2}
 												onChange={(e) => {
 													const rawVal = Number(e.target.value);
 													if (!Number.isFinite(rawVal)) return;
 													const nextW = Number(
-														Math.max(0.5, Math.min(5.0, rawVal)).toFixed(2),
+														Math.max(0.5, Math.min(10.0, rawVal)).toFixed(2),
 													);
 													setStore((prev) =>
 														synchronizeCompatibilityGeometry({
@@ -5573,47 +5830,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 												aria-label="Nhập số bề rộng cửa (m)"
 											/>
 										</div>
-										<div
-											className="digitizer-chip-row"
-											style={{ gridTemplateColumns: "repeat(4, 1fr)", marginTop: 6 }}
-										>
-											{[0.9, 1.2, 1.8, 2.4].map((wVal) => (
-												<button
-													key={wVal}
-													type="button"
-													style={{ "--role-accent": "#e11d48" }}
-													className={`digitizer-role-btn ${Math.abs((Number(singleSelectedDoor.widthMeters) || 1.2) - wVal) < 0.03 ? "is-active" : ""}`}
-													onClick={() => {
-														setStore((prev) =>
-															synchronizeCompatibilityGeometry({
-																...prev,
-																version: 3,
-																doors: (prev.doors || []).map((d) =>
-																	d.id === singleSelectedDoor.id
-																		? { ...d, widthMeters: wVal }
-																		: d,
-																),
-															}),
-														);
-														showToast(`Đã đổi bề rộng cửa thành ${wVal}m.`);
-													}}
-												>
-													{wVal}m
-												</button>
-											))}
-										</div>
-									</div>
-
-									<div className="digitizer-prop-row">
-										<label>Trung điểm (Node A*):</label>
-										<span className="digitizer-prop-val">
-											{singleSelectedDoor.coords[0].toFixed(5)},{" "}
-											{singleSelectedDoor.coords[1].toFixed(5)}
-										</span>
 									</div>
 
 									<p className="digitizer-prop-hint">
-										Kéo 2 chốt vuông ở mép cửa trên bản đồ để co giãn độ rộng trực tiếp, hoặc dùng công cụ [N] bắt dính vào trung điểm cửa để nối dây đồ thị.
+										Kéo 2 chốt mép để chỉnh rộng · Dùng [N] nối vào tâm cửa.
 									</p>
 
 									<div className="digitizer-btn-row">
@@ -5638,28 +5858,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							)}
 
 							{/* Case D: Active Tool Specific Inspector Settings */}
-							{activeTool === "ROOM_SLICE" && (
-								<div className="digitizer-prop-card">
-									<span className="digitizer-prop-title">
-										<Scissors size={13} />
-										Cắt phòng [S]
-									</span>
-									<div className="digitizer-prop-row">
-										<span>Thao tác:</span>
-										<span className="digitizer-prop-val">2 điểm cắt</span>
-									</div>
-									<div className="digitizer-prop-row">
-										<span>Phương thức:</span>
-										<span className="digitizer-prop-val">Đường cắt 2 điểm</span>
-									</div>
-								</div>
-							)}
-
 							{activeTool === "NAV_GRAPH" && (
 								<div className="digitizer-prop-card">
 									<span className="digitizer-prop-title">
 										<Route size={13} />
-										Công cụ Node + Edge &amp; Portal
+										Vẽ đồ thị & Thang
 									</span>
 
 									<div className="digitizer-node-types-grid">
@@ -5682,33 +5885,35 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 									{(activeNodeType === "STAIRS" ||
 										activeNodeType === "ELEVATOR") && (
-										<div className="digitizer-field">
-											<label className="digitizer-field-label">
-												Trục xuyên tầng (portalGroupId):
-											</label>
-											<input
-												type="text"
-												value={portalGroupId}
-												onChange={(e) => setPortalGroupId(e.target.value)}
-												placeholder="VD: HCM_STAIR_W"
-												className="digitizer-field-input"
-											/>
-											<div className="digitizer-quick-chips">
-												{(activeBuilding.includes("Epsilon")
-													? ["EPS_THANG_TH1", "EPS_THANG_TH2", "EPS_ELEV_1"]
-													: ["HCM_STAIR_W", "HCM_STAIR_E", "HCM_ELEV_1"]
-												).map((pg) => (
-													<button
-														key={pg}
-														type="button"
-														className={`digitizer-quick-chip ${portalGroupId === pg ? "is-active" : ""}`}
-														onClick={() => setPortalGroupId(pg)}
-													>
-														{pg}
-													</button>
-												))}
+										<details className="digitizer-portal-advanced">
+											<summary>
+												Mã trục nâng cao ({portalGroupId || "Mặc định"})
+											</summary>
+											<div className="digitizer-field">
+												<input
+													type="text"
+													value={portalGroupId}
+													onChange={(e) => setPortalGroupId(e.target.value)}
+													placeholder="VD: HCM_STAIR_W"
+													className="digitizer-field-input"
+												/>
+												<div className="digitizer-quick-chips">
+													{(activeBuilding.includes("Epsilon")
+														? ["EPS_THANG_TH1", "EPS_THANG_TH2", "EPS_ELEV_1"]
+														: ["HCM_STAIR_W", "HCM_STAIR_E", "HCM_ELEV_1"]
+													).map((pg) => (
+														<button
+															key={pg}
+															type="button"
+															className={`digitizer-quick-chip ${portalGroupId === pg ? "is-active" : ""}`}
+															onClick={() => setPortalGroupId(pg)}
+														>
+															{pg}
+														</button>
+													))}
+												</div>
 											</div>
-										</div>
+										</details>
 									)}
 
 									{chainLastNodeId && (
@@ -5718,7 +5923,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											onClick={() => setChainLastNodeId(null)}
 										>
 											<X size={12} />
-											<span>Hủy chuỗi nối (Esc)</span>
+											<span>Ngắt chuỗi nối (Esc)</span>
 										</button>
 									)}
 								</div>
@@ -5728,12 +5933,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							<div className="digitizer-prop-card">
 								<span className="digitizer-prop-title">
 									<Building2 size={13} />
-									Tổng quan {currentFloorMeta.name}
+									{isAllScope
+										? "Tổng quan phạm vi"
+										: `Tổng quan ${currentFloorMeta.name}`}
 								</span>
-								<div className="digitizer-prop-row">
-									<label>Tòa nhà:</label>
-									<span className="digitizer-prop-val">{activeBuilding}</span>
-								</div>
 								<div className="digitizer-prop-row">
 									<label>Khung bao:</label>
 									<span className="digitizer-prop-val">
@@ -5741,53 +5944,49 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									</span>
 								</div>
 								<div className="digitizer-prop-row">
-									<label>Phòng / Vùng:</label>
+									<label>Phòng & Vùng:</label>
 									<span className="digitizer-prop-val">
 										{currentFloorRooms.length} phòng / {currentFloorFaces.length} vùng
 									</span>
 								</div>
 								<div className="digitizer-prop-row">
-									<label>Tường / Cửa:</label>
+									<label>Cửa:</label>
 									<span className="digitizer-prop-val">
-										{currentFloorWalls.length} tường · {currentFloorDoors.length} cửa
-									</span>
-								</div>
-								<div className="digitizer-prop-row">
-									<label>Chiều cao 3D:</label>
-									<span className="digitizer-prop-val">
-										Bao {BOUNDARY_WALL_HEIGHT}m · Vách {INTERIOR_WALL_HEIGHT}m
+										{currentFloorDoors.length}
 									</span>
 								</div>
 								<div className="digitizer-prop-row">
 									<label>Nút đồ thị:</label>
 									<span className="digitizer-prop-val">
-										{currentFloorNodes.length} nút
+										{currentFloorNodes.length}
 									</span>
 								</div>
 
-								<div
-									className="digitizer-btn-row"
-									style={{ marginTop: 6 }}
-								>
-									<button
-										type="button"
-										className="digitizer-sub-btn"
-										onClick={handleCloneRoomsToNextFloor}
-										title="Sao chép tường, vai trò vùng và cửa sang tầng kế tiếp"
+								{!isAllScope && (
+									<div
+										className="digitizer-btn-row"
+										style={{ marginTop: 6 }}
 									>
-										<Copy size={12} />
-										<span>Sao chép lên tầng trên</span>
-									</button>
-									<button
-										type="button"
-										className="digitizer-sub-btn digitizer-sub-btn--danger"
-										onClick={handleClearCurrentFloorRooms}
-										title="Xóa toàn bộ tường, vùng và cửa tầng hiện tại"
-									>
-										<Trash2 size={12} />
-										<span>Xóa sạch tầng</span>
-									</button>
-								</div>
+										<button
+											type="button"
+											className="digitizer-sub-btn"
+											onClick={handleCloneRoomsToNextFloor}
+											title="Sao chép tường, vai trò vùng và cửa sang tầng kế tiếp"
+										>
+											<Copy size={12} />
+											<span>Sao chép lên tầng trên</span>
+										</button>
+										<button
+											type="button"
+											className="digitizer-sub-btn digitizer-sub-btn--danger"
+											onClick={handleClearCurrentFloorRooms}
+											title="Xóa toàn bộ tường, vùng và cửa tầng hiện tại"
+										>
+											<Trash2 size={12} />
+											<span>Xóa sạch tầng</span>
+										</button>
+									</div>
+								)}
 							</div>
 						</div>
 					)}
@@ -5799,7 +5998,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							<div className="digitizer-prop-card">
 								<span className="digitizer-prop-title">
 									<Layers size={13} />
-									Quản lý lớp hiển thị & Khóa
+									Lớp bản đồ
 								</span>
 
 								{/* PNG Blueprint */}
@@ -5849,7 +6048,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										style={{ padding: "0 4px" }}
 									>
 										<div className="digitizer-prop-row">
-											<label>Độ rõ nét:</label>
+											<label>Độ mờ PNG:</label>
 											<span className="digitizer-prop-val">
 												{Math.round(pngOpacity * 100)}%
 											</span>
@@ -5871,10 +6070,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								)}
 
 								{[
-									{ key: "walls", label: "Mạng tường (2D/3D)" },
-									{ key: "faces", label: "Vùng & Phòng (Faces)" },
-									{ key: "doors", label: "Cửa trên tường (Doors)" },
-									{ key: "navGraph", label: "Đồ thị đường" },
+									{ key: "walls", label: "Tường" },
+									{ key: "faces", label: "Vùng phòng" },
+									{ key: "doors", label: "Cửa" },
+									{ key: "navGraph", label: "Đồ thị" },
 								].map(({ key, label }) => (
 									<div key={key} className="digitizer-layer-row">
 										<span>{label}</span>
@@ -5921,7 +6120,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							{/* Scene Tree: Extracted Planar Faces List with Multi-Select */}
 							<div className="digitizer-tree-group">
 								<div className="digitizer-tree-header">
-									<span>Vùng khép kín ({currentFloorFaces.length})</span>
+									<span>Phòng & Vùng ({currentFloorFaces.length})</span>
 									<div className="digitizer-tree-header-actions">
 										<button
 											type="button"
@@ -5929,7 +6128,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											onClick={() =>
 												setSelectedRoomIds(currentFloorRooms.map((r) => r.id))
 											}
-											title="Chọn tất cả vùng Phòng trên tầng này"
+											title="Chọn tất cả vùng Phòng"
 										>
 											Chọn Phòng
 										</button>
@@ -5949,7 +6148,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								<div className="digitizer-tree-list">
 									{currentFloorFaces.length === 0 ? (
 										<span className="digitizer-tree-empty">
-											Chưa có vùng khép kín nào (vẽ tường khép vòng [W] hoặc [B]/[P])
+											Chưa có vùng nào (vẽ [B], [P] hoặc [W])
 										</span>
 									) : (
 										currentFloorFaces.map((fc, idx) => {
@@ -5964,7 +6163,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 												fc.role === "ROOM"
 													? "Phòng"
 													: fc.role === "VOID"
-														? "Void"
+														? "Giếng trời"
 														: "Hành lang";
 											return (
 												<div
@@ -6088,141 +6287,72 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								</div>
 							</div>
 
-							{/* Scene Tree: Unified Wall Graph Polylines */}
-							<div className="digitizer-tree-group">
-								<div className="digitizer-tree-header">
-									<span>Mạng tường</span>
-									<span className="digitizer-inspector-badge">
-										{currentFloorWalls.length}
-									</span>
-								</div>
+							{/* Scene Tree: Vertical Portals Only (Cầu thang & Thang máy) */}
+							{(() => {
+								const portalNodes = currentFloorNodes.filter(isPortalNode);
+								return (
+									<div className="digitizer-tree-group">
+										<div className="digitizer-tree-header">
+											<span>Cầu thang & Thang máy</span>
+											<span className="digitizer-inspector-badge">
+												{portalNodes.length}
+											</span>
+										</div>
 
-								<div className="digitizer-tree-list">
-									{currentFloorWalls.length === 0 ? (
-										<span className="digitizer-tree-empty">
-											Chưa có đoạn tường nào
-										</span>
-									) : (
-										currentFloorWalls.map((w, idx) => {
-											const isSelected = selectedWallId === w.id;
-											const line = w.line || [];
-											let lenMeters = 0;
-											for (let i = 0; i < line.length - 1; i++) {
-												lenMeters += approximateDistanceMeters(
-													line[i],
-													line[i + 1],
-												);
-											}
-											return (
-												<div
-													key={w.id}
-													className={`digitizer-tree-item-btn ${isSelected ? "is-selected" : ""}`}
-												>
-													<button
-														type="button"
-														className="digitizer-tree-item-select"
-														onClick={() => {
-															selectEntity("WALL", w.id);
-															setActiveTool("SELECT");
-															setActiveInspectorTab("inspector");
-														}}
-													>
-														<Ruler
-															size={12}
-															color={isSelected ? "#f59e0b" : "#cbd5e1"}
-														/>
-														<span className="digitizer-tree-item-title">
-															Tường #{idx + 1} ({lenMeters.toFixed(1)} m)
-														</span>
-													</button>
-													<button
-														type="button"
-														className="digitizer-tree-delete-btn"
-														onClick={() => deleteWallById(w.id)}
-														title="Xóa đoạn tường này"
-														aria-label={`Xóa tường ${idx + 1}`}
-													>
-														<Trash2 size={12} />
-													</button>
-												</div>
-											);
-										})
-									)}
-								</div>
-							</div>
-
-							{/* Scene Tree: Nav Nodes List */}
-							<div className="digitizer-tree-group">
-								<div className="digitizer-tree-header">
-									<span>Nút đồ thị</span>
-									<span className="digitizer-inspector-badge">
-										{currentFloorNodes.length}
-									</span>
-								</div>
-
-								<div className="digitizer-tree-list">
-									{currentFloorNodes.length === 0 ? (
-										<span className="digitizer-tree-empty">
-											Chưa có nút nào
-										</span>
-									) : (
-										currentFloorNodes.slice(0, 15).map((nd) => {
-											const outdoor = isNodeOutdoor(
-												store.buildingBoundaries,
-												nd,
-											);
-											const typeMeta = outdoor
-												? NODE_DISPLAY_META.OUTDOOR
-												: NODE_DISPLAY_META[nd.type] || {
+										<div className="digitizer-tree-list">
+											{portalNodes.length === 0 ? (
+												<span className="digitizer-tree-empty">
+													Chưa có cầu thang / thang máy
+												</span>
+											) : (
+												portalNodes.map((nd) => {
+													const typeMeta = NODE_DISPLAY_META[nd.type] || {
 														label: nd.type,
-														color: "#94a3b8",
+														color: "#a855f7",
 													};
-											const isSelected = selectedNavNodeId === nd.id;
-											return (
-												<div
-													key={nd.id}
-													className={`digitizer-tree-item-btn ${isSelected ? "is-selected" : ""}`}
-												>
-													<button
-														type="button"
-														className="digitizer-tree-item-select"
-														onClick={() => {
-															selectEntity("NODE", nd.id);
-															setActiveTool("SELECT");
-															setActiveInspectorTab("inspector");
-														}}
-													>
-														<span
-															className="digitizer-node-dot"
-															style={{
-																background: typeMeta.color,
-															}}
-														/>
-														<span className="digitizer-tree-item-title">
-															{typeMeta.label}{" "}
-															{nd.portalGroupId ? `(${nd.portalGroupId})` : ""}
-														</span>
-													</button>
-													<button
-														type="button"
-														className="digitizer-tree-delete-btn"
-														onClick={() => deleteNavNodeById(nd.id)}
-														title="Xóa nút này"
-														aria-label={`Xóa nút ${typeMeta.label}`}
-													>
-														<Trash2 size={12} />
-													</button>
-												</div>
-											);
-										})
-									)}
-									{currentFloorNodes.length > 15 && (
-										<span className="digitizer-tree-empty">
-											+ {currentFloorNodes.length - 15} nút khác
-										</span>
-									)}
-								</div>
-							</div>
+													const isSelected = selectedNavNodeId === nd.id;
+													return (
+														<div
+															key={nd.id}
+															className={`digitizer-tree-item-btn ${isSelected ? "is-selected" : ""}`}
+														>
+															<button
+																type="button"
+																className="digitizer-tree-item-select"
+																onClick={() => {
+																	selectEntity("NODE", nd.id);
+																	setActiveTool("SELECT");
+																	setActiveInspectorTab("inspector");
+																}}
+															>
+																<span
+																	className="digitizer-node-dot"
+																	style={{
+																		background: typeMeta.color,
+																	}}
+																/>
+																<span className="digitizer-tree-item-title">
+																	{typeMeta.label}{" "}
+																	{nd.portalGroupId ? `(${nd.portalGroupId})` : ""}
+																</span>
+															</button>
+															<button
+																type="button"
+																className="digitizer-tree-delete-btn"
+																onClick={() => deleteNavNodeById(nd.id)}
+																title="Xóa điểm này"
+																aria-label={`Xóa ${typeMeta.label}`}
+															>
+																<Trash2 size={12} />
+															</button>
+														</div>
+													);
+												})
+											)}
+										</div>
+									</div>
+								);
+							})()}
 						</div>
 					)}
 
@@ -6474,7 +6604,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 							<div className="digitizer-shortcut-row">
 								<span className="digitizer-shortcut-desc">
-									Tắt bắt dính (Snap)
+									Tắt bắt dính tạm thời
 								</span>
 								<div>
 									Giữ phím <kbd className="digitizer-hud__kbd">Alt</kbd>
@@ -6492,7 +6622,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 							<div className="digitizer-shortcut-row">
 								<span className="digitizer-shortcut-desc">
-									Chọn nhiều (Multi-Select)
+									Chọn nhiều vùng cùng lúc
 								</span>
 								<div>
 									Giữ <kbd className="digitizer-hud__kbd">Shift</kbd> /{" "}

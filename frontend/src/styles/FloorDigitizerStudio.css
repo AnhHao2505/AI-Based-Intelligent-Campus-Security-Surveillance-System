@@ -757,6 +757,29 @@
   color: #ffffff;
 }
 
+.digitizer-portal-advanced {
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  padding-top: 6px;
+}
+
+.digitizer-portal-advanced > summary {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dig-text-muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.digitizer-portal-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.digitizer-portal-advanced[open] > summary {
+  color: var(--dig-text-main);
+  margin-bottom: 6px;
+}
+
 /* Sub Button Rows */
 .digitizer-btn-row {
   display: grid;

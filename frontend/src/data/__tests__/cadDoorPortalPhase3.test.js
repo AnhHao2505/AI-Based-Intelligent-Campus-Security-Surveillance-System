@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+	buildFloorWallGraphModels,
 	buildOrientedDoorGeometry,
+	buildVector3dLayers,
 	computeDigitizedRoute,
 	createDefaultGeometryStore,
 	deduplicateFloorVertices,
 	dragWeldedWallVertices,
+	isNodeOutdoor,
+	isNodeVisibleOnFloor,
 	isPointIndoorOnFloor,
 	mergeOrSplitNavNodeOnDrop,
 	syncPortalAcrossBuildingFloors,
@@ -173,7 +177,34 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 			assert.ok(Math.abs(geom.jambB[1] - geom.jambA[1]) > 0.000005);
 		});
 
-		it("Boundary / Clamp: clamps excessive door width to host wall segment length and bounds minimum width to >= 0.5m", () => {
+		it("Boundary / Clamp: supports 0.5m–10.0m flexible door width on wide walls while clamping oversized or undersized values", () => {
+			const longWall = [
+				{
+					id: "seg-long",
+					a: [106.8098, 10.8411],
+					b: [106.80995, 10.8411], // ~16.4m wall
+					isPerimeter: true,
+					building: "Tòa HCM",
+					floorOrder: 0,
+				},
+			];
+			const wideDoorOk = {
+				id: "door-8_5",
+				building: "Tòa HCM",
+				floorOrder: 0,
+				coords: [106.809875, 10.8411],
+				widthMeters: 8.5,
+			};
+			const geomWideOk = buildOrientedDoorGeometry(wideDoorOk, longWall);
+			assert.ok(Math.abs(geomWideOk.widthMeters - 8.5) < 0.05);
+
+			const hugeDoor = {
+				...wideDoorOk,
+				widthMeters: 14.0,
+			};
+			const geomClamped10 = buildOrientedDoorGeometry(hugeDoor, longWall);
+			assert.equal(geomClamped10.widthMeters, 10);
+
 			const wallSegments = [
 				{
 					id: "seg-short",
@@ -184,22 +215,66 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 					floorOrder: 0,
 				},
 			];
-			const wideDoor = {
-				id: "door-wide",
+			const shortWallDoor = {
+				id: "door-short-clamp",
 				building: "Tòa HCM",
 				floorOrder: 0,
 				coords: [106.80981, 10.8411],
 				widthMeters: 9.0,
 			};
-			const geomWide = buildOrientedDoorGeometry(wideDoor, wallSegments);
+			const geomWide = buildOrientedDoorGeometry(shortWallDoor, wallSegments);
 			assert.ok(geomWide.widthMeters <= 2.2);
 
 			const tinyDoor = {
-				...wideDoor,
+				...shortWallDoor,
 				widthMeters: 0.1,
 			};
 			const geomTiny = buildOrientedDoorGeometry(tinyDoor, wallSegments);
 			assert.ok(geomTiny.widthMeters >= 0.5);
+		});
+
+		it("3D Architectural Consistency: renders upper door lintel with the exact same color as the lower door threshold", () => {
+			const customStore = {
+				version: 3,
+				walls: [
+					{
+						id: "w-rect",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						line: [
+							[106.8098, 10.8411],
+							[106.80995, 10.8411],
+							[106.80995, 10.8412],
+							[106.8098, 10.8412],
+							[106.8098, 10.8411],
+						],
+					},
+				],
+				faceAssignments: [],
+				doors: [
+					{
+						id: "door-perim",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.809875, 10.8411],
+						widthMeters: 2.0,
+					},
+				],
+				navNodes: [],
+				navEdges: [],
+			};
+			const layers = buildVector3dLayers({
+				store: customStore,
+				selectedBuilding: "Tòa HCM",
+				activeFloorOrder: 0,
+				viewRole: "STUDIO",
+			});
+			const wallFeats = layers.wallsGeoJSON.features || [];
+			const sill = wallFeats.find((f) => f.properties.wallKind === "DOOR_THRESHOLD");
+			const lintel = wallFeats.find((f) => f.properties.wallKind === "DOOR_LINTEL");
+			assert.ok(sill);
+			assert.ok(lintel);
+			assert.equal(lintel.properties.color, sill.properties.color);
 		});
 
 		it("Exception / Fallback: returns a valid horizontal door box even when no wallSegments are nearby", () => {
@@ -383,6 +458,332 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 			assert.equal(res, null);
 			assert.equal(diag.reasonCode, "DISCONNECTED_GRAPH");
 			assert.ok(diag.message.includes("cụm đồ thị"));
+		});
+	});
+
+	describe("5. Regression Fixes: Exterior Wall Crossing, Courtyard VOID Isolation, Same-Room Routing & ALL Filter", () => {
+		const outerSquareWalls = (building) => [
+			{
+				id: "w-outer",
+				building,
+				floorOrder: 0,
+				line: [
+					[106.809, 10.841],
+					[106.81, 10.841],
+					[106.81, 10.842],
+					[106.809, 10.842],
+					[106.809, 10.841],
+				],
+			},
+			{
+				id: "w-void",
+				building,
+				floorOrder: 0,
+				line: [
+					[106.8094, 10.8414],
+					[106.8096, 10.8414],
+					[106.8096, 10.8416],
+					[106.8094, 10.8416],
+					[106.8094, 10.8414],
+				],
+			},
+		];
+
+		it("Bug 1a: classifies Floor-0 node inside a VOID courtyard face as Outdoor when precomputedModels is supplied", () => {
+			const store = {
+				version: 3,
+				buildingBoundaries: [
+					{
+						id: "bnd-hcm-0",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						ring: [
+							[106.809, 10.841],
+							[106.81, 10.841],
+							[106.81, 10.842],
+							[106.809, 10.842],
+							[106.809, 10.841],
+						],
+					},
+				],
+				walls: outerSquareWalls("Tòa HCM"),
+				faceAssignments: [
+					{
+						id: "fa-void",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						seedCoord: [106.8095, 10.8415],
+						role: "VOID",
+					},
+				],
+				doors: [],
+				navNodes: [],
+				navEdges: [],
+			};
+			const models = buildFloorWallGraphModels(store);
+			const courtyardNode = {
+				id: "court-1",
+				type: "OUTDOOR",
+				building: "OUTDOOR",
+				floorOrder: 0,
+				coords: [106.8095, 10.8415],
+			};
+			const corridorNode = {
+				id: "cor-1",
+				type: "NODE",
+				building: "Tòa HCM",
+				floorOrder: 0,
+				coords: [106.8092, 10.8412],
+			};
+
+			assert.equal(
+				isNodeOutdoor(store.buildingBoundaries, courtyardNode, models),
+				true,
+			);
+			assert.equal(
+				isNodeOutdoor(store.buildingBoundaries, corridorNode, models),
+				false,
+			);
+		});
+
+		it("Bug 1b: starting OUTDOOR outside building enters strictly via outer perimeter DOOR even when indoor STAIRS is closer and courtyard VOID nodes exist", () => {
+			const store = {
+				version: 3,
+				buildingBoundaries: [
+					{
+						id: "bnd-hcm-0",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						ring: [
+							[106.809, 10.841],
+							[106.81, 10.841],
+							[106.81, 10.842],
+							[106.809, 10.842],
+							[106.809, 10.841],
+						],
+					},
+				],
+				walls: outerSquareWalls("Tòa HCM"),
+				faceAssignments: [
+					{
+						id: "fa-void",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						seedCoord: [106.8095, 10.8415],
+						role: "VOID",
+					},
+					{
+						id: "fa-cor",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						seedCoord: [106.8092, 10.8412],
+						role: "CORRIDOR",
+					},
+				],
+				// Outer perimeter DOOR on the EAST wall ([106.81, 10.8415])
+				doors: [
+					{
+						id: "door-east-gate",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.81, 10.8415],
+						widthMeters: 2.0,
+					},
+				],
+				// ZERO external sidewalk nodes; SW indoor STAIRS sits close to SW street click
+				navNodes: [
+					{
+						id: "n-stair-sw",
+						type: "STAIRS",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.80908, 10.84108],
+					},
+					{
+						id: "n-cor-east",
+						type: "NODE",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.80985, 10.8415],
+					},
+					{
+						id: "n-courtyard-void",
+						type: "OUTDOOR",
+						building: "OUTDOOR",
+						floorOrder: 0,
+						coords: [106.8095, 10.8415],
+					},
+				],
+				navEdges: [
+					["n-stair-sw", "n-cor-east"],
+					["n-courtyard-void", "n-cor-east"],
+				],
+			};
+
+			// Click outside SW wall (much closer to n-stair-sw than to door-east-gate!)
+			const route = computeDigitizedRoute({
+				store,
+				startCoords: [106.8089, 10.8409],
+				startBuilding: "OUTDOOR",
+				startFloorOrder: 0,
+				endCoords: [106.80985, 10.8415],
+				endBuilding: "Tòa HCM",
+				endFloorOrder: 0,
+			});
+
+			assert.ok(route, "Expected route to enter via outer perimeter DOOR");
+			assert.equal(route.pathNodes[0].id, "__door_door-east-gate__");
+			assert.ok(
+				!route.pathNodes.some((n) => n.id === "n-stair-sw"),
+				"Must NEVER jump across solid outer wall onto indoor STAIRS",
+			);
+			assert.ok(
+				!route.pathNodes.some((n) => n.id === "n-courtyard-void"),
+				"Must NEVER jump from outside street over roof into central VOID courtyard",
+			);
+		});
+
+		it("Bug 1c: starting OUTDOOR outside building with zero exterior nodes and zero outer doors fails cleanly with MISSING_ENTRANCE_LINK", () => {
+			const store = {
+				version: 3,
+				buildingBoundaries: [
+					{
+						id: "bnd-hcm-0",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						ring: [
+							[106.809, 10.841],
+							[106.81, 10.841],
+							[106.81, 10.842],
+							[106.809, 10.842],
+							[106.809, 10.841],
+						],
+					},
+				],
+				walls: outerSquareWalls("Tòa HCM"),
+				faceAssignments: [],
+				doors: [],
+				navNodes: [
+					{
+						id: "n-stair-only",
+						type: "STAIRS",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8091, 10.8411],
+					},
+				],
+				navEdges: [],
+			};
+			const diag = {};
+			const res = computeDigitizedRoute({
+				store,
+				startCoords: [106.8088, 10.8408],
+				startBuilding: "OUTDOOR",
+				startFloorOrder: 0,
+				endCoords: [106.8091, 10.8411],
+				endBuilding: "Tòa HCM",
+				endFloorOrder: 0,
+				diagnosticsOut: diag,
+			});
+			assert.equal(res, null);
+			assert.equal(diag.reasonCode, "MISSING_ENTRANCE_LINK");
+		});
+
+		it("Bug 2: both start & end inside the exact same ROOM route directly inside the room without bouncing out to perimeter DOOR", () => {
+			const store = {
+				version: 3,
+				buildingBoundaries: [
+					{
+						id: "bnd-lib",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						ring: [
+							[106.809, 10.841],
+							[106.81, 10.841],
+							[106.81, 10.842],
+							[106.809, 10.842],
+							[106.809, 10.841],
+						],
+					},
+				],
+				walls: [
+					{
+						id: "w-lib",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						line: [
+							[106.8092, 10.8412],
+							[106.8096, 10.8412],
+							[106.8096, 10.8416],
+							[106.8092, 10.8416],
+							[106.8092, 10.8412],
+						],
+					},
+				],
+				faceAssignments: [
+					{
+						id: "fa-lib",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						seedCoord: [106.8094, 10.8414],
+						role: "ROOM",
+						label: "Thư Viện",
+					},
+				],
+				doors: [
+					{
+						id: "door-lib-bottom",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8094, 10.8412],
+						widthMeters: 1.5,
+					},
+				],
+				navNodes: [
+					{
+						id: "cor-outside-lib",
+						type: "NODE",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8094, 10.8411],
+					},
+				],
+				navEdges: [],
+			};
+
+			// Two points near the top half of Thư Viện (~11m apart), far from bottom door
+			const route = computeDigitizedRoute({
+				store,
+				startCoords: [106.8093, 10.8415],
+				startBuilding: "Tòa HCM",
+				startFloorOrder: 0,
+				endCoords: [106.8094, 10.84155],
+				endBuilding: "Tòa HCM",
+				endFloorOrder: 0,
+			});
+
+			assert.ok(route, "Expected direct intra-room route");
+			assert.ok(
+				!route.pathNodes.some((n) => n.id === "__door_door-lib-bottom__"),
+				"Must NOT bounce out to bottom room door when start & end are inside the same room",
+			);
+			assert.ok(
+				route.totalDistanceMeters <= 16,
+				`Expected short intra-room walk (~12m), got ${route.totalDistanceMeters}m`,
+			);
+		});
+
+		it("Scope Filter: isNodeVisibleOnFloor supports activeBuilding='ALL' and activeFloorOrder='ALL'", () => {
+			const boundaries = [];
+			const nHcm0 = { id: "a", building: "Tòa HCM", floorOrder: 0, type: "NODE", coords: [106.8095, 10.8415] };
+			const nEps2 = { id: "b", building: "Tòa Epsilon", floorOrder: 2, type: "STAIRS", coords: [106.8114, 10.8405] };
+
+			assert.equal(isNodeVisibleOnFloor(boundaries, nHcm0, "ALL", "ALL"), true);
+			assert.equal(isNodeVisibleOnFloor(boundaries, nEps2, "ALL", "ALL"), true);
+			assert.equal(isNodeVisibleOnFloor(boundaries, nEps2, "Tòa HCM", "ALL"), false);
+			assert.equal(isNodeVisibleOnFloor(boundaries, nEps2, "Tòa Epsilon", "ALL"), true);
+			assert.equal(isNodeVisibleOnFloor(boundaries, nEps2, "ALL", 0), false);
+			assert.equal(isNodeVisibleOnFloor(boundaries, nEps2, "ALL", 2), true);
 		});
 	});
 });
