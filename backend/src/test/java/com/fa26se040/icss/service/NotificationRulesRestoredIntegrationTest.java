@@ -43,8 +43,7 @@ class NotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     @AfterEach
     void restoreState() {
         systemConfigService.update(ConfigKey.EVENT_MODE_EXPIRY_REMINDER_MINUTES.name(), "30", admin.getEmail());
-        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "48", admin.getEmail());
-        // Đóng sự kiện của test: khu vực còn mở sẽ bị tính là "vi phạm" khi test khác hạ ngân sách
+        // Đóng sự kiện của test: không để phiên mở sót lại trên DB test dùng chung
         OffsetDateTime now = OffsetDateTime.now();
         for (Area a : List.of(internalArea, contactArea)) {
             Area fresh = reload(a);
@@ -190,70 +189,5 @@ class NotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
                 "0 thông báo khi khu vực không đang mở sự kiện");
     }
 
-    /**
-     * BR-EV-29: hạ BUDGET_HOURS khi có khu vực đang mở vượt ngân sách mới -> mọi FM đang hoạt động nhận 1
-     * EVENT_MODE_LIMIT_CHANGED kèm danh sách; hạ khi không vi phạm -> không gửi.
-     * Nguồn: Step5aSupplement2Test#testT21_BudgetReductionViolatingLimitNotification.
-     */
-    @Test
-    @DisplayName("BR-EV-29: hạ BUDGET_HOURS khi khu vực đang mở vượt ngân sách mới -> FM nhận 1 EVENT_MODE_LIMIT_CHANGED nêu tên khu vực; không vi phạm -> 0")
-    void brEv29_budgetReductionNotifiesFm() {
-        OffsetDateTime now = OffsetDateTime.now();
-
-        // Như bản gốc: tắt các khu vực đang mở khác trên DB test để bước "không vi phạm" đo đúng
-        for (Area a : areaRepository.findByOpenToMembersTrueAndOpenUntilAfterAndDeletedAtIsNull(now)) {
-            a.setOpenToMembers(false);
-            a.setOpenUntil(null);
-            areaRepository.save(a);
-        }
-
-        // Chuỗi phiên 40h trong 7 ngày cho internalArea
-        sessionRepository.save(AreaEventSession.builder()
-                .area(internalArea)
-                .startedAt(now.minusDays(4))
-                .plannedEnd(now.minusDays(4).plusHours(20))
-                .actualEnd(now.minusDays(4).plusHours(20))
-                .startedBy(fm)
-                .endedBy(fm)
-                .build());
-        sessionRepository.save(AreaEventSession.builder()
-                .area(internalArea)
-                .startedAt(now.minusDays(2))
-                .plannedEnd(now.minusDays(2).plusHours(20))
-                .actualEnd(now.minusDays(2).plusHours(20))
-                .startedBy(fm)
-                .endedBy(fm)
-                .build());
-
-        // Bật thêm 4h (qua lịch + job kích hoạt, X-01a) -> tổng 44h <= 48h
-        openEventViaSchedule(internalArea, now, now.plusHours(4));
-
-        assertEquals(0, notificationsOf(fm, NotificationType.EVENT_MODE_LIMIT_CHANGED).size());
-
-        // Hạ BUDGET_HOURS còn 30 (44h > 30h) -> FM nhận 1 thông báo nêu tên khu vực
-        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "30", admin.getEmail());
-
-        List<Notification> limitNotifs = notificationsOf(fm, NotificationType.EVENT_MODE_LIMIT_CHANGED);
-        assertEquals(1, limitNotifs.size(), "Mỗi FM đang hoạt động nhận đúng 1 thông báo");
-        assertTrue(limitNotifs.get(0).getMessage().contains(internalArea.getName()), limitNotifs.get(0).getMessage());
-        assertEquals(1, notificationsOf(fm2, NotificationType.EVENT_MODE_LIMIT_CHANGED).size(), "FM khác cũng nhận");
-
-        // Khôi phục BUDGET_HOURS = 48 rồi tắt sự kiện
-        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "48", admin.getEmail());
-        areaService.updateEventMode(internalArea.getId(),
-                eventReq(internalArea, EventModeAction.DISABLE, null, "ENDED_EARLY", "Tat de khong con vi pham"),
-                fm.getEmail());
-
-        // Tiền điều kiện của bước "không vi phạm": DB test dùng chung không còn khu vực nào vi phạm ngân sách 30h.
-        // Nếu còn (vd lịch sự kiện SCHEDULED của test khác, BR-ES-07), bước dưới không đo được -> fail kèm tên khu vực.
-        List<String> stillViolating = areaService.findAreasViolatingNewEventLimits(
-                areaService.getEventModeMaxHours(), areaService.getEventModeWindowDays(), 30)
-                .stream().map(Area::getName).toList();
-        assertTrue(stillViolating.isEmpty(), "Dữ liệu DB test còn khu vực vi phạm ngân sách 30h: " + stillViolating);
-
-        long before = notificationsOf(fm, NotificationType.EVENT_MODE_LIMIT_CHANGED).size();
-        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "30", admin.getEmail());
-        assertEquals(before, notificationsOf(fm, NotificationType.EVENT_MODE_LIMIT_CHANGED).size(),
-                "Hạ ngân sách khi không có khu vực vi phạm -> không gửi thông báo");
-    }
+    // V115 (EV-N1): BR-EV-29 (hạ BUDGET_HOURS -> FM nhận EVENT_MODE_LIMIT_CHANGED) đã bỏ cùng ngân sách giờ; test brEv29 xoá.
 }

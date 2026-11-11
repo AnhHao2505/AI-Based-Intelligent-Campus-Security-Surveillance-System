@@ -61,6 +61,12 @@
   flex: 1;
 }
 
+/* EV-N8: danh sách lịch / sự kiện bị cắt, huỷ khi đổi giờ ban đêm */
+.syscfg-adjust-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
 /* Loading State */
 .syscfg-loading,
 .syscfg-modal-loading {

@@ -11,6 +11,7 @@ public enum NotificationType {
     NEW_REQUEST_PENDING,
     REQUEST_CANCELLED,
     PENDING_OVERDUE,
+    // V115 (EV-N1): không còn gửi (bỏ trần giờ / ngân sách); giữ giá trị vì dữ liệu cũ và CHECK constraint đang dùng
     EVENT_MODE_LIMIT_CHANGED,
     EVENT_MODE_CHANGED,
     EVENT_MODE_EXPIRING,
