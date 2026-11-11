@@ -248,6 +248,8 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     /**
      * Step 5b (BR-TC-08, BR-TC-14): hệ thống huỷ đơn khi đổi loại khu vực — conditional UPDATE nguyên tử.
      * Không clear persistence context: transaction đổi loại còn giữ entity Area đã khoá.
+     * T1b: chỉ huỷ đơn còn HIỆU LỰC tại :now (PENDING có startTime &gt; now, APPROVED có endTime &gt; now), cùng điều kiện với
+     * findNotEnded...WithParticipants; đơn vừa hết hiệu lực giữa lúc chọn và lúc ghi -> 0 dòng, để job EXPIRE / FINISH xử lý.
      */
     @Modifying(clearAutomatically = false, flushAutomatically = true)
     @Query("UPDATE AccessRequest r " +
@@ -256,7 +258,8 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
            "    r.cancelSource = :source, " +
            "    r.cancelledBy = NULL, " +
            "    r.cancelReason = :reason " +
-           "WHERE r.id = :id AND r.status = :expectedStatus")
+           "WHERE r.id = :id AND r.status = :expectedStatus AND r.endTime > :now " +
+           "AND (r.status <> com.fa26se040.icss.enums.RequestStatus.PENDING OR r.startTime > :now)")
     int cancelBySystemIfStatus(
             @Param("id") UUID id,
             @Param("expectedStatus") RequestStatus expectedStatus,
@@ -269,12 +272,15 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     /**
      * Step 5b (BR-TC-03, BR-TC-08): đơn còn hiệu lực của khu vực (status trong :statuses, chưa kết thúc),
      * kèm người gửi và thành viên để đánh giá quy tắc của loại mới.
+     * T1b: chỉ đơn còn HIỆU LỰC (PENDING có startTime &gt; now; APPROVED có endTime &gt; now). Dùng chung cho xem trước và
+     * thực hiện đổi loại / vô hiệu hoá khu vực nên số xem trước = số bị xử lý thật.
      */
     @Query("SELECT DISTINCT r FROM AccessRequest r " +
            "JOIN FETCH r.requester " +
            "LEFT JOIN FETCH r.members m " +
            "LEFT JOIN FETCH m.user " +
            "WHERE r.area.id = :areaId AND r.status IN :statuses AND r.endTime > :now " +
+           "AND (r.status <> com.fa26se040.icss.enums.RequestStatus.PENDING OR r.startTime > :now) " +
            "ORDER BY r.startTime ASC")
     List<AccessRequest> findNotEndedByAreaWithParticipants(
             @Param("areaId") UUID areaId,
@@ -285,6 +291,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
     /**
      * BR-RQ-SP-05: đơn chưa kết thúc (status thuộc :statuses, end_time > :now) mà :requesterId là NGƯỜI TẠO,
      * kèm khu vực và thành viên để ghi audit / gửi thông báo khi hệ thống huỷ.
+     * T1b: chỉ đơn còn HIỆU LỰC (PENDING có startTime &gt; now; APPROVED có endTime &gt; now); đơn đã hết hiệu lực để job xử lý.
      */
     @Query("SELECT DISTINCT r FROM AccessRequest r " +
            "JOIN FETCH r.requester " +
@@ -292,6 +299,7 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
            "LEFT JOIN FETCH r.members m " +
            "LEFT JOIN FETCH m.user " +
            "WHERE r.requester.id = :requesterId AND r.status IN :statuses AND r.endTime > :now " +
+           "AND (r.status <> com.fa26se040.icss.enums.RequestStatus.PENDING OR r.startTime > :now) " +
            "ORDER BY r.startTime ASC")
     List<AccessRequest> findNotEndedByRequesterWithParticipants(
             @Param("requesterId") UUID requesterId,
