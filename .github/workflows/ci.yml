@@ -127,7 +127,7 @@ jobs:
           pip install -r requirements.txt pytest
 
       - name: Run tests
-        # requires_model: test dựng VideoPipeline thật -> nạp yolo26n.pt (bị .gitignore, CI không có).
+        # requires_model: test nạp model thật yolo26n.pt / w600k_r50.onnx (bị .gitignore, CI không có).
         # Lý do + danh sách: ai-service/tests/conftest.py.
         run: python -m pytest tests -m "not requires_model" -p no:cacheprovider -q -rfE
 

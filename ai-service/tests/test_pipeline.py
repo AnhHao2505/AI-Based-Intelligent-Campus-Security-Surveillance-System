@@ -6,14 +6,14 @@ Script kiểm thử độc lập cho AI Service:
 - Kiểm tra cơ chế Xâm nhập khu vực cấm ROI & Loitering
 - Hỗ trợ in Terminal Log chi tiết (Timestamp, Track ID, Trạng thái Face, Vùng ROI, Cảnh báo)
 
-Cách chạy:
+Cách chạy (từ thư mục ai-service; pytest không thu thập test nào từ file này):
 1. Chế độ Test Tự Động (Synthetic / Mock frames - Không cần camera phần cứng):
-   python test_pipeline.py --mode auto
+   python tests/test_pipeline.py --mode auto
 
 2. Chế độ Test Trực Tiếp qua Webcam máy tính / Camera điện thoại:
-   python test_pipeline.py --mode webcam
-   python test_pipeline.py --mode webcam --source 0
-   python test_pipeline.py --mode webcam --source "http://192.168.1.10:8080/video"
+   python tests/test_pipeline.py --mode webcam
+   python tests/test_pipeline.py --mode webcam --source 0
+   python tests/test_pipeline.py --mode webcam --source "http://192.168.1.10:8080/video"
 """
 
 import sys
@@ -27,10 +27,9 @@ import numpy as np
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.utils.logger import setup_ai_logging
-setup_ai_logging()
 from src.core.entity import Point, BoundingBox, FaceDetectionResult
 from src.pipeline.video_pipeline import VideoPipeline
 
@@ -275,7 +274,7 @@ def list_available_cameras():
             if ret and frame is not None:
                 h, w, _ = frame.shape
                 print(f" [✓] Camera Index #{idx}: Đang sẵn sàng hoạt động (Độ phân giải: {w}x{h} px)")
-                print(f"     -> Lệnh chạy với camera này: python test_pipeline.py --mode webcam --source {idx}\n")
+                print(f"     -> Lệnh chạy với camera này: python tests/test_pipeline.py --mode webcam --source {idx}\n")
                 found = True
             cap.release()
     if not found:
@@ -283,6 +282,7 @@ def list_available_cameras():
     print("=" * 70)
 
 if __name__ == "__main__":
+    setup_ai_logging()
     parser = argparse.ArgumentParser(description="Test AI & Camera Pipeline")
     parser.add_argument("--mode", choices=["auto", "webcam"], default="auto", help="Chế độ test (auto hoặc webcam)")
     parser.add_argument("--source", default=None, help="Nguồn camera: Index số (0, 1, 2) hoặc URL RTSP/HTTP (DroidCam, IP Cam) hoặc file video")
