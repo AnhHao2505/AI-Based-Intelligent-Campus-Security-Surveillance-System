@@ -194,12 +194,12 @@ Khi mạng Internet trường học bị rớt hoặc Mosquitto Broker trên Clo
 ```properties
 # --- Mosquitto Authentication (Tự sinh bằng: openssl rand -hex 24) ---
 MQTT_AI_PASSWORD=<set-in-env>
-MQTT_BACKEND_PASSWORD=a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
+MQTT_BACKEND_PASSWORD=<set-in-env>
 
 # --- Backend Application Settings ---
 APP_MQTT_BROKER_URL=tcp://localhost:1883
 APP_MQTT_USERNAME=icss-backend
-APP_MQTT_PASSWORD=a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
+APP_MQTT_PASSWORD=<set-in-env>
 APP_MQTT_CONNECT_RETRY_SECONDS=10
 
 # --- Chế độ Cloud: Để trống URL HTTP Inbound tới Edge ---

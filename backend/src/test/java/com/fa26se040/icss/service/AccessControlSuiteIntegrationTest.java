@@ -223,6 +223,16 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .isActive(true)
                 .version(0L)
                 .build());
+        // V115 (EV-N7): phiên sự kiện dựng qua lịch theo giờ hiện tại -> tắt khung ban đêm trong lúc test
+        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, adminUser.getEmail());
+    }
+
+    private String[] nightWindowBefore;
+
+    @org.junit.jupiter.api.AfterEach
+    void restoreNightWindow() {
+        AfterHoursTestSupport.restore(systemConfigService, nightWindowBefore, adminUser.getEmail());
+        nightWindowBefore = null;
     }
 
     private String bearer(User u) {

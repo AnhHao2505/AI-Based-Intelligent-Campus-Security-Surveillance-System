@@ -10,17 +10,19 @@ import os
 import cv2
 import numpy as np
 import io
+import pytest
 
 # Tự động set UTF-8 cho console Windows
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.core.face_embedder import FaceEmbedder
 from src.core.face_detector import FaceDetector
 from src.config import settings
 
+@pytest.mark.requires_model
 def test_face_embedder_and_registration():
     print("=" * 65)
     print("   KIỂM THỬ TÍNH NĂNG TRÍCH XUẤT FACE EMBEDDING 512D & DATASET")

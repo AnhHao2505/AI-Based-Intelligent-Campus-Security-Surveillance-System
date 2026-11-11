@@ -150,12 +150,19 @@ public abstract class Step5bTestSupport extends AbstractIntegrationTest {
         userL3b = newUser("l3b", Role.NORMAL_USER, 3, true);
 
         systemConfigService.update(ConfigKey.EVENT_MODE_MIN_MINUTES.name(), "30", admin.getEmail());
-        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_HOURS.name(), "12", admin.getEmail());
-        systemConfigService.update(ConfigKey.EVENT_MODE_WINDOW_DAYS.name(), "7", admin.getEmail());
-        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "48", admin.getEmail());
+        // V115: EVENT_MODE_MAX_HOURS / WINDOW_DAYS / BUDGET_HOURS / MAX_SCHEDULES_PER_AREA đã bỏ (EV-N1, EV-N2)
         systemConfigService.update(ConfigKey.EVENT_MODE_SCHEDULE_MAX_LEAD_DAYS.name(), "30", admin.getEmail());
-        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_SCHEDULES_PER_AREA.name(), "5", admin.getEmail());
         systemConfigService.update(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE.name(), "false", admin.getEmail());
+        // V115 (EV-N7): lịch / phiên dựng theo giờ hiện tại -> tắt khung ban đêm trong lúc test
+        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, admin.getEmail());
+    }
+
+    private String[] nightWindowBefore;
+
+    @org.junit.jupiter.api.AfterEach
+    void restoreNightWindowStep5b() {
+        AfterHoursTestSupport.restore(systemConfigService, nightWindowBefore, admin.getEmail());
+        nightWindowBefore = null;
     }
 
     // ------------------------------------------------------------------ dữ liệu

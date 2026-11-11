@@ -16,7 +16,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -42,6 +41,7 @@ public class InAppNotificationService {
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter START_AT_FORMATTER = DateTimeFormatter.ofPattern("HH:mm dd/MM");
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -201,21 +201,21 @@ public class InAppNotificationService {
     }
 
     /**
-     * Quét các yêu cầu đã duyệt sắp bắt đầu trong vòng 25-35 phút để gửi EXPIRING_SOON.
-     * Chạy định kỳ mỗi 10 phút.
+     * Nhắc "sắp đến giờ truy cập" (type EXPIRING_SOON, nghĩa thực là "sắp BẮT ĐẦU"): đơn APPROVED có
+     * {@code now < startTime ≤ now + L}, L = NOTIFICATION_EXPIRING_SOON_LEAD_MINUTES. Người tạo đơn + mọi thành viên nhận
+     * đúng 1 thông báo trong (startTime − L, startTime), không bao giờ sau giờ bắt đầu; chống trùng bằng
+     * existsByReferenceIdAndType nên quét lại nhiều lần vẫn 1.
+     * Không còn cửa sổ ±5 phút: chu kỳ quét (NOTIFICATION_STARTING_SOON_SCAN_MINUTES) luôn &lt; L nên mọi đơn đều rơi vào
+     * ít nhất một lần quét trước giờ bắt đầu. Lịch chạy: {@link com.fa26se040.icss.scheduler.NotificationScanScheduler}.
      */
-    @Scheduled(cron = "${icss.scheduler.notification-expiring-soon-cron:0 */10 * * * *}")
     @Transactional
-    public void scanAndNotifyExpiringSoonRequests() {
-        OffsetDateTime now = OffsetDateTime.now();
+    public void scanAndNotifyExpiringSoonRequests(OffsetDateTime now) {
         int leadMinutes = systemConfigService.getInt(ConfigKey.NOTIFICATION_EXPIRING_SOON_LEAD_MINUTES);
-        OffsetDateTime windowStart = now.plusMinutes(leadMinutes - 5);
-        OffsetDateTime windowEnd = now.plusMinutes(leadMinutes + 5);
 
-        List<AccessRequest> startingRequests = accessRequestRepository.findApprovedRequestsStartingBetween(
+        List<AccessRequest> startingRequests = accessRequestRepository.findRequestsStartingAfterAndUpTo(
                 RequestStatus.APPROVED,
-                windowStart,
-                windowEnd
+                now,
+                now.plusMinutes(leadMinutes)
         );
 
         if (startingRequests.isEmpty()) {
@@ -243,7 +243,8 @@ public class InAppNotificationService {
                 String areaName = req.getArea() != null ? req.getArea().getName() : "khu vực";
                 String timeRange = formatTimeRange(req.getStartTime(), req.getEndTime());
                 String title = "Sắp đến giờ truy cập khu vực";
-                String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") sắp bắt đầu trong " + leadMinutes + " phút tới. Vui lòng chuẩn bị.";
+                String startAt = req.getStartTime().atZoneSameInstant(VN_ZONE).format(START_AT_FORMATTER);
+                String message = "Yêu cầu vào " + areaName + " (" + timeRange + ") bắt đầu lúc " + startAt + ". Vui lòng chuẩn bị.";
 
                 createForUsers(recipients, NotificationType.EXPIRING_SOON, title, message, req.getId(), REF_TYPE_ACCESS_REQUEST);
             } catch (Exception e) {
@@ -253,13 +254,11 @@ public class InAppNotificationService {
     }
 
     /**
-     * Quét các yêu cầu PENDING tồn đọng quá 24 giờ để gửi PENDING_OVERDUE cho Facility Manager.
-     * Chạy định kỳ mỗi 1 giờ.
+     * Quét các yêu cầu PENDING tồn đọng quá NOTIFICATION_PENDING_OVERDUE_HOURS giờ để gửi PENDING_OVERDUE cho Facility Manager.
+     * Chu kỳ: NOTIFICATION_PENDING_OVERDUE_SCAN_MINUTES, lịch chạy ở {@link com.fa26se040.icss.scheduler.NotificationScanScheduler}.
      */
-    @Scheduled(cron = "${icss.scheduler.notification-pending-overdue-cron:0 0 * * * *}")
     @Transactional
-    public void scanAndNotifyPendingOverdueRequests() {
-        OffsetDateTime now = OffsetDateTime.now();
+    public void scanAndNotifyPendingOverdueRequests(OffsetDateTime now) {
         int overdueHours = systemConfigService.getInt(ConfigKey.NOTIFICATION_PENDING_OVERDUE_HOURS);
         OffsetDateTime threshold = now.minusHours(overdueHours);
 

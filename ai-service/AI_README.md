@@ -41,7 +41,7 @@ ai-service/
 │   └── utils/
 │       ├── geometry.py             # Thuật toán Point-in-Polygon (Ray Casting)
 │       └── visualizer.py           # Vẽ BBox, Track ID, ROI, Overlay lên frame
-├── test_pipeline.py                # Script kiểm thử độc lập (Auto & Webcam)
+├── tests/                          # Test pytest (+ test_pipeline.py: script kiểm thử độc lập Auto & Webcam)
 ├── Dockerfile
 └── requirements.txt
 ```
@@ -59,12 +59,12 @@ pip freeze > requirement.txt
 ```
 ### 2. Chạy Test Tự Động (Synthetic Mode — Không cần Camera)
 ```bash
-python test_pipeline.py --mode auto
+python tests/test_pipeline.py --mode auto
 ```
 
 ### 3. Chạy Test Trực Tiếp bằng Camera / Webcam
 ```bash
-python test_pipeline.py --mode webcam
+python tests/test_pipeline.py --mode webcam
 ```
 *(Góc phải màn hình sẽ có vùng cấm màu đỏ; bước vào và che mặt quá 5 giây hệ thống sẽ tự động kích hoạt cảnh báo `LOITERING_UNIDENTIFIED_PERSON`).*
 

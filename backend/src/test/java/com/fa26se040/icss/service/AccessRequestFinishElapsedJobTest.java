@@ -256,6 +256,12 @@ class AccessRequestFinishElapsedJobTest extends AbstractIntegrationTest {
      * chờ khoá đó. Giao dịch holder commit xong thì contender chạy tiếp. Trả kết quả của contender.
      */
     private <T> T raceWhileHolding(Runnable holder, java.util.concurrent.Callable<T> contender) throws Exception {
+        return raceWhileHolding(holder, contender, true);
+    }
+
+    /** contenderMustWait = false: contender được phép trả kết quả mà không chờ khoá (bị từ chối trước khi chạm dòng đơn). */
+    private <T> T raceWhileHolding(Runnable holder, java.util.concurrent.Callable<T> contender, boolean contenderMustWait)
+            throws Exception {
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch held = new CountDownLatch(1);
         CountDownLatch commitHolder = new CountDownLatch(1);
@@ -275,6 +281,13 @@ class AccessRequestFinishElapsedJobTest extends AbstractIntegrationTest {
             assertTrue(held.await(RACE_TIMEOUT.toSeconds(), TimeUnit.SECONDS), "giao dịch giữ khoá chưa chạy xong phần ghi");
 
             Future<T> contending = pool.submit(contender);
+            if (!contenderMustWait) {
+                // contender trả kết quả trong khi holder vẫn giữ khoá (chưa commit), rồi mới cho holder commit
+                T result = contending.get(RACE_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+                commitHolder.countDown();
+                holding.get(RACE_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+                return result;
+            }
             boolean blocked = waitUntil(() -> sessionsBlockedBy(holderPid[0]) > 0);
 
             commitHolder.countDown();
@@ -289,15 +302,17 @@ class AccessRequestFinishElapsedJobTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Race: job đang kết thúc đơn (chưa commit) thì FM bấm Hoàn thành -> FM nhận 409, đơn FINISHED do hệ thống, 1 audit, 0 thông báo")
+    @DisplayName("Race: job đang kết thúc đơn (chưa commit) thì FM bấm Hoàn thành -> FM bị từ chối ngay (T1b: trạng thái hiệu lực FINISHED, 400), đơn FINISHED do hệ thống, 1 audit, 0 thông báo")
     void race_jobFirst_fmGetsConflict() throws Exception {
         AccessRequest r = elapsedApproved();
 
+        // T1b: đơn đã qua endTime có trạng thái hiệu lực FINISHED -> FM bị từ chối ở bước kiểm trạng thái, không cần chờ khoá
         MvcResult res = raceWhileHolding(
                 () -> accessRequestService.finishElapsedApprovedRequests(),
-                () -> finish(fm, r));
+                () -> finish(fm, r),
+                false);
 
-        assertEquals(409, res.getResponse().getStatus(), res.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertEquals(400, res.getResponse().getStatus(), res.getResponse().getContentAsString(StandardCharsets.UTF_8));
         assertEquals("FINISHED", status(r));
         Map<String, Object> cols = finishColumns(r);
         assertEquals(AccessRequestService.FINISH_REASON_ELAPSED, cols.get("finish_reason"));
@@ -308,22 +323,7 @@ class AccessRequestFinishElapsedJobTest extends AbstractIntegrationTest {
         assertEquals(0, notifications(r));
     }
 
-    @Test
-    @DisplayName("Race: FM đang hoàn thành đơn (chưa commit) thì job chạy -> job bỏ qua đơn này, chỉ 1 audit của FM, finished_by = FM")
-    void race_fmFirst_jobSkipsRequest() throws Exception {
-        AccessRequest r = elapsedApproved();
-
-        raceWhileHolding(
-                () -> accessRequestService.finishRequest(r.getId(), FM_REASON, fm.getEmail()),
-                () -> accessRequestService.finishElapsedApprovedRequests());
-
-        assertEquals("FINISHED", status(r));
-        Map<String, Object> cols = finishColumns(r);
-        assertEquals(FM_REASON, cols.get("finish_reason"));
-        assertEquals(fm.getId(), cols.get("finished_by"));
-        List<Map<String, Object>> audits = finishAudits(r);
-        assertEquals(1, audits.size(), audits.toString());
-        assertEquals("USER", audits.get(0).get("actor_type"));
-        assertEquals(fm.getId(), audits.get(0).get("changed_by"));
-    }
+    // T1b (Lucas chốt 11/11): race_fmFirst_jobSkipsRequest xoá — FM không còn hoàn thành được đơn đã qua endTime (trạng thái
+    // hiệu lực FINISHED, finishIfApprovedStarted thêm endTime > now), còn job chỉ xử lý đơn đã qua endTime: hai bên không còn
+    // cùng tranh một đơn. Ở đúng biên endTime, conditional UPDATE của FM (endTime > now) và khoá dòng của job vẫn chặn.
 }

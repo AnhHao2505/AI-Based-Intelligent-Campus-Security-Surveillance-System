@@ -452,7 +452,6 @@ export default function GuestVisitPage() {
 				subtitle="Chỉ nhập họ tên và đơn vị của khách. Hệ thống không nhận CCCD, số điện thoại, địa chỉ hay email."
 				icon={UserPlus}
 				size="lg"
-				closeOnBackdrop={!creating}
 				footer={
 					<>
 						{!creating && createBlockers.length > 0 && (
@@ -588,6 +587,7 @@ export default function GuestVisitPage() {
 				isOpen={!!detail}
 				onClose={() => setDetail(null)}
 				title="Chi tiết lượt khách"
+				closeOnBackdrop
 				icon={Eye}
 				size="lg"
 				footer={
@@ -674,7 +674,6 @@ export default function GuestVisitPage() {
 				}
 				icon={Ban}
 				iconVariant="danger"
-				closeOnBackdrop={!cancelling}
 				footer={
 					<>
 						<Button variant="danger" onClick={submitCancel} loading={cancelling} disabled={cancelling}>

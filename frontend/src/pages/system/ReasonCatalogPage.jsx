@@ -531,6 +531,7 @@ export default function ReasonCatalogPage() {
 				isOpen={Boolean(deactivateTarget)}
 				onClose={() => !deactivating && setDeactivateTarget(null)}
 				title="Ngừng dùng lý do này?"
+				closeOnBackdrop
 				subtitle="Lý do sẽ không còn hiện trong danh sách chọn. Các bản ghi cũ đã dùng lý do này vẫn giữ nguyên."
 				icon={PowerOff}
 				iconVariant="danger"

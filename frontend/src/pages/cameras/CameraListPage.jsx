@@ -406,6 +406,7 @@ export default function CameraListPage() {
 					setDecommissionTarget(null)
 				}
 				title="Tắt camera"
+				closeOnBackdrop
 				icon={PowerOff}
 				iconVariant="danger"
 				size="sm"

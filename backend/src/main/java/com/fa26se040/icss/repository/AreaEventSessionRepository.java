@@ -58,19 +58,11 @@ public interface AreaEventSessionRepository extends JpaRepository<AreaEventSessi
             @Param("threshold") OffsetDateTime threshold
     );
 
+    /** EV-N8 (V115): khu có phiên đang mở (chưa đóng, chưa hết giờ). Thay findSessionsInWindow (chỉ dùng tính ngân sách, EV-N1). */
     @Query("""
-        SELECT s FROM AreaEventSession s
-        WHERE s.area.id = :areaId
-          AND s.startedAt < :windowEnd
-          AND (
-            (s.actualEnd IS NOT NULL AND s.actualEnd > :windowStart)
-            OR (s.actualEnd IS NULL AND s.plannedEnd > :windowStart)
-          )
-        ORDER BY s.startedAt ASC
+        SELECT DISTINCT s.area.id FROM AreaEventSession s
+        WHERE s.actualEnd IS NULL
+          AND s.plannedEnd > :now
         """)
-    List<AreaEventSession> findSessionsInWindow(
-            @Param("areaId") UUID areaId,
-            @Param("windowStart") OffsetDateTime windowStart,
-            @Param("windowEnd") OffsetDateTime windowEnd
-    );
+    List<UUID> findDistinctAreaIdsWithOpenSessions(@Param("now") OffsetDateTime now);
 }

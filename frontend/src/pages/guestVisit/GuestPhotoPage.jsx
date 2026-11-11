@@ -397,7 +397,6 @@ export default function GuestPhotoPage() {
         title="Gắn ảnh nhận diện cho khách"
         icon={Camera}
         size="md"
-        closeOnBackdrop={!uploadLoading}
         footer={
           <>
             <Button
@@ -538,6 +537,7 @@ export default function GuestPhotoPage() {
         isOpen={!!viewTarget}
         onClose={closeViewModal}
         title="Xem ảnh khách"
+        closeOnBackdrop
         icon={Eye}
         size="md"
         footer={

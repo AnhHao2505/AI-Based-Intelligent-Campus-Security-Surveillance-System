@@ -1083,14 +1083,8 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
 
       {/* 4. MODAL: APPROVE LEAVE WITH SUBSTITUTE */}
       {leaveModal.isOpen && (
-        <div
-          className="schedule-modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !leaveModal.submitting) {
-              setLeaveModal((prev) => ({ ...prev, isOpen: false }));
-            }
-          }}
-        >
+        // Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+        <div className="schedule-modal-backdrop">
           <div className="schedule-modal max-w-lg">
             <div className="schedule-modal__header">
               <div className="schedule-modal__header-left">
@@ -1219,14 +1213,8 @@ export default function ShiftRequestsTab({ onRequestsUpdated }) {
 
       {/* 5. MODAL: REJECT DIALOG */}
       {rejectDialog.isOpen && (
-        <div
-          className="schedule-modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !rejectDialog.submitting) {
-              setRejectDialog((prev) => ({ ...prev, isOpen: false }));
-            }
-          }}
-        >
+        // Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+        <div className="schedule-modal-backdrop">
           <div className="schedule-modal max-w-md">
             <div className="schedule-modal__header">
               <div className="schedule-modal__header-left">

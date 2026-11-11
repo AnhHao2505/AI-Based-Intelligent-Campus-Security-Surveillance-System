@@ -194,14 +194,21 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
         // Reset configs to defaults
         systemConfigService.update(ConfigKey.EVENT_MODE_MIN_MINUTES.name(), "30", adminUser.getEmail());
-        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_HOURS.name(), "12", adminUser.getEmail());
-        systemConfigService.update(ConfigKey.EVENT_MODE_WINDOW_DAYS.name(), "7", adminUser.getEmail());
-        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "48", adminUser.getEmail());
+        // V115: EVENT_MODE_MAX_HOURS / WINDOW_DAYS / BUDGET_HOURS / MAX_SCHEDULES_PER_AREA đã bỏ (EV-N1, EV-N2)
         systemConfigService.update(ConfigKey.EVENT_MODE_SCHEDULE_MAX_LEAD_DAYS.name(), "30", adminUser.getEmail());
-        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_SCHEDULES_PER_AREA.name(), "5", adminUser.getEmail());
         systemConfigService.update(ConfigKey.EVENT_MODE_SCHEDULE_REMINDER_MINUTES.name(), "30", adminUser.getEmail());
+        // V115 (EV-N7): lịch dựng theo giờ hiện tại -> tắt khung ban đêm trong lúc test (trả lại ở @AfterEach)
+        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, adminUser.getEmail());
 
         notificationRepository.deleteAll();
+    }
+
+    private String[] nightWindowBefore;
+
+    @org.junit.jupiter.api.AfterEach
+    void restoreNightWindow() {
+        AfterHoursTestSupport.restore(systemConfigService, nightWindowBefore, adminUser.getEmail());
+        nightWindowBefore = null;
     }
 
     private void ensureReasonCatalog(String actionType, String code, String label, int sortOrder) {
@@ -296,7 +303,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("ES-T02: startAt quá khứ / vượt LEAD_DAYS / ngắn hơn MIN / dài hơn MAX / HIGHLY / PUBLIC / khu vực vô hiệu hoá / ADMIN 403")
+    @DisplayName("ES-T02: startAt quá khứ / vượt LEAD_DAYS / ngắn hơn MIN / HIGHLY / PUBLIC / khu vực vô hiệu hoá / ADMIN 403")
     void testES_T02_ValidationErrors() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
 
@@ -324,13 +331,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         );
         assertEquals(AreaErrorCode.ERR_AREA_035, exMin.getErrorCode());
 
-        // 4. dài hơn MAX (12 gio) -> ERR_AREA_036
-        AreaException exMax = assertThrows(AreaException.class, () ->
-                areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(14), REASON_ENABLE, "Dai hon max hours"),
-                        fmUser.getEmail())
-        );
-        assertEquals(AreaErrorCode.ERR_AREA_036, exMax.getErrorCode());
+        // 4. (V115, EV-N1) bỏ: không còn trần thời lượng mỗi phiên (ERR_AREA_036) — xem NightWindowEventScheduleIntegrationTest
 
         // 5. HIGHLY_CONFIDENTIAL -> ERR_AREA_022
         AreaException exHighly = assertThrows(AreaException.class, () ->
@@ -413,78 +414,6 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 fmUser.getEmail());
         assertNotNull(resAdjacent.id());
         assertEquals(AreaEventScheduleStatus.SCHEDULED.name(), resAdjacent.status());
-    }
-
-    @Test
-    @DisplayName("ES-T04: Vượt MAX_SCHEDULES_PER_AREA -> lỗi ERR_AREA_039")
-    void testES_T04_MaxSchedulesPerArea() {
-        OffsetDateTime now = OffsetDateTime.now();
-        // MAX_SCHEDULES_PER_AREA mặc định = 5
-        for (int i = 1; i <= 5; i++) {
-            OffsetDateTime start = now.plusDays(i).withNano(0);
-            OffsetDateTime end = start.plusHours(2);
-            areaService.createSchedule(internalArea.getId(),
-                    new EventScheduleRequest("Sự kiện thử nghiệm", start, end, REASON_ENABLE, "Lich hop le thu " + i),
-                    fmUser.getEmail());
-        }
-
-        // Lịch thứ 6 -> ERR_AREA_039
-        OffsetDateTime start6 = now.plusDays(6).withNano(0);
-        OffsetDateTime end6 = start6.plusHours(2);
-        AreaException exMax = assertThrows(AreaException.class, () ->
-                areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest("Sự kiện thử nghiệm", start6, end6, REASON_ENABLE, "Lich thu sau vuot toi da"),
-                        fmUser.getEmail())
-        );
-        assertEquals(AreaErrorCode.ERR_AREA_039, exMax.getErrorCode());
-    }
-
-    @Test
-    @DisplayName("ES-T05: Ngân sách: lịch giữ chỗ làm lịch khác bị từ chối; đặt lịch sớm hơn làm cửa sổ của lịch sau vượt -> từ chối; huỷ lịch -> ngân sách được trả lại")
-    void testES_T05_BudgetValidation() {
-        OffsetDateTime now = OffsetDateTime.now();
-        // Cấu hình: WINDOW_DAYS = 7, BUDGET_HOURS = 10, MAX_HOURS = 10
-        systemConfigService.update(ConfigKey.EVENT_MODE_BUDGET_HOURS.name(), "10", adminUser.getEmail());
-        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_HOURS.name(), "10", adminUser.getEmail());
-
-        // Đặt lịch giữ chỗ 8 giờ tại ngày mai
-        EventScheduleResponse sched1 = areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(1), now.plusDays(1).plusHours(8), REASON_ENABLE, "Dat lich giu cho 8h"),
-                fmUser.getEmail());
-
-        // 1. Lịch giữ chỗ làm lịch 5 giờ khác bị từ chối do tổng = 13h > 10h -> ERR_AREA_028
-        //    (X-01a: không còn bật tay, sự kiện chỉ mở qua lịch)
-        AreaException exFiveHours = assertThrows(AreaException.class, () ->
-                areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(6), REASON_ENABLE, "Lich 5h bi vuot ngan sach"),
-                        fmUser.getEmail())
-        );
-        assertEquals(AreaErrorCode.ERR_AREA_028, exFiveHours.getErrorCode());
-
-        // 2. Thử đặt thêm lịch thứ 2 sớm hơn làm cửa sổ của sched1 vượt:
-        // Đặt sched2 tại now + 2 hours (dài 4h) -> cửa sổ sched1 tính cả sched2 thành 12h > 10h -> ERR_AREA_028
-        AreaException exSched2 = assertThrows(AreaException.class, () ->
-                areaService.createSchedule(internalArea.getId(),
-                        new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(2), now.plusHours(6), REASON_ENABLE, "Lich lam cua so lich sau vuot"),
-                        fmUser.getEmail())
-        );
-        assertEquals(AreaErrorCode.ERR_AREA_028, exSched2.getErrorCode());
-
-        // 3. Huỷ lịch sched1 -> ngân sách được trả lại
-        areaService.cancelSchedule(internalArea.getId(), sched1.id(),
-                new EventScheduleCancelRequest(REASON_DISABLE, "Huy lich de giai phong ngan sach"),
-                fmUser.getEmail());
-
-        // Giờ đặt lịch 5h thành công!
-        EventScheduleResponse fiveHours = areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest("Sự kiện thử nghiệm", now.plusHours(1), now.plusHours(6), REASON_ENABLE, "Lich 5h thanh cong sau khi huy lich"),
-                fmUser.getEmail());
-        assertEquals(AreaEventScheduleStatus.SCHEDULED.name(), fiveHours.status());
-
-        // Dọn dẹp
-        areaService.cancelSchedule(internalArea.getId(), fiveHours.id(),
-                new EventScheduleCancelRequest(REASON_DISABLE, "Huy lich sau khi kiem tra ngan sach"),
-                fmUser.getEmail());
     }
 
     @Test
@@ -876,35 +805,6 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         } finally {
             executor.shutdown();
         }
-    }
-
-    @Test
-    @DisplayName("ES-T15: ADMIN hạ MAX_HOURS sau khi đặt lịch dài hơn -> lịch không bị huỷ, FM nhận thông báo có lịch đó")
-    void testES_T15_AdminLowersMaxHours_ScheduleNotCancelledAndFmNotified() {
-        OffsetDateTime now = OffsetDateTime.now();
-        // MAX_HOURS hiện là 12, đặt lịch dài 10 giờ
-        EventScheduleResponse sched = areaService.createSchedule(internalArea.getId(),
-                new EventScheduleRequest("Sự kiện thử nghiệm", now.plusDays(3), now.plusDays(3).plusHours(10), REASON_ENABLE, "Dat lich dai 10h hop le"),
-                fmUser.getEmail());
-
-        notificationRepository.deleteAll();
-
-        // ADMIN hạ MAX_HOURS xuống 6 giờ
-        systemConfigService.update(ConfigKey.EVENT_MODE_MAX_HOURS.name(), "6", adminUser.getEmail());
-
-        // Lịch không bị huỷ (vẫn SCHEDULED)
-        AreaEventSchedule reloadedSchedule = eventScheduleRepository.findById(sched.id()).orElseThrow();
-        assertEquals(AreaEventScheduleStatus.SCHEDULED, reloadedSchedule.getStatus());
-
-        // FM nhận thông báo EVENT_MODE_LIMIT_CHANGED có liệt kê lịch vi phạm
-        List<Notification> fmNotifs = getNotificationsForUser(fmUser.getId());
-        assertFalse(fmNotifs.isEmpty());
-        Notification notif = fmNotifs.stream()
-                .filter(n -> n.getType() == NotificationType.EVENT_MODE_LIMIT_CHANGED)
-                .findFirst()
-                .orElse(null);
-        assertNotNull(notif, "FM phải nhận thông báo EVENT_MODE_LIMIT_CHANGED");
-        assertTrue(notif.getMessage().contains("Lịch vi phạm"), "Thông báo phải liệt kê lịch vi phạm");
     }
 
     @Test
