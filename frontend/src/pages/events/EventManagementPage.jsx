@@ -384,6 +384,7 @@ export default function EventManagementPage() {
 				isOpen={Boolean(detail)}
 				onClose={() => setDetail(null)}
 				title="Chi tiết sự kiện"
+				closeOnBackdrop
 				icon={CalendarDays}
 				size="md"
 				footer={

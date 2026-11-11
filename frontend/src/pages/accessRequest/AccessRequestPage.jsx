@@ -1568,6 +1568,7 @@ export default function AccessRequestPage() {
 				isOpen={Boolean(cancelItem)}
 				onClose={() => !cancelling && setCancelItem(null)}
 				title="Xác nhận huỷ yêu cầu truy cập"
+				closeOnBackdrop
 				subtitle="Thao tác này sẽ huỷ bỏ yêu cầu của bạn và không thể hoàn tác."
 				icon={AlertTriangle}
 				iconVariant="danger"

@@ -739,7 +739,8 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
 
       {/* FINISH CONFIRMATION MODAL — BR-RQ-44, BR-RQ-46 */}
       {finishItem && (
-        <div className="arr-modal-overlay" onClick={() => !actionLoading && setFinishItem(null)}>
+        // Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ / Esc.
+        <div className="arr-modal-overlay">
           <DialogPanel
             className="arr-modal arr-modal--sm"
             onClick={e => e.stopPropagation()}
@@ -830,7 +831,8 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
 
       {/* STAFF CANCEL MODAL — BR-RQ-47 */}
       {staffCancelItem && (
-        <div className="arr-modal-overlay" onClick={() => !actionLoading && setStaffCancelItem(null)}>
+        // Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ / Esc.
+        <div className="arr-modal-overlay">
           <DialogPanel
             className="arr-modal"
             onClick={e => e.stopPropagation()}
@@ -903,7 +905,8 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
 
       {/* REJECT MODAL */}
       {rejectItem && (
-        <div className="arr-modal-overlay" onClick={() => !actionLoading && setRejectItem(null)}>
+        // Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ / Esc.
+        <div className="arr-modal-overlay">
           <DialogPanel
             className="arr-modal"
             onClick={e => e.stopPropagation()}
