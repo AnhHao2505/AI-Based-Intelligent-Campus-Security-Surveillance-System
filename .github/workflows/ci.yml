@@ -14,6 +14,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      # Bản cố định + SHA-256 từ gitleaks_8.21.2_checksums.txt của release (không dùng gitleaks-action vì cần license).
+      GITLEAKS_VERSION: "8.21.2"
+      GITLEAKS_SHA256: 5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Cần lịch sử để có commit base của dải quét.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  /tmp/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks version
+
+      - name: Scan new commits only
+        # Chỉ quét commit mới của PR / lần push (base..head), không quét lịch sử cũ (đã chốt: không viết lại lịch sử,
+        # secret cũ coi như đã lộ và đã thay). --redact: log CI không in giá trị tìm được. Có phát hiện -> exit 1.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            RANGE="${PR_BASE}..${PR_HEAD}"
+          elif [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            RANGE="-1 ${PUSH_AFTER}"
+          else
+            RANGE="${PUSH_BEFORE}..${PUSH_AFTER}"
+          fi
+          echo "Scanning: ${RANGE}"
+          /tmp/gitleaks git --log-opts="${RANGE}" --redact --no-banner --exit-code 1 .
+
   backend-test:
     name: backend-test
     runs-on: ubuntu-latest
