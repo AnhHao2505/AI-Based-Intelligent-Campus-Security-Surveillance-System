@@ -49,7 +49,10 @@ import {
 	Upload,
 	Move,
 	ChevronDown,
+	ChevronRight,
 	DoorOpen,
+	Play,
+	Pause,
 } from "lucide-react";
 import {
 	DEFAULT_BUILDINGS_META,
@@ -77,6 +80,8 @@ import {
 	resolveBestSnapTarget,
 	resolveCanonicalBuildingName,
 	resolveNodeBuilding,
+	resolveTestRouteClickContext,
+	samplePointAlongRoute,
 	syncPortalAcrossBuildingFloors,
 	approximatePolygonAreaMeters,
 	getPolygonInteriorPoint,
@@ -344,11 +349,26 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	const [portalGroupId, setPortalGroupId] = useState("HCM_STAIR_W");
 	const [chainLastNodeId, setChainLastNodeId] = useState(null);
 
-	// Live A* Route Tester
+	// Live A* Route Tester & Real-Time Playback Simulation
 	const [testRouteStart, setTestRouteStart] = useState(null);
 	const [testRouteResult, setTestRouteResult] = useState(null);
+	const [routePlaying, setRoutePlaying] = useState(false);
+	const [routeProgress, setRouteProgress] = useState(0);
+	const routeProgressRef = useRef(0);
 	const [toastMsg, setToastMsg] = useState(null);
 	const toastTimerRef = useRef(null);
+
+	// Collapsible Inspector & Scene Tree sections
+	const [overviewExpanded, setOverviewExpanded] = useState({
+		rooms: false,
+		doors: false,
+		nodes: false,
+	});
+	const [treeExpanded, setTreeExpanded] = useState({
+		faces: true,
+		doors: false,
+		portals: true,
+	});
 
 	// Modals
 	const [showShortcutsModal, setShowShortcutsModal] = useState(false);
@@ -784,7 +804,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		});
 	}, [activeBuilding, isAllBuildings, isOpen, currentBuildingMeta]);
 
-	// Clear stale floor/building selections whenever switching building or floor
+	// Clear stale floor/building selections whenever switching building or floor (keep testRouteStart in TEST_ROUTE for multi-floor clicks)
 	useEffect(() => {
 		setDraftPoints([]);
 		setChainLastNodeId(null);
@@ -792,8 +812,90 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		setLiveNavNodeDrag(null);
 		liveNavNodeDragRef.current = null;
 		setLiveVertexDrag(null);
-		setTestRouteStart(null);
-	}, [activeBuilding, activeFloorOrder, selectEntity]);
+		if (activeTool !== "TEST_ROUTE") {
+			setTestRouteStart(null);
+		}
+	}, [activeBuilding, activeFloorOrder, activeTool, selectEntity]);
+
+	const playbackSample = useMemo(() => {
+		if (!testRouteResult?.geojson) return null;
+		return samplePointAlongRoute(testRouteResult, routeProgress);
+	}, [testRouteResult, routeProgress]);
+
+	// Reset playback whenever computed route changes or is cleared
+	useEffect(() => {
+		setRoutePlaying(false);
+		setRouteProgress(0);
+		routeProgressRef.current = 0;
+	}, [testRouteResult]);
+
+	// Real-time RAF pedestrian playback along computed A* path
+	useEffect(() => {
+		if (!routePlaying || !testRouteResult?.geojson) return;
+		const totalDist = testRouteResult.totalDistanceMeters || 50;
+		const floorSteps = testRouteResult.floorsClimbed || 0;
+		const durationMs = Math.max(
+			3800,
+			Math.min(14000, totalDist * 55 + floorSteps * 1400),
+		);
+		const startProgress =
+			routeProgressRef.current >= 0.995 ? 0 : routeProgressRef.current;
+		if (startProgress === 0) {
+			setRouteProgress(0);
+			routeProgressRef.current = 0;
+		}
+		let startTime = null;
+		let rafId = null;
+
+		const tick = (now) => {
+			if (startTime === null) startTime = now;
+			const elapsed = now - startTime;
+			const nextT = Math.min(1, startProgress + elapsed / durationMs);
+			routeProgressRef.current = nextT;
+			setRouteProgress(nextT);
+			if (nextT < 1) {
+				rafId = requestAnimationFrame(tick);
+			} else {
+				setRoutePlaying(false);
+			}
+		};
+		rafId = requestAnimationFrame(tick);
+		return () => {
+			if (rafId !== null) cancelAnimationFrame(rafId);
+		};
+	}, [routePlaying, testRouteResult]);
+
+	// Automatically follow active building/floor during live playback when scoped to single floor
+	useEffect(() => {
+		if (!routePlaying || !playbackSample) return;
+		if (
+			!isAllBuildings &&
+			playbackSample.building &&
+			playbackSample.building !== "OUTDOOR" &&
+			!matchesBuilding(playbackSample.building, activeBuilding)
+		) {
+			const cBldg =
+				resolveCanonicalBuildingName(playbackSample.building) ||
+				playbackSample.building;
+			if (DEFAULT_BUILDINGS_META.some((b) => b.name === cBldg)) {
+				setActiveBuilding(cBldg);
+			}
+		}
+		if (
+			!isAllFloors &&
+			playbackSample.floorOrder != null &&
+			Number(activeFloorOrder) !== Number(playbackSample.floorOrder)
+		) {
+			setActiveFloorOrder(Number(playbackSample.floorOrder));
+		}
+	}, [
+		routePlaying,
+		playbackSample,
+		isAllBuildings,
+		isAllFloors,
+		activeBuilding,
+		activeFloorOrder,
+	]);
 
 	// Collect vertices & segments strictly from currently visible Wall Graph & Nav Graph layers in scope
 	const existingGeometryForSnapping = useMemo(() => {
@@ -2454,59 +2556,63 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 			// 7. Live A* Route Tester (works cleanly across single floor OR "ALL" scope)
 			if (activeTool === "TEST_ROUTE") {
-				const floor0Bounds = (store.buildingBoundaries || []).filter(
-					(b) => (Number(b.floorOrder) || 0) === 0,
-				);
 				const mapInst = mapRef.current?.getMap?.();
 				let hitBuilding = null;
 				let hitFloor = null;
 				if (mapInst && e?.point) {
-					const candidateLayers = [
+					const activeCandidateLayers = [
 						"studio-rooms-extrusion",
 						"studio-slab-layer",
 						"studio-faces-fill",
 					].filter((id) => Boolean(mapInst.getLayer?.(id)));
-					if (candidateLayers.length > 0) {
+					if (activeCandidateLayers.length > 0) {
 						const hits = mapInst.queryRenderedFeatures(e.point, {
-							layers: candidateLayers,
+							layers: activeCandidateLayers,
 						});
 						const props = hits?.[0]?.properties;
 						if (props?.building) hitBuilding = props.building;
 						if (props?.floorOrder != null) hitFloor = Number(props.floorOrder);
 					}
+					if (!hitBuilding && is3dPreview) {
+						const ghostCandidateLayers = [
+							"studio-ghost-rooms-layer",
+							"studio-ghost-slabs-layer",
+						].filter((id) => Boolean(mapInst.getLayer?.(id)));
+						if (ghostCandidateLayers.length > 0) {
+							const gHits = mapInst.queryRenderedFeatures(e.point, {
+								layers: ghostCandidateLayers,
+							});
+							const gProps = gHits?.[0]?.properties;
+							if (gProps?.building) hitBuilding = gProps.building;
+							if (gProps?.floorOrder != null) {
+								hitFloor = Number(gProps.floorOrder);
+							}
+						}
+					}
 				}
 
-				const resolvedFloor =
-					hitFloor != null ? hitFloor : scopeFloorNum ?? 0;
-				const containedBnd =
-					resolvedFloor === 0
-						? findBoundaryContainingPoint(floor0Bounds, raw, 0)
-						: null;
-				const resolvedBldg =
-					hitBuilding ||
-					containedBnd?.building ||
-					(isAllBuildings ? "OUTDOOR" : activeBuilding);
-				const clickIsOutdoor =
-					resolvedBldg === "OUTDOOR" ||
-					(resolvedFloor === 0 &&
-						floor0Bounds.length > 0 &&
-						!isPointIndoorOnFloor(
-							store,
-							resolvedBldg,
-							0,
-							raw,
-							floorWallModels,
-						));
-				const clickBuilding = clickIsOutdoor ? "OUTDOOR" : resolvedBldg;
+				const clickCtx = resolveTestRouteClickContext({
+					store,
+					rawCoord: raw,
+					hitBuilding,
+					hitFloor,
+					scopeFloorNum,
+					activeBuilding,
+					isAllBuildings,
+					precomputedModels: floorWallModels,
+				});
+				const clickIsOutdoor = clickCtx.isOutdoor;
+				const clickBuilding = clickCtx.building;
+				const clickFloor = clickCtx.floorOrder;
 
 				if (!testRouteStart) {
 					setTestRouteStart({
 						coords: raw,
 						building: clickBuilding,
-						floorOrder: clickIsOutdoor ? 0 : resolvedFloor,
+						floorOrder: clickFloor,
 					});
 					showToast(
-						`Điểm đi: ${clickIsOutdoor ? "Ngoài sân" : clickBuilding}. Click điểm đến.`,
+						`Điểm đi: ${clickIsOutdoor ? "Ngoài sân" : `${clickBuilding} (T${clickFloor === 0 ? "G" : clickFloor})`}. Click điểm đến.`,
 					);
 				} else {
 					const diag = {};
@@ -2517,7 +2623,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						startFloorOrder: testRouteStart.floorOrder,
 						endCoords: raw,
 						endBuilding: clickBuilding,
-						endFloorOrder: clickIsOutdoor ? 0 : resolvedFloor,
+						endFloorOrder: clickFloor,
 						diagnosticsOut: diag,
 					});
 					setTestRouteResult(res);
@@ -2537,6 +2643,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		},
 		[
 			activeTool,
+			is3dPreview,
 			isAllScope,
 			isAllBuildings,
 			isAllFloors,
@@ -3152,6 +3259,38 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			}),
 		[testRouteResult, activeBuilding, activeFloorOrder],
 	);
+
+	// Real-time 3D walker column + badge anchor synced to true floor elevation
+	const playbackWalker3dGeoJSON = useMemo(() => {
+		if (!playbackSample || (!routePlaying && routeProgress <= 0)) {
+			return { type: "FeatureCollection", features: [] };
+		}
+		const [lng, lat] = playbackSample.coords;
+		const rLng = 0.0000068;
+		const rLat = 0.0000066;
+		const ring = [];
+		for (let i = 0; i <= 10; i++) {
+			const ang = (i / 10) * Math.PI * 2;
+			ring.push([
+				Number((lng + Math.cos(ang) * rLng).toFixed(7)),
+				Number((lat + Math.sin(ang) * rLat).toFixed(7)),
+			]);
+		}
+		return {
+			type: "FeatureCollection",
+			features: [
+				{
+					type: "Feature",
+					properties: {
+						baseHeight: playbackSample.elevationMeters,
+						extrudeHeight: playbackSample.elevationMeters + 1.45,
+						color: playbackSample.isStair ? "#a855f7" : "#06b6d4",
+					},
+					geometry: { type: "Polygon", coordinates: [ring] },
+				},
+			],
+		};
+	}, [playbackSample, routePlaying, routeProgress]);
 
 	// Interactive layer IDs strictly matching currently mounted, visible, unlocked layers
 	const studioInteractiveLayerIds = useMemo(() => {
@@ -4118,35 +4257,98 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						</div>
 					)}
 
-					{/* Live A* Route Result Card */}
+					{/* Live A* Route Result Card & Real-Time Playback Simulator */}
 					{testRouteResult?.geojson && (
 						<div className="digitizer-route-card">
-							<div>
-								<div className="digitizer-route-card__val">
-									{testRouteResult.totalDistanceMeters}m
+							<div className="digitizer-route-card__top">
+								<div className="digitizer-route-card__metrics">
+									<div>
+										<div className="digitizer-route-card__val">
+											{testRouteResult.totalDistanceMeters}m
+										</div>
+										<div className="digitizer-route-card__label">
+											Tổng cự ly
+										</div>
+									</div>
+									<div>
+										<div className="digitizer-route-card__val">
+											{testRouteResult.floorsClimbed > 0
+												? `${testRouteResult.floorsClimbed} tầng`
+												: "Cùng tầng"}
+										</div>
+										<div className="digitizer-route-card__label">
+											Chuyển trục dọc
+										</div>
+									</div>
 								</div>
-								<div className="digitizer-route-card__label">
-									Tổng cự ly di chuyển
+
+								<div className="digitizer-route-card__controls">
+									<button
+										type="button"
+										className={`digitizer-route-play-btn ${routePlaying ? "is-playing" : ""}`}
+										onClick={() => setRoutePlaying((p) => !p)}
+										title={
+											routePlaying
+												? "Tạm dừng mô phỏng"
+												: "Chạy giả lập người đi theo tuyến đường"
+										}
+									>
+										{routePlaying ? <Pause size={13} /> : <Play size={13} />}
+										<span>{routePlaying ? "Tạm dừng" : "Mô phỏng"}</span>
+									</button>
+									<button
+										type="button"
+										className="digitizer-route-card__icon-btn"
+										onClick={() => {
+											setRoutePlaying(false);
+											setRouteProgress(0);
+											routeProgressRef.current = 0;
+										}}
+										title="Đưa về điểm xuất phát"
+										aria-label="Đưa mô phỏng về điểm xuất phát"
+									>
+										<RotateCcw size={13} />
+									</button>
+									<button
+										type="button"
+										className="digitizer-route-card__close"
+										onClick={() => {
+											setRoutePlaying(false);
+											setTestRouteResult(null);
+										}}
+										aria-label="Đóng kết quả tuyến đường"
+									>
+										<X size={14} />
+									</button>
 								</div>
 							</div>
-							<div>
-								<div className="digitizer-route-card__val">
-									{testRouteResult.floorsClimbed > 0
-										? `${testRouteResult.floorsClimbed} tầng`
-										: "Cùng tầng"}
-								</div>
-								<div className="digitizer-route-card__label">
-									Chuyển trục dọc
+
+							<div className="digitizer-route-playback-bar">
+								<input
+									type="range"
+									min="0"
+									max="1"
+									step="0.005"
+									value={routeProgress}
+									onChange={(e) => {
+										const nextVal = Number(e.target.value);
+										setRoutePlaying(false);
+										routeProgressRef.current = nextVal;
+										setRouteProgress(nextVal);
+									}}
+									className="digitizer-route-scrubber"
+									aria-label="Tua tiến độ mô phỏng tuyến đường"
+								/>
+								<div className="digitizer-route-playback-meta">
+									<span className="digitizer-route-playback-status">
+										{playbackSample?.statusLabel || "Sẵn sàng"}
+									</span>
+									<span className="digitizer-route-playback-dist">
+										{playbackSample?.distanceCoveredMeters ?? 0} /{" "}
+										{testRouteResult.totalDistanceMeters}m
+									</span>
 								</div>
 							</div>
-							<button
-								type="button"
-								className="digitizer-route-card__close"
-								onClick={() => setTestRouteResult(null)}
-								aria-label="Đóng kết quả tuyến đường"
-							>
-								<X size={14} />
-							</button>
 						</div>
 					)}
 
@@ -4884,6 +5086,24 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							</Source>
 						)}
 
+						{testRouteResult?.geojson &&
+							!is3dPreview &&
+							playbackSample?.trailGeoJSON?.features?.length > 0 &&
+							(routePlaying || routeProgress > 0) && (
+								<Source
+									id="studio-test-route-trail-src"
+									type="geojson"
+									data={playbackSample.trailGeoJSON}
+								>
+									<Layer
+										id="studio-test-route-trail-layer"
+										type="line"
+										layout={{ "line-cap": "round", "line-join": "round" }}
+										paint={{ "line-color": "#06b6d4", "line-width": 5.5 }}
+									/>
+								</Source>
+							)}
+
 						{testRouteResult?.geojson && is3dPreview && (
 							<>
 								<Source
@@ -4930,8 +5150,51 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										}}
 									/>
 								</Source>
+								{playbackWalker3dGeoJSON.features.length > 0 && (
+									<Source
+										id="studio-walker-3d-src"
+										type="geojson"
+										data={playbackWalker3dGeoJSON}
+									>
+										<Layer
+											id="studio-walker-3d-layer"
+											type="fill-extrusion"
+											paint={{
+												"fill-extrusion-color": ["get", "color"],
+												"fill-extrusion-base": ["get", "baseHeight"],
+												"fill-extrusion-height": ["get", "extrudeHeight"],
+												"fill-extrusion-opacity": 0.96,
+											}}
+										/>
+									</Source>
+								)}
 							</>
 						)}
+
+						{/* 7.5 Animated Real-Time Route Walker Marker (2D accurate anchor) */}
+						{testRouteResult?.geojson &&
+							!is3dPreview &&
+							playbackSample &&
+							(routePlaying || routeProgress > 0) && (
+								<Marker
+									longitude={playbackSample.coords[0]}
+									latitude={playbackSample.coords[1]}
+									anchor="center"
+									style={NON_INTERACTIVE_MARKER_STYLE}
+								>
+									<div className="digitizer-playback-walker">
+										<div className="digitizer-playback-walker__pulse" />
+										<div className="digitizer-playback-walker__dot">
+											<Footprints size={12} />
+										</div>
+										<span className="digitizer-playback-walker__badge">
+											{playbackSample.isOutdoor
+												? "Sân"
+												: `T${playbackSample.floorOrder === 0 ? "G" : playbackSample.floorOrder}`}
+										</span>
+									</div>
+								</Marker>
+							)}
 
 						{/* 7a. Test Route: 1st Click Start Point (Pedestrian Marker) */}
 						{testRouteStart && (
@@ -5943,23 +6206,183 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										{hasBuildingBoundary ? "Đã khép kín" : "Chưa khép kín"}
 									</span>
 								</div>
-								<div className="digitizer-prop-row">
-									<label>Phòng & Vùng:</label>
-									<span className="digitizer-prop-val">
-										{currentFloorRooms.length} phòng / {currentFloorFaces.length} vùng
-									</span>
+								<div className="digitizer-collapse-group">
+									<button
+										type="button"
+										className="digitizer-prop-row digitizer-prop-row--collapsible"
+										onClick={() =>
+											setOverviewExpanded((prev) => ({
+												...prev,
+												rooms: !prev.rooms,
+											}))
+										}
+										aria-expanded={overviewExpanded.rooms}
+									>
+										<span className="digitizer-collapse-label">
+											{overviewExpanded.rooms ? (
+												<ChevronDown size={13} />
+											) : (
+												<ChevronRight size={13} />
+											)}
+											<label>Phòng & Vùng:</label>
+										</span>
+										<span className="digitizer-prop-val">
+											{currentFloorRooms.length} phòng /{" "}
+											{currentFloorFaces.length} vùng
+										</span>
+									</button>
+									{overviewExpanded.rooms && (
+										<div className="digitizer-collapse-body">
+											{currentFloorFaces.length === 0 ? (
+												<span className="digitizer-tree-empty">
+													Chưa có vùng nào
+												</span>
+											) : (
+												currentFloorFaces.map((fc, idx) => {
+													const roleName =
+														fc.role === "ROOM"
+															? "Phòng"
+															: fc.role === "VOID"
+																? "Giếng trời"
+																: "Hành lang";
+													return (
+														<button
+															key={fc.id}
+															type="button"
+															className={`digitizer-collapse-item ${selectedRoomIds.includes(fc.id) ? "is-selected" : ""}`}
+															onClick={() => {
+																selectEntity("FACE", fc.id);
+																setActiveTool("SELECT");
+															}}
+														>
+															<span>
+																{roleName} #{idx + 1}
+															</span>
+															<span className="digitizer-collapse-meta">
+																{(
+																	fc.areaSqm ??
+																	approximatePolygonAreaMeters(fc.ring)
+																).toFixed(0)}{" "}
+																m²
+															</span>
+														</button>
+													);
+												})
+											)}
+										</div>
+									)}
 								</div>
-								<div className="digitizer-prop-row">
-									<label>Cửa:</label>
-									<span className="digitizer-prop-val">
-										{currentFloorDoors.length}
-									</span>
+
+								<div className="digitizer-collapse-group">
+									<button
+										type="button"
+										className="digitizer-prop-row digitizer-prop-row--collapsible"
+										onClick={() =>
+											setOverviewExpanded((prev) => ({
+												...prev,
+												doors: !prev.doors,
+											}))
+										}
+										aria-expanded={overviewExpanded.doors}
+									>
+										<span className="digitizer-collapse-label">
+											{overviewExpanded.doors ? (
+												<ChevronDown size={13} />
+											) : (
+												<ChevronRight size={13} />
+											)}
+											<label>Cửa:</label>
+										</span>
+										<span className="digitizer-prop-val">
+											{currentFloorDoors.length}
+										</span>
+									</button>
+									{overviewExpanded.doors && (
+										<div className="digitizer-collapse-body">
+											{currentFloorDoors.length === 0 ? (
+												<span className="digitizer-tree-empty">
+													Chưa gắn cửa nào
+												</span>
+											) : (
+												currentFloorDoors.map((dr, idx) => (
+													<button
+														key={dr.id}
+														type="button"
+														className={`digitizer-collapse-item ${selectedDoorId === dr.id ? "is-selected" : ""}`}
+														onClick={() => {
+															selectEntity("DOOR", dr.id);
+															setActiveTool("SELECT");
+														}}
+													>
+														<span>Cửa #{idx + 1}</span>
+														<span className="digitizer-collapse-meta">
+															{dr.widthMeters || 1.2}m
+														</span>
+													</button>
+												))
+											)}
+										</div>
+									)}
 								</div>
-								<div className="digitizer-prop-row">
-									<label>Nút đồ thị:</label>
-									<span className="digitizer-prop-val">
-										{currentFloorNodes.length}
-									</span>
+
+								<div className="digitizer-collapse-group">
+									<button
+										type="button"
+										className="digitizer-prop-row digitizer-prop-row--collapsible"
+										onClick={() =>
+											setOverviewExpanded((prev) => ({
+												...prev,
+												nodes: !prev.nodes,
+											}))
+										}
+										aria-expanded={overviewExpanded.nodes}
+									>
+										<span className="digitizer-collapse-label">
+											{overviewExpanded.nodes ? (
+												<ChevronDown size={13} />
+											) : (
+												<ChevronRight size={13} />
+											)}
+											<label>Nút đồ thị:</label>
+										</span>
+										<span className="digitizer-prop-val">
+											{currentFloorNodes.length}
+										</span>
+									</button>
+									{overviewExpanded.nodes && (
+										<div className="digitizer-collapse-body">
+											{currentFloorNodes.length === 0 ? (
+												<span className="digitizer-tree-empty">
+													Chưa có nút đồ thị nào
+												</span>
+											) : (
+												currentFloorNodes.map((nd, idx) => {
+													const typeMeta = NODE_DISPLAY_META[nd.type] || {
+														label: nd.type,
+													};
+													return (
+														<button
+															key={nd.id}
+															type="button"
+															className={`digitizer-collapse-item ${selectedNavNodeId === nd.id ? "is-selected" : ""}`}
+															onClick={() => {
+																selectEntity("NODE", nd.id);
+																setActiveTool("SELECT");
+															}}
+														>
+															<span>
+																{typeMeta.label} #{idx + 1}
+															</span>
+															<span className="digitizer-collapse-meta">
+																{nd.portalGroupId ||
+																	`T${Number(nd.floorOrder) === 0 ? "G" : nd.floorOrder}`}
+															</span>
+														</button>
+													);
+												})
+											)}
+										</div>
+									)}
 								</div>
 
 								{!isAllScope && (
@@ -6120,7 +6543,24 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							{/* Scene Tree: Extracted Planar Faces List with Multi-Select */}
 							<div className="digitizer-tree-group">
 								<div className="digitizer-tree-header">
-									<span>Phòng & Vùng ({currentFloorFaces.length})</span>
+									<button
+										type="button"
+										className="digitizer-tree-toggle-btn"
+										onClick={() =>
+											setTreeExpanded((prev) => ({
+												...prev,
+												faces: !prev.faces,
+											}))
+										}
+										aria-expanded={treeExpanded.faces}
+									>
+										{treeExpanded.faces ? (
+											<ChevronDown size={13} />
+										) : (
+											<ChevronRight size={13} />
+										)}
+										<span>Phòng & Vùng ({currentFloorFaces.length})</span>
+									</button>
 									<div className="digitizer-tree-header-actions">
 										<button
 											type="button"
@@ -6145,6 +6585,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									</div>
 								</div>
 
+								{treeExpanded.faces && (
 								<div className="digitizer-tree-list">
 									{currentFloorFaces.length === 0 ? (
 										<span className="digitizer-tree-empty">
@@ -6230,17 +6671,36 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										})
 									)}
 								</div>
+								)}
 							</div>
 
 							{/* Scene Tree: Wall-Mounted Doors */}
 							<div className="digitizer-tree-group">
 								<div className="digitizer-tree-header">
-									<span>Cửa trên tường</span>
+									<button
+										type="button"
+										className="digitizer-tree-toggle-btn"
+										onClick={() =>
+											setTreeExpanded((prev) => ({
+												...prev,
+												doors: !prev.doors,
+											}))
+										}
+										aria-expanded={treeExpanded.doors}
+									>
+										{treeExpanded.doors ? (
+											<ChevronDown size={13} />
+										) : (
+											<ChevronRight size={13} />
+										)}
+										<span>Cửa trên tường</span>
+									</button>
 									<span className="digitizer-inspector-badge">
 										{currentFloorDoors.length}
 									</span>
 								</div>
 
+								{treeExpanded.doors && (
 								<div className="digitizer-tree-list">
 									{currentFloorDoors.length === 0 ? (
 										<span className="digitizer-tree-empty">
@@ -6285,6 +6745,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										})
 									)}
 								</div>
+								)}
 							</div>
 
 							{/* Scene Tree: Vertical Portals Only (Cầu thang & Thang máy) */}
@@ -6293,12 +6754,30 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								return (
 									<div className="digitizer-tree-group">
 										<div className="digitizer-tree-header">
-											<span>Cầu thang & Thang máy</span>
+											<button
+												type="button"
+												className="digitizer-tree-toggle-btn"
+												onClick={() =>
+													setTreeExpanded((prev) => ({
+														...prev,
+														portals: !prev.portals,
+													}))
+												}
+												aria-expanded={treeExpanded.portals}
+											>
+												{treeExpanded.portals ? (
+													<ChevronDown size={13} />
+												) : (
+													<ChevronRight size={13} />
+												)}
+												<span>Cầu thang & Thang máy</span>
+											</button>
 											<span className="digitizer-inspector-badge">
 												{portalNodes.length}
 											</span>
 										</div>
 
+										{treeExpanded.portals && (
 										<div className="digitizer-tree-list">
 											{portalNodes.length === 0 ? (
 												<span className="digitizer-tree-empty">
@@ -6350,6 +6829,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 												})
 											)}
 										</div>
+										)}
 									</div>
 								);
 							})()}

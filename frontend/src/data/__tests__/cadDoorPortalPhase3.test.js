@@ -12,6 +12,8 @@ import {
 	isNodeVisibleOnFloor,
 	isPointIndoorOnFloor,
 	mergeOrSplitNavNodeOnDrop,
+	resolveTestRouteClickContext,
+	samplePointAlongRoute,
 	syncPortalAcrossBuildingFloors,
 } from "../campusIndoor3dData.js";
 
@@ -784,6 +786,386 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 			assert.equal(isNodeVisibleOnFloor(boundaries, nEps2, "Tòa Epsilon", "ALL"), true);
 			assert.equal(isNodeVisibleOnFloor(boundaries, nEps2, "ALL", 0), false);
 			assert.equal(isNodeVisibleOnFloor(boundaries, nEps2, "ALL", 2), true);
+		});
+	});
+
+	describe("6. Multi-Floor Click Resolution, Cross-Building Outdoor Gateway & Real-Time Route Playback", () => {
+		it("Q1 & Q3a: clicking outdoor ground [106.810623, 10.839819] or [106.811957, 10.840825] while viewing Floor 1 or Floor 2 strictly resolves to OUTDOOR floor 0", () => {
+			const def = createDefaultGeometryStore();
+			const models = buildFloorWallGraphModels(def);
+
+			const clickStreetWhileOnFloor2 = resolveTestRouteClickContext({
+				store: def,
+				rawCoord: [106.810623, 10.839819],
+				hitBuilding: null,
+				hitFloor: null,
+				scopeFloorNum: 2,
+				activeBuilding: "Tòa HCM",
+				isAllBuildings: false,
+				precomputedModels: models,
+			});
+			assert.deepEqual(clickStreetWhileOnFloor2, {
+				building: "OUTDOOR",
+				floorOrder: 0,
+				isOutdoor: true,
+			});
+
+			const clickFarEastWhileOnFloor2 = resolveTestRouteClickContext({
+				store: def,
+				rawCoord: [106.811957, 10.840825],
+				hitBuilding: null,
+				hitFloor: null,
+				scopeFloorNum: 2,
+				activeBuilding: "Tòa HCM",
+				isAllBuildings: false,
+				precomputedModels: models,
+			});
+			assert.deepEqual(clickFarEastWhileOnFloor2, {
+				building: "OUTDOOR",
+				floorOrder: 0,
+				isOutdoor: true,
+			});
+
+			const clickInsideFloor1Room = resolveTestRouteClickContext({
+				store: def,
+				rawCoord: [106.8103, 10.8412],
+				hitBuilding: "Tòa HCM",
+				hitFloor: 1,
+				scopeFloorNum: 1,
+				activeBuilding: "Tòa HCM",
+				isAllBuildings: false,
+				precomputedModels: models,
+			});
+			assert.deepEqual(clickInsideFloor1Room, {
+				building: "Tòa HCM",
+				floorOrder: 1,
+				isOutdoor: false,
+			});
+		});
+
+		it("Q3b: routes bidirectionally between distant OUTDOOR street and Tòa HCM Floor 2 even when Tòa Epsilon outer door is closer", () => {
+			const store = {
+				version: 3,
+				buildingBoundaries: [
+					{
+						id: "bnd-hcm-0",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						ring: [
+							[106.8095, 10.841],
+							[106.8104, 10.841],
+							[106.8104, 10.8416],
+							[106.8095, 10.8416],
+							[106.8095, 10.841],
+						],
+					},
+					{
+						id: "bnd-eps-0",
+						building: "Tòa Epsilon",
+						floorOrder: 0,
+						ring: [
+							[106.811, 10.8401],
+							[106.8116, 10.8401],
+							[106.8116, 10.8406],
+							[106.811, 10.8406],
+							[106.811, 10.8401],
+						],
+					},
+				],
+				walls: [
+					{
+						id: "w-hcm-0",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						line: [
+							[106.8095, 10.841],
+							[106.8104, 10.841],
+							[106.8104, 10.8416],
+							[106.8095, 10.8416],
+							[106.8095, 10.841],
+						],
+					},
+					{
+						id: "w-eps-0",
+						building: "Tòa Epsilon",
+						floorOrder: 0,
+						line: [
+							[106.811, 10.8401],
+							[106.8116, 10.8401],
+							[106.8116, 10.8406],
+							[106.811, 10.8406],
+							[106.811, 10.8401],
+						],
+					},
+				],
+				faceAssignments: [],
+				doors: [
+					{
+						id: "door-hcm-south",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8101, 10.841],
+						widthMeters: 2.0,
+					},
+					{
+						id: "door-eps-south",
+						building: "Tòa Epsilon",
+						floorOrder: 0,
+						coords: [106.8112, 10.8401],
+						widthMeters: 2.0,
+					},
+				],
+				navNodes: [
+					{
+						id: "hcm-0-cor",
+						type: "NODE",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8101, 10.8412],
+					},
+					{
+						id: "hcm-0-stair",
+						type: "STAIRS",
+						portalGroupId: "HCM_STAIR_W",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8098, 10.8413],
+					},
+					{
+						id: "hcm-2-stair",
+						type: "STAIRS",
+						portalGroupId: "HCM_STAIR_W",
+						building: "Tòa HCM",
+						floorOrder: 2,
+						coords: [106.8098, 10.8413],
+					},
+					{
+						id: "eps-0-cor",
+						type: "NODE",
+						building: "Tòa Epsilon",
+						floorOrder: 0,
+						coords: [106.8112, 10.8403],
+					},
+				],
+				navEdges: [["hcm-0-cor", "hcm-0-stair"]],
+			};
+
+			// [106.810623, 10.839819] is closer to Epsilon door (~70m) than HCM door (~143m)
+			const dFwd = {};
+			const routeFwd = computeDigitizedRoute({
+				store,
+				startCoords: [106.810623, 10.839819],
+				startBuilding: "OUTDOOR",
+				startFloorOrder: 0,
+				endCoords: [106.8099, 10.84135],
+				endBuilding: "Tòa HCM",
+				endFloorOrder: 2,
+				diagnosticsOut: dFwd,
+			});
+			assert.ok(routeFwd, `Expected forward route to succeed, got ${JSON.stringify(dFwd)}`);
+			assert.equal(routeFwd.pathNodes[0].id, "__door_door-hcm-south__");
+			assert.ok(routeFwd.floorsClimbed >= 2);
+
+			const dRev = {};
+			const routeRev = computeDigitizedRoute({
+				store,
+				startCoords: [106.8099, 10.84135],
+				startBuilding: "Tòa HCM",
+				startFloorOrder: 2,
+				endCoords: [106.810623, 10.839819],
+				endBuilding: "OUTDOOR",
+				endFloorOrder: 0,
+				diagnosticsOut: dRev,
+			});
+			assert.ok(routeRev, `Expected swapped reverse route to succeed, got ${JSON.stringify(dRev)}`);
+			assert.ok(
+				routeRev.pathNodes.some((n) => n.id === "__door_door-hcm-south__"),
+			);
+		});
+
+		it("Q3c: OUTDOOR -> OUTDOOR between distant campus points routes purely outdoors without tunneling through Tòa Epsilon walls", () => {
+			const store = {
+				version: 3,
+				buildingBoundaries: [
+					{
+						id: "bnd-eps-0",
+						building: "Tòa Epsilon",
+						floorOrder: 0,
+						ring: [
+							[106.811093, 10.840192],
+							[106.811766, 10.840192],
+							[106.811766, 10.840864],
+							[106.811093, 10.840864],
+							[106.811093, 10.840192],
+						],
+					},
+				],
+				walls: [
+					{
+						id: "w-eps-0",
+						building: "Tòa Epsilon",
+						floorOrder: 0,
+						line: [
+							[106.811093, 10.840192],
+							[106.811766, 10.840192],
+							[106.811766, 10.840864],
+							[106.811093, 10.840864],
+							[106.811093, 10.840192],
+						],
+					},
+				],
+				faceAssignments: [],
+				doors: [
+					{
+						id: "door-eps-ent",
+						building: "Tòa Epsilon",
+						floorOrder: 0,
+						coords: [106.811261, 10.840192],
+						widthMeters: 1.8,
+					},
+				],
+				navNodes: [
+					{
+						id: "eps-0-cor",
+						type: "NODE",
+						building: "Tòa Epsilon",
+						floorOrder: 0,
+						coords: [106.8113, 10.84035],
+					},
+				],
+				navEdges: [],
+			};
+
+			const route = computeDigitizedRoute({
+				store,
+				startCoords: [106.810623, 10.839819],
+				startBuilding: "OUTDOOR",
+				startFloorOrder: 0,
+				endCoords: [106.811957, 10.840825],
+				endBuilding: "OUTDOOR",
+				endFloorOrder: 0,
+			});
+			assert.ok(route, "Expected outdoor-to-outdoor campus walk to succeed");
+			assert.ok(
+				route.geojson.features.every((f) => f.properties?.isOutdoor === true),
+				"All segments between two strictly exterior campus points must stay OUTDOOR",
+			);
+			assert.ok(
+				!route.pathNodes.some((n) => n.id === "__door_door-eps-ent__"),
+				"Must NOT detour inside an unrelated building door between two outdoor street clicks",
+			);
+		});
+
+		it("Q3d: distinguishes MISSING_ENTRANCE_LINK vs MISSING_PORTAL_LINK accurately on multi-floor failures", () => {
+			// Tòa HCM has connected STAIRS 0<->2, but ZERO Floor-0 doors or outdoor sidewalk links
+			const storeNoDoor = {
+				version: 3,
+				buildingBoundaries: [
+					{
+						id: "bnd-hcm-0",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						ring: [
+							[106.8095, 10.841],
+							[106.8104, 10.841],
+							[106.8104, 10.8416],
+							[106.8095, 10.8416],
+							[106.8095, 10.841],
+						],
+					},
+				],
+				walls: [
+					{
+						id: "w-hcm-0",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						line: [
+							[106.8095, 10.841],
+							[106.8104, 10.841],
+							[106.8104, 10.8416],
+							[106.8095, 10.8416],
+							[106.8095, 10.841],
+						],
+					},
+				],
+				faceAssignments: [],
+				doors: [],
+				navNodes: [
+					{
+						id: "hcm-0-stair",
+						type: "STAIRS",
+						portalGroupId: "HCM_STAIR_W",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8098, 10.8413],
+					},
+					{
+						id: "hcm-2-stair",
+						type: "STAIRS",
+						portalGroupId: "HCM_STAIR_W",
+						building: "Tòa HCM",
+						floorOrder: 2,
+						coords: [106.8098, 10.8413],
+					},
+				],
+				navEdges: [],
+			};
+			const diagNoDoor = {};
+			const resNoDoor = computeDigitizedRoute({
+				store: storeNoDoor,
+				startCoords: [106.810623, 10.839819],
+				startBuilding: "OUTDOOR",
+				startFloorOrder: 0,
+				endCoords: [106.8098, 10.8413],
+				endBuilding: "Tòa HCM",
+				endFloorOrder: 2,
+				diagnosticsOut: diagNoDoor,
+			});
+			assert.equal(resNoDoor, null);
+			assert.equal(diagNoDoor.reasonCode, "MISSING_ENTRANCE_LINK");
+		});
+
+		it("Q1 Playback: samplePointAlongRoute interpolates outdoor -> floor 0 -> stairs -> upper floor with trailGeoJSON & boundaries", () => {
+			assert.equal(samplePointAlongRoute(null, 0.5), null);
+			const sampleRoute = {
+				totalDistanceMeters: 50,
+				floorsClimbed: 1,
+				geojson: {
+					type: "FeatureCollection",
+					features: [
+						{
+							type: "Feature",
+							properties: { floorOrder: 0, toFloorOrder: 0, building: "OUTDOOR", isOutdoor: true, isStair: false },
+							geometry: { type: "LineString", coordinates: [[106.8101, 10.8405], [106.8101, 10.8407]] },
+						},
+						{
+							type: "Feature",
+							properties: { floorOrder: 0, toFloorOrder: 1, building: "Tòa HCM", isOutdoor: false, isStair: true },
+							geometry: { type: "LineString", coordinates: [[106.8101, 10.8407], [106.8101, 10.8407]] },
+						},
+						{
+							type: "Feature",
+							properties: { floorOrder: 1, toFloorOrder: 1, building: "Tòa HCM", isOutdoor: false, isStair: false },
+							geometry: { type: "LineString", coordinates: [[106.8101, 10.8407], [106.8103, 10.8407]] },
+						},
+					],
+				},
+			};
+
+			const atStart = samplePointAlongRoute(sampleRoute, -0.2);
+			assert.deepEqual(atStart.coords, [106.8101, 10.8405]);
+			assert.equal(atStart.floorOrder, 0);
+			assert.equal(atStart.isOutdoor, true);
+
+			const atMidStair = samplePointAlongRoute(sampleRoute, 0.5);
+			assert.ok(atMidStair.elevationMeters > 0.2 && atMidStair.elevationMeters < 3.6);
+			assert.ok(Array.isArray(atMidStair.trailGeoJSON.features));
+			assert.ok(atMidStair.trailGeoJSON.features.length >= 1);
+
+			const atEnd = samplePointAlongRoute(sampleRoute, 1.5);
+			assert.deepEqual(atEnd.coords, [106.8103, 10.8407]);
+			assert.equal(atEnd.floorOrder, 1);
+			assert.equal(atEnd.isOutdoor, false);
 		});
 	});
 });

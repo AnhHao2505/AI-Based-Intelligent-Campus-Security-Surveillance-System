@@ -3587,6 +3587,7 @@ export function computeDigitizedRoute({
 	}
 
 	const outerGatewayDoorIds = new Set();
+	const outerGatewayDoorsByBldg = new Map(); // canonicalBuilding -> Set(doorNodeId)
 	const courtyardGatewayDoorMap = new Map(); // canonicalBuilding -> Set(doorNodeId)
 
 	const getFloorPool = (
@@ -3597,6 +3598,7 @@ export function computeDigitizedRoute({
 			excludeVirtualDoors = false,
 			outdoorZone = null,
 			preferOuterGatewayDoors = false,
+			targetBuilding = null,
 		} = {},
 	) => {
 		const fl = Number(flOrder) || 0;
@@ -3638,6 +3640,20 @@ export function computeDigitizedRoute({
 			if (exteriorNodes.length > 0 && !preferOuterGatewayDoors) {
 				return exteriorNodes;
 			}
+
+			if (preferOuterGatewayDoors && targetBuilding) {
+				const cTarget =
+					resolveCanonicalBuildingName(targetBuilding) || targetBuilding;
+				const scopedDoors = [];
+				for (const dId of outerGatewayDoorsByBldg.get(cTarget) || []) {
+					const dn = nodeMap.get(dId);
+					if (dn && (adj.get(dId) || []).length > 0) {
+						scopedDoors.push(dn);
+					}
+				}
+				if (scopedDoors.length > 0) return scopedDoors;
+			}
+
 			const connectedOuterDoors = [];
 			for (const dId of outerGatewayDoorIds) {
 				const dn = nodeMap.get(dId);
@@ -3806,6 +3822,12 @@ export function computeDigitizedRoute({
 
 					if (sideStrictlyOutside) {
 						outerGatewayDoorIds.add(dNodeId);
+						const cDoorBldg =
+							resolveCanonicalBuildingName(model.building) || model.building;
+						if (!outerGatewayDoorsByBldg.has(cDoorBldg)) {
+							outerGatewayDoorsByBldg.set(cDoorBldg, new Set());
+						}
+						outerGatewayDoorsByBldg.get(cDoorBldg).add(dNodeId);
 						const att = connectCoordsToPool(
 							`${dNodeId}_out`,
 							door.coords,
@@ -3976,24 +3998,187 @@ export function computeDigitizedRoute({
 		return { sNode, eNode, pathNodes: foundPath };
 	};
 
+	const segsCross2D = (a, b, c, d) => {
+		const rx = b[0] - a[0];
+		const ry = b[1] - a[1];
+		const sx = d[0] - c[0];
+		const sy = d[1] - c[1];
+		const denom = rx * sy - ry * sx;
+		if (Math.abs(denom) < 1e-14) return false;
+		const qpx = c[0] - a[0];
+		const qpy = c[1] - a[1];
+		const t = (qpx * sy - qpy * sx) / denom;
+		const u = (qpx * ry - qpy * rx) / denom;
+		return t > 1e-5 && t < 1 - 1e-5 && u > 1e-5 && u < 1 - 1e-5;
+	};
+
+	const segmentCrossesRing = (a, b, ring = []) => {
+		if (!Array.isArray(ring) || ring.length < 3) return false;
+		for (let i = 0; i < ring.length - 1; i++) {
+			if (segsCross2D(a, b, ring[i], ring[i + 1])) return true;
+		}
+		if (
+			ring[0][0] !== ring[ring.length - 1][0] ||
+			ring[0][1] !== ring[ring.length - 1][1]
+		) {
+			if (segsCross2D(a, b, ring[ring.length - 1], ring[0])) return true;
+		}
+		const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+		return isPointInRing(mid, ring);
+	};
+
+	const buildExteriorCampusCoords = (a, b, bnds = []) => {
+		const blocking = (bnds || []).filter((bnd) =>
+			segmentCrossesRing(a, b, bnd.ring),
+		);
+		if (blocking.length === 0) return [a, b];
+		// Detour cleanly outside the first blocking building footprint via its buffered exterior vertices
+		const ring = blocking[0].ring || [];
+		const openPts =
+			ring.length >= 2 &&
+			ring[0][0] === ring[ring.length - 1][0] &&
+			ring[0][1] === ring[ring.length - 1][1]
+				? ring.slice(0, -1)
+				: ring;
+		if (openPts.length < 3) return [a, b];
+		const centroid = getRingCentroid(ring);
+		const padded = openPts.map((pt) => {
+			const dx = pt[0] - centroid[0];
+			const dy = pt[1] - centroid[1];
+			const len = Math.hypot(dx, dy) || 1;
+			const pad = 0.000018; // ~2m outside perimeter wall
+			return [
+				Number((pt[0] + (dx / len) * pad).toFixed(7)),
+				Number((pt[1] + (dy / len) * pad).toFixed(7)),
+			];
+		});
+		let bestWaypoints = null;
+		let bestLen = Infinity;
+		const nearestIdx = (pt) => {
+			let idx = 0;
+			let dMin = Infinity;
+			padded.forEach((v, k) => {
+				const d = haversineMeters(pt, v);
+				if (d < dMin) {
+					dMin = d;
+					idx = k;
+				}
+			});
+			return idx;
+		};
+		const sIdx = nearestIdx(a);
+		const eIdx = nearestIdx(b);
+		const nLen = padded.length;
+		for (const dir of [1, -1]) {
+			const arc = [a];
+			let cur = sIdx;
+			let guard = 0;
+			while (guard <= nLen) {
+				arc.push(padded[cur]);
+				if (cur === eIdx) break;
+				cur = (cur + dir + nLen) % nLen;
+				guard++;
+			}
+			arc.push(b);
+			let distSum = 0;
+			for (let k = 0; k < arc.length - 1; k++) {
+				distSum += haversineMeters(arc[k], arc[k + 1]);
+			}
+			if (distSum < bestLen) {
+				bestLen = distSum;
+				bestWaypoints = arc;
+			}
+		}
+		return bestWaypoints || [a, b];
+	};
+
+	const bothStrictlyExteriorOutdoor =
+		startBuilding === "OUTDOOR" &&
+		endBuilding === "OUTDOOR" &&
+		!findVoidCourtyardBuilding(startCoords) &&
+		!findVoidCourtyardBuilding(endCoords);
+
+	const indoorCounterpartBldg =
+		startBuilding === "OUTDOOR" &&
+		endBuilding &&
+		endBuilding !== "OUTDOOR" &&
+		endBuilding !== "ALL"
+			? endBuilding
+			: endBuilding === "OUTDOOR" &&
+				  startBuilding &&
+				  startBuilding !== "OUTDOOR" &&
+				  startBuilding !== "ALL"
+				? startBuilding
+				: null;
+
+	const startPoolOpts = bothStrictlyExteriorOutdoor
+		? { excludeVirtualDoors: true, outdoorZone: "EXTERIOR" }
+		: {};
+	const endPoolOpts = bothStrictlyExteriorOutdoor
+		? { excludeVirtualDoors: true, outdoorZone: "EXTERIOR" }
+		: {};
+
 	let startAttach = attachEndpoint(
 		"__virtual_start__",
 		startCoords,
 		startBuilding,
 		startFloorOrder,
+		startPoolOpts,
 	);
 	let endAttach = attachEndpoint(
 		"__virtual_end__",
 		endCoords,
 		endBuilding,
 		endFloorOrder,
+		endPoolOpts,
 	);
 	let { sNode: startNode, eNode: endNode, pathNodes } = runDijkstraPass(
 		startAttach,
 		endAttach,
 	);
 
-	// Fallback if exterior sidewalk nodes were disconnected from a building's own outer perimeter DOOR(s)
+	// Two strictly exterior campus clicks without a connecting sidewalk graph walk directly outdoors (avoiding buildings, never via unrelated doors)
+	if (
+		bothStrictlyExteriorOutdoor &&
+		(pathNodes.length === 0 || pathNodes[0]?.id !== startNode?.id)
+	) {
+		const extCoords = buildExteriorCampusCoords(
+			startCoords,
+			endCoords,
+			floor0Bounds,
+		);
+		let extMeters = 0;
+		for (let i = 0; i < extCoords.length - 1; i++) {
+			extMeters += haversineMeters(extCoords[i], extCoords[i + 1]);
+		}
+		return {
+			pathNodes: [],
+			totalDistanceMeters: Math.round(extMeters),
+			floorsClimbed: 0,
+			estimatedSeconds: Math.max(1, Math.round(extMeters / 1.45)),
+			geojson: {
+				type: "FeatureCollection",
+				features: [
+					{
+						type: "Feature",
+						properties: {
+							floorOrder: 0,
+							toFloorOrder: 0,
+							building: "OUTDOOR",
+							isOutdoor: true,
+							isStair: false,
+						},
+						geometry: {
+							type: "LineString",
+							coordinates: extCoords,
+						},
+					},
+				],
+			},
+		};
+	}
+
+	// Fallback if exterior sidewalk nodes were disconnected (or snapped onto another building's closer door instead of target building)
 	if (
 		(pathNodes.length === 0 || pathNodes[0]?.id !== startNode?.id) &&
 		outerGatewayDoorIds.size > 0 &&
@@ -4006,7 +4191,10 @@ export function computeDigitizedRoute({
 						startCoords,
 						startBuilding,
 						startFloorOrder,
-						{ preferOuterGatewayDoors: true },
+						{
+							preferOuterGatewayDoors: true,
+							targetBuilding: indoorCounterpartBldg,
+						},
 					)
 				: startAttach;
 		const retryEnd =
@@ -4016,7 +4204,10 @@ export function computeDigitizedRoute({
 						endCoords,
 						endBuilding,
 						endFloorOrder,
-						{ preferOuterGatewayDoors: true },
+						{
+							preferOuterGatewayDoors: true,
+							targetBuilding: indoorCounterpartBldg,
+						},
 					)
 				: endAttach;
 		const retryRes = runDijkstraPass(retryStart, retryEnd);
@@ -4049,7 +4240,70 @@ export function computeDigitizedRoute({
 	}
 
 	if (pathNodes.length === 0 || pathNodes[0]?.id !== startNode.id) {
-		if (Number(startFloorOrder) !== Number(endFloorOrder)) {
+		const canReachFloor0InBuilding = (fromNodeId, targetBldg) => {
+			if (
+				!fromNodeId ||
+				!targetBldg ||
+				targetBldg === "OUTDOOR" ||
+				targetBldg === "ALL"
+			) {
+				return false;
+			}
+			const seen = new Set([fromNodeId]);
+			const queue = [fromNodeId];
+			while (queue.length > 0) {
+				const curId = queue.shift();
+				const curNode = nodeMap.get(curId);
+				if (
+					curNode &&
+					!curNode.isVirtual &&
+					(Number(curNode.floorOrder) || 0) === 0 &&
+					!isNodeOutdoor(boundaries, curNode, floorModels) &&
+					matchesBuilding(
+						resolveNodeBuilding(boundaries, curNode, floorModels),
+						targetBldg,
+					)
+				) {
+					return true;
+				}
+				for (const edge of adj.get(curId) || []) {
+					if (!seen.has(edge.to)) {
+						seen.add(edge.to);
+						queue.push(edge.to);
+					}
+				}
+			}
+			return false;
+		};
+
+		if (indoorCounterpartBldg) {
+			const cTarget =
+				resolveCanonicalBuildingName(indoorCounterpartBldg) ||
+				indoorCounterpartBldg;
+			const hasTargetOuterDoors =
+				(outerGatewayDoorsByBldg.get(cTarget)?.size || 0) > 0;
+			const indoorSideNode = startBuilding === "OUTDOOR" ? endNode : startNode;
+			const reachesFloor0 =
+				(Number(indoorSideNode?.floorOrder) || 0) === 0 ||
+				canReachFloor0InBuilding(indoorSideNode?.id, indoorCounterpartBldg);
+
+			if (!reachesFloor0 && Number(startFloorOrder) !== Number(endFloorOrder)) {
+				setDiag(
+					"MISSING_PORTAL_LINK",
+					`Không tìm thấy đường giữa Tầng ${startFloorOrder} và Tầng ${endFloorOrder}: chưa có Cầu thang/Thang máy thông tầng hoặc chưa nối dây vào hành lang.`,
+				);
+			} else if (!hasTargetOuterDoors) {
+				setDiag(
+					"MISSING_ENTRANCE_LINK",
+					`Không tìm thấy cửa vào ${cTarget}: hãy gắn Cửa [D] lên tường bao Tầng G hoặc nối dây [N] ra sân.`,
+				);
+			} else {
+				setDiag(
+					"MISSING_ENTRANCE_LINK",
+					`Không tìm thấy đường vào ${cTarget} từ Ngoài sân: hãy kiểm tra dây nối [N] từ Cửa [D] Tầng G tới Cầu thang/Thang máy.`,
+				);
+			}
+		} else if (Number(startFloorOrder) !== Number(endFloorOrder)) {
 			setDiag(
 				"MISSING_PORTAL_LINK",
 				`Không tìm thấy đường giữa Tầng ${startFloorOrder} và Tầng ${endFloorOrder}: chưa có Cầu thang/Thang máy thông tầng hoặc chưa nối dây vào hành lang.`,
@@ -4866,5 +5120,236 @@ export function isPointIndoorOnFloor(
 		(b) => matchesBuilding(b.building, cBldg) && Number(b.floorOrder) === fl,
 	);
 	return Boolean(findBoundaryContainingPoint(floorBounds, pt, fl));
+}
+
+/**
+ * Resolve true (building, floorOrder, isOutdoor) for a `[T]` route-test click on 2D/3D studio map.
+ * Never classifies street/yard clicks outside building footprints as an indoor upper floor
+ * merely because the Floor dropdown is currently set to Floor 1 or Floor 2.
+ */
+export function resolveTestRouteClickContext({
+	store,
+	rawCoord,
+	hitBuilding = null,
+	hitFloor = null,
+	scopeFloorNum = null,
+	activeBuilding = "Tòa HCM",
+	isAllBuildings = false,
+	precomputedModels = null,
+}) {
+	if (!rawCoord || !Array.isArray(rawCoord)) {
+		return { building: "OUTDOOR", floorOrder: 0, isOutdoor: true };
+	}
+	const models = precomputedModels || buildFloorWallGraphModels(store || {});
+	const allBounds = store?.buildingBoundaries || [];
+	const floor0Bounds = allBounds.filter(
+		(b) => (Number(b.floorOrder) || 0) === 0,
+	);
+
+	if (hitBuilding && hitBuilding !== "OUTDOOR") {
+		const fl =
+			hitFloor != null ? Number(hitFloor) || 0 : scopeFloorNum ?? 0;
+		if (
+			fl === 0 &&
+			!isPointIndoorOnFloor(store, hitBuilding, 0, rawCoord, models)
+		) {
+			return { building: "OUTDOOR", floorOrder: 0, isOutdoor: true };
+		}
+		return { building: hitBuilding, floorOrder: fl, isOutdoor: false };
+	}
+
+	const candidateFloor =
+		hitFloor != null ? Number(hitFloor) || 0 : scopeFloorNum ?? 0;
+	const bndAtFloor = findBoundaryContainingPoint(
+		allBounds,
+		rawCoord,
+		candidateFloor,
+	);
+	const bndFloor0 =
+		floor0Bounds.length > 0
+			? findBoundaryContainingPoint(floor0Bounds, rawCoord, 0)
+			: null;
+
+	// Outside every building footprint -> strictly OUTDOOR floor 0 regardless of active floor dropdown
+	if (!bndAtFloor && !bndFloor0) {
+		return { building: "OUTDOOR", floorOrder: 0, isOutdoor: true };
+	}
+
+	const bldg =
+		bndAtFloor?.building ||
+		bndFloor0?.building ||
+		(isAllBuildings ? "OUTDOOR" : activeBuilding);
+	if (!bldg || bldg === "OUTDOOR") {
+		return { building: "OUTDOOR", floorOrder: 0, isOutdoor: true };
+	}
+
+	const fl = bndAtFloor ? candidateFloor : 0;
+	if (!isPointIndoorOnFloor(store, bldg, fl, rawCoord, models)) {
+		return { building: "OUTDOOR", floorOrder: 0, isOutdoor: true };
+	}
+
+	return { building: bldg, floorOrder: fl, isOutdoor: false };
+}
+
+/**
+ * Sample an interpolated walker position, current floor, elevation, bearing, and traveled trail GeoJSON
+ * at normalized playback progress `t ∈ [0, 1]` along a `computeDigitizedRoute` result.
+ */
+export function samplePointAlongRoute(routeResult, progress01 = 0) {
+	const features = routeResult?.geojson?.features;
+	if (!Array.isArray(features) || features.length === 0) return null;
+
+	const tClamped = Math.max(0, Math.min(1, Number(progress01) || 0));
+	const elevFor = (fl, isOut) =>
+		isOut ? 0.3 : (Number(fl) || 0) * FLOOR_ELEVATION_STEP + FLOOR_SLAB_HEIGHT + 0.38;
+
+	const steps = [];
+	let trackedFloor = Number(features[0]?.properties?.floorOrder) || 0;
+
+	for (const feat of features) {
+		const coords = feat?.geometry?.coordinates;
+		const props = feat?.properties || {};
+		if (!Array.isArray(coords) || coords.length < 2) continue;
+
+		const isStair = Boolean(props.isStair);
+		const isOutdoor = Boolean(props.isOutdoor);
+		const building = props.building || (isOutdoor ? "OUTDOOR" : "");
+
+		let fromFloor = Number(props.floorOrder) || 0;
+		let toFloor = Number(props.toFloorOrder ?? fromFloor);
+		if (isStair) {
+			const minF = Math.min(fromFloor, toFloor);
+			const maxF = Math.max(fromFloor, toFloor);
+			if (Math.abs(trackedFloor - maxF) < Math.abs(trackedFloor - minF)) {
+				fromFloor = maxF;
+				toFloor = minF;
+			} else {
+				fromFloor = minF;
+				toFloor = maxF;
+			}
+		} else {
+			toFloor = fromFloor;
+		}
+		trackedFloor = toFloor;
+
+		const segCount = coords.length - 1;
+		for (let i = 0; i < segCount; i++) {
+			const a = coords[i];
+			const b = coords[i + 1];
+			const realMeters = haversineMeters(a, b);
+			const f0 = fromFloor + (toFloor - fromFloor) * (i / segCount);
+			const f1 = fromFloor + (toFloor - fromFloor) * ((i + 1) / segCount);
+			const weightMeters = isStair
+				? Math.max(realMeters, Math.max(1, Math.abs(f1 - f0)) * FLOOR_ELEVATION_STEP * 2.5)
+				: Math.max(realMeters, 0.25);
+
+			steps.push({
+				a,
+				b,
+				fromFloor: f0,
+				toFloor: f1,
+				startZ: elevFor(f0, isOutdoor && !isStair),
+				endZ: elevFor(f1, isOutdoor && !isStair),
+				isOutdoor,
+				isStair,
+				building,
+				realMeters,
+				weightMeters,
+			});
+		}
+	}
+
+	if (steps.length === 0) return null;
+
+	const totalWeight = steps.reduce((acc, s) => acc + s.weightMeters, 0) || 1;
+	const targetWeight = tClamped * totalWeight;
+
+	let accWeight = 0;
+	let accRealMeters = 0;
+	let localT = 1;
+	const trailFeatures = [];
+
+	for (let i = 0; i < steps.length; i++) {
+		const s = steps[i];
+		const nextAccWeight = accWeight + s.weightMeters;
+		if (targetWeight <= nextAccWeight || i === steps.length - 1) {
+			localT =
+				s.weightMeters > 1e-6
+					? Math.max(0, Math.min(1, (targetWeight - accWeight) / s.weightMeters))
+					: 1;
+			accRealMeters += s.realMeters * localT;
+			const interpCoord = [
+				Number((s.a[0] + (s.b[0] - s.a[0]) * localT).toFixed(7)),
+				Number((s.a[1] + (s.b[1] - s.a[1]) * localT).toFixed(7)),
+			];
+			if (localT > 0.001) {
+				trailFeatures.push({
+					type: "Feature",
+					properties: {
+						floorOrder: Math.round(s.fromFloor),
+						isOutdoor: s.isOutdoor,
+						isStair: s.isStair,
+					},
+					geometry: {
+						type: "LineString",
+						coordinates: [s.a, interpCoord],
+					},
+				});
+			}
+			const floorFloat = s.fromFloor + (s.toFloor - s.fromFloor) * localT;
+			const elevationMeters = Number(
+				(s.startZ + (s.endZ - s.startZ) * localT).toFixed(2),
+			);
+			const dx = (s.b[0] - s.a[0]) * Math.cos(((s.a[1] || 10.84) * Math.PI) / 180);
+			const dy = s.b[1] - s.a[1];
+			const bearing =
+				Math.hypot(dx, dy) > 1e-9
+					? ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360
+					: 0;
+			const floorInt = Math.round(floorFloat);
+			const statusLabel = s.isStair
+				? `Chuyển tầng ${Math.round(s.fromFloor) === 0 ? "G" : Math.round(s.fromFloor)} → ${Math.round(s.toFloor) === 0 ? "G" : Math.round(s.toFloor)}`
+				: s.isOutdoor
+					? "Ngoài sân"
+					: `${s.building ? `${s.building} · ` : ""}Tầng ${floorInt === 0 ? "G" : floorInt}`;
+
+			return {
+				coords: interpCoord,
+				floorOrder: floorInt,
+				elevationMeters,
+				bearing: Number(bearing.toFixed(1)),
+				isOutdoor: s.isOutdoor,
+				isStair: s.isStair,
+				building: s.building,
+				statusLabel,
+				distanceCoveredMeters: Math.round(accRealMeters),
+				totalDistanceMeters:
+					routeResult.totalDistanceMeters ??
+					Math.round(steps.reduce((acc, st) => acc + st.realMeters, 0)),
+				progress: tClamped,
+				trailGeoJSON: {
+					type: "FeatureCollection",
+					features: trailFeatures,
+				},
+			};
+		}
+
+		accWeight = nextAccWeight;
+		accRealMeters += s.realMeters;
+		trailFeatures.push({
+			type: "Feature",
+			properties: {
+				floorOrder: Math.round(s.fromFloor),
+				isOutdoor: s.isOutdoor,
+				isStair: s.isStair,
+			},
+			geometry: {
+				type: "LineString",
+				coordinates: [s.a, s.b],
+			},
+		});
+	}
+
+	return null;
 }
 
