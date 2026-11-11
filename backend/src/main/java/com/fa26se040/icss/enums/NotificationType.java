@@ -3,6 +3,8 @@ package com.fa26se040.icss.enums;
 public enum NotificationType {
     REQUEST_APPROVED,
     REQUEST_REJECTED,
+    // Nghĩa thực là "sắp BẮT ĐẦU" (nhắc đơn APPROVED sắp tới giờ vào khu vực). Giữ tên cũ vì dữ liệu notifications
+    // và CHECK constraint đã dùng giá trị này.
     EXPIRING_SOON,
     ACCESS_DENIED,
     ADDED_TO_GROUP,

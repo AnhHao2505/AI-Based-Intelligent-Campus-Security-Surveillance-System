@@ -405,6 +405,7 @@ public class SystemConfigService {
                         throw new IllegalArgumentException("Thời lượng tối đa (EVENT_MODE_MAX_HOURS * 60 phút) không được nhỏ hơn thời lượng tối thiểu (EVENT_MODE_MIN_MINUTES)");
                     }
                 }
+                validateNotificationScanConfig(config.getConfigKey(), intVal);
             }
             case "DECIMAL" -> {
                 BigDecimal decVal;
@@ -444,6 +445,46 @@ public class SystemConfigService {
                 }
             }
             default -> log.warn("Unknown dataType [{}] for config [{}]", dataType, config.getConfigKey());
+        }
+    }
+
+    /**
+     * V113: ràng buộc chéo chu kỳ quét của job thông báo, kiểm khi sửa khoá nào trong cặp cũng được (so với giá trị hiện hành
+     * của khoá còn lại):
+     * <ul>
+     *   <li>NOTIFICATION_STARTING_SOON_SCAN_MINUTES &lt; NOTIFICATION_EXPIRING_SOON_LEAD_MINUTES: quét thưa hơn thời gian báo
+     *   trước thì đơn có thể lọt, không được nhắc trước giờ bắt đầu</li>
+     *   <li>NOTIFICATION_PENDING_OVERDUE_SCAN_MINUTES ≤ NOTIFICATION_PENDING_OVERDUE_HOURS × 60</li>
+     * </ul>
+     */
+    private void validateNotificationScanConfig(String key, int value) {
+        String scanSoon = ConfigKey.NOTIFICATION_STARTING_SOON_SCAN_MINUTES.getKey();
+        String lead = ConfigKey.NOTIFICATION_EXPIRING_SOON_LEAD_MINUTES.getKey();
+        String scanOverdue = ConfigKey.NOTIFICATION_PENDING_OVERDUE_SCAN_MINUTES.getKey();
+        String overdueHours = ConfigKey.NOTIFICATION_PENDING_OVERDUE_HOURS.getKey();
+
+        if (scanSoon.equals(key) || lead.equals(key)) {
+            int currentScan = getInt(ConfigKey.NOTIFICATION_STARTING_SOON_SCAN_MINUTES);
+            int currentLead = getInt(ConfigKey.NOTIFICATION_EXPIRING_SOON_LEAD_MINUTES);
+            int newScan = scanSoon.equals(key) ? value : currentScan;
+            int newLead = lead.equals(key) ? value : currentLead;
+            if (newScan >= newLead) {
+                throw new IllegalArgumentException("Chu kỳ quét nhắc sắp đến giờ (" + scanSoon + ") phải nhỏ hơn thời gian báo trước ("
+                        + lead + "). Giá trị hiện hành: " + scanSoon + " = " + currentScan + " phút, " + lead + " = " + currentLead
+                        + " phút; giá trị vừa nhập: " + key + " = " + value + " phút.");
+            }
+        }
+        if (scanOverdue.equals(key) || overdueHours.equals(key)) {
+            int currentScan = getInt(ConfigKey.NOTIFICATION_PENDING_OVERDUE_SCAN_MINUTES);
+            int currentHours = getInt(ConfigKey.NOTIFICATION_PENDING_OVERDUE_HOURS);
+            int newScan = scanOverdue.equals(key) ? value : currentScan;
+            int newHours = overdueHours.equals(key) ? value : currentHours;
+            if (newScan > newHours * 60) {
+                String unit = overdueHours.equals(key) ? " giờ" : " phút";
+                throw new IllegalArgumentException("Chu kỳ quét đơn tồn đọng (" + scanOverdue + ") không được lớn hơn ngưỡng tồn đọng ("
+                        + overdueHours + " × 60 phút). Giá trị hiện hành: " + scanOverdue + " = " + currentScan + " phút, "
+                        + overdueHours + " = " + currentHours + " giờ; giá trị vừa nhập: " + key + " = " + value + unit + ".");
+            }
         }
     }
 
