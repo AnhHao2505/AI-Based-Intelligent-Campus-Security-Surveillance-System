@@ -114,7 +114,54 @@ function renderElevatorIconData() {
 const PORTAL_RENDERERS = {
 	"portal-stairs": renderStairsIconData,
 	"portal-elevator": renderElevatorIconData,
+	"portal-door": () => renderDoorIconData("#0d9488", false),
+	"portal-door-unlinked": () => renderDoorIconData("#f59e0b", true),
 };
+
+function renderDoorIconData(bgColor, isUnlinked = false) {
+	return renderPortalBadge(bgColor, (ctx) => {
+		// Open-door architectural glyph in crisp white
+		ctx.strokeStyle = "#ffffff";
+		ctx.fillStyle = "#ffffff";
+		ctx.lineWidth = 2.8;
+		ctx.lineCap = "round";
+		ctx.lineJoin = "round";
+
+		// Threshold frame
+		ctx.beginPath();
+		ctx.moveTo(19, 44);
+		ctx.lineTo(19, 20);
+		ctx.lineTo(39, 20);
+		ctx.lineTo(39, 44);
+		ctx.stroke();
+
+		// Swinging ajar inner door panel
+		ctx.beginPath();
+		ctx.moveTo(22, 22);
+		ctx.lineTo(33, 25);
+		ctx.lineTo(33, 43);
+		ctx.lineTo(22, 43);
+		ctx.closePath();
+		ctx.fill();
+
+		// Door knob cutout in badge tint
+		ctx.fillStyle = bgColor;
+		ctx.beginPath();
+		ctx.arc(30.2, 34, 1.5, 0, Math.PI * 2);
+		ctx.fill();
+
+		// Small high-contrast top-right status marker when door is still unwired to navEdges
+		if (isUnlinked) {
+			ctx.fillStyle = "#dc2626";
+			ctx.beginPath();
+			ctx.arc(44, 20, 6.2, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.strokeStyle = "#ffffff";
+			ctx.lineWidth = 2;
+			ctx.stroke();
+		}
+	});
+}
 
 export function ensurePortalMapImage(map, id) {
 	if (!map || typeof map.hasImage !== "function" || typeof map.addImage !== "function") {

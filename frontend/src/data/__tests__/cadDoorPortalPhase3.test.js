@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+	auditNavigationConnectivity,
 	buildFloorWallGraphModels,
 	buildOrientedDoorGeometry,
 	buildVector3dLayers,
@@ -8,6 +9,7 @@ import {
 	createDefaultGeometryStore,
 	deduplicateFloorVertices,
 	dragWeldedWallVertices,
+	isDoorConnectedToGraph,
 	isNodeOutdoor,
 	isNodeVisibleOnFloor,
 	isPointIndoorOnFloor,
@@ -1166,6 +1168,210 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 			assert.deepEqual(atEnd.coords, [106.8103, 10.8407]);
 			assert.equal(atEnd.floorOrder, 1);
 			assert.equal(atEnd.isOutdoor, false);
+		});
+	});
+
+	describe("7. Door Icon Connection Status & Navigation Connectivity Validator (Mục 2)", () => {
+		const buildConnectivityFixture = () => ({
+			version: 3,
+			buildingBoundaries: [
+				{
+					id: "bnd-hcm-0",
+					building: "Tòa HCM",
+					floorOrder: 0,
+					ring: [
+						[106.8095, 10.841],
+						[106.8104, 10.841],
+						[106.8104, 10.8416],
+						[106.8095, 10.8416],
+						[106.8095, 10.841],
+					],
+				},
+				{
+					id: "bnd-hcm-1",
+					building: "Tòa HCM",
+					floorOrder: 1,
+					ring: [
+						[106.8095, 10.841],
+						[106.8104, 10.841],
+						[106.8104, 10.8416],
+						[106.8095, 10.8416],
+						[106.8095, 10.841],
+					],
+				},
+			],
+			walls: [],
+			faceAssignments: [],
+			doors: [
+				{
+					id: "door-wired",
+					building: "Tòa HCM",
+					floorOrder: 0,
+					coords: [106.8099, 10.8412],
+					widthMeters: 1.5,
+				},
+				{
+					id: "door-unwired",
+					building: "Tòa HCM",
+					floorOrder: 0,
+					coords: [106.8102, 10.8412],
+					widthMeters: 1.5,
+				},
+			],
+			navNodes: [
+				{
+					id: "n-cor-0",
+					type: "NODE",
+					building: "Tòa HCM",
+					floorOrder: 0,
+					coords: [106.8098, 10.8413],
+				},
+				{
+					id: "n-door-0",
+					type: "NODE",
+					building: "Tòa HCM",
+					floorOrder: 0,
+					coords: [106.8099, 10.8412], // snapped directly to door-wired
+				},
+				{
+					id: "n-unwired-isolated",
+					type: "NODE",
+					building: "Tòa HCM",
+					floorOrder: 0,
+					coords: [106.8102, 10.8412], // isolated dot at door-unwired, 0 edges
+				},
+				{
+					id: "stair-0",
+					type: "STAIRS",
+					portalGroupId: "HCM_STAIR_1",
+					building: "Tòa HCM",
+					floorOrder: 0,
+					coords: [106.8097, 10.8413],
+				},
+				{
+					// Synced vertically via portalGroupId, but has ZERO same-floor horizontal edge on Floor 1!
+					id: "stair-1",
+					type: "STAIRS",
+					portalGroupId: "HCM_STAIR_1",
+					building: "Tòa HCM",
+					floorOrder: 1,
+					coords: [106.8097, 10.8413],
+				},
+				{
+					// Elevator properly wired horizontally on Floor 0
+					id: "elev-0",
+					type: "ELEVATOR",
+					portalGroupId: "HCM_EL_1",
+					building: "Tòa HCM",
+					floorOrder: 0,
+					coords: [106.8100, 10.8414],
+				},
+				{
+					id: "elev-1",
+					type: "ELEVATOR",
+					portalGroupId: "HCM_EL_1",
+					building: "Tòa HCM",
+					floorOrder: 1,
+					coords: [106.8100, 10.8414],
+				},
+				{
+					id: "n-cor-1",
+					type: "NODE",
+					building: "Tòa HCM",
+					floorOrder: 1,
+					coords: [106.8101, 10.8414],
+				},
+			],
+			navEdges: [
+				["n-cor-0", "n-door-0"],
+				["n-cor-0", "stair-0"],
+				["n-cor-0", "elev-0"],
+				["elev-1", "n-cor-1"],
+			],
+		});
+
+		it("Happy Path vs Unlinked Detection: marks wired Door true, unwired Door false, and flags PORTAL_NO_FLOOR_EDGE & DOOR_NO_GRAPH_LINK", () => {
+			const store = buildConnectivityFixture();
+
+			const auditF0 = auditNavigationConnectivity({
+				store,
+				building: "Tòa HCM",
+				floorOrder: 0,
+			});
+			assert.equal(auditF0.doorStatusById.get("door-wired"), true);
+			assert.equal(auditF0.doorStatusById.get("door-unwired"), false);
+			assert.equal(auditF0.portalHasFloorEdgeById.get("stair-0"), true);
+			assert.equal(auditF0.portalHasFloorEdgeById.get("elev-0"), true);
+			assert.ok(
+				auditF0.issues.some(
+					(i) => i.code === "DOOR_NO_GRAPH_LINK" && i.targetId === "door-unwired",
+				),
+				"Must warn about door-unwired lacking connected graph edges",
+			);
+			assert.ok(
+				!auditF0.issues.some((i) => i.targetId === "door-wired"),
+				"Wired door must NOT trigger warning",
+			);
+
+			const auditF1 = auditNavigationConnectivity({
+				store,
+				building: "Tòa HCM",
+				floorOrder: 1,
+			});
+			// stair-1 has auto vertical edge to stair-0, so only checking same-floor horizontal edge catches it!
+			assert.equal(auditF1.portalHasFloorEdgeById.get("stair-1"), false);
+			assert.equal(auditF1.portalHasFloorEdgeById.get("elev-1"), true);
+			assert.ok(
+				auditF1.issues.some(
+					(i) =>
+						i.code === "PORTAL_NO_FLOOR_EDGE" &&
+						i.level === "error" &&
+						i.targetId === "stair-1",
+				),
+				"Must flag STAIRS on Floor 1 with only auto vertical edge and 0 horizontal corridor edges",
+			);
+			assert.ok(
+				!auditF1.issues.some((i) => i.targetId === "elev-1"),
+				"Connected ELEVATOR on Floor 1 must NOT trigger error",
+			);
+		});
+
+		it("Boundary / Scope: handles ALL building/floor filter cleanly and respects 0.65m midpoint snap tolerance", () => {
+			const store = buildConnectivityFixture();
+			const auditAll = auditNavigationConnectivity({
+				store,
+				building: "ALL",
+				floorOrder: "ALL",
+			});
+			assert.equal(auditAll.portalHasFloorEdgeById.get("stair-1"), false);
+			assert.equal(auditAll.doorStatusById.get("door-wired"), true);
+
+			// Isolated edge-less node within tolerance still counts as NOT connected
+			assert.equal(
+				isDoorConnectedToGraph(
+					store.doors[1],
+					store.navNodes,
+					store.navEdges,
+				),
+				false,
+			);
+			// Different floor node at identical [lng, lat] does NOT falsely mark Door on Floor 0 wired
+			const doorF1 = { ...store.doors[0], id: "d-other-fl", floorOrder: 1 };
+			assert.equal(
+				isDoorConnectedToGraph(doorF1, store.navNodes, store.navEdges),
+				false,
+			);
+		});
+
+		it("Exception / Empty Safe Guard: handles null or empty store without throwing", () => {
+			const emptyAudit = auditNavigationConnectivity({
+				store: null,
+				building: "Tòa HCM",
+				floorOrder: 0,
+			});
+			assert.deepEqual(emptyAudit.issues, []);
+			assert.equal(emptyAudit.doorStatusById.size, 0);
+			assert.equal(isDoorConnectedToGraph(null, [], []), false);
 		});
 	});
 });

@@ -61,6 +61,7 @@ import {
 	loadGeometryStore,
 	saveGeometryStore,
 	createDefaultGeometryStore,
+	auditNavigationConnectivity,
 	buildVector3dLayers,
 	buildRoute3dLayers,
 	buildAllGraphEdges,
@@ -3090,7 +3091,19 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		selectedRoomIds,
 	]);
 
-	// 2D Wall-Mounted Doors GeoJSON in scope (Oriented Rectangular Door Frame Polygon + Midpoint Node + Live Ghost Preview)
+	// Live connectivity audit for Door midpoint icons & Portal same-floor horizontal links
+	const connectivityAudit = useMemo(
+		() =>
+			auditNavigationConnectivity({
+				store: effectiveStore,
+				building: activeBuilding,
+				floorOrder: activeFloorOrder,
+				precomputedModels: floorWallModels,
+			}),
+		[effectiveStore, activeBuilding, activeFloorOrder, floorWallModels],
+	);
+
+	// 2D Wall-Mounted Doors GeoJSON in scope (Oriented Rectangular Door Frame Polygon + Icon Midpoint + Live Ghost Preview)
 	const studioDoorsGeoJSON = useMemo(() => {
 		if (!layerVisibility.doors) {
 			return { type: "FeatureCollection", features: [] };
@@ -3100,14 +3113,17 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		for (const d of currentFloorDoors) {
 			if (!Array.isArray(d.coords)) continue;
 			const doorBldg = resolveCanonicalBuildingName(d.building) || d.building;
-			const doorModel = floorWallModels.get(
-				`${doorBldg}__${Number(d.floorOrder) || 0}`,
-			);
+			const flOrder = Number(d.floorOrder) || 0;
+			const doorModel = floorWallModels.get(`${doorBldg}__${flOrder}`);
 			const doorSegs =
 				doorModel?.wallSegments || currentFloorModel?.wallSegments || [];
 			const geom = buildOrientedDoorGeometry(d, doorSegs);
 			if (!geom) continue;
 			const isSel = d.id === selectedDoorId;
+			const isConnected = Boolean(connectivityAudit.doorStatusById.get(d.id));
+			const heightOffset = Number(
+				(flOrder * FLOOR_ELEVATION_STEP + FLOOR_SLAB_HEIGHT + 0.28).toFixed(2),
+			);
 
 			// Oriented Rectangular Door Frame Box (as in Image 1)
 			features.push({
@@ -3143,13 +3159,16 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				},
 			});
 
-			// Midpoint Graph Node Anchor (highlighted in NAV_GRAPH / DOOR / when selected)
+			// Midpoint Graph Door Icon Badge (`portal-door` teal if wired, `portal-door-unlinked` amber if unwired)
 			features.push({
 				type: "Feature",
 				id: `${d.id}-mid`,
 				properties: {
 					id: d.id,
 					featureKind: "DOOR_MIDPOINT",
+					iconImage: isConnected ? "portal-door" : "portal-door-unlinked",
+					isConnected,
+					heightOffset,
 					widthMeters: geom.widthMeters,
 					isSelected: isSel,
 					isPreview: false,
@@ -3169,6 +3188,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				wallSegs,
 			);
 			if (ghostGeom) {
+				const previewHeightOffset = Number(
+					((scopeFloorNum || 0) * FLOOR_ELEVATION_STEP + FLOOR_SLAB_HEIGHT + 0.28).toFixed(2),
+				);
 				features.push({
 					type: "Feature",
 					id: "door-preview-box",
@@ -3190,6 +3212,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					properties: {
 						id: "door-preview",
 						featureKind: "DOOR_MIDPOINT",
+						iconImage: "portal-door",
+						isConnected: true,
+						heightOffset: previewHeightOffset,
 						widthMeters: ghostGeom.widthMeters,
 						isSelected: false,
 						isPreview: true,
@@ -3209,9 +3234,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		floorWallModels,
 		currentFloorModel,
 		selectedDoorId,
+		connectivityAudit,
 		activeTool,
 		snappedCoord,
 		isAllScope,
+		scopeFloorNum,
 	]);
 
 	// 2D Deduplicated Corner/Junction Dots & Open Dead-end Dots across active walls (renders at zoom >= 16.5 for Mappedin snap clarity)
@@ -3768,9 +3795,22 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			}
 		}
 
+		// 6. Door & Portal Edge Connectivity Audit (same-floor horizontal links for Stairs/Elevators + edge wiring for Doors)
+		const connAudit = auditNavigationConnectivity({
+			store,
+			building: activeBuilding,
+			floorOrder: activeFloorOrder,
+			precomputedModels: floorWallModels,
+		});
+		for (const connIssue of connAudit.issues) {
+			issues.push(connIssue);
+		}
+
 		return issues;
 	}, [
 		store,
+		activeBuilding,
+		activeFloorOrder,
 		floorWallModels,
 		currentFloorNodes,
 		currentFloorModel,
@@ -4853,27 +4893,32 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								/>
 								<Layer
 									id="studio-doors-layer"
-									type="circle"
+									type="symbol"
 									filter={["==", ["get", "featureKind"], "DOOR_MIDPOINT"]}
-									paint={{
-										"circle-radius": [
+									layout={{
+										"icon-image": ["coalesce", ["get", "iconImage"], "portal-door"],
+										"icon-size": [
 											"case",
 											["get", "isSelected"],
-											5.2,
+											0.74,
 											activeTool === "NAV_GRAPH" || activeTool === "DOOR"
-												? 4.6
-												: 3.4,
+												? 0.62
+												: 0.5,
 										],
-										"circle-color": [
+										"icon-allow-overlap": true,
+										"icon-ignore-placement": true,
+										"symbol-height-anchor": "ground",
+										"symbol-height-offset": is3dPreview
+											? ["coalesce", ["get", "heightOffset"], 0.28]
+											: 0,
+									}}
+									paint={{
+										"icon-opacity": [
 											"case",
-											["get", "isSelected"],
-											"#f59e0b",
-											activeTool === "NAV_GRAPH"
-												? "#10b981"
-												: "#e11d48",
+											["get", "isPreview"],
+											0.72,
+											0.98,
 										],
-										"circle-stroke-width": 1.6,
-										"circle-stroke-color": "#ffffff",
 									}}
 								/>
 							</Source>

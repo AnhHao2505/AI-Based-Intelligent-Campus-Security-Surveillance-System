@@ -5353,3 +5353,130 @@ export function samplePointAlongRoute(routeResult, progress01 = 0) {
 	return null;
 }
 
+/**
+ * Determine whether a wall-mounted Door has an explicit graph node (`degree >= 1` same-floor horizontal edge)
+ * snapped onto its midpoint within `maxToleranceMeters` (`0.65m` default).
+ */
+export function isDoorConnectedToGraph(
+	door,
+	navNodes = [],
+	edges = [],
+	maxToleranceMeters = 0.65,
+) {
+	if (!door || !Array.isArray(door.coords) || !Array.isArray(navNodes) || !Array.isArray(edges)) {
+		return false;
+	}
+	const doorFloor = Number(door.floorOrder) || 0;
+	const nodeMap = new Map(navNodes.map((n) => [n.id, n]));
+	const horizontalConnectedIds = new Set();
+
+	for (const [uId, vId] of edges) {
+		if (!uId || !vId || uId === vId) continue;
+		const u = nodeMap.get(uId);
+		const v = nodeMap.get(vId);
+		if (!u || !v) continue;
+		if ((Number(u.floorOrder) || 0) === (Number(v.floorOrder) || 0)) {
+			horizontalConnectedIds.add(uId);
+			horizontalConnectedIds.add(vId);
+		}
+	}
+
+	return navNodes.some(
+		(n) =>
+			Array.isArray(n.coords) &&
+			(Number(n.floorOrder) || 0) === doorFloor &&
+			horizontalConnectedIds.has(n.id) &&
+			haversineMeters(door.coords, n.coords) <= maxToleranceMeters,
+	);
+}
+
+/**
+ * Audit Door midpoint icon edge wiring & Portal (STAIRS / ELEVATOR) same-floor corridor connectivity.
+ * Prevents synced upper-floor stairs/elevators from silently passing validation when only linked vertically.
+ */
+export function auditNavigationConnectivity({
+	store,
+	building = "ALL",
+	floorOrder = "ALL",
+	precomputedModels = null,
+} = {}) {
+	const doorStatusById = new Map();
+	const portalHasFloorEdgeById = new Map();
+	const issues = [];
+
+	if (!store) {
+		return { doorStatusById, portalHasFloorEdgeById, issues };
+	}
+
+	const boundaries = store.buildingBoundaries || [];
+	const navNodes = store.navNodes || [];
+	const allEdges = buildAllGraphEdges(store);
+	const nodeMap = new Map(navNodes.map((n) => [n.id, n]));
+	const models = precomputedModels || buildFloorWallGraphModels(store);
+
+	const sameFloorDegree = new Map();
+	for (const [uId, vId] of allEdges) {
+		if (!uId || !vId || uId === vId) continue;
+		const u = nodeMap.get(uId);
+		const v = nodeMap.get(vId);
+		if (!u || !v) continue;
+		if ((Number(u.floorOrder) || 0) === (Number(v.floorOrder) || 0)) {
+			sameFloorDegree.set(uId, (sameFloorDegree.get(uId) || 0) + 1);
+			sameFloorDegree.set(vId, (sameFloorDegree.get(vId) || 0) + 1);
+		}
+	}
+
+	// 1. Check STAIRS & ELEVATOR nodes for missing same-floor horizontal corridor link
+	for (const n of navNodes) {
+		if (!isPortalNode(n)) continue;
+		if (!isNodeVisibleOnFloor(boundaries, n, building, floorOrder, models)) continue;
+		const hasHorizontal = (sameFloorDegree.get(n.id) || 0) > 0;
+		portalHasFloorEdgeById.set(n.id, hasHorizontal);
+		if (!hasHorizontal) {
+			const fl = Number(n.floorOrder) || 0;
+			const flLabel = fl === 0 ? "G" : `${fl}`;
+			const portalLabel = n.type === "ELEVATOR" ? "Thang máy" : "Cầu thang";
+			issues.push({
+				id: `portal-floor-edge-${n.id}`,
+				code: "PORTAL_NO_FLOOR_EDGE",
+				level: "error",
+				type: "NODE",
+				targetId: n.id,
+				coords: n.coords,
+				title: `${portalLabel} chưa nối hành lang Tầng ${flLabel}`,
+				desc: "Cổng chuyển tầng chưa có cạnh [N] ngang nối vào hành lang tầng này.",
+			});
+		}
+	}
+
+	// 2. Check DOORS in scope for midpoint graph edge wiring
+	const isAllBldg = !building || building === "ALL";
+	const isAllFl = floorOrder === "ALL" || floorOrder == null;
+	const targetFl = isAllFl ? null : Number(floorOrder) || 0;
+
+	for (const d of store.doors || []) {
+		if (!Array.isArray(d.coords)) continue;
+		const matchesBldg = isAllBldg || matchesBuilding(d.building, building);
+		const matchesFl = isAllFl || (Number(d.floorOrder) || 0) === targetFl;
+		if (!matchesBldg || !matchesFl) continue;
+
+		const connected = isDoorConnectedToGraph(d, navNodes, allEdges);
+		doorStatusById.set(d.id, connected);
+		if (!connected) {
+			issues.push({
+				id: `door-unwired-${d.id}`,
+				code: "DOOR_NO_GRAPH_LINK",
+				level: "warning",
+				type: "DOOR",
+				targetId: d.id,
+				coords: d.coords,
+				title: "Cửa chưa nối dây [N]",
+				desc: "Chưa có cạnh đồ thị [N] nối trực tiếp vào icon Cửa (tâm cửa).",
+			});
+		}
+	}
+
+	return { doorStatusById, portalHasFloorEdgeById, issues };
+}
+
+
