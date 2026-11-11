@@ -12,7 +12,6 @@ import {
 	Layers,
 	Cctv,
 	VideoOff,
-	MapPinPlus,
 	Search,
 	AlertTriangle,
 	Info,
@@ -31,7 +30,6 @@ import "../../components/ui/Button.css";
 import {
 	getAreas,
 	getDependencies,
-	createArea,
 	updateArea,
 	deactivateArea,
 	restoreArea,
@@ -148,7 +146,6 @@ export default function AreaListPage() {
 	const [cameraCounts, setCameraCounts] = useState({});
 
 	// Modal states
-	const [createModalOpen, setCreateModalOpen] = useState(false);
 	const [editModalOpen, setEditModalOpen] = useState(false);
 	const [editReasonError, setEditReasonError] = useState(null);
 	const editReasonRef = useRef(null);
@@ -496,45 +493,6 @@ export default function AreaListPage() {
 		(isBlankCoordinate(formData.centerLongitude) && !isBlankCoordinate(formData.centerLatitude)
 			? COORDINATE_PAIR_ERROR
 			: null);
-
-	const handleCreateSubmit = async (e) => {
-		e.preventDefault();
-		const nameValidationError = validateAreaName(formData.name);
-		if (nameValidationError) {
-			setNameError(nameValidationError);
-			return;
-		}
-		setModalError(null);
-		const coordinates = validateCenterCoordinates(
-			formData.centerLatitude,
-			formData.centerLongitude,
-		);
-		if (coordinates.error) {
-			setModalError(coordinates.error);
-			return;
-		}
-		setModalLoading(true);
-		try {
-			const payload = {
-				name: normalizeAreaName(formData.name),
-				areaLevel: formData.areaLevel,
-				building: formData.building ? formData.building.trim() : null,
-				floor: formData.floor ? formData.floor.trim() : null,
-				floorId: formData.floorId || null,
-				centerLatitude: coordinates.centerLatitude,
-				centerLongitude: coordinates.centerLongitude,
-			};
-
-			const created = await createArea(payload);
-			setCreateModalOpen(false);
-			await fetchData(created.id);
-		} catch (err) {
-			console.error("Create area failed:", err);
-			setModalError(getErrorMessage(err));
-		} finally {
-			setModalLoading(false);
-		}
-	};
 
 	const handleOpenEditModal = (targetArea = null) => {
 		const areaToEdit = targetArea || selectedArea;
@@ -953,244 +911,6 @@ export default function AreaListPage() {
 			{/* ============================================================ */}
 			{/* 4. MODALS (CREATE, EDIT, DEACTIVATE)                         */}
 			{/* ============================================================ */}
-
-			{/* CREATE ZONE MODAL */}
-			{createModalOpen && (
-				// Popup có form nhập liệu → không đóng khi bấm ra ngoài; đóng bằng X / Huỷ / Esc (Esc bị chặn khi đang gửi).
-				<div className="area-modal-backdrop">
-					<DialogPanel
-						className="area-modal"
-						labelledBy="area-modal-title-create"
-						onClose={() => !modalLoading && setCreateModalOpen(false)}
-					>
-						<div className="area-modal__header">
-							<div className="area-modal__header-left">
-								<div className="area-modal__icon-badge">
-									<MapPinPlus size={16} />
-								</div>
-								<div className="area-modal__header-text">
-									<h3 className="area-modal__title" id="area-modal-title-create">Thêm vùng mới</h3>
-									<p className="area-modal__subtitle">
-										Tạo khu vực giám sát trong tòa nhà
-									</p>
-								</div>
-							</div>
-							<button
-								type="button"
-								className="area-modal__close-btn"
-								onClick={() => setCreateModalOpen(false)}
-								aria-label="Đóng"
-							>
-								<X size={16} />
-							</button>
-						</div>
-
-						<form onSubmit={handleCreateSubmit}>
-							<div className="area-modal__body">
-								{modalError && (
-									<div className="zone-modal-alert">
-										<AlertCircle size={15} />
-										<span>{modalError}</span>
-									</div>
-								)}
-
-								{/* 3. Tên khu vực (bắt buộc) */}
-								<div className="area-form-group">
-									<label
-										htmlFor="create-name"
-										className="area-form-label"
-									>
-										Tên khu vực <span className="required">*</span>
-									</label>
-									<input
-										id="create-name"
-										type="text"
-										required
-										className={`area-form-input ${nameError ? "area-form-input--error" : ""}`}
-										placeholder="Cổng chính tòa nhà"
-										value={formData.name}
-										onChange={(e) => {
-											setFormData({ ...formData, name: e.target.value });
-											if (nameError)
-												setNameError(validateAreaName(e.target.value));
-										}}
-										onBlur={(e) =>
-											setNameError(validateAreaName(e.target.value))
-										}
-									/>
-									{nameError && (
-										<div className="area-form-error">{nameError}</div>
-									)}
-								</div>
-
-								{/* 3c. Cấp độ an ninh (bắt buộc) - 3 thẻ chọn */}
-								<div className="area-form-group">
-									<label className="area-form-label">
-										Loại khu vực <span className="required">*</span>
-									</label>
-									<div className="area-level-selector">
-										{AREA_LEVEL_CARDS.map((card) => {
-											const isSelected = formData.areaLevel === card.value;
-											const levelClass = AREA_LEVEL_BTN_CLASS[card.value];
-											const subText = `Cấp ${card.level}, cố định theo loại`;
-
-											return (
-												<button
-													key={card.value}
-													type="button"
-													className={`area-level-btn ${levelClass} ${isSelected ? "is-selected" : ""}`}
-													onClick={() =>
-														setFormData({ ...formData, areaLevel: card.value })
-													}
-												>
-													<span
-														className="area-level-btn__dot"
-														style={{ backgroundColor: card.color }}
-													/>
-													<span className="area-level-btn__name">
-														{card.name}
-													</span>
-													{subText && (
-														<span className="area-level-btn__sub">
-															{subText}
-														</span>
-													)}
-												</button>
-											);
-										})}
-									</div>
-								</div>
-
-								{/* 3d. Toà nhà và Tầng - phân cấp chuẩn */}
-								<div className="area-form-row">
-									<div className="area-form-group">
-										<label
-											htmlFor="create-building"
-											className="area-form-label"
-										>
-											Tòa nhà / Phân khu <span className="required">*</span>
-										</label>
-										<Select
-											id="create-building"
-											value={formData.building}
-											onChange={(e) => {
-												const newB = e.target.value;
-												const bObj = availableBuildings.find(
-													(b) => b.name === newB,
-												);
-												const firstFloor = bObj?.floors?.[0];
-												setFormData({
-													...formData,
-													building: newB,
-													floor: firstFloor ? firstFloor.name : "Tầng Trệt",
-													floorId: firstFloor ? firstFloor.id : null,
-												});
-											}}
-											options={availableBuildings.map((b) => ({ value: b.name, label: b.name }))}
-										/>
-									</div>
-
-									<div className="area-form-group">
-										<label
-											htmlFor="create-floor"
-											className="area-form-label"
-										>
-											Tầng <span className="required">*</span>
-										</label>
-										<Select
-											id="create-floor"
-											value={formData.floor}
-											onChange={(e) => {
-												const newF = e.target.value;
-												const flObj = modalFloors.find((f) => f.name === newF);
-												setFormData({
-													...formData,
-													floor: newF,
-													floorId: flObj ? flObj.id : null,
-												});
-											}}
-											options={modalFloors.map((fl) => ({ value: fl.name, label: fl.name }))}
-										/>
-									</div>
-								</div>
-								<div className="area-form-row">
-									<div className="area-form-group">
-										<label
-											htmlFor="create-center-latitude"
-											className="area-form-label"
-										>
-											Vĩ độ
-										</label>
-										<input
-											id="create-center-latitude"
-											type="number"
-											step="any"
-											min="-90"
-											max="90"
-											className={`area-form-input ${latitudeError ? "area-form-input--error" : ""}`}
-											aria-invalid={Boolean(latitudeError)}
-											placeholder="Ví dụ: 10.8411"
-											value={formData.centerLatitude}
-											onChange={(e) =>
-												setFormData({
-													...formData,
-													centerLatitude: e.target.value,
-												})
-											}
-										/>
-										{latitudeError && <div className="area-form-error">{latitudeError}</div>}
-									</div>
-									<div className="area-form-group">
-										<label
-											htmlFor="create-center-longitude"
-											className="area-form-label"
-										>
-											Kinh độ
-										</label>
-										<input
-											id="create-center-longitude"
-											type="number"
-											step="any"
-											min="-180"
-											max="180"
-											className={`area-form-input ${longitudeError ? "area-form-input--error" : ""}`}
-											aria-invalid={Boolean(longitudeError)}
-											placeholder="Ví dụ: 106.8090"
-											value={formData.centerLongitude}
-											onChange={(e) =>
-												setFormData({
-													...formData,
-													centerLongitude: e.target.value,
-												})
-											}
-										/>
-										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
-									</div>
-								</div>
-							</div>
-
-							{/* 4. Phần chân: 2 nút chia đôi chiều rộng, gap 9px */}
-							<div className="area-modal__footer">
-								<button
-									type="button"
-									className="area-btn-modal area-btn-modal--cancel"
-									onClick={() => setCreateModalOpen(false)}
-									disabled={modalLoading}
-								>
-									Huỷ
-								</button>
-								<button
-									type="submit"
-									className="area-btn-modal area-btn-modal--submit"
-									disabled={modalLoading || Boolean(latitudeError || longitudeError)}
-								>
-									{modalLoading ? "Đang tạo..." : "Tạo khu vực"}
-								</button>
-							</div>
-						</form>
-					</DialogPanel>
-				</div>
-			)}
 
 			{/* EDIT ZONE MODAL */}
 			{editModalOpen && selectedArea && (
