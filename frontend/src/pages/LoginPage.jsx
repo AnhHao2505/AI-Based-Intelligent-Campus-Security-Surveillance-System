@@ -490,7 +490,8 @@ export default function LoginPage({
 								</button>
 							</form>
 						)}
-						<span
+						<button
+							type="button"
 							className="login-card__back-link"
 							onClick={() => {
 								setMode("login");
@@ -499,7 +500,7 @@ export default function LoginPage({
 							}}
 						>
 							Quay lại đăng nhập
-						</span>
+						</button>
 					</>
 				)}
 
@@ -577,7 +578,8 @@ export default function LoginPage({
 							</form>
 						)}
 						{!success && (
-							<span
+							<button
+								type="button"
 								className="login-card__back-link"
 								onClick={() => {
 									setMode("login");
@@ -586,7 +588,7 @@ export default function LoginPage({
 								}}
 							>
 								Huỷ bỏ và quay lại
-							</span>
+							</button>
 						)}
 					</>
 				)}

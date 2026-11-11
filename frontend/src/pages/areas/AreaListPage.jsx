@@ -25,7 +25,7 @@ import CampusMapView from "../../components/area/CampusMapView";
 import ErrorBoundary from "../../components/common/ErrorBoundary";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, ErrorState, Select } from "../../components/ui";
+import { LoadingState, ErrorState, Select, DialogPanel } from "../../components/ui";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
 import {
@@ -956,11 +956,12 @@ export default function AreaListPage() {
 
 			{/* CREATE ZONE MODAL */}
 			{createModalOpen && (
-				// Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài; đóng bằng X / Huỷ / Esc (Esc bị chặn khi đang gửi).
 				<div className="area-modal-backdrop">
-					<div
+					<DialogPanel
 						className="area-modal"
-						onClick={(e) => e.stopPropagation()}
+						labelledBy="area-modal-title-create"
+						onClose={() => !modalLoading && setCreateModalOpen(false)}
 					>
 						<div className="area-modal__header">
 							<div className="area-modal__header-left">
@@ -968,7 +969,7 @@ export default function AreaListPage() {
 									<MapPinPlus size={16} />
 								</div>
 								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Thêm vùng mới</h3>
+									<h3 className="area-modal__title" id="area-modal-title-create">Thêm vùng mới</h3>
 									<p className="area-modal__subtitle">
 										Tạo khu vực giám sát trong tòa nhà
 									</p>
@@ -1187,17 +1188,18 @@ export default function AreaListPage() {
 								</button>
 							</div>
 						</form>
-					</div>
+					</DialogPanel>
 				</div>
 			)}
 
 			{/* EDIT ZONE MODAL */}
 			{editModalOpen && selectedArea && (
-				// Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài; đóng bằng X / Huỷ / Esc (Esc bị chặn khi đang gửi).
 				<div className="area-modal-backdrop">
-					<div
+					<DialogPanel
 						className="area-modal"
-						onClick={(e) => e.stopPropagation()}
+						labelledBy="area-modal-title-edit"
+						onClose={() => !modalLoading && setEditModalOpen(false)}
 					>
 						<div className="area-modal__header">
 							<div className="area-modal__header-left">
@@ -1205,7 +1207,7 @@ export default function AreaListPage() {
 									<Pencil size={16} />
 								</div>
 								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Chỉnh sửa khu vực</h3>
+									<h3 className="area-modal__title" id="area-modal-title-edit">Chỉnh sửa khu vực</h3>
 									<p className="area-modal__subtitle">
 										Cập nhật thông tin: {selectedArea.name}
 									</p>
@@ -1447,7 +1449,7 @@ export default function AreaListPage() {
 								</button>
 							</div>
 						</form>
-					</div>
+					</DialogPanel>
 				</div>
 			)}
 			{/* BL2: render sau form sửa để nằm trên (cùng z-index 1000) */}
@@ -1462,11 +1464,12 @@ export default function AreaListPage() {
 
 			{/* DEACTIVATE ZONE MODAL — Step 6 (BR-AD-01, 08): xem trước + lý do + version */}
 			{deactivateModalOpen && deactivateTarget && (
-				// Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài; đóng bằng X / Huỷ / Esc (Esc bị chặn khi đang gửi).
 				<div className="area-modal-backdrop">
-					<div
+					<DialogPanel
 						className="area-modal"
-						onClick={(e) => e.stopPropagation()}
+						labelledBy="area-modal-title-deactivate"
+						onClose={() => !modalLoading && closeDeactivateModal()}
 					>
 						<div className="area-modal__header">
 							<div className="area-modal__header-left">
@@ -1474,7 +1477,7 @@ export default function AreaListPage() {
 									<Trash2 size={16} />
 								</div>
 								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Vô hiệu hóa khu vực</h3>
+									<h3 className="area-modal__title" id="area-modal-title-deactivate">Vô hiệu hóa khu vực</h3>
 									<p className="area-modal__subtitle">
 										Khu vực ngừng hoạt động, không còn nhận đơn hay lượt khách
 									</p>
@@ -1598,17 +1601,23 @@ export default function AreaListPage() {
 									: "Xác nhận vô hiệu hóa"}
 							</button>
 						</div>
-					</div>
+					</DialogPanel>
 				</div>
 			)}
 
 			{/* RESTORE ZONE MODAL — Step 6 (BR-AD-07) */}
 			{restoreTarget && (
-				// Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài; đóng bằng X / Huỷ / Esc (Esc bị chặn khi đang gửi).
 				<div className="area-modal-backdrop">
-					<div
+					<DialogPanel
 						className="area-modal"
-						onClick={(e) => e.stopPropagation()}
+						labelledBy="area-modal-title-restore"
+						onClose={() => {
+							if (!restoreLoading) {
+								setRestoreTarget(null);
+								setRestoreReasonError(null);
+							}
+						}}
 					>
 						<div className="area-modal__header">
 							<div className="area-modal__header-left">
@@ -1616,7 +1625,7 @@ export default function AreaListPage() {
 									<RotateCcw size={16} />
 								</div>
 								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Khôi phục khu vực</h3>
+									<h3 className="area-modal__title" id="area-modal-title-restore">Khôi phục khu vực</h3>
 									<p className="area-modal__subtitle">
 										Mở lại khu vực đã vô hiệu hóa
 									</p>
@@ -1699,7 +1708,7 @@ export default function AreaListPage() {
 								{restoreLoading ? "Đang khôi phục..." : "Xác nhận khôi phục"}
 							</button>
 						</div>
-					</div>
+					</DialogPanel>
 				</div>
 			)}
 
