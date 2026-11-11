@@ -187,7 +187,8 @@ public class AuthService {
      * Thứ tự cố định để thời gian và hành vi không lộ trạng thái tài khoản:
      * 1. luôn chạy passwordEncoder.matches đúng một lần (e-mail không có tài khoản / đã xoá -> hash giả);
      * 2. đang khoá tạm -> từ chối (kể cả mật khẩu đúng), không đếm thêm;
-     * 3. sai mật khẩu -> đếm theo e-mail đã chuẩn hoá (kể cả e-mail không có thật); mở đợt khoá mới với tài khoản có thật
+     * 3. sai mật khẩu -> đếm: tài khoản có thật lưu ở bảng users (V114, sống qua restart), e-mail không có tài khoản / đã
+     *    xoá đếm theo e-mail đã chuẩn hoá trong RAM; mở đợt khoá mới với tài khoản có thật
      *    -> báo chủ tài khoản (mail) và mọi ADMIN đang hoạt động (in-app), một lần mỗi đợt;
      * 4. mật khẩu đúng nhưng tài khoản vô hiệu hoá -> từ chối;
      * 5. thành công -> xoá bộ đếm.
@@ -204,14 +205,15 @@ public class AuthService {
         String hash = hasRealHash ? user.getPassword().trim() : dummyPasswordHash;
         boolean passwordMatches = passwordEncoder.matches(rawPassword, hash) && hasRealHash;
 
-        if (loginAttemptLimiter.isLocked(key)) {
+        boolean locked = user != null ? loginAttemptLimiter.isAccountLocked(user) : loginAttemptLimiter.isLocked(key);
+        if (locked) {
             log.warn("Authentication failed: login temporarily locked for {}", who(user, key));
             auditLoginFailed(key, found, AuthAuditRecorder.METHOD_PASSWORD, AuthAuditRecorder.LOCKED);
             throw loginFailed();
         }
 
         if (!passwordMatches) {
-            boolean newlyLocked = loginAttemptLimiter.recordFailure(key);
+            boolean newlyLocked = user != null ? loginAttemptLimiter.recordAccountFailure(user) : loginAttemptLimiter.recordFailure(key);
             log.warn("Authentication failed: {} for {}", user == null ? "no account" : "wrong password", who(user, key));
             String reason = found == null ? AuthAuditRecorder.UNKNOWN_ACCOUNT
                     : found.getDeletedAt() != null ? AuthAuditRecorder.DELETED : AuthAuditRecorder.BAD_PASSWORD;
@@ -232,7 +234,7 @@ public class AuthService {
             throw loginFailed();
         }
 
-        loginAttemptLimiter.reset(key);
+        loginAttemptLimiter.resetAccount(user);
         if (authAudit != null) {
             authAudit.loginSuccess(key, user, AuthAuditRecorder.METHOD_PASSWORD);
         }
@@ -280,13 +282,13 @@ public class AuthService {
             auditLoginFailed(key, user, AuthAuditRecorder.METHOD_GOOGLE, AuthAuditRecorder.DEACTIVATED);
             throw loginFailed();
         }
-        if (loginAttemptLimiter.isLocked(key)) {
+        if (loginAttemptLimiter.isAccountLocked(user)) {
             log.warn("Google login failed: login temporarily locked for {}", who(user, key));
             auditLoginFailed(key, user, AuthAuditRecorder.METHOD_GOOGLE, AuthAuditRecorder.LOCKED);
             throw loginFailed();
         }
 
-        loginAttemptLimiter.reset(key);
+        loginAttemptLimiter.resetAccount(user);
         if (authAudit != null) {
             authAudit.loginSuccess(key, user, AuthAuditRecorder.METHOD_GOOGLE);
         }
