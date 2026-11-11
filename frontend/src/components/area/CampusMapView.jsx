@@ -49,6 +49,10 @@ import {
 	resolveFloorOrder,
 	splitGhostActiveGeoJSON,
 } from "../../data/campusIndoor3dData";
+import {
+	registerPortalMapImages,
+	ensurePortalMapImage,
+} from "../../utils/mapPortalIcons";
 import { Select } from "../ui";
 import "../../styles/CampusMapView.css";
 
@@ -242,6 +246,7 @@ export default function CampusMapView({
 		wallsGeoJSON,
 		roomsGeoJSON,
 		roomLabelsGeoJSON,
+		portalSymbolsGeoJSON,
 		buildingLabelsGeoJSON,
 	} = useMemo(() => {
 		return buildVector3dLayers({
@@ -1155,7 +1160,15 @@ export default function CampusMapView({
 					<MapGL
 						ref={mapRef}
 						initialViewState={CAMPUS_CENTER}
-						onLoad={(e) => e?.target?.setLight?.(MAP_LIGHT)}
+						onLoad={(e) => {
+							const map = e?.target;
+							if (!map) return;
+							registerPortalMapImages(map);
+							map.on?.("styleimagemissing", (ev) =>
+								ensurePortalMapImage(map, ev.id),
+							);
+							map.setLight?.(MAP_LIGHT);
+						}}
 						onZoomEnd={(e) => setMapZoom(e.viewState.zoom)}
 						onClick={handleMapClick}
 						onMouseMove={(e) =>
@@ -1243,7 +1256,7 @@ export default function CampusMapView({
 									"fill-extrusion-color": ["get", "color"],
 									"fill-extrusion-base": ["get", "baseHeight"],
 									"fill-extrusion-height": ["get", "extrudeHeight"],
-									"fill-extrusion-opacity": 0.95,
+									"fill-extrusion-opacity": 1.0,
 									"fill-extrusion-vertical-gradient": true,
 								}}
 							/>
@@ -1404,7 +1417,47 @@ export default function CampusMapView({
 							</>
 						)}
 
-						{/* 5. Lớp Nhãn Tên Khu Vực (Area Names Symbol Layer trên tầng đang chọn) */}
+						{/* 5. Lớp Nhãn Tên Khu Vực & Biểu Tượng Cầu Thang / Thang Máy (Nâng theo cao độ tầng 3D) */}
+						<Source
+							id="campus-3d-portals-src"
+							type="geojson"
+							data={portalSymbolsGeoJSON}
+						>
+							<Layer
+								id="campus-3d-portals-layer"
+								type="symbol"
+								minzoom={16.5}
+								layout={{
+									"icon-image": ["get", "iconImage"],
+									"icon-size": [
+										"interpolate",
+										["linear"],
+										["zoom"],
+										16.5,
+										0.55,
+										19.5,
+										0.88,
+									],
+									"icon-allow-overlap": true,
+									"icon-ignore-placement": false,
+									"symbol-height-anchor": "ground",
+									"symbol-height-offset": [
+										"coalesce",
+										["get", "heightOffset"],
+										0.5,
+									],
+								}}
+								paint={{
+									"icon-opacity": [
+										"case",
+										["get", "isGhost"],
+										0.35,
+										0.96,
+									],
+								}}
+							/>
+						</Source>
+
 						<Source
 							id="campus-3d-room-labels-src"
 							type="geojson"
@@ -1429,6 +1482,12 @@ export default function CampusMapView({
 									"text-anchor": "center",
 									"text-max-width": 8,
 									"text-padding": 3,
+									"symbol-height-anchor": "ground",
+									"symbol-height-offset": [
+										"coalesce",
+										["get", "heightOffset"],
+										0.8,
+									],
 								}}
 								paint={{
 									"text-color": [

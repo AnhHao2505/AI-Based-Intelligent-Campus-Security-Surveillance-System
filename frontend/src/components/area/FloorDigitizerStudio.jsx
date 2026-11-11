@@ -34,10 +34,7 @@ import {
 	Maximize2,
 	HelpCircle,
 	Footprints,
-	DoorOpen,
 	ArrowUpDown,
-	LogIn,
-	Trees,
 	SlidersHorizontal,
 	Crosshair,
 	CheckCircle2,
@@ -52,22 +49,50 @@ import {
 	Upload,
 	Move,
 	ChevronDown,
+	DoorOpen,
 } from "lucide-react";
 import {
+	BOUNDARY_WALL_HEIGHT,
 	DEFAULT_BUILDINGS_META,
+	FLOOR_ELEVATION_STEP,
+	FLOOR_SLAB_HEIGHT,
+	INTERIOR_WALL_HEIGHT,
 	loadGeometryStore,
 	saveGeometryStore,
 	createDefaultGeometryStore,
 	buildVector3dLayers,
 	buildRoute3dLayers,
 	buildAllGraphEdges,
-	slicePolygonWithLine,
+	buildFloorWallGraphModels,
+	buildOrientedBoxRing,
+	buildOrientedDoorGeometry,
+	buildSliceWallSegment,
+	deduplicateFloorVertices,
+	dragWeldedWallVertices,
+	findBoundaryContainingPoint,
+	isNodeOutdoor,
+	isNodeVisibleOnFloor,
+	isPointIndoorOnFloor,
+	isPortalNode,
+	matchesBuilding,
+	mergeOrSplitNavNodeOnDrop,
+	resolveBestSnapTarget,
+	resolveCanonicalBuildingName,
+	resolveNodeBuilding,
+	syncPortalAcrossBuildingFloors,
 	approximatePolygonAreaMeters,
-	isPointInRing,
+	getPolygonInteriorPoint,
+	isPointInPolygonWithHoles,
 	getRingCentroid,
 	computeDigitizedRoute,
+	migrateStoreToWallGraph,
 	splitGhostActiveGeoJSON,
+	synchronizeCompatibilityGeometry,
 } from "../../data/campusIndoor3dData";
+import {
+	registerPortalMapImages,
+	ensurePortalMapImage,
+} from "../../utils/mapPortalIcons";
 import "../../styles/FloorDigitizerStudio.css";
 
 const STUDIO_LIGHT = {
@@ -113,48 +138,37 @@ const OSM_STYLE = {
 
 const NODE_TYPES = [
 	{
-		id: "CORRIDOR",
-		label: "Hành lang",
-		sublabel: "Corridor",
+		id: "NODE",
+		label: "Nút lối đi (Node)",
+		sublabel: "Trong nhà / Sân",
 		color: "#0ea5e9",
 		icon: Footprints,
 	},
 	{
-		id: "DOOR",
-		label: "Cửa phòng",
-		sublabel: "Auto-Snap",
-		color: "#f97316",
-		icon: DoorOpen,
-	},
-	{
 		id: "STAIRS",
 		label: "Cầu thang",
-		sublabel: "Trục dọc",
+		sublabel: "Portal Icon",
 		color: "#a855f7",
 		icon: ArrowUpDown,
 	},
 	{
 		id: "ELEVATOR",
 		label: "Thang máy",
-		sublabel: "Elevator",
-		color: "#ec4899",
+		sublabel: "Portal Icon",
+		color: "#0284c7",
 		icon: Layers,
 	},
-	{
-		id: "ENTRANCE",
-		label: "Cổng tòa",
-		sublabel: "Entrance",
-		color: "#eab308",
-		icon: LogIn,
-	},
-	{
-		id: "OUTDOOR",
-		label: "Sân trường",
-		sublabel: "Outdoor",
-		color: "#10b981",
-		icon: Trees,
-	},
 ];
+
+const NODE_DISPLAY_META = {
+	NODE: { label: "Nút lối đi", color: "#0ea5e9" },
+	CORRIDOR: { label: "Nút lối đi (Hành lang)", color: "#0ea5e9" },
+	ENTRANCE: { label: "Nút lối đi (Cổng)", color: "#0ea5e9" },
+	OUTDOOR: { label: "Nút lối đi (Sân)", color: "#10b981" },
+	DOOR: { label: "Nút cửa (legacy)", color: "#f97316" },
+	STAIRS: { label: "Cầu thang bộ", color: "#a855f7" },
+	ELEVATOR: { label: "Thang máy", color: "#0284c7" },
+};
 
 /** Project point P onto segment AB for auto-snapping */
 function projectPointOnSegment(p, a, b) {
@@ -256,34 +270,49 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	const [is3dPreview, setIs3dPreview] = useState(false);
 
 	// Active Rail Tool:
-	// "SELECT" | "ROOM_BOX" | "ROOM_POLY" | "ROOM_SLICE" | "BOUNDARY_POLY" | "CUSTOM_WALL" | "NAV_GRAPH" | "TEST_ROUTE" | "CALIBRATE_PNG"
+	// "SELECT" | "ROOM_BOX" | "ROOM_POLY" | "ROOM_SLICE" | "WALL_DRAW" | "DOOR" | "NAV_GRAPH" | "TEST_ROUTE" | "CALIBRATE_PNG"
 	const [activeTool, setActiveTool] = useState("SELECT");
 
 	// Inspector Tabs: "inspector" | "layers" | "validator"
 	const [activeInspectorTab, setActiveInspectorTab] = useState("inspector");
 
-	// Layer Visibility & Locks
+	// Layer Visibility & Locks (Unified Mappedin Wall Graph)
 	const [layerVisibility, setLayerVisibility] = useState({
 		png: true,
-		boundaries: true,
-		rooms: true,
 		walls: true,
+		faces: true,
+		doors: true,
 		navGraph: true,
 	});
 	const [layerLocks, setLayerLocks] = useState({
 		png: false,
-		boundaries: false,
-		rooms: false,
 		walls: false,
+		faces: false,
+		doors: false,
 		navGraph: false,
 	});
 	const [pngOpacity, setPngOpacity] = useState(0.85);
 
-	// Selected Geometry IDs
+	// Selected Geometry IDs (`selectedRoomIds` holds selected Planar Face IDs across ROOM / CORRIDOR / VOID)
 	const [selectedRoomIds, setSelectedRoomIds] = useState([]);
 	const [selectedNavNodeId, setSelectedNavNodeId] = useState(null);
 	const [selectedWallId, setSelectedWallId] = useState(null);
-	const [selectedBoundaryId, setSelectedBoundaryId] = useState(null);
+	const [selectedDoorId, setSelectedDoorId] = useState(null);
+
+	const selectEntity = useCallback((kind, payload = null) => {
+		setSelectedRoomIds(
+			kind === "FACE"
+				? Array.isArray(payload)
+					? payload
+					: payload
+						? [payload]
+						: []
+				: [],
+		);
+		setSelectedWallId(kind === "WALL" ? payload : null);
+		setSelectedDoorId(kind === "DOOR" ? payload : null);
+		setSelectedNavNodeId(kind === "NODE" ? payload : null);
+	}, []);
 
 	// Multi-select Marquee Box Selection
 	const [shiftKeyDown, setShiftKeyDown] = useState(false);
@@ -299,7 +328,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	const [isDraggingNavNode, setIsDraggingNavNode] = useState(false);
 	const draggingNavNodeRef = useRef(null);
 	const lastNavDragEndAtRef = useRef(0);
-	const [liveVertexDrag, setLiveVertexDrag] = useState(null); // { kind: "ROOM"|"BOUNDARY"|"WALL", id, index, coords }
+	const [liveVertexDrag, setLiveVertexDrag] = useState(null); // { kind: "WALL", id, index, coords }
 	const [studioCursor, setStudioCursor] = useState("grab");
 
 	// Draft points for multi-click tools
@@ -313,7 +342,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	const [liveCorners, setLiveCorners] = useState(null);
 
 	// Nav Graph states
-	const [activeNodeType, setActiveNodeType] = useState("CORRIDOR");
+	const [activeNodeType, setActiveNodeType] = useState("NODE");
 	const [portalGroupId, setPortalGroupId] = useState("HCM_STAIR_W");
 	const [chainLastNodeId, setChainLastNodeId] = useState(null);
 
@@ -375,6 +404,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		const cal = store.floorCalibrations?.[key];
 		if (cal?.corners && cal.corners.length === 4) {
 			return cal.corners;
+		}
+		if (currentFloorMeta?.defaultBounds?.corners?.length === 4) {
+			return currentFloorMeta.defaultBounds.corners;
 		}
 		const b = cal ||
 			currentFloorMeta?.defaultBounds || {
@@ -501,86 +533,102 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				),
 			};
 		}
-		if (liveVertexDrag) {
-			const { kind, id, index, coords } = liveVertexDrag;
-			if (kind === "ROOM") {
-				next = {
-					...next,
-					roomPolygons: (next.roomPolygons || []).map((r) => {
-						if (r.id !== id) return r;
-						const wasClosed = isClosedRing(r.ring);
-						const nextRing = [...r.ring];
-						nextRing[index] = coords;
-						if (wasClosed && index === 0) {
-							nextRing[nextRing.length - 1] = coords;
-						}
-						return { ...r, ring: nextRing };
-					}),
-				};
-			} else if (kind === "BOUNDARY") {
-				next = {
-					...next,
-					buildingBoundaries: (next.buildingBoundaries || []).map((b) => {
-						if (b.id !== id) return b;
-						const wasClosed = isClosedRing(b.ring);
-						const nextRing = [...b.ring];
-						nextRing[index] = coords;
-						if (wasClosed && index === 0) {
-							nextRing[nextRing.length - 1] = coords;
-						}
-						return { ...b, ring: nextRing };
-					}),
-				};
-			} else if (kind === "WALL") {
-				next = {
-					...next,
-					customWalls: (next.customWalls || []).map((w) => {
-						if (w.id !== id) return w;
-						const nextLine = [...w.line];
-						nextLine[index] = coords;
-						return { ...w, line: nextLine };
-					}),
-				};
-			}
+		if (liveVertexDrag?.kind === "WALL") {
+			const { id, index, coords, detachSingle } = liveVertexDrag;
+			next = {
+				...next,
+				walls: dragWeldedWallVertices(next.walls || [], {
+					wallId: id,
+					vertexIndex: index,
+					newCoord: coords,
+					detachSingle: Boolean(detachSingle),
+				}),
+			};
+		} else if (liveVertexDrag?.kind === "DOOR_MOVE") {
+			const { id, coords } = liveVertexDrag;
+			next = {
+				...next,
+				doors: (next.doors || []).map((d) =>
+					d.id === id ? { ...d, coords } : d,
+				),
+			};
+		} else if (liveVertexDrag?.kind === "DOOR_WIDTH") {
+			const { id, widthMeters } = liveVertexDrag;
+			next = {
+				...next,
+				doors: (next.doors || []).map((d) =>
+					d.id === id ? { ...d, widthMeters } : d,
+				),
+			};
 		}
 		return next;
 	}, [store, liveNavNodeDrag, liveVertexDrag]);
 
-	// Current floor entities (backed by effectiveStore for smooth live previews)
-	const currentFloorRooms = useMemo(
+	const activeCanonicalBuilding = useMemo(
+		() => resolveCanonicalBuildingName(activeBuilding) || activeBuilding,
+		[activeBuilding],
+	);
+
+	// Derived Mappedin Wall Graph floor models (Planar Face Extraction, Wall Segments, Dead-ends & Doors)
+	const floorWallModels = useMemo(
+		() => buildFloorWallGraphModels(effectiveStore),
+		[effectiveStore],
+	);
+
+	const currentFloorModel = useMemo(
 		() =>
-			(effectiveStore.roomPolygons || []).filter(
-				(r) =>
-					r.building === activeBuilding && r.floorOrder === activeFloorOrder,
-			),
-		[effectiveStore.roomPolygons, activeBuilding, activeFloorOrder],
+			floorWallModels.get(`${activeCanonicalBuilding}__${activeFloorOrder}`) ||
+			null,
+		[floorWallModels, activeCanonicalBuilding, activeFloorOrder],
+	);
+
+	const currentFloorFaces = useMemo(
+		() => currentFloorModel?.faces || [],
+		[currentFloorModel],
+	);
+
+	// Current floor ROOM faces (extracted from closed wall loops)
+	const currentFloorRooms = useMemo(
+		() => currentFloorFaces.filter((f) => f.role === "ROOM"),
+		[currentFloorFaces],
 	);
 
 	const currentFloorNodes = useMemo(
 		() =>
-			(effectiveStore.navNodes || []).filter(
-				(n) =>
-					n.building === activeBuilding && n.floorOrder === activeFloorOrder,
+			(effectiveStore.navNodes || []).filter((n) =>
+				isNodeVisibleOnFloor(
+					effectiveStore.buildingBoundaries,
+					n,
+					activeBuilding,
+					activeFloorOrder,
+				),
 			),
-		[effectiveStore.navNodes, activeBuilding, activeFloorOrder],
+		[
+			effectiveStore.navNodes,
+			effectiveStore.buildingBoundaries,
+			activeBuilding,
+			activeFloorOrder,
+		],
 	);
 
 	const currentFloorWalls = useMemo(
 		() =>
-			(effectiveStore.customWalls || []).filter(
+			(effectiveStore.walls || []).filter(
 				(w) =>
-					w.building === activeBuilding && w.floorOrder === activeFloorOrder,
+					matchesBuilding(w.building, activeBuilding) &&
+					Number(w.floorOrder) === activeFloorOrder,
 			),
-		[effectiveStore.customWalls, activeBuilding, activeFloorOrder],
+		[effectiveStore.walls, activeBuilding, activeFloorOrder],
 	);
 
-	const currentFloorBoundaries = useMemo(
+	const currentFloorDoors = useMemo(
 		() =>
-			(effectiveStore.buildingBoundaries || []).filter(
-				(b) =>
-					b.building === activeBuilding && b.floorOrder === activeFloorOrder,
+			(effectiveStore.doors || []).filter(
+				(d) =>
+					matchesBuilding(d.building, activeBuilding) &&
+					Number(d.floorOrder) === activeFloorOrder,
 			),
-		[effectiveStore.buildingBoundaries, activeBuilding, activeFloorOrder],
+		[effectiveStore.doors, activeBuilding, activeFloorOrder],
 	);
 
 	// Switch camera pitch when toggling 2D (0°) vs 3D (52°)
@@ -613,196 +661,326 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	useEffect(() => {
 		setDraftPoints([]);
 		setChainLastNodeId(null);
-		setSelectedRoomIds([]);
-		setSelectedNavNodeId(null);
-		setSelectedWallId(null);
-		setSelectedBoundaryId(null);
+		selectEntity(null);
 		setLiveNavNodeDrag(null);
 		liveNavNodeDragRef.current = null;
 		setLiveVertexDrag(null);
 		setTestRouteStart(null);
-	}, [activeBuilding, activeFloorOrder]);
+	}, [activeBuilding, activeFloorOrder, selectEntity]);
 
-	// Collect vertices & segments for dual-mode Snapping (Vertex & Edge)
+	// Collect vertices & segments strictly from currently visible Wall Graph & Nav Graph layers on this floor
 	const existingGeometryForSnapping = useMemo(() => {
 		const vertices = [];
 		const segments = [];
+		const wallSegments = [];
+		const boundaries = store.buildingBoundaries || [];
 
-		for (const r of store.roomPolygons || []) {
-			if (r.building === activeBuilding && r.floorOrder === activeFloorOrder) {
-				const ring = r.ring || [];
-				for (let i = 0; i < ring.length - 1; i++) {
-					vertices.push({ coord: ring[i], ownerId: r.id });
-					segments.push({ seg: [ring[i], ring[i + 1]], ownerId: r.id });
+		if (layerVisibility.walls) {
+			for (const w of store.walls || []) {
+				if (
+					matchesBuilding(w.building, activeBuilding) &&
+					Number(w.floorOrder) === activeFloorOrder &&
+					Array.isArray(w.line) &&
+					w.line.length >= 2
+				) {
+					const pts = isClosedRing(w.line) ? w.line.slice(0, -1) : w.line;
+					pts.forEach((pt) => vertices.push({ coord: pt, ownerId: w.id }));
+					for (let i = 0; i < w.line.length - 1; i++) {
+						const segEntry = { seg: [w.line[i], w.line[i + 1]], ownerId: w.id };
+						segments.push(segEntry);
+						wallSegments.push(segEntry);
+					}
 				}
-				if (!isClosedRing(ring) && ring.length > 0) {
-					vertices.push({ coord: ring[ring.length - 1], ownerId: r.id });
+			}
+			// Include noded sub-segments (so T-junction midpoints & doorway snap targets stay razor sharp)
+			for (const ws of currentFloorModel?.wallSegments || []) {
+				wallSegments.push({ seg: [ws.a, ws.b], ownerId: ws.id });
+			}
+		}
+
+		if (layerVisibility.doors) {
+			for (const d of store.doors || []) {
+				if (
+					matchesBuilding(d.building, activeBuilding) &&
+					Number(d.floorOrder) === activeFloorOrder &&
+					Array.isArray(d.coords)
+				) {
+					vertices.push({
+						coord: d.coords,
+						ownerId: d.id,
+						isDoorMidpoint: true,
+					});
 				}
 			}
 		}
 
-		for (const b of store.buildingBoundaries || []) {
-			if (b.building === activeBuilding && b.floorOrder === activeFloorOrder) {
-				const ring = b.ring || [];
-				for (let i = 0; i < ring.length - 1; i++) {
-					vertices.push({ coord: ring[i], ownerId: b.id });
-					segments.push({ seg: [ring[i], ring[i + 1]], ownerId: b.id });
-				}
-				if (!isClosedRing(ring) && ring.length > 0) {
-					vertices.push({ coord: ring[ring.length - 1], ownerId: b.id });
+		if (layerVisibility.navGraph) {
+			const visibleNodeMap = new Map();
+			for (const n of store.navNodes || []) {
+				if (
+					isNodeVisibleOnFloor(boundaries, n, activeBuilding, activeFloorOrder)
+				) {
+					vertices.push({
+						coord: n.coords,
+						ownerId: n.id,
+						isNavNode: true,
+					});
+					visibleNodeMap.set(n.id, n);
 				}
 			}
-		}
-
-		for (const w of store.customWalls || []) {
-			if (w.building === activeBuilding && w.floorOrder === activeFloorOrder) {
-				if (w.line && w.line.length >= 2) {
-					for (let i = 0; i < w.line.length; i++) {
-						vertices.push({ coord: w.line[i], ownerId: w.id });
-						if (i < w.line.length - 1) {
-							segments.push({ seg: [w.line[i], w.line[i + 1]], ownerId: w.id });
-						}
+			// Ghost Portals from other floors of the same building for 1-click vertical shaft alignment
+			if (
+				activeTool === "NAV_GRAPH" &&
+				(activeNodeType === "STAIRS" || activeNodeType === "ELEVATOR")
+			) {
+				for (const n of store.navNodes || []) {
+					if (!isPortalNode(n)) continue;
+					if (Number(n.floorOrder) === activeFloorOrder) continue;
+					const nb =
+						resolveNodeBuilding(boundaries, n) ||
+						resolveCanonicalBuildingName(n.building) ||
+						n.building;
+					if (!matchesBuilding(nb, activeBuilding)) continue;
+					vertices.push({
+						coord: n.coords,
+						ownerId: `ghost-${n.id}`,
+						isGhostPortal: true,
+						portalGroupId: n.portalGroupId || "",
+						portalType: n.type,
+					});
+				}
+			}
+			// Allow snapping & T-junction splitting onto existing navEdges while drawing or dragging NAV_GRAPH
+			if (activeTool === "NAV_GRAPH" || activeTool === "SELECT") {
+				for (const edge of store.navEdges || []) {
+					const [uId, vId] = edge;
+					const u = visibleNodeMap.get(uId);
+					const v = visibleNodeMap.get(vId);
+					if (u && v && u.floorOrder === v.floorOrder) {
+						segments.push({
+							seg: [u.coords, v.coords],
+							ownerId: `navedge-${uId}-${vId}`,
+							edge: [uId, vId],
+						});
 					}
 				}
 			}
 		}
 
-		for (const n of store.navNodes || []) {
-			if (n.floorOrder === activeFloorOrder || n.type === "OUTDOOR") {
-				vertices.push({ coord: n.coords, ownerId: n.id });
-			}
-		}
+		return { vertices, segments, wallSegments };
+	}, [
+		store.walls,
+		store.doors,
+		store.buildingBoundaries,
+		store.navNodes,
+		store.navEdges,
+		currentFloorModel,
+		activeBuilding,
+		activeFloorOrder,
+		activeTool,
+		activeNodeType,
+		layerVisibility.walls,
+		layerVisibility.doors,
+		layerVisibility.navGraph,
+	]);
 
-		return { vertices, segments };
-	}, [store, activeBuilding, activeFloorOrder]);
-
-	// Resolve snapped coordinate: Vertex has priority over Edge. Alt key disables snapping.
+	// Resolve snapped coordinate using screen-pixel radius (VERTEX -> MIDPOINT -> EDGE).
+	// Suppressed during CALIBRATE_PNG, TEST_ROUTE, or while holding Alt; DOOR snaps strictly to wall segments.
 	const resolveSnappedCoord = useCallback(
 		(rawLngLat, excludeOwnerId = null) => {
-			if (altKeyDown) return null;
-			const VERTEX_THRESHOLD = 0.00002; // ~2.0 meters
-			const EDGE_THRESHOLD = 0.000015; // ~1.5 meters
-
-			let bestVertex = null;
-			let minVertexDist = VERTEX_THRESHOLD;
-			for (const entry of existingGeometryForSnapping.vertices) {
-				if (excludeOwnerId && entry.ownerId === excludeOwnerId) continue;
-				const v = entry.coord;
-				const d = Math.hypot(v[0] - rawLngLat[0], v[1] - rawLngLat[1]);
-				if (d < minVertexDist) {
-					minVertexDist = d;
-					bestVertex = v;
-				}
+			if (
+				altKeyDown ||
+				activeTool === "CALIBRATE_PNG" ||
+				activeTool === "TEST_ROUTE"
+			) {
+				return null;
 			}
-			if (bestVertex) {
-				return { coord: bestVertex, type: "VERTEX" };
+			const mapInst = mapRef.current?.getMap?.();
+			const projectFn = mapInst?.project
+				? (c) => mapInst.project(c)
+				: ([lng, lat]) => ({ x: lng * 600000, y: -lat * 600000 });
+			if (activeTool === "DOOR") {
+				return resolveBestSnapTarget({
+					rawLngLat,
+					projectFn,
+					vertices: [],
+					segments: existingGeometryForSnapping.wallSegments,
+					altKeyDown,
+					midpointRadiusPx: 14,
+					edgeRadiusPx: 14,
+				});
 			}
-
-			let bestEdgePoint = null;
-			let minEdgeDist = EDGE_THRESHOLD;
-			for (const entry of existingGeometryForSnapping.segments) {
-				if (excludeOwnerId && entry.ownerId === excludeOwnerId) continue;
-				const [a, b] = entry.seg;
-				const proj = projectPointOnSegment(rawLngLat, a, b);
-				const d = Math.hypot(proj[0] - rawLngLat[0], proj[1] - rawLngLat[1]);
-				if (d < minEdgeDist) {
-					minEdgeDist = d;
-					bestEdgePoint = proj;
-				}
-			}
-			if (bestEdgePoint) {
-				return { coord: bestEdgePoint, type: "EDGE" };
-			}
-
-			return null;
+			return resolveBestSnapTarget({
+				rawLngLat,
+				projectFn,
+				vertices: existingGeometryForSnapping.vertices,
+				segments: existingGeometryForSnapping.segments,
+				excludeOwnerId,
+				altKeyDown,
+			});
 		},
-		[altKeyDown, existingGeometryForSnapping],
+		[altKeyDown, activeTool, existingGeometryForSnapping],
 	);
 
-	// Finish Multi-Point Polygon Draft
-	const finishPolygonDraft = useCallback(() => {
-		if (draftPoints.length < 3) return;
-		const ring = [...draftPoints, draftPoints[0]];
-		if (activeTool === "BOUNDARY_POLY") {
-			const newBoundId = `bound-${Date.now()}`;
+	// Assign Role ("ROOM" | "CORRIDOR" | "VOID") to an extracted Planar Face
+	const assignFaceRole = useCallback(
+		(face, nextRole) => {
+			if (!face || !nextRole) return;
+			const seed = face.seedCoord || getPolygonInteriorPoint(face.ring, face.holes);
 			setStore((prev) => {
-				const filtered = (prev.buildingBoundaries || []).filter(
-					(b) =>
-						!(
-							b.building === activeBuilding && b.floorOrder === activeFloorOrder
-						),
-				);
-				return {
+				const filtered = (prev.faceAssignments || []).filter((fa) => {
+					if (
+						!matchesBuilding(fa.building, activeBuilding) ||
+						Number(fa.floorOrder) !== activeFloorOrder ||
+						!fa.seedCoord
+					) {
+						return true;
+					}
+					return !isPointInPolygonWithHoles(fa.seedCoord, face.ring, face.holes || []);
+				});
+				const nextAssignments =
+					nextRole === "CORRIDOR"
+						? filtered
+						: [
+								...filtered,
+								{
+									id: `fa-${Date.now()}`,
+									building: activeBuilding,
+									floorOrder: activeFloorOrder,
+									seedCoord: seed,
+									role: nextRole,
+								},
+							];
+				return synchronizeCompatibilityGeometry({
 					...prev,
-					buildingBoundaries: [
-						...filtered,
-						{
-							id: newBoundId,
-							building: activeBuilding,
-							floorOrder: activeFloorOrder,
-							ring,
-						},
-					],
-				};
+					version: 3,
+					faceAssignments: nextAssignments,
+				});
 			});
-			setSelectedBoundaryId(newBoundId);
-			showToast("Đã cập nhật Khung Tòa Nhà (Sàn hành lang + Tường bao 3D)!");
-		} else if (activeTool === "ROOM_POLY") {
-			const newId = `room-${Date.now()}`;
-			setStore((prev) => ({
-				...prev,
-				roomPolygons: [
-					...(prev.roomPolygons || []),
+			const roleLabel =
+				nextRole === "ROOM"
+					? "Phòng (3D)"
+					: nextRole === "VOID"
+						? "Khoét rỗng (Void)"
+						: "Hành lang";
+			showToast(`Đã chuyển vùng thành ${roleLabel}.`);
+		},
+		[activeBuilding, activeFloorOrder, setStore, showToast],
+	);
+
+	// Commit Wall Graph Polyline Draft (ROOM_POLY [P] or WALL_DRAW [W])
+	const finishPolygonDraft = useCallback(
+		(closeOverride = null) => {
+			const minPts = activeTool === "WALL_DRAW" ? 2 : 3;
+			if (draftPoints.length < minPts) return;
+
+			const shouldClose =
+				activeTool === "ROOM_POLY"
+					? true
+					: Boolean(closeOverride && draftPoints.length >= 3);
+			const line = shouldClose
+				? [...draftPoints, draftPoints[0]]
+				: [...draftPoints];
+			const newWallId = `wall-${Date.now()}`;
+
+			setStore((prev) => {
+				const nextWalls = [
+					...(prev.walls || []),
 					{
-						id: newId,
+						id: newWallId,
 						building: activeBuilding,
 						floorOrder: activeFloorOrder,
-						ring,
+						line,
 					},
-				],
-			}));
-			setSelectedRoomIds([newId]);
-			showToast("Đã tạo đa giác phòng 3D!");
-		}
-		setDraftPoints([]);
+				];
+				const nextAssignments = [...(prev.faceAssignments || [])];
+				if (activeTool === "ROOM_POLY" && shouldClose) {
+					nextAssignments.push({
+						id: `fa-${Date.now()}`,
+						building: activeBuilding,
+						floorOrder: activeFloorOrder,
+						seedCoord: getPolygonInteriorPoint(line),
+						role: "ROOM",
+					});
+				}
+				return synchronizeCompatibilityGeometry({
+					...prev,
+					version: 3,
+					walls: nextWalls,
+					faceAssignments: nextAssignments,
+				});
+			});
+
+			selectEntity("WALL", newWallId);
+			if (activeTool === "ROOM_POLY") {
+				showToast("Đã dựng khung tường & gán vùng Phòng 3D!");
+			} else if (shouldClose) {
+				showToast("Đã khép kín mạng tường (tạo vùng mới thành công)!");
+			} else {
+				showToast("Đã thêm đoạn tường mới.");
+			}
+			setDraftPoints([]);
+		},
+		[
+			draftPoints,
+			activeTool,
+			activeBuilding,
+			activeFloorOrder,
+			selectEntity,
+			setStore,
+			showToast,
+		],
+	);
+
+	// Demote selected ROOM/VOID face back to CORRIDOR without deleting surrounding walls
+	const deleteRoomById = useCallback(
+		(faceIdToReset) => {
+			if (!faceIdToReset) return;
+			const target = currentFloorFaces.find((f) => f.id === faceIdToReset);
+			if (!target) return;
+			assignFaceRole(target, "CORRIDOR");
+			setSelectedRoomIds((prev) => prev.filter((id) => id !== faceIdToReset));
+		},
+		[currentFloorFaces, assignFaceRole],
+	);
+
+	// Multi-select face demotion to CORRIDOR
+	const deleteSelectedRooms = useCallback(() => {
+		if (selectedRoomIds.length === 0) return;
+		const targets = currentFloorFaces.filter((f) =>
+			selectedRoomIds.includes(f.id),
+		);
+		if (targets.length === 0) return;
+		setStore((prev) => {
+			const nextAssignments = (prev.faceAssignments || []).filter((fa) => {
+				if (
+					!matchesBuilding(fa.building, activeBuilding) ||
+					Number(fa.floorOrder) !== activeFloorOrder ||
+					!fa.seedCoord
+				) {
+					return true;
+				}
+				return !targets.some((f) =>
+					isPointInPolygonWithHoles(fa.seedCoord, f.ring, f.holes || []),
+				);
+			});
+			return synchronizeCompatibilityGeometry({
+				...prev,
+				version: 3,
+				faceAssignments: nextAssignments,
+			});
+		});
+		const count = targets.length;
+		setSelectedRoomIds([]);
+		showToast(`Đã chuyển ${count} vùng chọn về Hành lang (chọn Tường + Del nếu muốn xóa tường).`);
 	}, [
-		draftPoints,
-		activeTool,
+		selectedRoomIds,
+		currentFloorFaces,
 		activeBuilding,
 		activeFloorOrder,
 		setStore,
 		showToast,
 	]);
-
-	// P0 Bug Fixed: deleteRoomById receives id directly as parameter
-	const deleteRoomById = useCallback(
-		(roomIdToDelete) => {
-			if (!roomIdToDelete) return;
-			setStore((prev) => ({
-				...prev,
-				roomPolygons: (prev.roomPolygons || []).filter(
-					(r) => r.id !== roomIdToDelete,
-				),
-			}));
-			setSelectedRoomIds((prev) => prev.filter((id) => id !== roomIdToDelete));
-			showToast("Đã xóa đa giác phòng.");
-		},
-		[setStore, showToast],
-	);
-
-	// Multi-select room deletion
-	const deleteSelectedRooms = useCallback(() => {
-		if (selectedRoomIds.length === 0) return;
-		setStore((prev) => ({
-			...prev,
-			roomPolygons: (prev.roomPolygons || []).filter(
-				(r) => !selectedRoomIds.includes(r.id),
-			),
-		}));
-		const count = selectedRoomIds.length;
-		setSelectedRoomIds([]);
-		showToast(`Đã xóa ${count} khối phòng đã chọn.`);
-	}, [selectedRoomIds, setStore, showToast]);
 
 	const deleteNavNodeById = useCallback(
 		(nodeIdToDelete) => {
@@ -824,38 +1002,42 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	const deleteWallById = useCallback(
 		(wallIdToDelete) => {
 			if (!wallIdToDelete) return;
-			setStore((prev) => ({
-				...prev,
-				customWalls: (prev.customWalls || []).filter(
-					(w) => w.id !== wallIdToDelete,
-				),
-			}));
+			setStore((prev) =>
+				synchronizeCompatibilityGeometry({
+					...prev,
+					version: 3,
+					walls: (prev.walls || []).filter((w) => w.id !== wallIdToDelete),
+				}),
+			);
 			if (selectedWallId === wallIdToDelete) setSelectedWallId(null);
-			showToast("Đã xóa vách tường.");
+			showToast("Đã xóa đoạn tường & cập nhật lại các vùng khép kín.");
 		},
 		[selectedWallId, setStore, showToast],
 	);
 
-	const deleteBoundaryById = useCallback(
-		(boundaryIdToDelete) => {
-			if (!boundaryIdToDelete) return;
-			setStore((prev) => ({
-				...prev,
-				buildingBoundaries: (prev.buildingBoundaries || []).filter(
-					(b) => b.id !== boundaryIdToDelete,
-				),
-			}));
-			if (selectedBoundaryId === boundaryIdToDelete) setSelectedBoundaryId(null);
-			showToast("Đã xóa khung tường bao tầng.");
+	const deleteDoorById = useCallback(
+		(doorIdToDelete) => {
+			if (!doorIdToDelete) return;
+			setStore((prev) =>
+				synchronizeCompatibilityGeometry({
+					...prev,
+					version: 3,
+					doors: (prev.doors || []).filter((d) => d.id !== doorIdToDelete),
+				}),
+			);
+			if (selectedDoorId === doorIdToDelete) setSelectedDoorId(null);
+			showToast("Đã xóa cửa trên tường.");
 		},
-		[selectedBoundaryId, setStore, showToast],
+		[selectedDoorId, setStore, showToast],
 	);
 
 	// Save Studio
 	const handleSaveStudio = useCallback(() => {
-		saveGeometryStore(store);
-		setLastSavedJson(JSON.stringify(store));
-		onSaved?.(store);
+		const synced = synchronizeCompatibilityGeometry(store);
+		saveGeometryStore(synced);
+		setStoreState(synced);
+		setLastSavedJson(JSON.stringify(synced));
+		onSaved?.(synced);
 		showToast("Đã lưu toàn bộ hình học 3D & đồ thị đường đi!");
 	}, [store, onSaved, showToast]);
 
@@ -906,7 +1088,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		setMoreMenuOpen(false);
 	}, [store, activeBuilding, showToast]);
 
-	// Import GeoJSON
+	// Import GeoJSON (auto-migrates legacy v2 JSON cleanly into Wall Graph v3)
 	const handleImportGeoJSON = useCallback(
 		(e) => {
 			const file = e.target.files?.[0];
@@ -916,8 +1098,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				try {
 					const parsed = JSON.parse(evt.target.result);
 					if (parsed && typeof parsed === "object") {
-						setStore(parsed);
-						showToast("Đã nhập dữ liệu hình học thành công!");
+						setStore(migrateStoreToWallGraph(parsed));
+						selectEntity(null);
+						showToast("Đã nhập dữ liệu hình học & chuẩn hóa Wall Graph thành công!");
 					}
 				} catch {
 					showToast("File JSON không hợp lệ.");
@@ -927,33 +1110,67 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			e.target.value = "";
 			setMoreMenuOpen(false);
 		},
-		[setStore, showToast],
+		[setStore, selectEntity, showToast],
 	);
 
-	// Clone all rooms to next floor
+	// Clone all walls, face roles & doors on current floor to next floor
 	const handleCloneRoomsToNextFloor = useCallback(() => {
 		const nextOrder =
 			(activeFloorOrder + 1) % currentBuildingMeta.floors.length;
-		const sourceRooms = (store.roomPolygons || []).filter(
-			(r) => r.building === activeBuilding && r.floorOrder === activeFloorOrder,
+		const srcWalls = (store.walls || []).filter(
+			(w) =>
+				matchesBuilding(w.building, activeBuilding) &&
+				Number(w.floorOrder) === activeFloorOrder,
 		);
-		if (sourceRooms.length === 0) {
-			showToast("Tầng hiện tại chưa có khối phòng nào để sao chép.");
+		const srcAssigns = (store.faceAssignments || []).filter(
+			(fa) =>
+				matchesBuilding(fa.building, activeBuilding) &&
+				Number(fa.floorOrder) === activeFloorOrder,
+		);
+		const srcDoors = (store.doors || []).filter(
+			(d) =>
+				matchesBuilding(d.building, activeBuilding) &&
+				Number(d.floorOrder) === activeFloorOrder,
+		);
+		if (srcWalls.length === 0) {
+			showToast("Tầng hiện tại chưa có tường/phòng nào để sao chép.");
 			return;
 		}
-		const cloned = sourceRooms.map((r, i) => ({
-			id: `room-clone-${Date.now()}-${i}`,
+		const ts = Date.now();
+		const clonedWalls = srcWalls.map((w, i) => ({
+			id: `wall-clone-${ts}-${i}`,
 			building: activeBuilding,
 			floorOrder: nextOrder,
-			ring: r.ring.map((pt) => [...pt]),
+			line: (w.line || []).map((pt) => [...pt]),
 		}));
-		setStore((prev) => ({
-			...prev,
-			roomPolygons: [...(prev.roomPolygons || []), ...cloned],
+		const clonedAssigns = srcAssigns.map((fa, i) => ({
+			id: `fa-clone-${ts}-${i}`,
+			building: activeBuilding,
+			floorOrder: nextOrder,
+			seedCoord: [...fa.seedCoord],
+			role: fa.role,
 		}));
-		showToast(`Đã sao chép ${cloned.length} đa giác phòng sang tầng kế tiếp!`);
+		const clonedDoors = srcDoors.map((d, i) => ({
+			...d,
+			id: `door-clone-${ts}-${i}`,
+			building: activeBuilding,
+			floorOrder: nextOrder,
+			coords: [...d.coords],
+		}));
+		setStore((prev) =>
+			synchronizeCompatibilityGeometry({
+				...prev,
+				version: 3,
+				walls: [...(prev.walls || []), ...clonedWalls],
+				faceAssignments: [...(prev.faceAssignments || []), ...clonedAssigns],
+				doors: [...(prev.doors || []), ...clonedDoors],
+			}),
+		);
+		showToast(`Đã sao chép ${clonedWalls.length} tường & cấu trúc tầng sang tầng kế tiếp!`);
 	}, [
-		store.roomPolygons,
+		store.walls,
+		store.faceAssignments,
+		store.doors,
 		activeBuilding,
 		activeFloorOrder,
 		currentBuildingMeta,
@@ -961,31 +1178,48 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		showToast,
 	]);
 
-	// In-App Clear floor rooms
+	// In-App Clear all walls, face roles & doors on active floor
 	const handleClearCurrentFloorRooms = useCallback(() => {
 		setConfirmModal({
 			isOpen: true,
-			title: "Xóa toàn bộ phòng tầng này?",
-			message: `Hành động này sẽ xóa sạch tất cả khối phòng đã vẽ tại ${currentFloorMeta.name} của ${activeBuilding}. Thao tác này có thể hoàn tác bằng Ctrl+Z.`,
-			confirmLabel: "Xóa sạch phòng",
+			title: "Xóa hình học tầng này?",
+			message: `Hành động này sẽ xóa tất cả tường, vùng phòng và cửa đã vẽ tại ${currentFloorMeta.name} của ${activeBuilding}. Thao tác này có thể hoàn tác bằng Ctrl+Z.`,
+			confirmLabel: "Xóa sạch tầng",
 			confirmVariant: "danger",
 			onConfirm: () => {
-				setStore((prev) => ({
-					...prev,
-					roomPolygons: (prev.roomPolygons || []).filter(
-						(r) =>
-							!(
-								r.building === activeBuilding &&
-								r.floorOrder === activeFloorOrder
-							),
-					),
-				}));
-				setSelectedRoomIds([]);
+				setStore((prev) =>
+					synchronizeCompatibilityGeometry({
+						...prev,
+						version: 3,
+						walls: (prev.walls || []).filter(
+							(w) =>
+								!(
+									matchesBuilding(w.building, activeBuilding) &&
+									Number(w.floorOrder) === activeFloorOrder
+								),
+						),
+						faceAssignments: (prev.faceAssignments || []).filter(
+							(fa) =>
+								!(
+									matchesBuilding(fa.building, activeBuilding) &&
+									Number(fa.floorOrder) === activeFloorOrder
+								),
+						),
+						doors: (prev.doors || []).filter(
+							(d) =>
+								!(
+									matchesBuilding(d.building, activeBuilding) &&
+									Number(d.floorOrder) === activeFloorOrder
+								),
+						),
+					}),
+				);
+				selectEntity(null);
 				setConfirmModal((m) => ({ ...m, isOpen: false }));
-				showToast("Đã làm trống các phòng của tầng hiện tại.");
+				showToast("Đã làm trống toàn bộ hình học tầng hiện tại.");
 			},
 		});
-	}, [activeBuilding, activeFloorOrder, currentFloorMeta, setStore, showToast]);
+	}, [activeBuilding, activeFloorOrder, currentFloorMeta, selectEntity, setStore, showToast]);
 
 	// In-App Reset default template
 	const handleResetDefaultTemplate = useCallback(() => {
@@ -999,16 +1233,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			onConfirm: () => {
 				const def = createDefaultGeometryStore();
 				setStore(def);
-				setSelectedRoomIds([]);
-				setSelectedNavNodeId(null);
-				setSelectedWallId(null);
-				setSelectedBoundaryId(null);
+				selectEntity(null);
 				setConfirmModal((m) => ({ ...m, isOpen: false }));
 				setMoreMenuOpen(false);
 				showToast("Đã khôi phục bộ hình học mẫu ban đầu.");
 			},
 		});
-	}, [setStore, showToast]);
+	}, [selectEntity, setStore, showToast]);
 
 	// Global Keyboard Shortcuts (1-Letter Tool Hotkeys, Undo/Redo, Delete, Alt Snap Bypass)
 	useEffect(() => {
@@ -1057,18 +1288,19 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				} else {
 					setDraftPoints([]);
 					setChainLastNodeId(null);
-					setSelectedRoomIds([]);
-					setSelectedNavNodeId(null);
-					setSelectedWallId(null);
-					setSelectedBoundaryId(null);
+					selectEntity(null);
 					setTestRouteStart(null);
 				}
 				return;
 			}
 
-			// Enter
-			if (e.key === "Enter" && draftPoints.length >= 3) {
-				finishPolygonDraft();
+			// Enter closes ROOM_POLY (>= 3 pts) or commits WALL_DRAW (>= 2 pts open)
+			if (
+				e.key === "Enter" &&
+				((activeTool === "ROOM_POLY" && draftPoints.length >= 3) ||
+					(activeTool === "WALL_DRAW" && draftPoints.length >= 2))
+			) {
+				finishPolygonDraft(activeTool === "ROOM_POLY");
 				return;
 			}
 
@@ -1078,10 +1310,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					deleteSelectedRooms();
 				} else if (selectedNavNodeId) {
 					deleteNavNodeById(selectedNavNodeId);
+				} else if (selectedDoorId) {
+					deleteDoorById(selectedDoorId);
 				} else if (selectedWallId) {
 					deleteWallById(selectedWallId);
-				} else if (selectedBoundaryId) {
-					deleteBoundaryById(selectedBoundaryId);
 				}
 				return;
 			}
@@ -1107,11 +1339,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				} else if (k === "s") {
 					setActiveTool("ROOM_SLICE");
 					setDraftPoints([]);
-				} else if (k === "o") {
-					setActiveTool("BOUNDARY_POLY");
+				} else if (k === "w" || k === "o") {
+					setActiveTool("WALL_DRAW");
 					setDraftPoints([]);
-				} else if (k === "w") {
-					setActiveTool("CUSTOM_WALL");
+				} else if (k === "d") {
+					setActiveTool("DOOR");
 					setDraftPoints([]);
 				} else if (k === "n") {
 					setActiveTool("NAV_GRAPH");
@@ -1131,32 +1363,49 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			if (e.key === "Shift") setShiftKeyDown(false);
 		};
 
+		const onWindowBlur = () => {
+			setAltKeyDown(false);
+			setShiftKeyDown(false);
+		};
+
 		window.addEventListener("keydown", onKeyDown);
 		window.addEventListener("keyup", onKeyUp);
+		window.addEventListener("blur", onWindowBlur);
 		return () => {
 			window.removeEventListener("keydown", onKeyDown);
 			window.removeEventListener("keyup", onKeyUp);
+			window.removeEventListener("blur", onWindowBlur);
 		};
 	}, [
 		isOpen,
+		activeTool,
 		draftPoints,
 		selectedRoomIds,
 		selectedNavNodeId,
 		selectedWallId,
-		selectedBoundaryId,
+		selectedDoorId,
 		showShortcutsModal,
 		confirmModal.isOpen,
 		finishPolygonDraft,
 		handleUndo,
 		handleRedo,
 		handleSaveStudio,
+		selectEntity,
 		deleteSelectedRooms,
 		deleteNavNodeById,
 		deleteWallById,
-		deleteBoundaryById,
+		deleteDoorById,
 	]);
 
-	// Commit Nav Graph Node drag cleanly (single Undo step) & always restore map dragPan
+	// Ensure stale snap indicator clears when entering tools that suppress snapping
+	useEffect(() => {
+		if (activeTool === "CALIBRATE_PNG" || activeTool === "TEST_ROUTE") {
+			setSnappedCoord(null);
+			setSnapType(null);
+		}
+	}, [activeTool]);
+
+	// Commit Nav Graph Node drag cleanly (single Undo step, auto-weld overlapping nodes or split edges) & restore map dragPan
 	const finishNavNodeDrag = useCallback(() => {
 		const drag = draggingNavNodeRef.current;
 		if (!drag) return false;
@@ -1171,24 +1420,49 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 		if (drag.hasDragged && finalDrag?.coords) {
 			const finalCoords = finalDrag.coords;
-			setStore((prev) => ({
-				...prev,
-				navNodes: (prev.navNodes || []).map((n) =>
-					n.id === drag.id ? { ...n, coords: finalCoords } : n,
-				),
-			}));
+			const targetNodeId = finalDrag.snapTargetNodeId || null;
+			const targetEdge = finalDrag.snapTargetEdge || null;
+			let mergedIntoId = null;
+			let didSplitEdge = false;
+
+			setStore((prev) => {
+				const floor0Bounds = (prev.buildingBoundaries || []).filter(
+					(b) => (Number(b.floorOrder) || 0) === 0,
+				);
+				const merged = mergeOrSplitNavNodeOnDrop({
+					navNodes: prev.navNodes || [],
+					navEdges: prev.navEdges || [],
+					draggedNodeId: drag.id,
+					finalCoords,
+					targetNodeId,
+					targetEdge,
+					floor0Bounds,
+				});
+				mergedIntoId = merged.mergedIntoId;
+				didSplitEdge = merged.splitEdge;
+				return {
+					...prev,
+					navNodes: merged.navNodes,
+					navEdges: merged.navEdges,
+				};
+			});
+
+			const survivingId = mergedIntoId || drag.id;
 			if (activeTool === "SELECT") {
-				setSelectedNavNodeId(drag.id);
-				setSelectedRoomIds([]);
-				setSelectedWallId(null);
-				setSelectedBoundaryId(null);
+				selectEntity("NODE", survivingId);
 				setActiveInspectorTab("inspector");
 			}
 			lastNavDragEndAtRef.current = Date.now();
-			showToast("Đã di chuyển nút đồ thị.");
+			if (mergedIntoId) {
+				showToast("Đã tự động gộp 2 nút đồ thị trùng vị trí.");
+			} else if (didSplitEdge) {
+				showToast("Đã chèn nút vào cạnh đồ thị (T-junction).");
+			} else {
+				showToast("Đã di chuyển nút đồ thị.");
+			}
 		}
 		return true;
-	}, [activeTool, setStore, showToast]);
+	}, [activeTool, selectEntity, setStore, showToast]);
 
 	const finishMarqueeSelection = useCallback(() => {
 		const mStart = marqueeStartRef.current;
@@ -1208,25 +1482,28 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				const minLat = Math.min(mStart[1], mCurr[1]);
 				const maxLat = Math.max(mStart[1], mCurr[1]);
 
-				const hitRooms = currentFloorRooms.filter((r) => {
-					const hasVertexInside = r.ring.some(
+				const hitFaces = currentFloorFaces.filter((f) => {
+					const hasVertexInside = (f.ring || []).some(
 						([x, y]) =>
 							x >= minLng && x <= maxLng && y >= minLat && y <= maxLat,
 					);
 					if (hasVertexInside) return true;
-					const [cx, cy] = getRingCentroid(r.ring);
+					const [cx, cy] = f.seedCoord || getRingCentroid(f.ring);
 					return cx >= minLng && cx <= maxLng && cy >= minLat && cy <= maxLat;
 				});
 
-				if (hitRooms.length > 0) {
-					const hitIds = hitRooms.map((r) => r.id);
+				if (hitFaces.length > 0) {
+					const hitIds = hitFaces.map((f) => f.id);
 					setSelectedRoomIds((prev) => Array.from(new Set([...prev, ...hitIds])));
-					showToast(`Đã chọn ${hitRooms.length} phòng.`);
+					setSelectedWallId(null);
+					setSelectedDoorId(null);
+					setSelectedNavNodeId(null);
+					showToast(`Đã chọn ${hitFaces.length} vùng.`);
 				}
 			}
 		}
 		return true;
-	}, [currentFloorRooms, showToast]);
+	}, [currentFloorFaces, showToast]);
 
 	useEffect(() => {
 		if (!isOpen) return undefined;
@@ -1260,13 +1537,17 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			) {
 				const mapInst = mapRef.current?.getMap?.();
 				let hitNode = null;
-				if (mapInst && mapInst.getLayer?.("studio-nav-nodes-layer")) {
+				const nodeQueryLayers = [
+					"studio-nav-nodes-layer",
+					"studio-nav-portals-layer",
+				].filter((id) => Boolean(mapInst?.getLayer?.(id)));
+				if (mapInst && nodeQueryLayers.length > 0) {
 					const feats = mapInst.queryRenderedFeatures(
 						[
-							[e.point.x - 9, e.point.y - 9],
-							[e.point.x + 9, e.point.y + 9],
+							[e.point.x - 10, e.point.y - 10],
+							[e.point.x + 10, e.point.y + 10],
 						],
-						{ layers: ["studio-nav-nodes-layer"] },
+						{ layers: nodeQueryLayers },
 					);
 					const hitId = feats?.[0]?.properties?.id;
 					if (hitId) {
@@ -1274,8 +1555,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					}
 				}
 				if (!hitNode && mapInst) {
-					const visibleNodes = (store.navNodes || []).filter(
-						(n) => n.floorOrder === activeFloorOrder || n.type === "OUTDOOR",
+					const visibleNodes = (store.navNodes || []).filter((n) =>
+						isNodeVisibleOnFloor(
+							store.buildingBoundaries,
+							n,
+							activeBuilding,
+							activeFloorOrder,
+						),
 					);
 					let bestPx = 12;
 					for (const n of visibleNodes) {
@@ -1321,6 +1607,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			layerVisibility.navGraph,
 			shiftKeyDown,
 			store.navNodes,
+			store.buildingBoundaries,
+			activeBuilding,
 			activeFloorOrder,
 		],
 	);
@@ -1350,7 +1638,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				if (drag.hasDragged) {
 					const snapResult = resolveSnappedCoord(raw, drag.id);
 					const nextCoord = snapResult ? snapResult.coord : raw;
-					const nextDrag = { id: drag.id, coords: nextCoord };
+					const snapTargetNodeId =
+						snapResult?.type === "VERTEX" &&
+						(store.navNodes || []).some((n) => n.id === snapResult.ownerId)
+							? snapResult.ownerId
+							: null;
+					const snapTargetEdge = snapResult?.edge || null;
+					const nextDrag = {
+						id: drag.id,
+						coords: nextCoord,
+						snapTargetNodeId,
+						snapTargetEdge,
+					};
 					liveNavNodeDragRef.current = nextDrag;
 					setLiveNavNodeDrag(nextDrag);
 					if (snapResult) {
@@ -1388,7 +1687,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				} else {
 					const feats = e.features || [];
 					const overNode = feats.some(
-						(f) => f?.layer?.id === "studio-nav-nodes-layer",
+						(f) =>
+							f?.layer?.id === "studio-nav-nodes-layer" ||
+							f?.layer?.id === "studio-nav-portals-layer",
 					);
 					if (overNode) {
 						setStudioCursor("move");
@@ -1401,7 +1702,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			} else if (activeTool === "NAV_GRAPH") {
 				const feats = e.features || [];
 				const overNode = feats.some(
-					(f) => f?.layer?.id === "studio-nav-nodes-layer",
+					(f) =>
+						f?.layer?.id === "studio-nav-nodes-layer" ||
+						f?.layer?.id === "studio-nav-portals-layer",
 				);
 				setStudioCursor(overNode ? "move" : "crosshair");
 			} else if (activeTool === "CALIBRATE_PNG") {
@@ -1410,7 +1713,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				setStudioCursor("crosshair");
 			}
 		},
-		[resolveSnappedCoord, activeTool, shiftKeyDown],
+		[resolveSnappedCoord, activeTool, shiftKeyDown, store.navNodes],
 	);
 
 	// Mouse Up on Map to commit Nav Node Drag or Marquee Box Selection
@@ -1439,7 +1742,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			const snapResult = resolveSnappedCoord(raw);
 			const pt = snapResult ? snapResult.coord : raw;
 
-			// 1. SELECT Tool: Click nav node, wall/boundary polyline, or room (Shift+Click / Ctrl+Click for multi-select)
+			// 1. SELECT Tool: NavNode -> Door -> Wall -> Planar Face (Shift/Ctrl for multi-select faces)
 			if (activeTool === "SELECT") {
 				const isMulti = Boolean(
 					e.originalEvent?.shiftKey ||
@@ -1450,27 +1753,36 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 				const nodeFeat =
 					layerVisibility.navGraph && !layerLocks.navGraph
-						? features.find((f) => f?.layer?.id === "studio-nav-nodes-layer")
-						: null;
-				const wallFeat = features.find((f) => {
-					const isWallLayer =
-						f?.layer?.id === "studio-walls-hit-layer" ||
-						f?.layer?.id === "studio-walls-line-layer" ||
-						f?.layer?.id === "studio-walls-layer";
-					if (!isWallLayer) return false;
-					const kind = f?.properties?.wallKind;
-					if (kind === "BOUNDARY") {
-						return layerVisibility.boundaries && !layerLocks.boundaries;
-					}
-					return layerVisibility.walls && !layerLocks.walls;
-				});
-				const roomFeat =
-					layerVisibility.rooms && !layerLocks.rooms
 						? features.find(
 								(f) =>
-									f?.layer?.id === "studio-rooms-extrusion" ||
-									f?.layer?.id === "studio-rooms-fill" ||
-									f?.layer?.id === "studio-rooms-outline",
+									f?.layer?.id === "studio-nav-nodes-layer" ||
+									f?.layer?.id === "studio-nav-portals-layer",
+							)
+						: null;
+				const doorFeat =
+					layerVisibility.doors && !layerLocks.doors
+						? features.find(
+								(f) =>
+									f?.layer?.id === "studio-doors-fill-layer" ||
+									f?.layer?.id === "studio-doors-outline-layer" ||
+									f?.layer?.id === "studio-doors-layer",
+							)
+						: null;
+				const wallFeat =
+					layerVisibility.walls && !layerLocks.walls
+						? features.find(
+								(f) =>
+									f?.layer?.id === "studio-walls-hit-layer" ||
+									f?.layer?.id === "studio-walls-line-layer",
+							)
+						: null;
+				const faceFeat =
+					layerVisibility.faces && !layerLocks.faces
+						? features.find(
+								(f) =>
+									f?.layer?.id === "studio-faces-fill" ||
+									f?.layer?.id === "studio-faces-outline" ||
+									f?.layer?.id === "studio-rooms-extrusion",
 							)
 						: null;
 
@@ -1478,40 +1790,39 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				if (nodeFeat && !isMulti) {
 					const nId = nodeFeat.properties?.id;
 					if (nId) {
-						setSelectedNavNodeId(nId);
-						setSelectedRoomIds([]);
-						setSelectedWallId(null);
-						setSelectedBoundaryId(null);
+						selectEntity("NODE", nId);
 						setActiveInspectorTab("inspector");
 						return;
 					}
 				}
 
-				// Priority 2: Custom Wall or Building Boundary Wall
-				if (!isMulti && wallFeat) {
-					const wId = wallFeat.properties?.id;
-					const wKind = wallFeat.properties?.wallKind;
-					if (wId && wKind === "BOUNDARY" && !layerLocks.boundaries) {
-						setSelectedBoundaryId(wId);
-						setSelectedWallId(null);
-						setSelectedRoomIds([]);
-						setSelectedNavNodeId(null);
-						setActiveInspectorTab("inspector");
-						return;
+				// Priority 2: Wall-mounted Door (hit feature or < 0.9m proximity)
+				if (!isMulti && layerVisibility.doors && !layerLocks.doors) {
+					let dId = doorFeat?.properties?.id || null;
+					if (!dId) {
+						let bestDoor = null;
+						let bestDoorDist = 0.9;
+						for (const d of currentFloorDoors) {
+							if (!Array.isArray(d.coords)) continue;
+							const dm = approximateDistanceMeters(raw, d.coords);
+							if (dm < bestDoorDist) {
+								bestDoorDist = dm;
+								bestDoor = d;
+							}
+						}
+						dId = bestDoor?.id || null;
 					}
-					if (wId && wKind !== "BOUNDARY" && !layerLocks.walls) {
-						setSelectedWallId(wId);
-						setSelectedBoundaryId(null);
-						setSelectedRoomIds([]);
-						setSelectedNavNodeId(null);
+					if (dId) {
+						selectEntity("DOOR", dId);
 						setActiveInspectorTab("inspector");
 						return;
 					}
 				}
 
-				// Distance fallback for 2D walls & boundary edges (< 1.2m) before room fallback
-				if (!isMulti) {
-					if (layerVisibility.walls && !layerLocks.walls) {
+				// Priority 3: Wall segment / polyline
+				if (!isMulti && layerVisibility.walls && !layerLocks.walls) {
+					let wId = wallFeat?.properties?.id || null;
+					if (!wId) {
 						let bestWall = null;
 						let bestWallDist = 1.2;
 						for (const w of currentFloorWalls) {
@@ -1527,124 +1838,124 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								}
 							}
 						}
-						if (bestWall) {
-							setSelectedWallId(bestWall.id);
-							setSelectedBoundaryId(null);
-							setSelectedRoomIds([]);
-							setSelectedNavNodeId(null);
-							setActiveInspectorTab("inspector");
-							return;
-						}
+						wId = bestWall?.id || null;
 					}
-
-					if (layerVisibility.boundaries && !layerLocks.boundaries) {
-						let bestBound = null;
-						let bestBoundDist = 1.2;
-						for (const b of currentFloorBoundaries) {
-							for (let i = 0; i < (b.ring?.length || 0) - 1; i++) {
-								const dm = distancePointToSegmentMeters(
-									raw,
-									b.ring[i],
-									b.ring[i + 1],
-								);
-								if (dm < bestBoundDist) {
-									bestBoundDist = dm;
-									bestBound = b;
-								}
-							}
-						}
-						if (bestBound) {
-							setSelectedBoundaryId(bestBound.id);
-							setSelectedWallId(null);
-							setSelectedRoomIds([]);
-							setSelectedNavNodeId(null);
-							setActiveInspectorTab("inspector");
-							return;
-						}
+					if (wId) {
+						selectEntity("WALL", wId);
+						setActiveInspectorTab("inspector");
+						return;
 					}
 				}
 
-				// Priority 3: Room Polygon
-				let rId = roomFeat?.properties?.id;
-				if (!rId && layerVisibility.rooms && !layerLocks.rooms) {
-					const clickedRoom = currentFloorRooms.find(
-						(r) => isPointInRing(raw, r.ring) || isPointInRing(pt, r.ring),
-					);
-					if (clickedRoom) rId = clickedRoom.id;
+				// Priority 4: Extracted Planar Face (ROOM / CORRIDOR / VOID)
+				let fId = faceFeat?.properties?.id || null;
+				if (!fId && layerVisibility.faces && !layerLocks.faces) {
+					const matchingFaces = currentFloorFaces
+						.filter(
+							(f) =>
+								isPointInPolygonWithHoles(raw, f.ring, f.holes || []) ||
+								isPointInPolygonWithHoles(pt, f.ring, f.holes || []),
+						)
+						.sort((a, b) => (a.areaSqm || 0) - (b.areaSqm || 0));
+					if (matchingFaces[0]) fId = matchingFaces[0].id;
 				}
 
-				if (rId && !layerLocks.rooms) {
+				if (fId && !layerLocks.faces) {
 					if (isMulti) {
 						setSelectedRoomIds((prev) =>
-							prev.includes(rId)
-								? prev.filter((id) => id !== rId)
-								: [...prev, rId],
+							prev.includes(fId)
+								? prev.filter((id) => id !== fId)
+								: [...prev, fId],
 						);
-					} else {
-						setSelectedRoomIds([rId]);
-						setSelectedNavNodeId(null);
 						setSelectedWallId(null);
-						setSelectedBoundaryId(null);
+						setSelectedDoorId(null);
+						setSelectedNavNodeId(null);
+					} else {
+						selectEntity("FACE", fId);
 					}
 					setActiveInspectorTab("inspector");
 					return;
 				}
 
 				if (!isMulti) {
-					setSelectedRoomIds([]);
-					setSelectedNavNodeId(null);
-					setSelectedWallId(null);
-					setSelectedBoundaryId(null);
+					selectEntity(null);
 				}
 				return;
 			}
 
-			// 2. 2-Click Room Box
+			// 2. 2-Click Room Box Macro -> draws 4 connected walls + assigns ROOM face
 			if (activeTool === "ROOM_BOX") {
-				if (layerLocks.rooms) {
-					showToast("Lớp phòng đang bị khóa.");
+				if (layerLocks.walls || layerLocks.faces) {
+					showToast("Lớp tường hoặc vùng đang bị khóa.");
 					return;
 				}
 				if (draftPoints.length === 0) {
 					setDraftPoints([pt]);
 				} else {
 					const p0 = draftPoints[0];
-					const west = Math.min(p0[0], pt[0]);
-					const east = Math.max(p0[0], pt[0]);
-					const south = Math.min(p0[1], pt[1]);
-					const north = Math.max(p0[1], pt[1]);
-					const quadRing = [
-						[west, north],
-						[east, north],
-						[east, south],
-						[west, south],
-						[west, north],
-					];
+					const axisAligned = Boolean(e.originalEvent?.shiftKey || shiftKeyDown);
+					const quadRing = buildOrientedBoxRing(p0, pt, {
+						corners: currentPngCorners,
+						axisAligned,
+						minSideMeters: 0.25,
+					});
+					if (!quadRing) {
+						showToast("Khung phòng quá hẹp, vui lòng chọn 2 góc cách xa hơn.");
+						setDraftPoints([]);
+						return;
+					}
 
-					const newId = `room-${Date.now()}`;
-					setStore((prev) => ({
-						...prev,
-						roomPolygons: [
-							...(prev.roomPolygons || []),
-							{
-								id: newId,
-								building: activeBuilding,
-								floorOrder: activeFloorOrder,
-								ring: quadRing,
-							},
-						],
-					}));
-					setSelectedRoomIds([newId]);
-					showToast("Đã tạo phòng.");
+					const newWallId = `wall-box-${Date.now()}`;
+					const boxSeed = getPolygonInteriorPoint(quadRing);
+					setStore((prev) => {
+						const filteredAssignments = (prev.faceAssignments || []).filter(
+							(fa) =>
+								!(
+									matchesBuilding(fa.building, activeBuilding) &&
+									Number(fa.floorOrder) === activeFloorOrder &&
+									fa.seedCoord &&
+									isPointInPolygonWithHoles(fa.seedCoord, quadRing, [])
+								),
+						);
+						return synchronizeCompatibilityGeometry({
+							...prev,
+							version: 3,
+							walls: [
+								...(prev.walls || []),
+								{
+									id: newWallId,
+									building: activeBuilding,
+									floorOrder: activeFloorOrder,
+									line: quadRing,
+								},
+							],
+							faceAssignments: [
+								...filteredAssignments,
+								{
+									id: `fa-box-${Date.now()}`,
+									building: activeBuilding,
+									floorOrder: activeFloorOrder,
+									seedCoord: boxSeed,
+									role: "ROOM",
+								},
+							],
+						});
+					});
+					selectEntity("WALL", newWallId);
+					showToast(
+						axisAligned
+							? "Đã dựng hộp tường ngang (0°) & gán Phòng."
+							: "Đã dựng hộp tường theo góc mặt bằng & gán Phòng.",
+					);
 					setDraftPoints([]);
 				}
 				return;
 			}
 
-			// 3. Mappedin-style Room Slice (2 clicks cut a room polygon into 2)
+			// 3. Mappedin-style Face Slice Macro -> inserts dividing Wall dividing closed face into 2 sub-faces
 			if (activeTool === "ROOM_SLICE") {
-				if (layerLocks.rooms) {
-					showToast("Lớp phòng đang bị khóa.");
+				if (layerLocks.walls || layerLocks.faces) {
+					showToast("Lớp tường hoặc vùng đang bị khóa.");
 					return;
 				}
 				if (draftPoints.length === 0) {
@@ -1652,205 +1963,292 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				} else {
 					const p0 = draftPoints[0];
 					const p1 = pt;
-
-					// Prioritize single selected room if user has 1 room selected
-					let targetRoom = null;
-					let splitResult = null;
-
-					if (selectedRoomIds.length === 1) {
-						const sel = currentFloorRooms.find(
-							(r) => r.id === selectedRoomIds[0],
-						);
-						if (sel) {
-							const res = slicePolygonWithLine(sel.ring, p0, p1);
-							if (res) {
-								targetRoom = sel;
-								splitResult = res;
-							}
-						}
-					}
-
-					// Otherwise search all current floor rooms
-					if (!splitResult) {
-						for (const rm of currentFloorRooms) {
-							const res = slicePolygonWithLine(rm.ring, p0, p1);
-							if (res) {
-								targetRoom = rm;
-								splitResult = res;
-								break;
-							}
-						}
-					}
-
-					if (targetRoom && splitResult) {
-						const [ringA, ringB] = splitResult;
-						const idA = `room-${Date.now()}-1`;
-						const idB = `room-${Date.now()}-2`;
-						const newRoomA = {
-							id: idA,
-							building: activeBuilding,
-							floorOrder: activeFloorOrder,
-							ring: ringA,
-						};
-						const newRoomB = {
-							id: idB,
-							building: activeBuilding,
-							floorOrder: activeFloorOrder,
-							ring: ringB,
-						};
-
-						setStore((prev) => ({
-							...prev,
-							roomPolygons: [
-								...(prev.roomPolygons || []).filter(
-									(r) => r.id !== targetRoom.id,
+					const singleSelectedFace =
+						selectedRoomIds.length === 1
+							? currentFloorFaces.find((f) => f.id === selectedRoomIds[0])
+							: null;
+					const candidateFaces = singleSelectedFace
+						? [
+								singleSelectedFace,
+								...currentFloorFaces.filter(
+									(f) => f.id !== singleSelectedFace.id && f.role !== "VOID",
 								),
-								newRoomA,
-								newRoomB,
-							],
-						}));
-						setSelectedRoomIds([idA, idB]);
-						showToast("Đã cắt phòng.");
+							]
+						: currentFloorFaces.filter((f) => f.role !== "VOID");
+
+					let targetFace = null;
+					let sliceRes = null;
+					for (const face of candidateFaces) {
+						const res = buildSliceWallSegment([face], p0, p1);
+						if (res) {
+							targetFace = face;
+							sliceRes = res;
+							break;
+						}
+					}
+
+					if (targetFace && sliceRes) {
+						const sliceWallId = `wall-slice-${Date.now()}`;
+						const ts = Date.now();
+						setStore((prev) => {
+							const retainedAssignments = (prev.faceAssignments || []).filter(
+								(fa) =>
+									!(
+										matchesBuilding(fa.building, activeBuilding) &&
+										Number(fa.floorOrder) === activeFloorOrder &&
+										fa.seedCoord &&
+										isPointInPolygonWithHoles(
+											fa.seedCoord,
+											targetFace.ring,
+											targetFace.holes || [],
+										)
+									),
+							);
+							const extraAssigns =
+								targetFace.role === "CORRIDOR"
+									? []
+									: [
+											{
+												id: `fa-slice-a-${ts}`,
+												building: activeBuilding,
+												floorOrder: activeFloorOrder,
+												seedCoord: sliceRes.seedA,
+												role: targetFace.role,
+											},
+											{
+												id: `fa-slice-b-${ts}`,
+												building: activeBuilding,
+												floorOrder: activeFloorOrder,
+												seedCoord: sliceRes.seedB,
+												role: targetFace.role,
+											},
+										];
+							return synchronizeCompatibilityGeometry({
+								...prev,
+								version: 3,
+								walls: [
+									...(prev.walls || []),
+									{
+										id: sliceWallId,
+										building: activeBuilding,
+										floorOrder: activeFloorOrder,
+										line: sliceRes.line,
+									},
+								],
+								faceAssignments: [...retainedAssignments, ...extraAssigns],
+							});
+						});
+						selectEntity("WALL", sliceWallId);
+						showToast("Đã dựng vách chia đôi vùng (bảo toàn vai trò & tự cắt đỉnh).");
 					} else {
-						showToast("Đường cắt không cắt qua phòng.");
+						showToast("Đường cắt chưa đi xuyên qua vùng khép kín nào.");
 					}
 					setDraftPoints([]);
 				}
 				return;
 			}
 
-			// 3. Multi-point Polygon (Building Boundary or Room Polygon)
-			if (activeTool === "BOUNDARY_POLY" || activeTool === "ROOM_POLY") {
-				if (activeTool === "BOUNDARY_POLY" && layerLocks.boundaries) {
-					showToast("Lớp khung tòa nhà đang bị khóa.");
+			// 4. Unified Wall Graph Draw [W] (closed loop or multi-segment partition) & Polygon Room Macro [P]
+			if (activeTool === "WALL_DRAW" || activeTool === "ROOM_POLY") {
+				if (layerLocks.walls || (activeTool === "ROOM_POLY" && layerLocks.faces)) {
+					showToast("Lớp tường hoặc vùng đang bị khóa.");
 					return;
 				}
-				if (activeTool === "ROOM_POLY" && layerLocks.rooms) {
-					showToast("Lớp phòng đang bị khóa.");
+				const mapInst = mapRef.current?.getMap?.();
+				const hitSameScreenPt = (targetPt, radiusPx = 14) => {
+					if (mapInst?.project) {
+						const pClick = mapInst.project(pt);
+						const pTarget = mapInst.project(targetPt);
+						return Math.hypot(pClick.x - pTarget.x, pClick.y - pTarget.y) <= radiusPx;
+					}
+					return (
+						Math.hypot(pt[0] - targetPt[0], pt[1] - targetPt[1]) < 0.000022
+					);
+				};
+
+				if (draftPoints.length >= 3 && hitSameScreenPt(draftPoints[0], 14)) {
+					finishPolygonDraft(true);
 					return;
 				}
 				if (
-					draftPoints.length >= 3 &&
-					Math.hypot(pt[0] - draftPoints[0][0], pt[1] - draftPoints[0][1]) <
-						0.000022
+					activeTool === "WALL_DRAW" &&
+					draftPoints.length >= 2 &&
+					hitSameScreenPt(draftPoints[draftPoints.length - 1], 10)
 				) {
-					finishPolygonDraft();
+					finishPolygonDraft(false);
 					return;
 				}
 				setDraftPoints((prev) => [...prev, pt]);
 				return;
 			}
 
-			// 4. Custom Wall Segment (2 clicks)
-			if (activeTool === "CUSTOM_WALL") {
-				if (layerLocks.walls) {
-					showToast("Lớp vách tường đang bị khóa.");
+			// 5. Wall-mounted Door Tool [D]: Snaps strictly onto Wall Graph segments (carves 1.2m passage)
+			if (activeTool === "DOOR") {
+				if (layerLocks.doors) {
+					showToast("Lớp Cửa đang bị khóa.");
 					return;
 				}
-				if (draftPoints.length === 0) {
-					setDraftPoints([pt]);
-				} else {
-					const p0 = draftPoints[0];
-					const newWallId = `wall-${Date.now()}`;
-					setStore((prev) => ({
+				if (!snapResult) {
+					showToast("Click trực tiếp lên một đoạn tường để gắn Cửa [D].");
+					return;
+				}
+				const newDoorId = `door-${Date.now()}`;
+				setStore((prev) =>
+					synchronizeCompatibilityGeometry({
 						...prev,
-						customWalls: [
-							...(prev.customWalls || []),
+						version: 3,
+						doors: [
+							...(prev.doors || []),
 							{
-								id: newWallId,
+								id: newDoorId,
 								building: activeBuilding,
 								floorOrder: activeFloorOrder,
-								line: [p0, pt],
+								coords: snapResult.coord,
+								widthMeters: 1.2,
 							},
 						],
-					}));
-					setSelectedWallId(newWallId);
-					setSelectedBoundaryId(null);
-					setSelectedRoomIds([]);
-					setSelectedNavNodeId(null);
-					setDraftPoints([]);
-					showToast("Đã thêm vách ngăn.");
-				}
+					}),
+				);
+				selectEntity("DOOR", newDoorId);
+				showToast("Đã gắn Cửa 1.2m lên tường (tự khoét 3D & thông luồng A*).");
 				return;
 			}
 
-			// 5. Navigation Graph Tool
+			// 5. Navigation Graph Tool (Unified NODE + Edge & STAIRS/ELEVATOR Portals)
 			if (activeTool === "NAV_GRAPH") {
 				if (layerLocks.navGraph) {
 					showToast("Lớp đồ thị đang bị khóa.");
 					return;
 				}
-				const nodesOnFloor = (store.navNodes || []).filter(
-					(n) =>
-						n.floorOrder ===
-						(activeNodeType === "OUTDOOR" ? 0 : activeFloorOrder),
+				const boundaries = store.buildingBoundaries || [];
+				const visibleNodes = (store.navNodes || []).filter((n) =>
+					isNodeVisibleOnFloor(
+						boundaries,
+						n,
+						activeBuilding,
+						activeFloorOrder,
+					),
 				);
 
+				const mapInst = mapRef.current?.getMap?.();
 				let existingNode = null;
-				for (const n of nodesOnFloor) {
-					if (
-						Math.hypot(n.coords[0] - raw[0], n.coords[1] - raw[1]) < 0.000022
-					) {
-						existingNode = n;
-						break;
+				if (mapInst?.project && e?.point) {
+					let bestPx = 12;
+					for (const n of visibleNodes) {
+						const nPx = mapInst.project(n.coords);
+						const dPx = Math.hypot(nPx.x - e.point.x, nPx.y - e.point.y);
+						if (dPx <= bestPx) {
+							bestPx = dPx;
+							existingNode = n;
+						}
+					}
+				} else {
+					for (const n of visibleNodes) {
+						if (Math.hypot(n.coords[0] - pt[0], n.coords[1] - pt[1]) < 0.000022) {
+							existingNode = n;
+							break;
+						}
 					}
 				}
 
 				if (existingNode) {
 					if (chainLastNodeId && chainLastNodeId !== existingNode.id) {
-						setStore((prev) => ({
-							...prev,
-							navEdges: [
-								...(prev.navEdges || []),
-								[chainLastNodeId, existingNode.id],
-							],
-						}));
+						setStore((prev) => {
+							const exists = (prev.navEdges || []).some(
+								([a, b]) =>
+									(a === chainLastNodeId && b === existingNode.id) ||
+									(a === existingNode.id && b === chainLastNodeId),
+							);
+							if (exists) return prev;
+							return {
+								...prev,
+								navEdges: [
+									...(prev.navEdges || []),
+									[chainLastNodeId, existingNode.id],
+								],
+							};
+						});
 						showToast("Đã nối nút.");
 					}
 					setChainLastNodeId(existingNode.id);
 					return;
 				}
 
+				const floor0Bounds = boundaries.filter(
+					(b) => (Number(b.floorOrder) || 0) === 0,
+				);
+				const isPortal =
+					activeNodeType === "STAIRS" || activeNodeType === "ELEVATOR";
+				const isOutdoorPt =
+					!isPortal &&
+					activeFloorOrder === 0 &&
+					floor0Bounds.length > 0 &&
+					!isPointIndoorOnFloor(store, activeBuilding, 0, pt, floorWallModels);
+				const containedFloor0 =
+					activeFloorOrder === 0
+						? findBoundaryContainingPoint(floor0Bounds, pt, 0)
+						: null;
+
+				// Auto-inherit portalGroupId when snapping onto a Ghost Portal from another floor
+				let resolvedPortalGroupId =
+					portalGroupId.trim().toUpperCase() || "PORTAL_1";
+				if (isPortal) {
+					const ghostMatch = (store.navNodes || []).find(
+						(n) =>
+							isPortalNode(n) &&
+							Number(n.floorOrder) !== activeFloorOrder &&
+							matchesBuilding(
+								resolveNodeBuilding(boundaries, n) || n.building,
+								activeBuilding,
+							) &&
+							Math.hypot(n.coords[0] - pt[0], n.coords[1] - pt[1]) < 0.000018,
+					);
+					if (ghostMatch?.portalGroupId) {
+						resolvedPortalGroupId = ghostMatch.portalGroupId.trim().toUpperCase();
+						setPortalGroupId(resolvedPortalGroupId);
+					}
+				}
+
 				const newNodeId = `node-${Date.now()}`;
 				const newNode = {
 					id: newNodeId,
 					type: activeNodeType,
-					building: activeNodeType === "OUTDOOR" ? "OUTDOOR" : activeBuilding,
-					floorOrder: activeNodeType === "OUTDOOR" ? 0 : activeFloorOrder,
-					coords: raw,
-					...(activeNodeType === "STAIRS" || activeNodeType === "ELEVATOR"
-						? { portalGroupId: portalGroupId.trim().toUpperCase() }
+					building: isOutdoorPt
+						? "OUTDOOR"
+						: containedFloor0?.building || activeBuilding,
+					floorOrder: activeFloorOrder,
+					coords: pt,
+					...(isPortal
+						? {
+								portalGroupId: resolvedPortalGroupId,
+							}
 						: {}),
 				};
 
+				const snappedNavEdge = snapResult?.edge || null;
+
 				setStore((prev) => {
 					const nextNodes = [...(prev.navNodes || []), newNode];
-					const nextEdges = [...(prev.navEdges || [])];
+					let nextEdges = [...(prev.navEdges || [])];
 
-					if (activeNodeType === "DOOR") {
-						const corridors = nextNodes.filter(
-							(n) =>
-								n.type === "CORRIDOR" &&
-								n.building === activeBuilding &&
-								n.floorOrder === activeFloorOrder,
+					// Auto-split edge into clean T-junction when snapped directly onto an existing navEdge
+					if (snappedNavEdge) {
+						const [eu, ev] = snappedNavEdge;
+						nextEdges = nextEdges.filter(
+							([a, b]) => !((a === eu && b === ev) || (a === ev && b === eu)),
 						);
-						if (corridors.length > 0) {
-							let nearestCor = corridors[0];
-							let minD = Infinity;
-							for (const c of corridors) {
-								const d = Math.hypot(
-									c.coords[0] - raw[0],
-									c.coords[1] - raw[1],
-								);
-								if (d < minD) {
-									minD = d;
-									nearestCor = c;
-								}
-							}
-							nextEdges.push([newNodeId, nearestCor.id]);
+						nextEdges.push([eu, newNodeId], [newNodeId, ev]);
+					}
+
+					if (chainLastNodeId) {
+						const alreadyConnected = nextEdges.some(
+							([a, b]) =>
+								(a === chainLastNodeId && b === newNodeId) ||
+								(a === newNodeId && b === chainLastNodeId),
+						);
+						if (!alreadyConnected) {
+							nextEdges.push([chainLastNodeId, newNodeId]);
 						}
-					} else if (chainLastNodeId) {
-						nextEdges.push([chainLastNodeId, newNodeId]);
 					}
 
 					return {
@@ -1860,38 +2258,58 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					};
 				});
 
-				if (activeNodeType === "DOOR") {
-					showToast("Đã thêm cửa.");
-				} else {
-					setChainLastNodeId(newNodeId);
-				}
+				setChainLastNodeId(newNodeId);
 				return;
 			}
 
-			// 6. Live A* Route Tester
+			// 6. Live A* Route Tester (with courtyard VOID hole awareness & diagnostic error toast)
 			if (activeTool === "TEST_ROUTE") {
+				const floor0Bounds = (store.buildingBoundaries || []).filter(
+					(b) => (Number(b.floorOrder) || 0) === 0,
+				);
+				const clickIsOutdoor =
+					activeFloorOrder === 0 &&
+					floor0Bounds.length > 0 &&
+					!isPointIndoorOnFloor(
+						store,
+						activeBuilding,
+						0,
+						raw,
+						floorWallModels,
+					);
+				const clickBuilding = clickIsOutdoor ? "OUTDOOR" : activeBuilding;
+
 				if (!testRouteStart) {
 					setTestRouteStart({
 						coords: raw,
-						building: activeBuilding,
+						building: clickBuilding,
 						floorOrder: activeFloorOrder,
 					});
-					showToast("Đã chọn điểm đi. Click tiếp điểm đến.");
+					showToast(
+						`Đã chọn điểm đi (${clickIsOutdoor ? "Ngoài sân" : activeBuilding}). Click tiếp điểm đến.`,
+					);
 				} else {
+					const diag = {};
 					const res = computeDigitizedRoute({
 						store,
 						startCoords: testRouteStart.coords,
 						startBuilding: testRouteStart.building,
 						startFloorOrder: testRouteStart.floorOrder,
 						endCoords: raw,
-						endBuilding: activeBuilding,
+						endBuilding: clickBuilding,
 						endFloorOrder: activeFloorOrder,
+						diagnosticsOut: diag,
 					});
 					setTestRouteResult(res);
 					setTestRouteStart(null);
 					if (res) {
 						showToast(
 							`Tìm thấy đường: ${res.totalDistanceMeters}m (${res.floorsClimbed} tầng)`,
+						);
+					} else {
+						showToast(
+							diag.message ||
+								"Không tìm thấy đường đi giữa 2 điểm này (kiểm tra lại dây nối đồ thị [N] hoặc Cửa [D]).",
 						);
 					}
 				}
@@ -1905,16 +2323,20 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			activeBuilding,
 			activeFloorOrder,
 			selectedRoomIds,
-			currentFloorRooms,
+			currentFloorFaces,
 			currentFloorWalls,
-			currentFloorBoundaries,
+			currentFloorDoors,
+			currentPngCorners,
+			shiftKeyDown,
 			activeNodeType,
 			portalGroupId,
 			chainLastNodeId,
 			testRouteStart,
 			store,
+			floorWallModels,
 			resolveSnappedCoord,
 			finishPolygonDraft,
+			selectEntity,
 			setStore,
 			showToast,
 		],
@@ -2071,17 +2493,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		],
 	);
 
-	// Live 60fps vertex/endpoint dragging with magnetic snap & single Undo commit on dragEnd
+	// Live 60fps vertex/endpoint dragging with magnetic welded junction snap & single Undo commit on dragEnd
 	const handleVertexDragLive = useCallback(
-		(kind, id, index, lngLat) => {
+		(kind, id, index, lngLat, origEvt = null) => {
 			if (!id || !lngLat) return;
+			const detachSingle = Boolean(origEvt?.altKey || altKeyDown);
 			const raw = [
 				Number(lngLat.lng.toFixed(6)),
 				Number(lngLat.lat.toFixed(6)),
 			];
 			const snapResult = resolveSnappedCoord(raw, id);
 			const pt = snapResult ? snapResult.coord : raw;
-			setLiveVertexDrag({ kind, id, index, coords: pt });
+			setLiveVertexDrag({ kind, id, index, coords: pt, detachSingle });
 			if (snapResult) {
 				setSnappedCoord(snapResult.coord);
 				setSnapType(snapResult.type);
@@ -2092,12 +2515,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				setHoverCoord(raw);
 			}
 		},
-		[resolveSnappedCoord],
+		[resolveSnappedCoord, altKeyDown],
 	);
 
 	const handleVertexDragEnd = useCallback(
-		(kind, id, index, lngLat) => {
+		(kind, id, index, lngLat, origEvt = null) => {
 			if (!id || !lngLat) return;
+			const detachSingle = Boolean(origEvt?.altKey || altKeyDown);
 			const raw = [
 				Number(lngLat.lng.toFixed(6)),
 				Number(lngLat.lat.toFixed(6)),
@@ -2109,79 +2533,145 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			setSnapType(null);
 
 			setStore((prev) => {
-				if (kind === "ROOM") {
-					return {
-						...prev,
-						roomPolygons: (prev.roomPolygons || []).map((r) => {
-							if (r.id !== id) return r;
-							const wasClosed = isClosedRing(r.ring);
-							const nextRing = [...r.ring];
-							nextRing[index] = newPt;
-							if (wasClosed && index === 0) {
-								nextRing[nextRing.length - 1] = newPt;
-							}
-							return { ...r, ring: nextRing };
-						}),
-					};
-				}
-				if (kind === "BOUNDARY") {
-					return {
-						...prev,
-						buildingBoundaries: (prev.buildingBoundaries || []).map((b) => {
-							if (b.id !== id) return b;
-							const wasClosed = isClosedRing(b.ring);
-							const nextRing = [...b.ring];
-							nextRing[index] = newPt;
-							if (wasClosed && index === 0) {
-								nextRing[nextRing.length - 1] = newPt;
-							}
-							return { ...b, ring: nextRing };
-						}),
-					};
-				}
 				if (kind === "WALL") {
-					return {
+					return synchronizeCompatibilityGeometry({
 						...prev,
-						customWalls: (prev.customWalls || []).map((w) => {
-							if (w.id !== id) return w;
-							const nextLine = [...w.line];
-							nextLine[index] = newPt;
-							return { ...w, line: nextLine };
+						version: 3,
+						walls: dragWeldedWallVertices(prev.walls || [], {
+							wallId: id,
+							vertexIndex: index,
+							newCoord: newPt,
+							detachSingle,
 						}),
-					};
+					});
 				}
 				return prev;
 			});
 		},
-		[resolveSnappedCoord, setStore],
+		[resolveSnappedCoord, altKeyDown, setStore],
 	);
 
-	// Insert a new corner/joint vertex at edge midpoint for selected boundary or custom wall
+	// Live 60fps Door Midpoint Slide & Jamb Width Resize along host wall segment
+	const handleDoorMoveDragLive = useCallback(
+		(doorId, lngLat) => {
+			if (!doorId || !lngLat) return;
+			const raw = [
+				Number(lngLat.lng.toFixed(6)),
+				Number(lngLat.lat.toFixed(6)),
+			];
+			const snap = resolveBestSnapTarget({
+				rawLngLat: raw,
+				projectFn: mapRef.current?.getMap?.()?.project
+					? (c) => mapRef.current.getMap().project(c)
+					: ([lng, lat]) => ({ x: lng * 600000, y: -lat * 600000 }),
+				vertices: [],
+				segments: existingGeometryForSnapping.wallSegments,
+				altKeyDown: false,
+				midpointRadiusPx: 14,
+				edgeRadiusPx: 26,
+			});
+			const nextCoord = snap ? snap.coord : raw;
+			setLiveVertexDrag({ kind: "DOOR_MOVE", id: doorId, coords: nextCoord });
+		},
+		[existingGeometryForSnapping.wallSegments],
+	);
+
+	const handleDoorMoveDragEnd = useCallback(
+		(doorId, lngLat) => {
+			if (!doorId || !lngLat) return;
+			const raw = [
+				Number(lngLat.lng.toFixed(6)),
+				Number(lngLat.lat.toFixed(6)),
+			];
+			const snap = resolveBestSnapTarget({
+				rawLngLat: raw,
+				projectFn: mapRef.current?.getMap?.()?.project
+					? (c) => mapRef.current.getMap().project(c)
+					: ([lng, lat]) => ({ x: lng * 600000, y: -lat * 600000 }),
+				vertices: [],
+				segments: existingGeometryForSnapping.wallSegments,
+				altKeyDown: false,
+				midpointRadiusPx: 14,
+				edgeRadiusPx: 26,
+			});
+			const nextCoord = snap ? snap.coord : raw;
+			setLiveVertexDrag(null);
+			setStore((prev) =>
+				synchronizeCompatibilityGeometry({
+					...prev,
+					version: 3,
+					doors: (prev.doors || []).map((d) =>
+						d.id === doorId ? { ...d, coords: nextCoord } : d,
+					),
+				}),
+			);
+			showToast("Đã trượt vị trí Cửa dọc theo tường.");
+		},
+		[existingGeometryForSnapping.wallSegments, setStore, showToast],
+	);
+
+	const handleDoorJambDragLive = useCallback(
+		(door, lngLat) => {
+			if (!door || !lngLat) return;
+			const raw = [
+				Number(lngLat.lng.toFixed(6)),
+				Number(lngLat.lat.toFixed(6)),
+			];
+			const halfDist = approximateDistanceMeters(door.coords, raw);
+			const nextW = Number(
+				Math.max(0.5, Math.min(5.0, halfDist * 2)).toFixed(2),
+			);
+			setLiveVertexDrag({
+				kind: "DOOR_WIDTH",
+				id: door.id,
+				widthMeters: nextW,
+			});
+		},
+		[],
+	);
+
+	const handleDoorJambDragEnd = useCallback(
+		(door, lngLat) => {
+			if (!door || !lngLat) return;
+			const raw = [
+				Number(lngLat.lng.toFixed(6)),
+				Number(lngLat.lat.toFixed(6)),
+			];
+			const halfDist = approximateDistanceMeters(door.coords, raw);
+			const nextW = Number(
+				Math.max(0.5, Math.min(5.0, halfDist * 2)).toFixed(2),
+			);
+			setLiveVertexDrag(null);
+			setStore((prev) =>
+				synchronizeCompatibilityGeometry({
+					...prev,
+					version: 3,
+					doors: (prev.doors || []).map((d) =>
+						d.id === door.id ? { ...d, widthMeters: nextW } : d,
+					),
+				}),
+			);
+			showToast(`Đã chỉnh bề rộng Cửa thành ${nextW}m.`);
+		},
+		[setStore, showToast],
+	);
+
+	// Insert a new bend/joint vertex at edge midpoint on selected wall polyline
 	const handleInsertVertexOnEdge = useCallback(
 		(kind, id, insertAfterIndex, midpoint) => {
 			if (!id || !midpoint) return;
 			setStore((prev) => {
-				if (kind === "BOUNDARY") {
-					return {
-						...prev,
-						buildingBoundaries: (prev.buildingBoundaries || []).map((b) => {
-							if (b.id !== id || !Array.isArray(b.ring)) return b;
-							const nextRing = [...b.ring];
-							nextRing.splice(insertAfterIndex + 1, 0, midpoint);
-							return { ...b, ring: nextRing };
-						}),
-					};
-				}
 				if (kind === "WALL") {
-					return {
+					return synchronizeCompatibilityGeometry({
 						...prev,
-						customWalls: (prev.customWalls || []).map((w) => {
+						version: 3,
+						walls: (prev.walls || []).map((w) => {
 							if (w.id !== id || !Array.isArray(w.line)) return w;
 							const nextLine = [...w.line];
 							nextLine.splice(insertAfterIndex + 1, 0, midpoint);
 							return { ...w, line: nextLine };
 						}),
-					};
+					});
 				}
 				return prev;
 			});
@@ -2212,36 +2702,19 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		[vector3d],
 	);
 
-	// 2D Polyline GeoJSON for Walls (Boundary walls + Custom interior walls) so 2D editing is crisp & accurate
+	// 2D Unified Wall Polylines for crisp selection & dragging
 	const studioWallLinesGeoJSON = useMemo(() => {
 		const features = [];
-		if (layerVisibility.boundaries) {
-			for (const b of currentFloorBoundaries) {
-				if (!Array.isArray(b.ring) || b.ring.length < 2) continue;
-				features.push({
-					type: "Feature",
-					id: b.id,
-					properties: {
-						id: b.id,
-						wallKind: "BOUNDARY",
-						isSelected: b.id === selectedBoundaryId,
-					},
-					geometry: {
-						type: "LineString",
-						coordinates: b.ring,
-					},
-				});
-			}
-		}
 		if (layerVisibility.walls) {
 			for (const w of currentFloorWalls) {
 				if (!Array.isArray(w.line) || w.line.length < 2) continue;
+				const closed = isClosedRing(w.line);
 				features.push({
 					type: "Feature",
 					id: w.id,
 					properties: {
 						id: w.id,
-						wallKind: "CUSTOM_WALL",
+						wallKind: closed ? "PERIMETER" : "PARTITION",
 						isSelected: w.id === selectedWallId,
 					},
 					geometry: {
@@ -2252,61 +2725,183 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			}
 		}
 		return { type: "FeatureCollection", features };
-	}, [
-		layerVisibility.boundaries,
-		layerVisibility.walls,
-		currentFloorBoundaries,
-		currentFloorWalls,
-		selectedBoundaryId,
-		selectedWallId,
-	]);
+	}, [layerVisibility.walls, currentFloorWalls, selectedWallId]);
 
-	// 2D Wall Endpoint Dots (helps visualize & grab wall corners / endpoints in 2D)
-	const studioWallEndpointsGeoJSON = useMemo(() => {
+	// 2D Extracted Planar Faces GeoJSON (ROOM / CORRIDOR / VOID) on active floor
+	const studioFacesGeoJSON = useMemo(() => {
+		if (!layerVisibility.faces) {
+			return { type: "FeatureCollection", features: [] };
+		}
+		return {
+			type: "FeatureCollection",
+			features: currentFloorFaces.map((f) => ({
+				type: "Feature",
+				id: f.id,
+				properties: {
+					id: f.id,
+					role: f.role,
+					areaSqm: f.areaSqm,
+					isSelected: selectedRoomIds.includes(f.id),
+				},
+				geometry: {
+					type: "Polygon",
+					coordinates: [f.ring, ...(f.holes || [])],
+				},
+			})),
+		};
+	}, [layerVisibility.faces, currentFloorFaces, selectedRoomIds]);
+
+	// 2D Wall-Mounted Doors GeoJSON on active floor (Oriented Rectangular Door Frame Polygon + Midpoint Node + Live Ghost Preview)
+	const studioDoorsGeoJSON = useMemo(() => {
+		if (!layerVisibility.doors) {
+			return { type: "FeatureCollection", features: [] };
+		}
+		const wallSegs = currentFloorModel?.wallSegments || [];
 		const features = [];
-		if (layerVisibility.walls) {
-			for (const w of currentFloorWalls) {
-				const isSel = w.id === selectedWallId;
-				for (const pt of w.line || []) {
-					features.push({
-						type: "Feature",
-						properties: {
-							wallId: w.id,
-							wallKind: "CUSTOM_WALL",
-							isSelected: isSel,
-						},
-						geometry: { type: "Point", coordinates: pt },
-					});
-				}
+
+		for (const d of currentFloorDoors) {
+			if (!Array.isArray(d.coords)) continue;
+			const geom = buildOrientedDoorGeometry(d, wallSegs);
+			if (!geom) continue;
+			const isSel = d.id === selectedDoorId;
+
+			// Oriented Rectangular Door Frame Box (as in Image 1)
+			features.push({
+				type: "Feature",
+				id: d.id,
+				properties: {
+					id: d.id,
+					featureKind: "DOOR_BOX",
+					widthMeters: geom.widthMeters,
+					isSelected: isSel,
+					isPreview: false,
+				},
+				geometry: {
+					type: "Polygon",
+					coordinates: [geom.boxPolygon],
+				},
+			});
+
+			// Inner Threshold Leaf Line
+			features.push({
+				type: "Feature",
+				id: `${d.id}-leaf`,
+				properties: {
+					id: d.id,
+					featureKind: "DOOR_LEAF",
+					widthMeters: geom.widthMeters,
+					isSelected: isSel,
+					isPreview: false,
+				},
+				geometry: {
+					type: "LineString",
+					coordinates: geom.centerLine,
+				},
+			});
+
+			// Midpoint Graph Node Anchor (highlighted in NAV_GRAPH / DOOR / when selected)
+			features.push({
+				type: "Feature",
+				id: `${d.id}-mid`,
+				properties: {
+					id: d.id,
+					featureKind: "DOOR_MIDPOINT",
+					widthMeters: geom.widthMeters,
+					isSelected: isSel,
+					isPreview: false,
+				},
+				geometry: {
+					type: "Point",
+					coordinates: geom.midpoint,
+				},
+			});
+		}
+
+		// Live Ghost Door Box Preview while hovering over a wall with [D] tool
+		if (activeTool === "DOOR" && snappedCoord) {
+			const ghostGeom = buildOrientedDoorGeometry(
+				{ id: "door-preview", coords: snappedCoord, widthMeters: 1.2 },
+				wallSegs,
+			);
+			if (ghostGeom) {
+				features.push({
+					type: "Feature",
+					id: "door-preview-box",
+					properties: {
+						id: "door-preview",
+						featureKind: "DOOR_BOX",
+						widthMeters: ghostGeom.widthMeters,
+						isSelected: false,
+						isPreview: true,
+					},
+					geometry: {
+						type: "Polygon",
+						coordinates: [ghostGeom.boxPolygon],
+					},
+				});
+				features.push({
+					type: "Feature",
+					id: "door-preview-mid",
+					properties: {
+						id: "door-preview",
+						featureKind: "DOOR_MIDPOINT",
+						widthMeters: ghostGeom.widthMeters,
+						isSelected: false,
+						isPreview: true,
+					},
+					geometry: {
+						type: "Point",
+						coordinates: ghostGeom.midpoint,
+					},
+				});
 			}
 		}
-		if (layerVisibility.boundaries) {
-			for (const b of currentFloorBoundaries) {
-				const isSel = b.id === selectedBoundaryId;
-				const ring = b.ring || [];
-				const pts = isClosedRing(ring) ? ring.slice(0, -1) : ring;
-				for (const pt of pts) {
-					features.push({
-						type: "Feature",
-						properties: {
-							wallId: b.id,
-							wallKind: "BOUNDARY",
-							isSelected: isSel,
-						},
-						geometry: { type: "Point", coordinates: pt },
-					});
-				}
+
+		return { type: "FeatureCollection", features };
+	}, [
+		layerVisibility.doors,
+		currentFloorDoors,
+		currentFloorModel,
+		selectedDoorId,
+		activeTool,
+		snappedCoord,
+	]);
+
+	// 2D Deduplicated Corner/Junction Dots & Open Dead-end Dots across active walls (renders at zoom >= 16.5 for Mappedin snap clarity)
+	const studioVerticesGeoJSON = useMemo(() => {
+		const features = [];
+		if (layerVisibility.walls) {
+			const uniqueVerts = deduplicateFloorVertices(currentFloorWalls, {
+				selectedWallId,
+			});
+			for (const uv of uniqueVerts) {
+				features.push({
+					type: "Feature",
+					properties: {
+						entityId: uv.entityId,
+						kind: "WALL",
+						degree: uv.degree,
+						isSelected: uv.isSelected,
+					},
+					geometry: { type: "Point", coordinates: uv.coord },
+				});
+			}
+			// Highlight open wall dead-ends cleanly so user spots incomplete loops immediately
+			for (const de of currentFloorModel?.deadEndPoints || []) {
+				features.push({
+					type: "Feature",
+					properties: {
+						entityId: "dead-end",
+						kind: "DEAD_END",
+						degree: 1,
+						isSelected: false,
+					},
+					geometry: { type: "Point", coordinates: de },
+				});
 			}
 		}
 		return { type: "FeatureCollection", features };
-	}, [
-		layerVisibility.walls,
-		layerVisibility.boundaries,
-		currentFloorWalls,
-		currentFloorBoundaries,
-		selectedWallId,
-		selectedBoundaryId,
-	]);
+	}, [layerVisibility.walls, currentFloorWalls, currentFloorModel, selectedWallId]);
 
 	// 3D Test Route Ribbons for Studio 3D Preview
 	const studioRoute3dLayers = useMemo(
@@ -2323,57 +2918,64 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		if (activeTool !== "SELECT" && activeTool !== "NAV_GRAPH") return undefined;
 		const ids = [];
 		if (layerVisibility.navGraph && !layerLocks.navGraph) {
-			ids.push("studio-nav-nodes-layer");
+			ids.push("studio-nav-nodes-layer", "studio-nav-portals-layer");
 		}
 		if (activeTool === "SELECT") {
+			if (layerVisibility.doors && !layerLocks.doors) {
+				ids.push(
+					"studio-doors-fill-layer",
+					"studio-doors-outline-layer",
+					"studio-doors-layer",
+				);
+			}
 			if (is3dPreview) {
-				if (
-					(layerVisibility.walls || layerVisibility.boundaries) &&
-					(!layerLocks.walls || !layerLocks.boundaries)
-				) {
+				if (layerVisibility.walls && !layerLocks.walls) {
 					ids.push("studio-walls-layer");
 				}
-				if (layerVisibility.rooms && !layerLocks.rooms) {
+				if (layerVisibility.faces && !layerLocks.faces) {
 					ids.push("studio-rooms-extrusion");
 				}
 			} else {
-				if (
-					(layerVisibility.walls || layerVisibility.boundaries) &&
-					(!layerLocks.walls || !layerLocks.boundaries)
-				) {
+				if (layerVisibility.walls && !layerLocks.walls) {
 					ids.push("studio-walls-hit-layer", "studio-walls-line-layer");
 				}
-				if (layerVisibility.rooms && !layerLocks.rooms) {
-					ids.push("studio-rooms-fill", "studio-rooms-outline");
+				if (layerVisibility.faces && !layerLocks.faces) {
+					ids.push("studio-faces-fill", "studio-faces-outline");
 				}
 			}
 		}
 		return ids;
 	}, [activeTool, is3dPreview, layerVisibility, layerLocks]);
 
-	// Build Nav Graph GeoJSON for current floor + outdoor (uses effectiveStore for live drag)
+	// Build Nav Graph GeoJSON for current building/floor (+ outdoor on Floor 0), with symbol portal layer, connected floor badges & ghost portals
 	const navGraphLayers = useMemo(() => {
+		const boundaries = effectiveStore.buildingBoundaries || [];
 		const allEdges = buildAllGraphEdges(effectiveStore);
 		const nodeMap = new Map(
 			(effectiveStore.navNodes || []).map((n) => [n.id, n]),
 		);
+		const visibleNodes = (effectiveStore.navNodes || []).filter((n) =>
+			isNodeVisibleOnFloor(boundaries, n, activeBuilding, activeFloorOrder),
+		);
+		const visibleIds = new Set(visibleNodes.map((n) => n.id));
 		const edgeFeatures = [];
 
 		for (const [uId, vId] of allEdges) {
 			const u = nodeMap.get(uId);
 			const v = nodeMap.get(vId);
 			if (!u || !v) continue;
-			if (
-				u.floorOrder !== activeFloorOrder &&
-				v.floorOrder !== activeFloorOrder &&
-				u.type !== "OUTDOOR"
-			) {
+			const isVertical = u.floorOrder !== v.floorOrder;
+			// Do NOT render cross-floor vertical edges as diagonal 2D lines across the flat 2D floor plan (Image 2 fix)
+			if (isVertical && !is3dPreview) continue;
+			if (isVertical) {
+				if (!visibleIds.has(u.id) && !visibleIds.has(v.id)) continue;
+			} else if (!visibleIds.has(u.id) && !visibleIds.has(v.id)) {
 				continue;
 			}
 			edgeFeatures.push({
 				type: "Feature",
 				properties: {
-					isVertical: u.floorOrder !== v.floorOrder,
+					isVertical,
 				},
 				geometry: {
 					type: "LineString",
@@ -2382,94 +2984,213 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			});
 		}
 
-		const nodeFeatures = (effectiveStore.navNodes || [])
-			.filter((n) => n.floorOrder === activeFloorOrder || n.type === "OUTDOOR")
-			.map((n) => ({
+		// Map portalGroupId -> sorted floor labels in this building for 2D/3D badge display
+		const portalFloorsByGroup = new Map();
+		for (const n of effectiveStore.navNodes || []) {
+			if (!isPortalNode(n) || !n.portalGroupId) continue;
+			const nb =
+				resolveNodeBuilding(boundaries, n) ||
+				resolveCanonicalBuildingName(n.building) ||
+				n.building;
+			if (!matchesBuilding(nb, activeBuilding)) continue;
+			const gk = n.portalGroupId.trim().toUpperCase();
+			if (!portalFloorsByGroup.has(gk)) portalFloorsByGroup.set(gk, new Set());
+			portalFloorsByGroup.get(gk).add(Number(n.floorOrder) || 0);
+		}
+
+		const formatFloorShort = (fl) => (fl === 0 ? "G" : `${fl}`);
+
+		const nodeFeatures = [];
+		const portalFeatures = [];
+		for (const n of visibleNodes) {
+			const isSel =
+				n.id === selectedNavNodeId || n.id === liveNavNodeDrag?.id;
+			const isHead = n.id === chainLastNodeId;
+			const outdoor = isNodeOutdoor(boundaries, n);
+			const floorOrder = Number(n.floorOrder) || 0;
+			const heightOffset = Number(
+				(floorOrder * FLOOR_ELEVATION_STEP + FLOOR_SLAB_HEIGHT + 0.35).toFixed(2),
+			);
+
+			if (isPortalNode(n)) {
+				const gk = (n.portalGroupId || "").trim().toUpperCase();
+				const floorsSet = portalFloorsByGroup.get(gk);
+				const sortedFl = floorsSet
+					? Array.from(floorsSet).sort((a, b) => a - b)
+					: [floorOrder];
+				const stackBadge =
+					sortedFl.length > 1
+						? `↕ ${sortedFl.map(formatFloorShort).join("·")}`
+						: `Tầng ${formatFloorShort(floorOrder)} (chưa nối tầng)`;
+
+				portalFeatures.push({
+					type: "Feature",
+					properties: {
+						id: n.id,
+						nodeType: n.type,
+						iconImage:
+							n.type === "ELEVATOR" ? "portal-elevator" : "portal-stairs",
+						portalGroupId: n.portalGroupId || "",
+						stackBadge,
+						isMultiFloorSynced: sortedFl.length > 1,
+						isSelected: isSel,
+						isChainHead: isHead,
+						heightOffset,
+					},
+					geometry: {
+						type: "Point",
+						coordinates: n.coords,
+					},
+				});
+			}
+
+			nodeFeatures.push({
 				type: "Feature",
 				properties: {
 					id: n.id,
-					nodeType: n.type,
+					nodeType: outdoor ? "OUTDOOR" : n.type,
+					isOutdoor: outdoor,
+					isPortal: isPortalNode(n),
 					portalGroupId: n.portalGroupId || "",
-					isChainHead: n.id === chainLastNodeId,
-					isSelected:
-						n.id === selectedNavNodeId || n.id === liveNavNodeDrag?.id,
+					isChainHead: isHead,
+					isSelected: isSel,
 				},
 				geometry: {
 					type: "Point",
 					coordinates: n.coords,
 				},
-			}));
+			});
+		}
+
+		// Ghost Portals from other floors of the same building (visible when placing STAIRS/ELEVATOR in NAV_GRAPH)
+		const ghostPortalFeatures = [];
+		if (
+			activeTool === "NAV_GRAPH" &&
+			(activeNodeType === "STAIRS" || activeNodeType === "ELEVATOR")
+		) {
+			const seenGroups = new Set(
+				visibleNodes
+					.filter((n) => isPortalNode(n) && n.portalGroupId)
+					.map((n) => n.portalGroupId.trim().toUpperCase()),
+			);
+			for (const n of effectiveStore.navNodes || []) {
+				if (!isPortalNode(n) || Number(n.floorOrder) === activeFloorOrder) {
+					continue;
+				}
+				const nb =
+					resolveNodeBuilding(boundaries, n) ||
+					resolveCanonicalBuildingName(n.building) ||
+					n.building;
+				if (!matchesBuilding(nb, activeBuilding)) continue;
+				const gk = (n.portalGroupId || "").trim().toUpperCase();
+				if (gk && seenGroups.has(gk)) continue;
+				if (gk) seenGroups.add(gk);
+				ghostPortalFeatures.push({
+					type: "Feature",
+					properties: {
+						id: `ghost-${n.id}`,
+						nodeType: n.type,
+						portalGroupId: n.portalGroupId || "",
+						fromFloorLabel: `Trục ${n.portalGroupId || n.type} (Tầng ${formatFloorShort(Number(n.floorOrder) || 0)})`,
+					},
+					geometry: {
+						type: "Point",
+						coordinates: n.coords,
+					},
+				});
+			}
+		}
 
 		return {
 			edges: { type: "FeatureCollection", features: edgeFeatures },
 			nodes: { type: "FeatureCollection", features: nodeFeatures },
+			portals: { type: "FeatureCollection", features: portalFeatures },
+			ghostPortals: {
+				type: "FeatureCollection",
+				features: ghostPortalFeatures,
+			},
 		};
 	}, [
 		effectiveStore,
+		activeBuilding,
 		activeFloorOrder,
+		activeTool,
+		activeNodeType,
+		is3dPreview,
 		chainLastNodeId,
 		selectedNavNodeId,
 		liveNavNodeDrag?.id,
 	]);
 
-	// Draft preview GeoJSON while drawing
+	// Draft preview GeoJSON while drawing (rotated 2-Click Box preview + draft corner circles + close-loop highlight)
 	const draftPreviewGeoJSON = useMemo(() => {
-		if (draftPoints.length === 0 || !hoverCoord) {
+		if (draftPoints.length === 0) {
 			return { type: "FeatureCollection", features: [] };
 		}
-		if (activeTool === "ROOM_BOX") {
-			const p0 = draftPoints[0];
-			const west = Math.min(p0[0], hoverCoord[0]);
-			const east = Math.max(p0[0], hoverCoord[0]);
-			const south = Math.min(p0[1], hoverCoord[1]);
-			const north = Math.max(p0[1], hoverCoord[1]);
-			const ring = [
-				[west, north],
-				[east, north],
-				[east, south],
-				[west, south],
-				[west, north],
-			];
-			return {
-				type: "FeatureCollection",
-				features: [
-					{
+		const features = [];
+		const canCloseLoop =
+			draftPoints.length >= 3 &&
+			(activeTool === "ROOM_POLY" || activeTool === "WALL_DRAW");
+
+		draftPoints.forEach((pt, idx) => {
+			features.push({
+				type: "Feature",
+				properties: {
+					isDraftVertex: true,
+					isStartVertex: idx === 0,
+					canCloseLoop: idx === 0 && canCloseLoop,
+				},
+				geometry: { type: "Point", coordinates: pt },
+			});
+		});
+
+		if (hoverCoord) {
+			if (activeTool === "ROOM_BOX") {
+				const ring = buildOrientedBoxRing(draftPoints[0], hoverCoord, {
+					corners: activeCorners,
+					axisAligned: shiftKeyDown,
+					minSideMeters: 0.05,
+				});
+				if (ring) {
+					features.push({
 						type: "Feature",
 						geometry: { type: "Polygon", coordinates: [ring] },
-					},
-				],
-			};
-		}
-		return {
-			type: "FeatureCollection",
-			features: [
-				{
+					});
+				}
+			} else {
+				features.push({
 					type: "Feature",
 					geometry: {
 						type: "LineString",
 						coordinates: [...draftPoints, hoverCoord],
 					},
+				});
+			}
+		} else if (draftPoints.length >= 2) {
+			features.push({
+				type: "Feature",
+				geometry: {
+					type: "LineString",
+					coordinates: draftPoints,
 				},
-			],
-		};
-	}, [draftPoints, hoverCoord, activeTool]);
+			});
+		}
+
+		return { type: "FeatureCollection", features };
+	}, [draftPoints, hoverCoord, activeTool, activeCorners, shiftKeyDown]);
 
 	const hasBuildingBoundary = useMemo(
-		() =>
-			(store.buildingBoundaries || []).some(
-				(b) =>
-					b.building === activeBuilding && b.floorOrder === activeFloorOrder,
-			),
-		[store.buildingBoundaries, activeBuilding, activeFloorOrder],
+		() => Boolean(currentFloorModel?.exteriorRings?.length),
+		[currentFloorModel],
 	);
 
 	// Primary selected objects for contextual inspector (backed by effectiveStore, scoped to active floor)
-	const singleSelectedRoom = useMemo(() => {
+	const singleSelectedFace = useMemo(() => {
 		if (selectedRoomIds.length !== 1) return null;
 		return (
-			currentFloorRooms.find((r) => r.id === selectedRoomIds[0]) || null
+			currentFloorFaces.find((f) => f.id === selectedRoomIds[0]) || null
 		);
-	}, [currentFloorRooms, selectedRoomIds]);
+	}, [currentFloorFaces, selectedRoomIds]);
 
 	const singleSelectedNavNode = useMemo(() => {
 		if (!selectedNavNodeId) return null;
@@ -2477,26 +3198,44 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			(effectiveStore.navNodes || []).find(
 				(n) =>
 					n.id === selectedNavNodeId &&
-					(n.floorOrder === activeFloorOrder || n.type === "OUTDOOR"),
+					isNodeVisibleOnFloor(
+						effectiveStore.buildingBoundaries,
+						n,
+						activeBuilding,
+						activeFloorOrder,
+					),
 			) || null
 		);
-	}, [effectiveStore.navNodes, selectedNavNodeId, activeFloorOrder]);
+	}, [
+		effectiveStore.navNodes,
+		effectiveStore.buildingBoundaries,
+		selectedNavNodeId,
+		activeBuilding,
+		activeFloorOrder,
+	]);
 
 	const singleSelectedWall = useMemo(() => {
 		if (!selectedWallId) return null;
 		return currentFloorWalls.find((w) => w.id === selectedWallId) || null;
 	}, [currentFloorWalls, selectedWallId]);
 
-	const singleSelectedBoundary = useMemo(() => {
-		if (!selectedBoundaryId) return null;
-		return (
-			currentFloorBoundaries.find((b) => b.id === selectedBoundaryId) || null
-		);
-	}, [currentFloorBoundaries, selectedBoundaryId]);
+	const singleSelectedDoor = useMemo(() => {
+		if (!selectedDoorId) return null;
+		return currentFloorDoors.find((d) => d.id === selectedDoorId) || null;
+	}, [currentFloorDoors, selectedDoorId]);
 
-	// Geometry Validator Engine
+	const singleSelectedDoorGeom = useMemo(() => {
+		if (!singleSelectedDoor) return null;
+		return buildOrientedDoorGeometry(
+			singleSelectedDoor,
+			currentFloorModel?.wallSegments || [],
+		);
+	}, [singleSelectedDoor, currentFloorModel]);
+
+	// Geometry Validator Engine (Nav Graph + Unified Wall Graph + Door Connectivity)
 	const validationIssues = useMemo(() => {
 		const issues = [];
+		const boundaries = store.buildingBoundaries || [];
 		const allEdges = buildAllGraphEdges(store);
 		const connectedNodeIds = new Set();
 		for (const [a, b] of allEdges) {
@@ -2507,32 +3246,38 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		// 1. Isolated Nav Nodes on current floor
 		for (const n of currentFloorNodes) {
 			if (!connectedNodeIds.has(n.id)) {
+				const metaLabel = NODE_DISPLAY_META[n.type]?.label || n.type;
 				issues.push({
 					id: `iso-${n.id}`,
 					level: "warning",
 					type: "NODE",
 					targetId: n.id,
 					coords: n.coords,
-					title: `Nút mồ côi: ${n.type}`,
+					title: `Nút mồ côi: ${metaLabel}`,
 					desc: `Nút tại [${n.coords[0].toFixed(5)}, ${n.coords[1].toFixed(5)}] chưa được nối vào đồ thị.`,
 				});
 			}
 		}
 
-		// 2. Unmatched Portals for STAIRS / ELEVATOR
+		// 2. Unmatched Portals for STAIRS / ELEVATOR (strictly scoped per canonical building)
+		const portalKey = (n) => {
+			const bldg = resolveCanonicalBuildingName(
+				resolveNodeBuilding(boundaries, n) || n.building,
+			);
+			return `${bldg.toUpperCase()}__${n.portalGroupId.trim().toUpperCase()}`;
+		};
 		const portalsByGroup = new Map();
 		for (const n of store.navNodes || []) {
-			if ((n.type === "STAIRS" || n.type === "ELEVATOR") && n.portalGroupId) {
-				const key = `${n.building}__${n.portalGroupId}`;
+			if (isPortalNode(n) && n.portalGroupId?.trim()) {
+				const key = portalKey(n);
 				const list = portalsByGroup.get(key) || [];
 				list.push(n);
 				portalsByGroup.set(key, list);
 			}
 		}
 		for (const n of currentFloorNodes) {
-			if ((n.type === "STAIRS" || n.type === "ELEVATOR") && n.portalGroupId) {
-				const key = `${n.building}__${n.portalGroupId}`;
-				const group = portalsByGroup.get(key) || [];
+			if (isPortalNode(n) && n.portalGroupId?.trim()) {
+				const group = portalsByGroup.get(portalKey(n)) || [];
 				const otherFloors = group.filter(
 					(other) => other.floorOrder !== n.floorOrder,
 				);
@@ -2550,49 +3295,74 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			}
 		}
 
-		// 3. DOOR not connected to CORRIDOR
-		for (const n of currentFloorNodes) {
-			if (n.type === "DOOR") {
-				const neighborIds = [];
-				for (const [u, v] of allEdges) {
-					if (u === n.id) neighborIds.push(v);
-					if (v === n.id) neighborIds.push(u);
-				}
-				const nodeMap = new Map((store.navNodes || []).map((x) => [x.id, x]));
-				const hasCorridorNeighbor = neighborIds.some(
-					(nbId) => nodeMap.get(nbId)?.type === "CORRIDOR",
-				);
-				if (!hasCorridorNeighbor) {
-					issues.push({
-						id: `door-${n.id}`,
-						level: "warning",
-						type: "NODE",
-						targetId: n.id,
-						coords: n.coords,
-						title: "Cửa phòng chưa nối vào Hành lang",
-						desc: "Nút Cửa cần được nối vào ít nhất một nút Hành lang (CORRIDOR).",
-					});
-				}
+		// 3. Wall Graph dead-end dangling walls
+		(currentFloorModel?.deadEndPoints || []).forEach((pt, idx) => {
+			issues.push({
+				id: `deadend-${idx}-${pt[0]}`,
+				level: "warning",
+				type: "WALL_PT",
+				coords: pt,
+				title: "Đầu tường hở (chưa khép kín)",
+				desc: "Đầu mút tường chưa chạm vào đoạn tường khác để tạo thành vùng khép kín.",
+			});
+		});
+
+		// 4. Doors not sitting on any wall segment (> 0.55m)
+		const floorWallSegs = currentFloorModel?.wallSegments || [];
+		for (const d of currentFloorDoors) {
+			if (!Array.isArray(d.coords)) continue;
+			const nearWall = floorWallSegs.some(
+				(ws) => distancePointToSegmentMeters(d.coords, ws.a, ws.b) <= 0.55,
+			);
+			if (!nearWall) {
+				issues.push({
+					id: `door-orphan-${d.id}`,
+					level: "error",
+					type: "DOOR",
+					targetId: d.id,
+					coords: d.coords,
+					title: "Cửa bị lệch khỏi tường",
+					desc: "Cửa chưa bám lên đoạn tường nào trên tầng hiện tại — A* và đục 3D sẽ bỏ qua.",
+				});
 			}
 		}
 
-		// 4. Room polygon validation (< 4 points in ring)
-		for (const r of currentFloorRooms) {
-			if (!r.ring || r.ring.length < 4) {
+		// 5. ROOM faces missing a wall-mounted DOOR (advisory for A* doorway routing)
+		for (const rm of currentFloorRooms) {
+			const hasDoor = currentFloorDoors.some((d) => {
+				if (!Array.isArray(d.coords)) return false;
+				for (let i = 0; i < (rm.ring?.length || 0) - 1; i++) {
+					if (
+						distancePointToSegmentMeters(d.coords, rm.ring[i], rm.ring[i + 1]) <=
+						0.65
+					) {
+						return true;
+					}
+				}
+				return false;
+			});
+			if (!hasDoor) {
 				issues.push({
-					id: `room-ring-${r.id}`,
-					level: "error",
+					id: `room-nodoor-${rm.id}`,
+					level: "warning",
 					type: "ROOM",
-					targetId: r.id,
-					coords: r.ring?.[0] || [106.8095, 10.8412],
-					title: `Phòng ${r.id} bị lỗi đỉnh`,
-					desc: "Đa giác phòng chưa đủ 3 đỉnh góc khép kín.",
+					targetId: rm.id,
+					coords: rm.seedCoord || rm.ring?.[0],
+					title: "Phòng chưa gắn cửa [D]",
+					desc: "Nên đặt ít nhất 1 cửa [D] trên vách phòng để lộ trình A* đi đúng qua lối cửa.",
 				});
 			}
 		}
 
 		return issues;
-	}, [store, currentFloorNodes, currentFloorRooms, activeBuilding]);
+	}, [
+		store,
+		currentFloorNodes,
+		currentFloorModel,
+		currentFloorDoors,
+		currentFloorRooms,
+		activeBuilding,
+	]);
 
 	if (!isOpen) return null;
 
@@ -2886,30 +3656,30 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 					<button
 						type="button"
-						className={`digitizer-rail-btn ${activeTool === "BOUNDARY_POLY" ? "is-active" : ""}`}
+						className={`digitizer-rail-btn ${activeTool === "WALL_DRAW" ? "is-active" : ""}`}
 						onClick={() => {
-							setActiveTool("BOUNDARY_POLY");
+							setActiveTool("WALL_DRAW");
 							setDraftPoints([]);
 						}}
-						title="Tường bao [O]"
-						aria-label="Tường bao [O]"
+						title="Vẽ tường (khép kín / vách ngăn) [W]"
+						aria-label="Vẽ tường [W]"
 					>
-						<Building2 size={17} />
-						<span className="digitizer-rail-key">O</span>
+						<Ruler size={17} />
+						<span className="digitizer-rail-key">W</span>
 					</button>
 
 					<button
 						type="button"
-						className={`digitizer-rail-btn ${activeTool === "CUSTOM_WALL" ? "is-active" : ""}`}
+						className={`digitizer-rail-btn ${activeTool === "DOOR" ? "is-active" : ""}`}
 						onClick={() => {
-							setActiveTool("CUSTOM_WALL");
+							setActiveTool("DOOR");
 							setDraftPoints([]);
 						}}
-						title="Tường [W]"
-						aria-label="Tường [W]"
+						title="Gắn cửa lên tường [D]"
+						aria-label="Gắn cửa [D]"
 					>
-						<Ruler size={17} />
-						<span className="digitizer-rail-key">W</span>
+						<DoorOpen size={17} />
+						<span className="digitizer-rail-key">D</span>
 					</button>
 
 					<div className="digitizer-rail-divider" />
@@ -2968,8 +3738,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							{activeTool === "ROOM_BOX" && <Square size={14} />}
 							{activeTool === "ROOM_POLY" && <Pentagon size={14} />}
 							{activeTool === "ROOM_SLICE" && <Scissors size={14} />}
-							{activeTool === "BOUNDARY_POLY" && <Building2 size={14} />}
-							{activeTool === "CUSTOM_WALL" && <Ruler size={14} />}
+							{activeTool === "WALL_DRAW" && <Ruler size={14} />}
+							{activeTool === "DOOR" && <DoorOpen size={14} />}
 							{activeTool === "NAV_GRAPH" && <Route size={14} />}
 							{activeTool === "TEST_ROUTE" && <Footprints size={14} />}
 							{activeTool === "CALIBRATE_PNG" && <Crosshair size={14} />}
@@ -2978,38 +3748,38 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						<span className="digitizer-hud__text">
 							{activeTool === "SELECT" &&
 								(selectedRoomIds.length > 0
-									? `Đã chọn ${selectedRoomIds.length} phòng [Kéo đỉnh chỉnh góc · Shift: chọn thêm · Del: xóa]`
+									? `Đã chọn ${selectedRoomIds.length} vùng [Đổi vai trò ROOM/CORRIDOR/VOID bên phải · Shift: chọn thêm]`
 									: singleSelectedNavNode
-										? `Nút ${singleSelectedNavNode.type} [Kéo nút tròn để di chuyển · Del: xóa]`
-										: singleSelectedWall
-											? `Vách ngăn [Kéo 2 đầu mút để chỉnh · Del: xóa]`
-											: singleSelectedBoundary
-												? `Tường bao tầng [Kéo chốt góc để chỉnh · Del: xóa]`
-												: "Chọn đối tượng [Kéo nút tròn để di chuyển · Click tường/phòng để sửa]")}
+										? `${NODE_DISPLAY_META[singleSelectedNavNode.type]?.label || singleSelectedNavNode.type} [Kéo để di chuyển / gộp nút · Del: xóa]`
+										: singleSelectedDoor
+											? `Cửa gắn tường (${singleSelectedDoor.widthMeters || 1.2}m) [Kéo 2 chốt mép để chỉnh rộng · Kéo tâm để trượt · Del: xóa]`
+											: singleSelectedWall
+												? `Đoạn tường [Kéo góc để di chuyển mối hàn (Giữ Alt: tách rời) · + để bẻ góc · Del: xóa]`
+												: "Chọn đối tượng [Click vùng để đổi Phòng/Hành lang/Void · Click tường hoặc cửa để sửa]")}
 
 							{activeTool === "ROOM_BOX" &&
 								(draftPoints.length === 0
-									? "Click điểm 1 để tạo phòng [B]"
-									: "Click điểm 2 để hoàn tất [Esc: hủy]")}
+									? "Click điểm 1 để dựng hộp tường Phòng [B · Giữ Shift: ngang 0°]"
+									: shiftKeyDown
+										? "Click điểm 2 (Chế độ ngang 0°) [Esc: hủy]"
+										: "Click điểm 2 để hoàn tất [Giữ Shift: ngang 0° · Esc: hủy]")}
 
 							{activeTool === "ROOM_SLICE" &&
 								(draftPoints.length === 0
-									? "Click điểm 1 của đường cắt [S]"
-									: "Click điểm 2 để cắt phòng [Esc: hủy]")}
+									? "Click điểm 1 để kéo vách chia đôi vùng [S]"
+									: "Click điểm 2 xuyên qua vùng cần chia [Esc: hủy]")}
 
 							{activeTool === "ROOM_POLY" &&
-								`Vẽ đa giác: ${draftPoints.length} điểm [Enter: khép kín, Esc: hủy]`}
+								`Đa giác Phòng: ${draftPoints.length} điểm [Click điểm đầu / Enter: khép kín, Esc: hủy]`}
 
-							{activeTool === "BOUNDARY_POLY" &&
-								`Tường bao: ${draftPoints.length} điểm [Enter: khép kín, Esc: hủy]`}
+							{activeTool === "WALL_DRAW" &&
+								`Vẽ tường: ${draftPoints.length} điểm [Click điểm đầu (≥3): khép kín · Click điểm cuối / Enter (≥2): kết thúc · Esc: hủy]`}
 
-							{activeTool === "CUSTOM_WALL" &&
-								(draftPoints.length === 0
-									? "Click điểm đầu vách [W]"
-									: "Click điểm cuối vách [Esc: hủy]")}
+							{activeTool === "DOOR" &&
+								"Rê chuột dọc tường & Click để gắn Cửa (hộp chữ nhật đục tường 3D & trung điểm làm Node A*) [D]"}
 
 							{activeTool === "NAV_GRAPH" &&
-								`Đồ thị (${activeNodeType}): Click đặt nút · Kéo nút tròn để di chuyển [Esc: ngắt]`}
+								`Đồ thị (${NODE_DISPLAY_META[activeNodeType]?.label || activeNodeType}): Click đặt / nối Trung điểm Cửa · Kéo trùng nút để tự gộp [Esc: ngắt]`}
 
 							{activeTool === "TEST_ROUTE" &&
 								(!testRouteStart
@@ -3020,18 +3790,19 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								"Kéo 4 góc để co giãn · Chốt trên để xoay · Chốt tâm để di chuyển"}
 						</span>
 
-						{draftPoints.length >= 3 &&
-							(activeTool === "ROOM_POLY" ||
-								activeTool === "BOUNDARY_POLY") && (
-								<button
-									type="button"
-									className="digitizer-hud__btn digitizer-hud__btn--confirm"
-									onClick={finishPolygonDraft}
-								>
-									<Check size={12} />
-									<span>Khép kín (Enter)</span>
-								</button>
-							)}
+						{((draftPoints.length >= 3 && activeTool === "ROOM_POLY") ||
+							(draftPoints.length >= 2 && activeTool === "WALL_DRAW")) && (
+							<button
+								type="button"
+								className="digitizer-hud__btn digitizer-hud__btn--confirm"
+								onClick={() => finishPolygonDraft(activeTool === "ROOM_POLY")}
+							>
+								<Check size={12} />
+								<span>
+									{activeTool === "ROOM_POLY" ? "Khép kín (Enter)" : "Xong tường (Enter)"}
+								</span>
+							</button>
+						)}
 
 						{selectedRoomIds.length > 0 && activeTool === "SELECT" && (
 							<button
@@ -3040,7 +3811,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								onClick={deleteSelectedRooms}
 							>
 								<Trash2 size={12} />
-								<span>Xóa ({selectedRoomIds.length})</span>
+								<span>Bỏ vùng Phòng ({selectedRoomIds.length})</span>
 							</button>
 						)}
 					</div>
@@ -3104,10 +3875,21 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								<span
 									className="digitizer-telemetry-chip"
 									style={{
-										color: snapType === "VERTEX" ? "#10b981" : "#38bdf8",
+										color:
+											snapType === "VERTEX"
+												? "#10b981"
+												: snapType === "MIDPOINT"
+													? "#f59e0b"
+													: "#38bdf8",
 									}}
 								>
-									Snap {snapType === "VERTEX" ? "Đỉnh" : "Cạnh"} [Alt: Tắt]
+									Snap{" "}
+									{snapType === "VERTEX"
+										? "Đỉnh"
+										: snapType === "MIDPOINT"
+											? "Trung điểm"
+											: "Cạnh"}{" "}
+									[Alt: Tắt]
 								</span>
 							)}
 						</div>
@@ -3125,9 +3907,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						<div className="digitizer-telemetry-item">
 							<strong>{currentFloorRooms.length} Phòng</strong>
 							<span>·</span>
-							<strong>{currentFloorNodes.length} Nút</strong>
+							<strong>{currentFloorWalls.length} Tường</strong>
 							<span>·</span>
-							<strong>{currentFloorWalls.length} Vách</strong>
+							<strong>{currentFloorDoors.length} Cửa</strong>
+							<span>·</span>
+							<strong>{currentFloorNodes.length} Nút</strong>
 						</div>
 					</div>
 
@@ -3140,7 +3924,15 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							pitch: 0,
 							bearing: 0,
 						}}
-						onLoad={(e) => e?.target?.setLight?.(STUDIO_LIGHT)}
+						onLoad={(e) => {
+							const map = e?.target;
+							if (!map) return;
+							registerPortalMapImages(map);
+							map.on?.("styleimagemissing", (ev) =>
+								ensurePortalMapImage(map, ev.id),
+							);
+							map.setLight?.(STUDIO_LIGHT);
+						}}
 						onClick={handleMapClick}
 						onMouseMove={handleMapMouseMove}
 						onMouseDown={handleMapMouseDown}
@@ -3210,7 +4002,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						)}
 
 						{/* 2. Ghost Lower Floors (3D Preview only) */}
-						{is3dPreview && layerVisibility.boundaries && (
+						{is3dPreview && (layerVisibility.walls || layerVisibility.faces) && (
 							<Source
 								id="studio-ghost-slab-src"
 								type="geojson"
@@ -3228,36 +4020,26 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								/>
 							</Source>
 						)}
-						{is3dPreview &&
-							(layerVisibility.walls || layerVisibility.boundaries) && (
-								<Source
-									id="studio-ghost-walls-src"
-									type="geojson"
-									data={vector3dSplit.walls.ghost}
-								>
-									<Layer
-										id="studio-ghost-walls-layer"
-										type="fill-extrusion"
-										filter={[
-											"all",
-											...(layerVisibility.boundaries
-												? []
-												: [["!=", ["get", "wallKind"], "BOUNDARY"]]),
-											...(layerVisibility.walls
-												? []
-												: [["!=", ["get", "wallKind"], "CUSTOM_WALL"]]),
-										]}
-										paint={{
-											"fill-extrusion-color": ["get", "color"],
-											"fill-extrusion-height": ["get", "extrudeHeight"],
-											"fill-extrusion-base": ["get", "baseHeight"],
-											"fill-extrusion-opacity": 0.18,
-											"fill-extrusion-vertical-gradient": true,
-										}}
-									/>
-								</Source>
-							)}
-						{is3dPreview && layerVisibility.rooms && (
+						{is3dPreview && layerVisibility.walls && (
+							<Source
+								id="studio-ghost-walls-src"
+								type="geojson"
+								data={vector3dSplit.walls.ghost}
+							>
+								<Layer
+									id="studio-ghost-walls-layer"
+									type="fill-extrusion"
+									paint={{
+										"fill-extrusion-color": ["get", "color"],
+										"fill-extrusion-height": ["get", "extrudeHeight"],
+										"fill-extrusion-base": ["get", "baseHeight"],
+										"fill-extrusion-opacity": 0.18,
+										"fill-extrusion-vertical-gradient": true,
+									}}
+								/>
+							</Source>
+						)}
+						{is3dPreview && layerVisibility.faces && (
 							<Source
 								id="studio-ghost-rooms-src"
 								type="geojson"
@@ -3277,8 +4059,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							</Source>
 						)}
 
-						{/* 3. Active Floor Slab */}
-						{layerVisibility.boundaries && (
+						{/* 3. Active Floor Slab (carved VOID holes automatically in 3D) */}
+						{(layerVisibility.walls || layerVisibility.faces) && (
 							<Source
 								id="studio-slab-src"
 								type="geojson"
@@ -3293,7 +4075,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											"fill-extrusion-color": "#cbd5e1",
 											"fill-extrusion-height": ["get", "extrudeHeight"],
 											"fill-extrusion-base": ["get", "baseHeight"],
-											"fill-extrusion-opacity": 0.6,
+											"fill-extrusion-opacity": 0.65,
 										}}
 									/>
 								) : (
@@ -3303,189 +4085,324 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										type="fill"
 										paint={{
 											"fill-color": "#cbd5e1",
-											"fill-opacity": 0.14,
+											"fill-opacity": 0.12,
 										}}
 									/>
 								)}
 							</Source>
 						)}
 
-						{/* 4. Building Outer Walls & Custom Interior Walls */}
-						{!is3dPreview &&
-							(layerVisibility.walls || layerVisibility.boundaries) && (
-								<>
-									<Source
-										id="studio-wall-lines-src"
-										type="geojson"
-										data={studioWallLinesGeoJSON}
-									>
-										<Layer
-											id="studio-walls-hit-layer"
-											type="line"
-											layout={{ "line-cap": "round", "line-join": "round" }}
-											paint={{
-												"line-color": "#000000",
-												"line-width": 14,
-												"line-opacity": 0.01,
-											}}
-										/>
-										<Layer
-											id="studio-walls-line-layer"
-											type="line"
-											layout={{ "line-cap": "round", "line-join": "round" }}
-											paint={{
-												"line-color": [
-													"case",
-													["get", "isSelected"],
-													"#f97316",
-													["==", ["get", "wallKind"], "CUSTOM_WALL"],
-													"#38bdf8",
-													"#64748b",
-												],
-												"line-width": [
-													"case",
-													["get", "isSelected"],
-													4.5,
-													["==", ["get", "wallKind"], "CUSTOM_WALL"],
-													3,
-													2.5,
-												],
-												"line-opacity": 0.94,
-											}}
-										/>
-									</Source>
-									<Source
-										id="studio-wall-endpoints-src"
-										type="geojson"
-										data={studioWallEndpointsGeoJSON}
-									>
-										<Layer
-											id="studio-wall-endpoints-layer"
-											type="circle"
-											paint={{
-												"circle-radius": [
-													"case",
-													["get", "isSelected"],
-													4.5,
-													3,
-												],
-												"circle-color": [
-													"case",
-													["get", "isSelected"],
-													"#f97316",
-													["==", ["get", "wallKind"], "CUSTOM_WALL"],
-													"#38bdf8",
-													"#94a3b8",
-												],
-												"circle-stroke-width": 1.5,
-												"circle-stroke-color": "#0f172a",
-											}}
-										/>
-									</Source>
-								</>
-							)}
-
-						{is3dPreview &&
-							(layerVisibility.walls || layerVisibility.boundaries) && (
-								<Source
-									id="studio-walls-src"
-									type="geojson"
-									data={vector3dSplit.walls.active}
-								>
-									<Layer
-										id="studio-walls-layer"
-										type="fill-extrusion"
-										filter={[
-											"all",
-											...(layerVisibility.boundaries
-												? []
-												: [["!=", ["get", "wallKind"], "BOUNDARY"]]),
-											...(layerVisibility.walls
-												? []
-												: [["!=", ["get", "wallKind"], "CUSTOM_WALL"]]),
-										]}
-										paint={{
-											"fill-extrusion-color": [
-												"case",
-												[
-													"any",
-													["==", ["get", "id"], selectedWallId || ""],
-													["==", ["get", "id"], selectedBoundaryId || ""],
-												],
-												"#f97316",
-												"#475569",
+						{/* 4. Extracted Planar Faces in 2D (ROOM / CORRIDOR / VOID) */}
+						{!is3dPreview && layerVisibility.faces && (
+							<Source
+								id="studio-faces-src"
+								type="geojson"
+								data={studioFacesGeoJSON}
+							>
+								<Layer
+									id="studio-faces-fill"
+									type="fill"
+									paint={{
+										"fill-color": [
+											"case",
+											["get", "isSelected"],
+											"#f97316",
+											[
+												"match",
+												["get", "role"],
+												"ROOM",
+												"#0284c7",
+												"VOID",
+												"#ef4444",
+												"#10b981",
 											],
-											"fill-extrusion-height": ["get", "extrudeHeight"],
-											"fill-extrusion-base": ["get", "baseHeight"],
-											"fill-extrusion-opacity": 0.88,
-											"fill-extrusion-vertical-gradient": true,
-										}}
-									/>
-								</Source>
-							)}
+										],
+										"fill-opacity": [
+											"case",
+											["get", "isSelected"],
+											0.34,
+											[
+												"match",
+												["get", "role"],
+												"ROOM",
+												0.24,
+												"VOID",
+												0.2,
+												0.09,
+											],
+										],
+									}}
+								/>
+								<Layer
+									id="studio-faces-outline"
+									type="line"
+									paint={{
+										"line-color": [
+											"case",
+											["get", "isSelected"],
+											"#fb923c",
+											[
+												"match",
+												["get", "role"],
+												"ROOM",
+												"#38bdf8",
+												"VOID",
+												"#f87171",
+												"#34d399",
+											],
+										],
+										"line-width": ["case", ["get", "isSelected"], 2.4, 1.2],
+										"line-opacity": 0.78,
+									}}
+								/>
+							</Source>
+						)}
 
-						{/* 5. Active Floor Rooms */}
-						{layerVisibility.rooms && (
+						{/* 4b. Unified Wall Polylines (2D editing & hit target) */}
+						{!is3dPreview && layerVisibility.walls && (
+							<Source
+								id="studio-wall-lines-src"
+								type="geojson"
+								data={studioWallLinesGeoJSON}
+							>
+								<Layer
+									id="studio-walls-hit-layer"
+									type="line"
+									layout={{ "line-cap": "round", "line-join": "round" }}
+									paint={{
+										"line-color": "#000000",
+										"line-width": 14,
+										"line-opacity": 0.01,
+									}}
+								/>
+								<Layer
+									id="studio-walls-line-layer"
+									type="line"
+									layout={{ "line-cap": "round", "line-join": "round" }}
+									paint={{
+										"line-color": [
+											"case",
+											["get", "isSelected"],
+											"#f97316",
+											["==", ["get", "wallKind"], "PERIMETER"],
+											"#cbd5e1",
+											"#38bdf8",
+										],
+										"line-width": [
+											"case",
+											["get", "isSelected"],
+											4.5,
+											["==", ["get", "wallKind"], "PERIMETER"],
+											3.0,
+											2.4,
+										],
+										"line-opacity": 0.96,
+									}}
+								/>
+							</Source>
+						)}
+
+						{/* 4c. 2D Wall Vertices & Open Dead-end Dots (minzoom 16.5 for Mappedin snap UX) */}
+						{!is3dPreview && layerVisibility.walls && (
+							<Source
+								id="studio-vertices-src"
+								type="geojson"
+								data={studioVerticesGeoJSON}
+							>
+								<Layer
+									id="studio-vertices-layer"
+									type="circle"
+									minzoom={16.5}
+									paint={{
+										"circle-radius": [
+											"interpolate",
+											["linear"],
+											["zoom"],
+											16.5,
+											[
+												"case",
+												["get", "isSelected"],
+												3.8,
+												["==", ["get", "kind"], "DEAD_END"],
+												4.4,
+												2.4,
+											],
+											19.5,
+											[
+												"case",
+												["get", "isSelected"],
+												5.4,
+												["==", ["get", "kind"], "DEAD_END"],
+												6.0,
+												3.8,
+											],
+										],
+										"circle-opacity":
+											activeTool === "NAV_GRAPH" || activeTool === "TEST_ROUTE"
+												? 0.52
+												: [
+														"interpolate",
+														["linear"],
+														["zoom"],
+														16.5,
+														0.55,
+														18.5,
+														0.96,
+													],
+										"circle-color": [
+											"case",
+											["get", "isSelected"],
+											"#f97316",
+											["==", ["get", "kind"], "DEAD_END"],
+											"#ef4444",
+											"#38bdf8",
+										],
+										"circle-stroke-width": 1.3,
+										"circle-stroke-color": "#0f172a",
+									}}
+								/>
+							</Source>
+						)}
+
+						{/* 4d. 3D Extruded Walls (2.85m Perimeter / 1.35m Partition, 100% Opaque, Carved Doorways) */}
+						{is3dPreview && layerVisibility.walls && (
+							<Source
+								id="studio-walls-src"
+								type="geojson"
+								data={vector3dSplit.walls.active}
+							>
+								<Layer
+									id="studio-walls-layer"
+									type="fill-extrusion"
+									paint={{
+										"fill-extrusion-color": ["coalesce", ["get", "color"], "#64748b"],
+										"fill-extrusion-height": ["get", "extrudeHeight"],
+										"fill-extrusion-base": ["get", "baseHeight"],
+										"fill-extrusion-opacity": 1.0,
+										"fill-extrusion-vertical-gradient": true,
+									}}
+								/>
+							</Source>
+						)}
+
+						{/* 5. Active Floor 3D Rooms */}
+						{is3dPreview && layerVisibility.faces && (
 							<Source
 								id="studio-rooms-src"
 								type="geojson"
 								data={vector3dSplit.rooms.active}
 							>
-								{is3dPreview && (
-									<Layer
-										key="studio-rooms-extrusion"
-										id="studio-rooms-extrusion"
-										type="fill-extrusion"
-										paint={{
-											"fill-extrusion-color": [
-												"case",
-												["in", ["get", "id"], ["literal", selectedRoomIds]],
-												"#f97316",
-												"#0284c7",
-											],
-											"fill-extrusion-height": ["get", "extrudeHeight"],
-											"fill-extrusion-base": ["get", "baseHeight"],
-											"fill-extrusion-opacity": 0.72,
-											"fill-extrusion-vertical-gradient": true,
-										}}
-									/>
-								)}
-								{!is3dPreview && (
-									<Layer
-										key="studio-rooms-fill"
-										id="studio-rooms-fill"
-										type="fill"
-										paint={{
-											"fill-color": [
-												"case",
-												["in", ["get", "id"], ["literal", selectedRoomIds]],
-												"#f97316",
-												"#0284c7",
-											],
-											"fill-opacity": 0.25,
-										}}
-									/>
-								)}
-								{!is3dPreview && (
-									<Layer
-										key="studio-rooms-outline"
-										id="studio-rooms-outline"
-										type="line"
-										paint={{
-											"line-color": [
-												"case",
-												["in", ["get", "id"], ["literal", selectedRoomIds]],
-												"#fb923c",
-												"#38bdf8",
-											],
-											"line-width": 2,
-										}}
-									/>
-								)}
+								<Layer
+									key="studio-rooms-extrusion"
+									id="studio-rooms-extrusion"
+									type="fill-extrusion"
+									paint={{
+										"fill-extrusion-color": [
+											"case",
+											["in", ["get", "id"], ["literal", selectedRoomIds]],
+											"#f97316",
+											"#0284c7",
+										],
+										"fill-extrusion-height": ["get", "extrudeHeight"],
+										"fill-extrusion-base": ["get", "baseHeight"],
+										"fill-extrusion-opacity": 0.72,
+										"fill-extrusion-vertical-gradient": true,
+									}}
+								/>
 							</Source>
 						)}
 
-						{/* 5. Draft Preview while drawing */}
+						{/* 5b. Wall-Mounted Doors Overlay (Oriented Architectural Door Box as in Image 1 + Midpoint Graph Node) */}
+						{layerVisibility.doors && (
+							<Source
+								id="studio-doors-src"
+								type="geojson"
+								data={studioDoorsGeoJSON}
+							>
+								<Layer
+									id="studio-doors-fill-layer"
+									type="fill"
+									filter={["==", ["get", "featureKind"], "DOOR_BOX"]}
+									paint={{
+										"fill-color": [
+											"case",
+											["get", "isSelected"],
+											"#fef3c7",
+											"#fff8f6",
+										],
+										"fill-opacity": [
+											"case",
+											["get", "isPreview"],
+											0.68,
+											0.96,
+										],
+									}}
+								/>
+								<Layer
+									id="studio-doors-outline-layer"
+									type="line"
+									filter={["==", ["get", "featureKind"], "DOOR_BOX"]}
+									paint={{
+										"line-color": [
+											"case",
+											["get", "isSelected"],
+											"#f59e0b",
+											["get", "isPreview"],
+											"#fb7185",
+											"#e11d48",
+										],
+										"line-width": [
+											"case",
+											["get", "isSelected"],
+											3.2,
+											2.6,
+										],
+									}}
+								/>
+								<Layer
+									id="studio-doors-leaf-layer"
+									type="line"
+									filter={["==", ["get", "featureKind"], "DOOR_LEAF"]}
+									paint={{
+										"line-color": [
+											"case",
+											["get", "isSelected"],
+											"#d97706",
+											"#be123c",
+										],
+										"line-width": 1.4,
+										"line-dasharray": [2, 1.5],
+									}}
+								/>
+								<Layer
+									id="studio-doors-layer"
+									type="circle"
+									filter={["==", ["get", "featureKind"], "DOOR_MIDPOINT"]}
+									paint={{
+										"circle-radius": [
+											"case",
+											["get", "isSelected"],
+											5.2,
+											activeTool === "NAV_GRAPH" || activeTool === "DOOR"
+												? 4.6
+												: 3.4,
+										],
+										"circle-color": [
+											"case",
+											["get", "isSelected"],
+											"#f59e0b",
+											activeTool === "NAV_GRAPH"
+												? "#10b981"
+												: "#e11d48",
+										],
+										"circle-stroke-width": 1.6,
+										"circle-stroke-color": "#ffffff",
+									}}
+								/>
+							</Source>
+						)}
+
+						{/* 5. Draft Preview while drawing (Polygon/Line + Draft Vertex Circles + Loop-Close Highlight) */}
 						<Source
 							id="studio-draft-src"
 							type="geojson"
@@ -3494,20 +4411,50 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							<Layer
 								id="studio-draft-fill"
 								type="fill"
+								filter={["==", ["geometry-type"], "Polygon"]}
 								paint={{ "fill-color": "#f97316", "fill-opacity": 0.25 }}
 							/>
 							<Layer
 								id="studio-draft-line"
 								type="line"
+								filter={["==", ["geometry-type"], "LineString"]}
 								paint={{
 									"line-color": "#f97316",
 									"line-width": 2.5,
 									"line-dasharray": [2, 1],
 								}}
 							/>
+							<Layer
+								id="studio-draft-points-layer"
+								type="circle"
+								filter={["==", ["geometry-type"], "Point"]}
+								paint={{
+									"circle-radius": [
+										"case",
+										["get", "canCloseLoop"],
+										8,
+										["get", "isStartVertex"],
+										5.5,
+										4.2,
+									],
+									"circle-color": [
+										"case",
+										["get", "canCloseLoop"],
+										"#10b981",
+										"#f97316",
+									],
+									"circle-stroke-width": [
+										"case",
+										["get", "canCloseLoop"],
+										2.5,
+										1.6,
+									],
+									"circle-stroke-color": "#ffffff",
+								}}
+							/>
 						</Source>
 
-						{/* 6. Navigation Graph Edges & Nodes */}
+						{/* 6. Navigation Graph Edges, Nodes & Symbol Portals (STAIRS/ELEVATOR) */}
 						{layerVisibility.navGraph && (
 							<>
 								<Source
@@ -3542,30 +4489,35 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											"circle-radius": [
 												"case",
 												["get", "isSelected"],
-												9,
+												10,
 												["get", "isChainHead"],
 												8,
+												["get", "isPortal"],
+												0,
 												5.5,
 											],
 											"circle-color": [
-												"match",
-												["get", "nodeType"],
-												"CORRIDOR",
-												"#0ea5e9",
-												"DOOR",
-												"#f97316",
-												"STAIRS",
-												"#a855f7",
-												"ELEVATOR",
-												"#ec4899",
-												"ENTRANCE",
-												"#eab308",
+												"case",
+												["get", "isOutdoor"],
 												"#10b981",
+												[
+													"match",
+													["get", "nodeType"],
+													"DOOR",
+													"#f97316",
+													"STAIRS",
+													"#a855f7",
+													"ELEVATOR",
+													"#0284c7",
+													"#0ea5e9",
+												],
 											],
 											"circle-stroke-width": [
 												"case",
 												["get", "isSelected"],
 												3,
+												["get", "isPortal"],
+												0,
 												2,
 											],
 											"circle-stroke-color": [
@@ -3577,6 +4529,68 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										}}
 									/>
 								</Source>
+
+								<Source
+									id="studio-nav-portals-src"
+									type="geojson"
+									data={navGraphLayers.portals}
+								>
+									<Layer
+										id="studio-nav-portals-layer"
+										type="symbol"
+										layout={{
+											"icon-image": ["get", "iconImage"],
+											"icon-size": [
+												"case",
+												["get", "isSelected"],
+												0.95,
+												0.78,
+											],
+											"icon-allow-overlap": true,
+											"icon-ignore-placement": true,
+											"text-field": ["coalesce", ["get", "stackBadge"], ""],
+											"text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+											"text-size": 10.5,
+											"text-offset": [0, 1.85],
+											"text-anchor": "top",
+											"text-optional": true,
+											"symbol-height-anchor": "ground",
+											"symbol-height-offset": is3dPreview
+												? ["coalesce", ["get", "heightOffset"], 0.35]
+												: 0,
+										}}
+										paint={{
+											"text-color": [
+												"case",
+												["get", "isMultiFloorSynced"],
+												"#e0f2fe",
+												"#fed7aa",
+											],
+											"text-halo-color": "rgba(15, 23, 42, 0.94)",
+											"text-halo-width": 1.8,
+										}}
+									/>
+								</Source>
+
+								{/* Ghost Portal Reference from adjacent floors when placing STAIRS/ELEVATOR */}
+								{navGraphLayers.ghostPortals?.features?.length > 0 && (
+									<Source
+										id="studio-nav-ghost-portals-src"
+										type="geojson"
+										data={navGraphLayers.ghostPortals}
+									>
+										<Layer
+											id="studio-nav-ghost-portals-layer"
+											type="circle"
+											paint={{
+												"circle-radius": 11,
+												"circle-color": "rgba(168, 85, 247, 0.16)",
+												"circle-stroke-width": 2,
+												"circle-stroke-color": "#c084fc",
+											}}
+										/>
+									</Source>
+								)}
 							</>
 						)}
 
@@ -3751,7 +4765,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							</Marker>
 						)}
 
-						{/* 8. Magnetic Snap Indicator Ring */}
+						{/* 8. Magnetic Snap Indicator Ring (VERTEX -> MIDPOINT -> EDGE) */}
 						{snappedCoord && (
 							<Marker
 								longitude={snappedCoord[0]}
@@ -3760,137 +4774,32 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								style={NON_INTERACTIVE_MARKER_STYLE}
 							>
 								<div
-									className={`digitizer-snap-ring ${snapType === "EDGE" ? "digitizer-snap-ring--edge" : ""}`}
-									title={`Bắt dính vào ${snapType === "VERTEX" ? "Đỉnh góc" : "Cạnh tường"}`}
+									className={`digitizer-snap-ring ${
+										snapType === "MIDPOINT"
+											? "digitizer-snap-ring--midpoint"
+											: snapType === "EDGE"
+												? "digitizer-snap-ring--edge"
+												: ""
+									}`}
+									title={`Bắt dính vào ${
+										snapType === "VERTEX"
+											? "Đỉnh góc"
+											: snapType === "MIDPOINT"
+												? "Trung điểm cạnh"
+												: "Cạnh tường"
+									}`}
 								/>
 							</Marker>
 						)}
 
-						{/* 9. Draggable Vertices for Selected Room / Boundary / Custom Wall */}
-						{singleSelectedRoom &&
-							activeTool === "SELECT" &&
-							!layerLocks.rooms &&
-							(isClosedRing(singleSelectedRoom.ring)
-								? singleSelectedRoom.ring.slice(0, -1)
-								: singleSelectedRoom.ring
-							).map((pt, idx) => (
-								<Marker
-									key={`rv-${singleSelectedRoom.id}-${idx}`}
-									longitude={pt[0]}
-									latitude={pt[1]}
-									anchor="center"
-									draggable
-									onClick={(e) => e?.originalEvent?.stopPropagation?.()}
-									onDrag={(e) =>
-										handleVertexDragLive(
-											"ROOM",
-											singleSelectedRoom.id,
-											idx,
-											e.lngLat,
-										)
-									}
-									onDragEnd={(e) =>
-										handleVertexDragEnd(
-											"ROOM",
-											singleSelectedRoom.id,
-											idx,
-											e.lngLat,
-										)
-									}
-								>
-									<div
-										className="digitizer-vertex-handle"
-										title="Kéo để chỉnh đỉnh phòng"
-									/>
-								</Marker>
-							))}
-
-						{singleSelectedBoundary &&
-							activeTool === "SELECT" &&
-							!layerLocks.boundaries &&
-							(isClosedRing(singleSelectedBoundary.ring)
-								? singleSelectedBoundary.ring.slice(0, -1)
-								: singleSelectedBoundary.ring
-							).map((pt, idx) => (
-								<Marker
-									key={`bv-${singleSelectedBoundary.id}-${idx}`}
-									longitude={pt[0]}
-									latitude={pt[1]}
-									anchor="center"
-									draggable
-									onClick={(e) => e?.originalEvent?.stopPropagation?.()}
-									onDrag={(e) =>
-										handleVertexDragLive(
-											"BOUNDARY",
-											singleSelectedBoundary.id,
-											idx,
-											e.lngLat,
-										)
-									}
-									onDragEnd={(e) =>
-										handleVertexDragEnd(
-											"BOUNDARY",
-											singleSelectedBoundary.id,
-											idx,
-											e.lngLat,
-										)
-									}
-								>
-									<div
-										className="digitizer-vertex-handle digitizer-vertex-handle--boundary"
-										title="Kéo để chỉnh góc tường bao"
-									/>
-								</Marker>
-							))}
-
-						{singleSelectedBoundary &&
-							activeTool === "SELECT" &&
-							!is3dPreview &&
-							!layerLocks.boundaries &&
-							!liveVertexDrag &&
-							(isClosedRing(singleSelectedBoundary.ring)
-								? singleSelectedBoundary.ring.slice(0, -1)
-								: singleSelectedBoundary.ring || []
-							).map((pt, idx, arr) => {
-								const nextPt = arr[(idx + 1) % arr.length];
-								if (!nextPt) return null;
-								const mid = [
-									Number(((pt[0] + nextPt[0]) / 2).toFixed(6)),
-									Number(((pt[1] + nextPt[1]) / 2).toFixed(6)),
-								];
-									return (
-										<Marker
-											key={`bm-${singleSelectedBoundary.id}-${idx}`}
-											longitude={mid[0]}
-											latitude={mid[1]}
-											anchor="center"
-											onClick={(e) => e?.originalEvent?.stopPropagation?.()}
-										>
-											<button
-												type="button"
-												className="digitizer-midpoint-handle"
-												onClick={(e) => {
-													e.stopPropagation();
-													handleInsertVertexOnEdge(
-														"BOUNDARY",
-														singleSelectedBoundary.id,
-														idx,
-														mid,
-													);
-												}}
-												title="Nhấn để thêm chốt góc trên cạnh tường bao"
-												aria-label="Thêm chốt góc tường bao"
-											>
-												+
-											</button>
-										</Marker>
-									);
-								})}
-
+						{/* 9. Draggable Corner Vertices & Midpoint Inserts for Selected Wall */}
 						{singleSelectedWall &&
 							activeTool === "SELECT" &&
 							!layerLocks.walls &&
-							singleSelectedWall.line.map((pt, idx) => (
+							(isClosedRing(singleSelectedWall.line)
+								? singleSelectedWall.line.slice(0, -1)
+								: singleSelectedWall.line || []
+							).map((pt, idx) => (
 								<Marker
 									key={`wv-${singleSelectedWall.id}-${idx}`}
 									longitude={pt[0]}
@@ -3904,6 +4813,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											singleSelectedWall.id,
 											idx,
 											e.lngLat,
+											e.originalEvent,
 										)
 									}
 									onDragEnd={(e) =>
@@ -3912,15 +4822,69 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											singleSelectedWall.id,
 											idx,
 											e.lngLat,
+											e.originalEvent,
 										)
 									}
 								>
 									<div
 										className="digitizer-vertex-handle digitizer-vertex-handle--wall"
-										title="Kéo để chỉnh đầu mút vách ngăn"
+										title="Kéo để di chuyển góc tường (Giữ Alt: tách rời 1 đầu tường riêng)"
 									/>
 								</Marker>
 							))}
+
+						{/* 9b. Interactive Door Handles (Midpoint Slide + Left/Right Jamb Width Resize) */}
+						{singleSelectedDoor &&
+							singleSelectedDoorGeom &&
+							activeTool === "SELECT" &&
+							!layerLocks.doors && (
+								<>
+									<Marker
+										key={`door-mid-${singleSelectedDoor.id}`}
+										longitude={singleSelectedDoorGeom.midpoint[0]}
+										latitude={singleSelectedDoorGeom.midpoint[1]}
+										anchor="center"
+										draggable
+										onClick={(e) => e?.originalEvent?.stopPropagation?.()}
+										onDrag={(e) =>
+											handleDoorMoveDragLive(singleSelectedDoor.id, e.lngLat)
+										}
+										onDragEnd={(e) =>
+											handleDoorMoveDragEnd(singleSelectedDoor.id, e.lngLat)
+										}
+									>
+										<div
+											className="digitizer-door-handle digitizer-door-handle--mid"
+											title="Kéo tâm để trượt Cửa dọc theo tường (Node trung điểm A*)"
+										/>
+									</Marker>
+
+									{[
+										{ key: "jambA", pt: singleSelectedDoorGeom.jambA },
+										{ key: "jambB", pt: singleSelectedDoorGeom.jambB },
+									].map((jb) => (
+										<Marker
+											key={`door-${jb.key}-${singleSelectedDoor.id}`}
+											longitude={jb.pt[0]}
+											latitude={jb.pt[1]}
+											anchor="center"
+											draggable
+											onClick={(e) => e?.originalEvent?.stopPropagation?.()}
+											onDrag={(e) =>
+												handleDoorJambDragLive(singleSelectedDoor, e.lngLat)
+											}
+											onDragEnd={(e) =>
+												handleDoorJambDragEnd(singleSelectedDoor, e.lngLat)
+											}
+										>
+											<div
+												className="digitizer-door-handle digitizer-door-handle--jamb"
+												title={`Kéo mép cửa để chỉnh độ rộng (${singleSelectedDoorGeom.widthMeters}m)`}
+											/>
+										</Marker>
+									))}
+								</>
+							)}
 
 						{singleSelectedWall &&
 							activeTool === "SELECT" &&
@@ -4088,7 +5052,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							<Layers size={12} />
 							<span>Thao tác</span>
 							<span className="digitizer-inspector-badge">
-								{currentFloorRooms.length}
+								{currentFloorFaces.length}
 							</span>
 						</button>
 
@@ -4112,41 +5076,71 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					{/* TAB 1: CONTEXTUAL INSPECTOR */}
 					{activeInspectorTab === "inspector" && (
 						<div className="digitizer-inspector-content">
-							{/* Case A: Selected Room(s) */}
+							{/* Case A: Selected Planar Face(s) */}
 							{selectedRoomIds.length > 0 && (
 								<div className="digitizer-prop-card">
 									<div className="digitizer-prop-header">
 										<span className="digitizer-prop-title">
 											<Square size={13} />
 											{selectedRoomIds.length === 1
-												? "Phòng đang chọn"
-												: `Đã chọn ${selectedRoomIds.length} phòng`}
+												? "Vùng khép kín (Planar Face)"
+												: `Đã chọn ${selectedRoomIds.length} vùng`}
 										</span>
 									</div>
 
-									{selectedRoomIds.length === 1 && singleSelectedRoom && (
+									{selectedRoomIds.length === 1 && singleSelectedFace && (
 										<>
-											<div className="digitizer-prop-row">
-												<label>Mã:</label>
-												<span className="digitizer-prop-val">
-													{singleSelectedRoom.id}
-												</span>
-											</div>
-											<div className="digitizer-prop-row">
-												<label>Số đỉnh:</label>
-												<span className="digitizer-prop-val">
-													{singleSelectedRoom.ring.length - 1}
-												</span>
+											<div className="digitizer-field">
+												<label className="digitizer-field-label">
+													Vai trò vùng (Mappedin Role):
+												</label>
+												<div className="digitizer-chip-row">
+													{[
+														{ id: "ROOM", label: "Phòng (3D)", accent: "#0284c7" },
+														{ id: "CORRIDOR", label: "Hành lang", accent: "#10b981" },
+														{ id: "VOID", label: "Khoét rỗng", accent: "#ef4444" },
+													].map((roleOpt) => (
+														<button
+															key={roleOpt.id}
+															type="button"
+															style={{ "--role-accent": roleOpt.accent }}
+															className={`digitizer-role-btn ${singleSelectedFace.role === roleOpt.id ? "is-active" : ""}`}
+															onClick={() =>
+																assignFaceRole(singleSelectedFace, roleOpt.id)
+															}
+														>
+															{roleOpt.label}
+														</button>
+													))}
+												</div>
 											</div>
 											<div className="digitizer-prop-row">
 												<label>Diện tích:</label>
 												<span className="digitizer-prop-val">
-													{approximatePolygonAreaMeters(
-														singleSelectedRoom.ring,
+													{(
+														singleSelectedFace.areaSqm ??
+														approximatePolygonAreaMeters(singleSelectedFace.ring)
 													).toFixed(1)}{" "}
 													m²
 												</span>
 											</div>
+											<div className="digitizer-prop-row">
+												<label>Chu vi:</label>
+												<span className="digitizer-prop-val">
+													{approximateRingPerimeterMeters(
+														singleSelectedFace.ring,
+													).toFixed(1)}{" "}
+													m
+												</span>
+											</div>
+											{(singleSelectedFace.holes?.length || 0) > 0 && (
+												<div className="digitizer-prop-row">
+													<label>Lỗ khoét (Void):</label>
+													<span className="digitizer-prop-val">
+														{singleSelectedFace.holes.length} lỗ lồng
+													</span>
+												</div>
+											)}
 										</>
 									)}
 
@@ -4155,17 +5149,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											<div className="digitizer-prop-row">
 												<label>Số lượng:</label>
 												<span className="digitizer-prop-val">
-													{selectedRoomIds.length} phòng
+													{selectedRoomIds.length} vùng
 												</span>
 											</div>
 											<div className="digitizer-prop-row">
 												<label>Tổng diện tích:</label>
 												<span className="digitizer-prop-val">
-													{currentFloorRooms
-														.filter((r) => selectedRoomIds.includes(r.id))
+													{currentFloorFaces
+														.filter((f) => selectedRoomIds.includes(f.id))
 														.reduce(
-															(acc, r) =>
-																acc + approximatePolygonAreaMeters(r.ring),
+															(acc, f) =>
+																acc +
+																(f.areaSqm ?? approximatePolygonAreaMeters(f.ring)),
 															0,
 														)
 														.toFixed(1)}{" "}
@@ -4182,11 +5177,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											onClick={deleteSelectedRooms}
 										>
 											<Trash2 size={12} />
-											<span>
-												{selectedRoomIds.length > 1
-													? `Xóa ${selectedRoomIds.length} phòng`
-													: "Xóa phòng"}
-											</span>
+											<span>Về Hành lang</span>
 										</button>
 										<button
 											type="button"
@@ -4214,7 +5205,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										<label className="digitizer-field-label">Loại nút:</label>
 										<select
 											className="digitizer-field-input"
-											value={singleSelectedNavNode.type}
+											value={
+												isPortalNode(singleSelectedNavNode)
+													? singleSelectedNavNode.type
+													: "NODE"
+											}
 											onChange={(e) => {
 												const nextType = e.target.value;
 												setStore((prev) => ({
@@ -4239,6 +5234,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									</div>
 
 									<div className="digitizer-prop-row">
+										<label>Không gian:</label>
+										<span className="digitizer-prop-val">
+											{isNodeOutdoor(
+												store.buildingBoundaries,
+												singleSelectedNavNode,
+											)
+												? "Ngoài sân trường (Tầng 0)"
+												: `Trong nhà · ${resolveNodeBuilding(store.buildingBoundaries, singleSelectedNavNode) || activeBuilding}`}
+										</span>
+									</div>
+
+									<div className="digitizer-prop-row">
 										<label>Tọa độ:</label>
 										<span className="digitizer-prop-val">
 											{singleSelectedNavNode.coords[0].toFixed(5)},{" "}
@@ -4248,32 +5255,144 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 									{(singleSelectedNavNode.type === "STAIRS" ||
 										singleSelectedNavNode.type === "ELEVATOR") && (
-										<div className="digitizer-field">
-											<label className="digitizer-field-label">
-												Trục xuyên tầng (portalGroupId):
-											</label>
-											<input
-												type="text"
-												className="digitizer-field-input"
-												value={singleSelectedNavNode.portalGroupId || ""}
-												onChange={(e) => {
-													const val = e.target.value.trim().toUpperCase();
-													setStore((prev) => ({
-														...prev,
-														navNodes: (prev.navNodes || []).map((n) =>
-															n.id === singleSelectedNavNode.id
-																? { ...n, portalGroupId: val }
-																: n,
-														),
-													}));
-												}}
-												placeholder="VD: HCM_STAIR_W"
-											/>
-										</div>
+										<>
+											<div className="digitizer-field">
+												<label className="digitizer-field-label">
+													Trục xuyên tầng (portalGroupId):
+												</label>
+												<input
+													type="text"
+													className="digitizer-field-input"
+													value={singleSelectedNavNode.portalGroupId || ""}
+													onChange={(e) => {
+														const val = e.target.value.trim().toUpperCase();
+														setStore((prev) => ({
+															...prev,
+															navNodes: (prev.navNodes || []).map((n) =>
+																n.id === singleSelectedNavNode.id
+																	? { ...n, portalGroupId: val }
+																	: n,
+															),
+														}));
+													}}
+													placeholder="VD: HCM_STAIR_W"
+												/>
+											</div>
+
+											<div className="digitizer-field">
+												<label className="digitizer-field-label">
+													Tầng kết nối thẳng trục ({activeBuilding}):
+												</label>
+												{(() => {
+													const gk = (
+														singleSelectedNavNode.portalGroupId || ""
+													)
+														.trim()
+														.toUpperCase();
+													const connectedFloors = new Set(
+														(store.navNodes || [])
+															.filter(
+																(n) =>
+																	isPortalNode(n) &&
+																	(n.portalGroupId || "")
+																		.trim()
+																		.toUpperCase() === gk &&
+																	matchesBuilding(
+																		resolveNodeBuilding(
+																			store.buildingBoundaries || [],
+																			n,
+																		) || n.building,
+																		activeBuilding,
+																	),
+															)
+															.map((n) => Number(n.floorOrder) || 0),
+													);
+													connectedFloors.add(
+														Number(singleSelectedNavNode.floorOrder) || 0,
+													);
+													const allFloors = currentBuildingMeta.floors || [];
+
+													return (
+														<>
+															<div className="digitizer-chip-row">
+																{allFloors.map((flMeta) => {
+																	const isChecked = connectedFloors.has(
+																		flMeta.floorOrder,
+																	);
+																	const isCurrent =
+																		flMeta.floorOrder ===
+																		Number(singleSelectedNavNode.floorOrder);
+																	return (
+																		<button
+																			key={flMeta.floorOrder}
+																			type="button"
+																			style={{ "--role-accent": "#a855f7" }}
+																			className={`digitizer-role-btn ${isChecked ? "is-active" : ""}`}
+																			onClick={() => {
+																				if (isCurrent) return;
+																				const nextSet = new Set(connectedFloors);
+																				if (isChecked) {
+																					nextSet.delete(flMeta.floorOrder);
+																				} else {
+																					nextSet.add(flMeta.floorOrder);
+																				}
+																				setStore((prev) =>
+																					syncPortalAcrossBuildingFloors(prev, {
+																						sourceNodeId:
+																							singleSelectedNavNode.id,
+																						targetFloorOrders:
+																							Array.from(nextSet),
+																					}),
+																				);
+																				showToast(
+																					isChecked
+																						? `Đã gỡ kết nối ${flMeta.name} khỏi trục thang.`
+																						: `Đã tạo & căn thẳng trục thang sang ${flMeta.name}.`,
+																				);
+																			}}
+																			title={
+																				isCurrent
+																					? "Tầng hiện tại của nút đang chọn"
+																					: "Bật/tắt để tự động tạo & căn thẳng trục thang trên tầng này"
+																			}
+																		>
+																			{isChecked ? "✓ " : "+ "}
+																			{flMeta.shortLabel}
+																		</button>
+																	);
+																})}
+															</div>
+															<button
+																type="button"
+																className="digitizer-sub-btn"
+																style={{ marginTop: 6, width: "100%" }}
+																onClick={() => {
+																	const allFlOrders = allFloors.map(
+																		(f) => f.floorOrder,
+																	);
+																	setStore((prev) =>
+																		syncPortalAcrossBuildingFloors(prev, {
+																			sourceNodeId: singleSelectedNavNode.id,
+																			targetFloorOrders: allFlOrders,
+																		}),
+																	);
+																	showToast(
+																		`Đã đồng bộ thẳng trục thang xuyên tất cả ${allFlOrders.length} tầng (${activeBuilding})!`,
+																	);
+																}}
+															>
+																<ArrowUpDown size={12} />
+																<span>Đồng bộ thẳng trục lên mọi tầng</span>
+															</button>
+														</>
+													);
+												})()}
+											</div>
+										</>
 									)}
 
 									<p className="digitizer-prop-hint">
-										Giữ chuột và kéo trực tiếp hình tròn trên bản đồ để di chuyển nút (hỗ trợ Snap &amp; Undo).
+										Giữ chuột và kéo trực tiếp nút tròn hoặc biểu tượng thang để di chuyển (hỗ trợ Pixel Snap &amp; Undo).
 									</p>
 
 									<div className="digitizer-btn-row">
@@ -4383,64 +5502,133 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								</div>
 							)}
 
-							{/* Case C2: Selected Building Boundary Wall */}
-							{singleSelectedBoundary && (
+							{/* Case C2: Selected Wall-Mounted Door */}
+							{singleSelectedDoor && (
 								<div className="digitizer-prop-card">
 									<div className="digitizer-prop-header">
 										<span className="digitizer-prop-title">
-											<Pentagon size={13} />
-											Tường bao tầng ({singleSelectedBoundary.id})
+											<DoorOpen size={13} />
+											Cửa trên tường ({singleSelectedDoor.id})
 										</span>
 									</div>
 
-									<div className="digitizer-prop-row">
-										<label>Số đỉnh:</label>
-										<span className="digitizer-prop-val">
-											{isClosedRing(singleSelectedBoundary.ring)
-												? Math.max(0, singleSelectedBoundary.ring.length - 1)
-												: singleSelectedBoundary.ring?.length || 0}
-										</span>
+									<div className="digitizer-field">
+										<label className="digitizer-field-label">
+											Bề rộng cửa linh hoạt (0.5m – 5.0m):
+										</label>
+										<div className="digitizer-door-width-controls">
+											<input
+												type="range"
+												min="0.5"
+												max="5.0"
+												step="0.05"
+												value={Number(singleSelectedDoor.widthMeters) || 1.2}
+												onChange={(e) => {
+													const nextW = Number(
+														Math.max(
+															0.5,
+															Math.min(5.0, Number(e.target.value) || 1.2),
+														).toFixed(2),
+													);
+													setStore((prev) =>
+														synchronizeCompatibilityGeometry({
+															...prev,
+															version: 3,
+															doors: (prev.doors || []).map((d) =>
+																d.id === singleSelectedDoor.id
+																	? { ...d, widthMeters: nextW }
+																	: d,
+															),
+														}),
+													);
+												}}
+												className="digitizer-door-slider"
+												aria-label="Thanh trượt bề rộng cửa"
+											/>
+											<input
+												type="number"
+												min="0.5"
+												max="5.0"
+												step="0.05"
+												value={Number(singleSelectedDoor.widthMeters) || 1.2}
+												onChange={(e) => {
+													const rawVal = Number(e.target.value);
+													if (!Number.isFinite(rawVal)) return;
+													const nextW = Number(
+														Math.max(0.5, Math.min(5.0, rawVal)).toFixed(2),
+													);
+													setStore((prev) =>
+														synchronizeCompatibilityGeometry({
+															...prev,
+															version: 3,
+															doors: (prev.doors || []).map((d) =>
+																d.id === singleSelectedDoor.id
+																	? { ...d, widthMeters: nextW }
+																	: d,
+															),
+														}),
+													);
+												}}
+												className="digitizer-field-input digitizer-door-number-input"
+												aria-label="Nhập số bề rộng cửa (m)"
+											/>
+										</div>
+										<div
+											className="digitizer-chip-row"
+											style={{ gridTemplateColumns: "repeat(4, 1fr)", marginTop: 6 }}
+										>
+											{[0.9, 1.2, 1.8, 2.4].map((wVal) => (
+												<button
+													key={wVal}
+													type="button"
+													style={{ "--role-accent": "#e11d48" }}
+													className={`digitizer-role-btn ${Math.abs((Number(singleSelectedDoor.widthMeters) || 1.2) - wVal) < 0.03 ? "is-active" : ""}`}
+													onClick={() => {
+														setStore((prev) =>
+															synchronizeCompatibilityGeometry({
+																...prev,
+																version: 3,
+																doors: (prev.doors || []).map((d) =>
+																	d.id === singleSelectedDoor.id
+																		? { ...d, widthMeters: wVal }
+																		: d,
+																),
+															}),
+														);
+														showToast(`Đã đổi bề rộng cửa thành ${wVal}m.`);
+													}}
+												>
+													{wVal}m
+												</button>
+											))}
+										</div>
 									</div>
 
 									<div className="digitizer-prop-row">
-										<label>Chu vi:</label>
+										<label>Trung điểm (Node A*):</label>
 										<span className="digitizer-prop-val">
-											{approximateRingPerimeterMeters(
-												singleSelectedBoundary.ring,
-											).toFixed(1)}{" "}
-											m
-										</span>
-									</div>
-
-									<div className="digitizer-prop-row">
-										<label>Diện tích sàn:</label>
-										<span className="digitizer-prop-val">
-											{approximatePolygonAreaMeters(
-												singleSelectedBoundary.ring,
-											).toFixed(1)}{" "}
-											m²
+											{singleSelectedDoor.coords[0].toFixed(5)},{" "}
+											{singleSelectedDoor.coords[1].toFixed(5)}
 										</span>
 									</div>
 
 									<p className="digitizer-prop-hint">
-										Kéo các chốt vuông màu cam ở góc để chỉnh khung bao, nhấn + trên cạnh để thêm góc, hoặc Delete để xóa.
+										Kéo 2 chốt vuông ở mép cửa trên bản đồ để co giãn độ rộng trực tiếp, hoặc dùng công cụ [N] bắt dính vào trung điểm cửa để nối dây đồ thị.
 									</p>
 
 									<div className="digitizer-btn-row">
 										<button
 											type="button"
 											className="digitizer-sub-btn digitizer-sub-btn--danger"
-											onClick={() =>
-												deleteBoundaryById(singleSelectedBoundary.id)
-											}
+											onClick={() => deleteDoorById(singleSelectedDoor.id)}
 										>
 											<Trash2 size={12} />
-											<span>Xóa tường bao</span>
+											<span>Xóa cửa</span>
 										</button>
 										<button
 											type="button"
 											className="digitizer-sub-btn"
-											onClick={() => setSelectedBoundaryId(null)}
+											onClick={() => setSelectedDoorId(null)}
 										>
 											<X size={12} />
 											<span>Bỏ chọn</span>
@@ -4471,7 +5659,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								<div className="digitizer-prop-card">
 									<span className="digitizer-prop-title">
 										<Route size={13} />
-										Loại nút khi đặt mới
+										Công cụ Node + Edge &amp; Portal
 									</span>
 
 									<div className="digitizer-node-types-grid">
@@ -4481,10 +5669,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 												type="button"
 												style={{ "--node-color": nt.color }}
 												className={`digitizer-node-type-btn ${activeNodeType === nt.id ? "is-active" : ""}`}
-												onClick={() => {
-													setActiveNodeType(nt.id);
-													if (nt.id === "DOOR") setChainLastNodeId(null);
-												}}
+												onClick={() => setActiveNodeType(nt.id)}
 											>
 												<span
 													className="digitizer-node-dot"
@@ -4509,18 +5694,19 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 												className="digitizer-field-input"
 											/>
 											<div className="digitizer-quick-chips">
-												{["HCM_STAIR_W", "HCM_STAIR_E", "EPS_THANG_1"].map(
-													(pg) => (
-														<button
-															key={pg}
-															type="button"
-															className={`digitizer-quick-chip ${portalGroupId === pg ? "is-active" : ""}`}
-															onClick={() => setPortalGroupId(pg)}
-														>
-															{pg}
-														</button>
-													),
-												)}
+												{(activeBuilding.includes("Epsilon")
+													? ["EPS_THANG_TH1", "EPS_THANG_TH2", "EPS_ELEV_1"]
+													: ["HCM_STAIR_W", "HCM_STAIR_E", "HCM_ELEV_1"]
+												).map((pg) => (
+													<button
+														key={pg}
+														type="button"
+														className={`digitizer-quick-chip ${portalGroupId === pg ? "is-active" : ""}`}
+														onClick={() => setPortalGroupId(pg)}
+													>
+														{pg}
+													</button>
+												))}
 											</div>
 										</div>
 									)}
@@ -4549,21 +5735,27 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									<span className="digitizer-prop-val">{activeBuilding}</span>
 								</div>
 								<div className="digitizer-prop-row">
-									<label>Khung tòa:</label>
+									<label>Khung bao:</label>
 									<span className="digitizer-prop-val">
-										{hasBuildingBoundary ? "Đã vẽ" : "Chưa vẽ"}
+										{hasBuildingBoundary ? "Đã khép kín" : "Chưa khép kín"}
 									</span>
 								</div>
 								<div className="digitizer-prop-row">
-									<label>Phòng:</label>
+									<label>Phòng / Vùng:</label>
 									<span className="digitizer-prop-val">
-										{currentFloorRooms.length} phòng
+										{currentFloorRooms.length} phòng / {currentFloorFaces.length} vùng
 									</span>
 								</div>
 								<div className="digitizer-prop-row">
-									<label>Vách ngăn:</label>
+									<label>Tường / Cửa:</label>
 									<span className="digitizer-prop-val">
-										{currentFloorWalls.length} vách
+										{currentFloorWalls.length} tường · {currentFloorDoors.length} cửa
+									</span>
+								</div>
+								<div className="digitizer-prop-row">
+									<label>Chiều cao 3D:</label>
+									<span className="digitizer-prop-val">
+										Bao {BOUNDARY_WALL_HEIGHT}m · Vách {INTERIOR_WALL_HEIGHT}m
 									</span>
 								</div>
 								<div className="digitizer-prop-row">
@@ -4581,7 +5773,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										type="button"
 										className="digitizer-sub-btn"
 										onClick={handleCloneRoomsToNextFloor}
-										title="Sao chép toàn bộ khối phòng tầng này sang tầng kế tiếp"
+										title="Sao chép tường, vai trò vùng và cửa sang tầng kế tiếp"
 									>
 										<Copy size={12} />
 										<span>Sao chép lên tầng trên</span>
@@ -4590,10 +5782,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										type="button"
 										className="digitizer-sub-btn digitizer-sub-btn--danger"
 										onClick={handleClearCurrentFloorRooms}
-										title="Xóa toàn bộ khối phòng tầng hiện tại"
+										title="Xóa toàn bộ tường, vùng và cửa tầng hiện tại"
 									>
 										<Trash2 size={12} />
-										<span>Xóa tất cả phòng</span>
+										<span>Xóa sạch tầng</span>
 									</button>
 								</div>
 							</div>
@@ -4678,160 +5870,58 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									</div>
 								)}
 
-								{/* Building Boundary Layer */}
-								<div className="digitizer-layer-row">
-									<span>Tường bao & Sàn</span>
-									<div className="digitizer-layer-actions">
-										<button
-											type="button"
-											className={`digitizer-layer-icon-btn ${layerVisibility.boundaries ? "is-active" : ""}`}
-											onClick={() =>
-												setLayerVisibility((l) => ({
-													...l,
-													boundaries: !l.boundaries,
-												}))
-											}
-											aria-label="Bật tắt lớp Tường bao"
-										>
-											{layerVisibility.boundaries ? (
-												<Eye size={13} />
-											) : (
-												<EyeOff size={13} />
-											)}
-										</button>
-										<button
-											type="button"
-											className={`digitizer-layer-icon-btn ${layerLocks.boundaries ? "is-active" : ""}`}
-											onClick={() =>
-												setLayerLocks((l) => ({
-													...l,
-													boundaries: !l.boundaries,
-												}))
-											}
-											aria-label="Khóa lớp Tường bao"
-										>
-											{layerLocks.boundaries ? (
-												<Lock size={13} />
-											) : (
-												<Unlock size={13} />
-											)}
-										</button>
+								{[
+									{ key: "walls", label: "Mạng tường (2D/3D)" },
+									{ key: "faces", label: "Vùng & Phòng (Faces)" },
+									{ key: "doors", label: "Cửa trên tường (Doors)" },
+									{ key: "navGraph", label: "Đồ thị đường" },
+								].map(({ key, label }) => (
+									<div key={key} className="digitizer-layer-row">
+										<span>{label}</span>
+										<div className="digitizer-layer-actions">
+											<button
+												type="button"
+												className={`digitizer-layer-icon-btn ${layerVisibility[key] ? "is-active" : ""}`}
+												onClick={() =>
+													setLayerVisibility((l) => ({
+														...l,
+														[key]: !l[key],
+													}))
+												}
+												aria-label={`Bật tắt lớp ${label}`}
+											>
+												{layerVisibility[key] ? (
+													<Eye size={13} />
+												) : (
+													<EyeOff size={13} />
+												)}
+											</button>
+											<button
+												type="button"
+												className={`digitizer-layer-icon-btn ${layerLocks[key] ? "is-active" : ""}`}
+												onClick={() =>
+													setLayerLocks((l) => ({
+														...l,
+														[key]: !l[key],
+													}))
+												}
+												aria-label={`Khóa lớp ${label}`}
+											>
+												{layerLocks[key] ? (
+													<Lock size={13} />
+												) : (
+													<Unlock size={13} />
+												)}
+											</button>
+										</div>
 									</div>
-								</div>
-
-								{/* Room Polygons Layer */}
-								<div className="digitizer-layer-row">
-									<span>Phòng 3D</span>
-									<div className="digitizer-layer-actions">
-										<button
-											type="button"
-											className={`digitizer-layer-icon-btn ${layerVisibility.rooms ? "is-active" : ""}`}
-											onClick={() =>
-												setLayerVisibility((l) => ({ ...l, rooms: !l.rooms }))
-											}
-											aria-label="Bật tắt lớp Phòng"
-										>
-											{layerVisibility.rooms ? (
-												<Eye size={13} />
-											) : (
-												<EyeOff size={13} />
-											)}
-										</button>
-										<button
-											type="button"
-											className={`digitizer-layer-icon-btn ${layerLocks.rooms ? "is-active" : ""}`}
-											onClick={() =>
-												setLayerLocks((l) => ({ ...l, rooms: !l.rooms }))
-											}
-											aria-label="Khóa lớp Phòng"
-										>
-											{layerLocks.rooms ? (
-												<Lock size={13} />
-											) : (
-												<Unlock size={13} />
-											)}
-										</button>
-									</div>
-								</div>
-
-								{/* Custom Walls Layer */}
-								<div className="digitizer-layer-row">
-									<span>Vách ngăn</span>
-									<div className="digitizer-layer-actions">
-										<button
-											type="button"
-											className={`digitizer-layer-icon-btn ${layerVisibility.walls ? "is-active" : ""}`}
-											onClick={() =>
-												setLayerVisibility((l) => ({ ...l, walls: !l.walls }))
-											}
-											aria-label="Bật tắt lớp Vách ngăn"
-										>
-											{layerVisibility.walls ? (
-												<Eye size={13} />
-											) : (
-												<EyeOff size={13} />
-											)}
-										</button>
-										<button
-											type="button"
-											className={`digitizer-layer-icon-btn ${layerLocks.walls ? "is-active" : ""}`}
-											onClick={() =>
-												setLayerLocks((l) => ({ ...l, walls: !l.walls }))
-											}
-											aria-label="Khóa lớp Vách ngăn"
-										>
-											{layerLocks.walls ? (
-												<Lock size={13} />
-											) : (
-												<Unlock size={13} />
-											)}
-										</button>
-									</div>
-								</div>
-
-								{/* Navigation Graph Layer */}
-								<div className="digitizer-layer-row">
-									<span>Đồ thị đường</span>
-									<div className="digitizer-layer-actions">
-										<button
-											type="button"
-											className={`digitizer-layer-icon-btn ${layerVisibility.navGraph ? "is-active" : ""}`}
-											onClick={() =>
-												setLayerVisibility((l) => ({
-													...l,
-													navGraph: !l.navGraph,
-												}))
-											}
-											aria-label="Bật tắt lớp Đồ thị"
-										>
-											{layerVisibility.navGraph ? (
-												<Eye size={13} />
-											) : (
-												<EyeOff size={13} />
-											)}
-										</button>
-										<button
-											type="button"
-											className={`digitizer-layer-icon-btn ${layerLocks.navGraph ? "is-active" : ""}`}
-											onClick={() =>
-												setLayerLocks((l) => ({ ...l, navGraph: !l.navGraph }))
-											}
-											aria-label="Khóa lớp Đồ thị"
-										>
-											{layerLocks.navGraph ? (
-												<Lock size={13} />
-											) : (
-												<Unlock size={13} />
-											)}
-										</button>
-									</div>
-								</div>
+								))}
 							</div>
 
-							{/* Scene Tree: Rooms List with Multi-Select */}
+							{/* Scene Tree: Extracted Planar Faces List with Multi-Select */}
 							<div className="digitizer-tree-group">
 								<div className="digitizer-tree-header">
-									<span>Phòng ({currentFloorRooms.length})</span>
+									<span>Vùng khép kín ({currentFloorFaces.length})</span>
 									<div className="digitizer-tree-header-actions">
 										<button
 											type="button"
@@ -4839,9 +5929,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											onClick={() =>
 												setSelectedRoomIds(currentFloorRooms.map((r) => r.id))
 											}
-											title="Chọn tất cả phòng trên tầng này"
+											title="Chọn tất cả vùng Phòng trên tầng này"
 										>
-											Tất cả
+											Chọn Phòng
 										</button>
 										{selectedRoomIds.length > 0 && (
 											<button
@@ -4857,16 +5947,28 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								</div>
 
 								<div className="digitizer-tree-list">
-									{currentFloorRooms.length === 0 ? (
+									{currentFloorFaces.length === 0 ? (
 										<span className="digitizer-tree-empty">
-											Chưa có phòng nào trên tầng này
+											Chưa có vùng khép kín nào (vẽ tường khép vòng [W] hoặc [B]/[P])
 										</span>
 									) : (
-										currentFloorRooms.map((rm, idx) => {
-											const isSelected = selectedRoomIds.includes(rm.id);
+										currentFloorFaces.map((fc, idx) => {
+											const isSelected = selectedRoomIds.includes(fc.id);
+											const roleColor =
+												fc.role === "ROOM"
+													? "#38bdf8"
+													: fc.role === "VOID"
+														? "#f87171"
+														: "#34d399";
+											const roleName =
+												fc.role === "ROOM"
+													? "Phòng"
+													: fc.role === "VOID"
+														? "Void"
+														: "Hành lang";
 											return (
 												<div
-													key={rm.id}
+													key={fc.id}
 													className={`digitizer-tree-item-btn ${isSelected ? "is-selected" : ""}`}
 												>
 													<button
@@ -4874,17 +5976,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 														className={`digitizer-tree-chk ${isSelected ? "is-checked" : ""}`}
 														onClick={() =>
 															setSelectedRoomIds((prev) =>
-																prev.includes(rm.id)
-																	? prev.filter((id) => id !== rm.id)
-																	: [...prev, rm.id],
+																prev.includes(fc.id)
+																	? prev.filter((id) => id !== fc.id)
+																	: [...prev, fc.id],
 															)
 														}
-														title={isSelected ? "Bỏ chọn phòng" : "Chọn thêm phòng"}
-														aria-label={
-															isSelected
-																? `Bỏ chọn phòng ${idx + 1}`
-																: `Chọn phòng ${idx + 1}`
-														}
+														title={isSelected ? "Bỏ chọn vùng" : "Chọn thêm vùng"}
+														aria-label={`${isSelected ? "Bỏ chọn" : "Chọn"} ${roleName} ${idx + 1}`}
 													>
 														{isSelected && <Check size={10} strokeWidth={3} />}
 													</button>
@@ -4894,38 +5992,40 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 														onClick={(e) => {
 															if (e.shiftKey) {
 																setSelectedRoomIds((prev) =>
-																	prev.includes(rm.id)
-																		? prev.filter((id) => id !== rm.id)
-																		: [...prev, rm.id],
+																	prev.includes(fc.id)
+																		? prev.filter((id) => id !== fc.id)
+																		: [...prev, fc.id],
 																);
 															} else {
-																setSelectedRoomIds([rm.id]);
+																selectEntity("FACE", fc.id);
 															}
-															setSelectedNavNodeId(null);
-															setSelectedWallId(null);
-															setSelectedBoundaryId(null);
 															setActiveTool("SELECT");
+															setActiveInspectorTab("inspector");
 														}}
 													>
 														<Square
 															size={12}
-															color={isSelected ? "#f97316" : "#38bdf8"}
+															color={isSelected ? "#f97316" : roleColor}
 														/>
 														<span className="digitizer-tree-item-title">
-															Phòng #{idx + 1} (
-															{approximatePolygonAreaMeters(rm.ring).toFixed(0)}{" "}
+															{roleName} #{idx + 1} (
+															{(
+																fc.areaSqm ?? approximatePolygonAreaMeters(fc.ring)
+															).toFixed(0)}{" "}
 															m²)
 														</span>
 													</button>
-													<button
-														type="button"
-														className="digitizer-tree-delete-btn"
-														onClick={() => deleteRoomById(rm.id)}
-														title="Xóa phòng này"
-														aria-label={`Xóa phòng ${idx + 1}`}
-													>
-														<Trash2 size={12} />
-													</button>
+													{fc.role !== "CORRIDOR" && (
+														<button
+															type="button"
+															className="digitizer-tree-delete-btn"
+															onClick={() => deleteRoomById(fc.id)}
+															title="Đặt lại về Hành lang"
+															aria-label={`Đặt ${roleName} ${idx + 1} về Hành lang`}
+														>
+															<Trash2 size={12} />
+														</button>
+													)}
 												</div>
 											);
 										})
@@ -4933,58 +6033,51 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								</div>
 							</div>
 
-							{/* Scene Tree: Building Boundary Walls */}
+							{/* Scene Tree: Wall-Mounted Doors */}
 							<div className="digitizer-tree-group">
 								<div className="digitizer-tree-header">
-									<span>Tường bao tầng</span>
+									<span>Cửa trên tường</span>
 									<span className="digitizer-inspector-badge">
-										{currentFloorBoundaries.length}
+										{currentFloorDoors.length}
 									</span>
 								</div>
 
 								<div className="digitizer-tree-list">
-									{currentFloorBoundaries.length === 0 ? (
+									{currentFloorDoors.length === 0 ? (
 										<span className="digitizer-tree-empty">
-											Chưa có tường bao nào
+											Chưa gắn cửa nào (dùng công cụ [D])
 										</span>
 									) : (
-										currentFloorBoundaries.map((bd, idx) => {
-											const isSelected = selectedBoundaryId === bd.id;
+										currentFloorDoors.map((dr, idx) => {
+											const isSelected = selectedDoorId === dr.id;
 											return (
 												<div
-													key={bd.id}
+													key={dr.id}
 													className={`digitizer-tree-item-btn ${isSelected ? "is-selected" : ""}`}
 												>
 													<button
 														type="button"
 														className="digitizer-tree-item-select"
 														onClick={() => {
-															setSelectedBoundaryId(bd.id);
-															setSelectedWallId(null);
-															setSelectedNavNodeId(null);
-															setSelectedRoomIds([]);
+															selectEntity("DOOR", dr.id);
 															setActiveTool("SELECT");
 															setActiveInspectorTab("inspector");
 														}}
 													>
-														<Pentagon
+														<DoorOpen
 															size={12}
-															color={isSelected ? "#f97316" : "#94a3b8"}
+															color={isSelected ? "#f97316" : "#10b981"}
 														/>
 														<span className="digitizer-tree-item-title">
-															Tường bao #{idx + 1} (
-															{approximateRingPerimeterMeters(bd.ring).toFixed(
-																0,
-															)}
-															m)
+															Cửa #{idx + 1} ({dr.widthMeters || 1.2}m)
 														</span>
 													</button>
 													<button
 														type="button"
 														className="digitizer-tree-delete-btn"
-														onClick={() => deleteBoundaryById(bd.id)}
-														title="Xóa tường bao này"
-														aria-label={`Xóa tường bao ${idx + 1}`}
+														onClick={() => deleteDoorById(dr.id)}
+														title="Xóa cửa này"
+														aria-label={`Xóa cửa ${idx + 1}`}
 													>
 														<Trash2 size={12} />
 													</button>
@@ -4995,10 +6088,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								</div>
 							</div>
 
-							{/* Scene Tree: Interior Partition Walls */}
+							{/* Scene Tree: Unified Wall Graph Polylines */}
 							<div className="digitizer-tree-group">
 								<div className="digitizer-tree-header">
-									<span>Vách ngăn</span>
+									<span>Mạng tường</span>
 									<span className="digitizer-inspector-badge">
 										{currentFloorWalls.length}
 									</span>
@@ -5007,7 +6100,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								<div className="digitizer-tree-list">
 									{currentFloorWalls.length === 0 ? (
 										<span className="digitizer-tree-empty">
-											Chưa có vách ngăn nào
+											Chưa có đoạn tường nào
 										</span>
 									) : (
 										currentFloorWalls.map((w, idx) => {
@@ -5029,10 +6122,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 														type="button"
 														className="digitizer-tree-item-select"
 														onClick={() => {
-															setSelectedWallId(w.id);
-															setSelectedBoundaryId(null);
-															setSelectedNavNodeId(null);
-															setSelectedRoomIds([]);
+															selectEntity("WALL", w.id);
 															setActiveTool("SELECT");
 															setActiveInspectorTab("inspector");
 														}}
@@ -5042,15 +6132,15 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 															color={isSelected ? "#f59e0b" : "#cbd5e1"}
 														/>
 														<span className="digitizer-tree-item-title">
-															Vách #{idx + 1} ({lenMeters.toFixed(1)} m)
+															Tường #{idx + 1} ({lenMeters.toFixed(1)} m)
 														</span>
 													</button>
 													<button
 														type="button"
 														className="digitizer-tree-delete-btn"
 														onClick={() => deleteWallById(w.id)}
-														title="Xóa vách này"
-														aria-label={`Xóa vách ${idx + 1}`}
+														title="Xóa đoạn tường này"
+														aria-label={`Xóa tường ${idx + 1}`}
 													>
 														<Trash2 size={12} />
 													</button>
@@ -5077,7 +6167,16 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										</span>
 									) : (
 										currentFloorNodes.slice(0, 15).map((nd) => {
-											const typeMeta = NODE_TYPES.find((t) => t.id === nd.type);
+											const outdoor = isNodeOutdoor(
+												store.buildingBoundaries,
+												nd,
+											);
+											const typeMeta = outdoor
+												? NODE_DISPLAY_META.OUTDOOR
+												: NODE_DISPLAY_META[nd.type] || {
+														label: nd.type,
+														color: "#94a3b8",
+													};
 											const isSelected = selectedNavNodeId === nd.id;
 											return (
 												<div
@@ -5088,10 +6187,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 														type="button"
 														className="digitizer-tree-item-select"
 														onClick={() => {
-															setSelectedNavNodeId(nd.id);
-															setSelectedWallId(null);
-															setSelectedBoundaryId(null);
-															setSelectedRoomIds([]);
+															selectEntity("NODE", nd.id);
 															setActiveTool("SELECT");
 															setActiveInspectorTab("inspector");
 														}}
@@ -5099,11 +6195,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 														<span
 															className="digitizer-node-dot"
 															style={{
-																background: typeMeta?.color || "#94a3b8",
+																background: typeMeta.color,
 															}}
 														/>
 														<span className="digitizer-tree-item-title">
-															{typeMeta?.label || nd.type}{" "}
+															{typeMeta.label}{" "}
 															{nd.portalGroupId ? `(${nd.portalGroupId})` : ""}
 														</span>
 													</button>
@@ -5112,7 +6208,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 														className="digitizer-tree-delete-btn"
 														onClick={() => deleteNavNodeById(nd.id)}
 														title="Xóa nút này"
-														aria-label={`Xóa nút ${typeMeta?.label || nd.type}`}
+														aria-label={`Xóa nút ${typeMeta.label}`}
 													>
 														<Trash2 size={12} />
 													</button>
@@ -5183,9 +6279,12 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 												});
 											}
 											if (issue.type === "NODE")
-												setSelectedNavNodeId(issue.targetId);
-											if (issue.type === "ROOM")
-												setSelectedRoomIds([issue.targetId]);
+												selectEntity("NODE", issue.targetId);
+											else if (issue.type === "DOOR")
+												selectEntity("DOOR", issue.targetId);
+											else if (issue.type === "ROOM")
+												selectEntity("FACE", issue.targetId);
+											else selectEntity(null);
 											setActiveTool("SELECT");
 										}}
 									>
@@ -5317,8 +6416,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									Cấu trúc & Đồ thị
 								</span>
 								<div>
-									<kbd className="digitizer-hud__kbd">O</kbd> Tường bao ·{" "}
-									<kbd className="digitizer-hud__kbd">W</kbd> Vách ngăn ·{" "}
+									<kbd className="digitizer-hud__kbd">W</kbd> Vẽ tường ·{" "}
+									<kbd className="digitizer-hud__kbd">D</kbd> Gắn cửa ·{" "}
 									<kbd className="digitizer-hud__kbd">N</kbd> Đồ thị ·{" "}
 									<kbd className="digitizer-hud__kbd">T</kbd> Tìm đường
 								</div>
@@ -5347,7 +6446,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 							<div className="digitizer-shortcut-row">
 								<span className="digitizer-shortcut-desc">
-									Đóng đa giác (≥ 3 điểm)
+									Hoàn tất tường / đóng đa giác
 								</span>
 								<div>
 									<kbd className="digitizer-hud__kbd">Enter</kbd>
@@ -5379,6 +6478,15 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								</span>
 								<div>
 									Giữ phím <kbd className="digitizer-hud__kbd">Alt</kbd>
+								</div>
+							</div>
+
+							<div className="digitizer-shortcut-row">
+								<span className="digitizer-shortcut-desc">
+									Vẽ hộp ngang 0° khi dùng [B]
+								</span>
+								<div>
+									Giữ <kbd className="digitizer-hud__kbd">Shift</kbd> + Click điểm 2
 								</div>
 							</div>
 

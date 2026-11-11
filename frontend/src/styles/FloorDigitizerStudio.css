@@ -1496,7 +1496,7 @@
   background: #f59e0b;
 }
 
-/* Snapping Target Ring (Vertex & Edge) */
+/* Snapping Target Ring (VERTEX -> MIDPOINT -> EDGE) */
 .digitizer-snap-ring {
   width: 20px;
   height: 20px;
@@ -1504,6 +1504,15 @@
   border: 2px dashed #10b981;
   background: rgba(16, 185, 129, 0.25);
   pointer-events: none;
+}
+
+.digitizer-snap-ring--midpoint {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 2px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.28);
+  transform: rotate(45deg);
 }
 
 .digitizer-snap-ring--edge {
@@ -1587,6 +1596,92 @@
 .digitizer-shortcut-desc {
   font-size: 11.5px;
   color: var(--dig-text-sub);
+}
+
+/* Mappedin Role & Door Width Segmented Pill Grid */
+.digitizer-chip-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.digitizer-role-btn {
+  padding: 5px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--dig-border);
+  background: rgba(15, 23, 42, 0.85);
+  color: var(--dig-text-sub);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.digitizer-role-btn:hover {
+  border-color: var(--role-accent, var(--dig-primary));
+  color: #ffffff;
+}
+
+.digitizer-role-btn.is-active {
+  background: color-mix(in srgb, var(--role-accent, var(--dig-primary)) 22%, transparent);
+  border-color: var(--role-accent, var(--dig-primary));
+  color: #ffffff;
+}
+
+/* Oriented Door Interactive Handles (Midpoint Slide + Left/Right Jamb Width Resize) */
+.digitizer-door-handle {
+  cursor: grab;
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.45);
+}
+
+.digitizer-door-handle:active {
+  cursor: grabbing;
+}
+
+.digitizer-door-handle--mid {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #f59e0b;
+  border: 2px solid #ffffff;
+}
+
+.digitizer-door-handle--mid:hover {
+  transform: scale(1.18);
+}
+
+.digitizer-door-handle--jamb {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  background: #e11d48;
+  border: 2px solid #ffffff;
+  cursor: ew-resize;
+}
+
+.digitizer-door-handle--jamb:hover {
+  transform: scale(1.22);
+  background: #f43f5e;
+}
+
+.digitizer-door-width-controls {
+  display: grid;
+  grid-template-columns: 1fr 68px;
+  align-items: center;
+  gap: 8px;
+}
+
+.digitizer-door-slider {
+  width: 100%;
+  accent-color: #e11d48;
+  cursor: pointer;
+}
+
+.digitizer-door-number-input {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 6px;
 }
 
 /* ==========================================================================
