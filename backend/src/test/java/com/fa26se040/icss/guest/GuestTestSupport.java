@@ -203,8 +203,8 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
     }
 
     /**
-     * Mở sự kiện trực tiếp qua JPA. Giữ trong giới hạn chế độ sự kiện (≤ EVENT_MODE_MAX_HOURS) và luôn đóng ở @AfterEach:
-     * sự kiện mở vượt giới hạn làm SystemConfigService phát EVENT_MODE_LIMIT_CHANGED cho mọi FM ở các test khác.
+     * Mở sự kiện trực tiếp qua JPA và luôn đóng ở @AfterEach: không để phiên mở sót lại trên DB test dùng chung
+     * (V115 bỏ EVENT_MODE_MAX_HOURS / ngân sách; phiên còn mở có thể bị EV-N8 cắt khi test khác đổi giờ ban đêm).
      */
     protected void openEvent(Area area, OffsetDateTime startedAt, OffsetDateTime until) {
         Area a = reload(area);

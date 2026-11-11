@@ -46,6 +46,10 @@ public interface AreaEventScheduleRepository extends JpaRepository<AreaEventSche
 
     long countByAreaIdAndStatus(UUID areaId, AreaEventScheduleStatus status);
 
+    /** EV-N8 (V115): khu có lịch ở trạng thái status; chỉ lấy area_id để khoá area trước rồi mới đọc lịch. */
+    @Query("SELECT DISTINCT s.area.id FROM AreaEventSchedule s WHERE s.status = :status")
+    List<UUID> findDistinctAreaIdsByStatus(@Param("status") AreaEventScheduleStatus status);
+
     boolean existsByAreaIdAndStatusAndStartAtLessThanEqualAndEndAtGreaterThan(
             UUID areaId,
             AreaEventScheduleStatus status,

@@ -64,6 +64,13 @@ public class AreaService {
     private final com.fa26se040.icss.repository.AreaAssignedPersonnelRepository assignedPersonnelRepository;
     // Step 6 (BR-AD-09): vô hiệu hoá khu vực huỷ / thu hồi lượt khách qua luồng sẵn có của GuestVisitService
     private final org.springframework.beans.factory.ObjectProvider<GuestVisitService> guestVisitServiceProvider;
+    // EV-N7 / EV-N8 (V115): khung ban đêm AI_AFTER_HOUR_START–AI_AFTER_HOUR_END, logic dùng chung
+    private final com.fa26se040.icss.util.AfterHoursWindow afterHoursWindow;
+
+    /** EV-N8: nguồn audit SYSTEM khi ADMIN đổi giờ ban đêm làm cắt / huỷ lịch, cắt / tắt sự kiện đang mở. */
+    public static final String AFTER_HOURS_CHANGE_SOURCE = "AFTER_HOURS_CONFIG_CHANGE";
+    /** EV-N8: lý do ghi vào lịch / audit / thông báo. */
+    public static final String AFTER_HOURS_CHANGE_REASON = "Admin đổi giờ ban đêm";
 
     /** Nguồn audit khi hệ thống huỷ đơn do ADMIN đổi loại khu vực (BR-TC-08). */
     public static final String AREA_TYPE_CHANGE_SOURCE = "AREA_TYPE_CHANGE";
@@ -1185,33 +1192,6 @@ public class AreaService {
                 .toList();
     }
 
-    public int getEventModeMaxHours() {
-        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_MAX_HOURS);
-        if (val < 1 || val > 72) {
-            log.warn("Config EVENT_MODE_MAX_HOURS value [{}] out of range [1-72]. Using default: 12", val);
-            return 12;
-        }
-        return val;
-    }
-
-    public int getEventModeWindowDays() {
-        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_WINDOW_DAYS);
-        if (val < 1 || val > 30) {
-            log.warn("Config EVENT_MODE_WINDOW_DAYS value [{}] out of range [1-30]. Using default: 7", val);
-            return 7;
-        }
-        return val;
-    }
-
-    public int getEventModeBudgetHours() {
-        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_BUDGET_HOURS);
-        if (val < 1 || val > 720) {
-            log.warn("Config EVENT_MODE_BUDGET_HOURS value [{}] out of range [1-720]. Using default: 48", val);
-            return 48;
-        }
-        return val;
-    }
-
     public int getEventModeMinMinutes() {
         int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_MIN_MINUTES);
         if (val < 1 || val > 240) {
@@ -1238,15 +1218,6 @@ public class AreaService {
         return val;
     }
 
-    public int getEventModeMaxSchedulesPerArea() {
-        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_MAX_SCHEDULES_PER_AREA);
-        if (val < 1 || val > 20) {
-            log.warn("Config EVENT_MODE_MAX_SCHEDULES_PER_AREA value [{}] out of range [1-20]. Using default: 5", val);
-            return 5;
-        }
-        return val;
-    }
-
     public int getEventModeScheduleReminderMinutes() {
         int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_SCHEDULE_REMINDER_MINUTES);
         if (val < 0 || val > 1440) {
@@ -1254,104 +1225,6 @@ public class AreaService {
             return 30;
         }
         return val;
-    }
-
-    public double calculateUsedHoursInWindow(UUID areaId, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
-        List<com.fa26se040.icss.entity.AreaEventSession> sessions = eventSessionRepository.findSessionsInWindow(areaId, windowStart, windowEnd);
-        double used = 0.0;
-        for (com.fa26se040.icss.entity.AreaEventSession s : sessions) {
-            OffsetDateTime sStart = s.getStartedAt();
-            OffsetDateTime sEnd = s.getActualEnd() != null ? s.getActualEnd() : s.getPlannedEnd();
-            if (sEnd != null && sEnd.isAfter(sStart)) {
-                OffsetDateTime overlapStart = sStart.isAfter(windowStart) ? sStart : windowStart;
-                OffsetDateTime overlapEnd = sEnd.isBefore(windowEnd) ? sEnd : windowEnd;
-                if (overlapEnd.isAfter(overlapStart)) {
-                    long minutes = java.time.Duration.between(overlapStart, overlapEnd).toMinutes();
-                    used += minutes / 60.0;
-                }
-            }
-        }
-        return used;
-    }
-
-    public double calculateTotalHoursInWindow(UUID areaId, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
-        List<com.fa26se040.icss.dto.area.TimeInterval> intervals = new java.util.ArrayList<>();
-        List<com.fa26se040.icss.entity.AreaEventSession> sessions = eventSessionRepository.findByAreaId(areaId);
-        for (com.fa26se040.icss.entity.AreaEventSession s : sessions) {
-            OffsetDateTime sStart = s.getStartedAt();
-            OffsetDateTime sEnd = s.getActualEnd() != null ? s.getActualEnd() : s.getPlannedEnd();
-            if (sStart != null && sEnd != null && sEnd.isAfter(sStart)) {
-                intervals.add(new com.fa26se040.icss.dto.area.TimeInterval(sStart, sEnd));
-            }
-        }
-        List<com.fa26se040.icss.entity.AreaEventSchedule> schedules = eventScheduleRepository
-                .findByAreaIdAndStatus(areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED);
-        for (com.fa26se040.icss.entity.AreaEventSchedule s : schedules) {
-            intervals.add(new com.fa26se040.icss.dto.area.TimeInterval(s.getStartAt(), s.getEndAt()));
-        }
-        return calculateTotalOverlapHours(intervals, windowStart, windowEnd);
-    }
-
-    public List<com.fa26se040.icss.entity.AreaEventSchedule> getViolatingSchedules(UUID areaId, int newMaxHours, int newWindowDays, int newBudgetHours) {
-        List<com.fa26se040.icss.entity.AreaEventSchedule> result = new java.util.ArrayList<>();
-        List<com.fa26se040.icss.entity.AreaEventSchedule> schedules = eventScheduleRepository
-                .findByAreaIdAndStatus(areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED);
-        for (com.fa26se040.icss.entity.AreaEventSchedule s : schedules) {
-            long durationMinutes = java.time.Duration.between(s.getStartAt(), s.getEndAt()).toMinutes();
-            if (durationMinutes > newMaxHours * 60L) {
-                result.add(s);
-                continue;
-            }
-            OffsetDateTime wStart = s.getEndAt().minusDays(newWindowDays);
-            OffsetDateTime wEnd = s.getEndAt();
-            double usedInWindow = calculateTotalHoursInWindow(areaId, wStart, wEnd);
-            if (usedInWindow > newBudgetHours + 1e-4) {
-                result.add(s);
-            }
-        }
-        return result;
-    }
-
-    public java.util.List<Area> findAreasViolatingNewEventLimits(int newMaxHours, int newWindowDays, int newBudgetHours) {
-        OffsetDateTime now = OffsetDateTime.now();
-        List<Area> allAreas = areaRepository.findAll();
-        List<Area> violating = new java.util.ArrayList<>();
-
-        for (Area area : allAreas) {
-            boolean isViolating = false;
-            // 1. Check currently active event
-            if (area.isEventActive(now)) {
-                OffsetDateTime openUntil = area.getOpenUntil();
-                if (openUntil != null) {
-                    // (a) open_until − now > MAX_HOURS mới
-                    if (openUntil.isAfter(now.plusHours(newMaxHours))) {
-                        isViolating = true;
-                    } else {
-                        // (b) giờ đã dùng trong [open_until − WINDOW_DAYS mới, open_until] > BUDGET_HOURS mới
-                        OffsetDateTime windowStart = openUntil.minusDays(newWindowDays);
-                        OffsetDateTime windowEnd = openUntil;
-                        double used = calculateUsedHoursInWindow(area.getId(), windowStart, windowEnd);
-                        if (used > newBudgetHours + 1e-4) {
-                            isViolating = true;
-                        }
-                    }
-                }
-            }
-
-            // 2. Check scheduled events (BR-ES-07)
-            if (!isViolating) {
-                List<com.fa26se040.icss.entity.AreaEventSchedule> violatingSchedules =
-                        getViolatingSchedules(area.getId(), newMaxHours, newWindowDays, newBudgetHours);
-                if (!violatingSchedules.isEmpty()) {
-                    isViolating = true;
-                }
-            }
-
-            if (isViolating) {
-                violating.add(area);
-            }
-        }
-        return violating;
     }
 
     @org.springframework.scheduling.annotation.Scheduled(cron = "${icss.scheduler.notification-event-mode-expiring-cron:0 */1 * * * *}")
@@ -1777,89 +1650,260 @@ public class AreaService {
         return new EventTimeline(head.getStartedAt(), headName, current.getStartedAt(), currentName);
     }
 
-    public void validateEventBudget(UUID areaId, com.fa26se040.icss.dto.area.TimeInterval candidate, UUID excludeScheduleId) {
-        int windowDays = getEventModeWindowDays();
-        int budgetHours = getEventModeBudgetHours();
-        java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter
-                .ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+    // ------------------------------------------------------------------ EV-N7 / EV-N8 (V115): khung ban đêm
 
-        // 1. Gather all intervals
-        List<com.fa26se040.icss.dto.area.TimeInterval> intervals = new java.util.ArrayList<>();
+    private static final java.time.ZoneId VN_ZONE = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final java.time.format.DateTimeFormatter EVENT_TIME_FORMAT =
+            java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(VN_ZONE);
+    private static final java.time.format.DateTimeFormatter HH_MM = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
 
-        // Sessions:
-        List<com.fa26se040.icss.entity.AreaEventSession> sessions = eventSessionRepository.findByAreaId(areaId);
-        for (com.fa26se040.icss.entity.AreaEventSession s : sessions) {
-            OffsetDateTime sStart = s.getStartedAt();
-            OffsetDateTime sEnd = s.getActualEnd() != null ? s.getActualEnd() : s.getPlannedEnd();
-            if (sStart != null && sEnd != null && sEnd.isAfter(sStart)) {
-                intervals.add(new com.fa26se040.icss.dto.area.TimeInterval(sStart, sEnd));
-            }
-        }
+    /** Khung ban đêm hiện hành dạng "22:00–06:00" (đọc cấu hình mỗi lần). */
+    String afterHoursLabel() {
+        return afterHoursWindow.startTime().format(HH_MM) + "–" + afterHoursWindow.endTime().format(HH_MM);
+    }
 
-        // Other SCHEDULED schedules:
-        List<com.fa26se040.icss.entity.AreaEventSchedule> schedules = eventScheduleRepository
-                .findByAreaIdAndStatus(areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED);
-        List<com.fa26se040.icss.entity.AreaEventSchedule> schedulesToCheck = new java.util.ArrayList<>();
-        for (com.fa26se040.icss.entity.AreaEventSchedule s : schedules) {
-            if (excludeScheduleId != null && s.getId().equals(excludeScheduleId)) {
-                continue;
-            }
-            intervals.add(new com.fa26se040.icss.dto.area.TimeInterval(s.getStartAt(), s.getEndAt()));
-            if (s.getEndAt().isAfter(candidate.end())) {
-                schedulesToCheck.add(s);
-            }
-        }
-
-        // Candidate interval:
-        intervals.add(candidate);
-
-        // 2. Check window for candidate: [candidate.end - WINDOW_DAYS, candidate.end]
-        OffsetDateTime candWindowStart = candidate.end().minusDays(windowDays);
-        OffsetDateTime candWindowEnd = candidate.end();
-        double candUsedHours = calculateTotalOverlapHours(intervals, candWindowStart, candWindowEnd);
-
-        if (candUsedHours > budgetHours + 1e-4) {
-            double candidateContrib = calculateSingleOverlapHours(candidate, candWindowStart, candWindowEnd);
-            double usedBefore = candUsedHours - candidateContrib;
-            double remainingHours = Math.max(0.0, budgetHours - usedBefore);
-            String msg = String.format(java.util.Locale.US,
-                    "Vượt quá ngân sách thời gian mở sự kiện của khu vực. Đã dùng: %.1f giờ trong %d ngày gần nhất, còn lại: %.1f giờ, yêu cầu: %.1f giờ (ngân sách: %d giờ / %d ngày).",
-                    usedBefore, windowDays, remainingHours, candidateContrib, budgetHours, windowDays);
-            throw new AreaException(AreaErrorCode.ERR_AREA_028, msg);
-        }
-
-        // 3. Check windows for each subsequent SCHEDULED schedule: [s.endAt - WINDOW_DAYS, s.endAt]
-        for (com.fa26se040.icss.entity.AreaEventSchedule s : schedulesToCheck) {
-            OffsetDateTime schedWindowStart = s.getEndAt().minusDays(windowDays);
-            OffsetDateTime schedWindowEnd = s.getEndAt();
-            double schedUsedHours = calculateTotalOverlapHours(intervals, schedWindowStart, schedWindowEnd);
-
-            if (schedUsedHours > budgetHours + 1e-4) {
-                String msg = String.format(java.util.Locale.US,
-                        "Thao tác làm vượt quá ngân sách thời gian mở sự kiện cho lịch sự kiện kết thúc lúc %s. Tổng thời gian trong khung: %.1f giờ (ngân sách: %d giờ / %d ngày).",
-                        dtf.format(schedWindowEnd), schedUsedHours, budgetHours, windowDays);
-                throw new AreaException(AreaErrorCode.ERR_AREA_028, msg);
-            }
+    /**
+     * EV-N7: khoảng [startAt, endAt) của lịch không được giao khung ban đêm của bất kỳ ngày nào (đọc cấu hình mỗi lần,
+     * logic khung ở {@link com.fa26se040.icss.util.AfterHoursWindow}). Vi phạm -> 400 ERR_AREA_059 nêu khung và khoảng FM nhập.
+     */
+    private void requireOutsideAfterHours(OffsetDateTime startAt, OffsetDateTime endAt) {
+        if (afterHoursWindow.firstAfterHoursInstant(startAt, endAt).isPresent()) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_059,
+                    afterHoursWindow.startTime().format(HH_MM),
+                    afterHoursWindow.endTime().format(HH_MM),
+                    EVENT_TIME_FORMAT.format(startAt) + " – " + EVENT_TIME_FORMAT.format(endAt));
         }
     }
 
-    private double calculateTotalOverlapHours(List<com.fa26se040.icss.dto.area.TimeInterval> intervals,
-                                              OffsetDateTime windowStart, OffsetDateTime windowEnd) {
-        double totalHours = 0.0;
-        for (com.fa26se040.icss.dto.area.TimeInterval interval : intervals) {
-            totalHours += calculateSingleOverlapHours(interval, windowStart, windowEnd);
+    /**
+     * EV-N8: gọi trong CÙNG transaction lưu AI_AFTER_HOUR_START / AI_AFTER_HOUR_END (SystemConfigService), sau khi cache
+     * đã mang giá trị mới. Lỗi ở đây ném ra -> rollback cả việc lưu cấu hình.
+     * <ul>
+     *   <li>Lịch SCHEDULED: giờ bắt đầu nằm trong ban đêm mới -> huỷ; chạm ban đêm -> cắt giờ kết thúc về lúc bắt đầu ban
+     *   đêm đầu tiên trong khoảng; phần còn lại &lt; EVENT_MODE_MIN_MINUTES -> huỷ.</li>
+     *   <li>Sự kiện đang mở: xét [now, open_until); chạm ban đêm -> cắt về lúc bắt đầu ban đêm đầu tiên; phần còn lại tính
+     *   từ now &lt; EVENT_MODE_MIN_MINUTES (kể cả now đã trong ban đêm) -> tắt ngay, lịch nguồn ENDED_EARLY.</li>
+     * </ul>
+     * Mỗi khu khoá PESSIMISTIC_WRITE (findByIdWithLock, theo thứ tự id để không deadlock giữa các khu) như mọi thao tác
+     * sự kiện khác. Mỗi lịch / sự kiện bị đổi: 1 dòng audit actor SYSTEM {@link #AFTER_HOURS_CHANGE_SOURCE}. Thông báo gửi
+     * sau commit cho FM tạo lịch / mở sự kiện + mọi FM + mọi GUARD đang hoạt động; không có gì bị ảnh hưởng -> không gửi.
+     *
+     * @return danh sách lịch / sự kiện đã cắt / huỷ / tắt (rỗng nếu không có)
+     */
+    @Transactional
+    public List<com.fa26se040.icss.dto.area.EventNightAdjustment> applyAfterHoursChange(OffsetDateTime now) {
+        List<com.fa26se040.icss.dto.area.EventNightAdjustment> adjustments = new java.util.ArrayList<>();
+        java.util.Map<com.fa26se040.icss.dto.area.EventNightAdjustment, User> owners = new java.util.LinkedHashMap<>();
+        String nightLabel = afterHoursLabel();
+        int minMinutes = getEventModeMinMinutes();
+
+        com.fa26se040.icss.context.AuditContext.runAsSystem(AFTER_HOURS_CHANGE_SOURCE, () -> {
+            java.util.Set<UUID> areaIds = new java.util.TreeSet<>();
+            areaIds.addAll(eventScheduleRepository.findDistinctAreaIdsByStatus(com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED));
+            areaIds.addAll(eventSessionRepository.findDistinctAreaIdsWithOpenSessions(now));
+            for (UUID areaId : areaIds) {
+                Area area = areaRepository.findByIdWithLock(areaId).orElse(null);
+                if (area == null) {
+                    continue;
+                }
+                AreaRowState before = AreaRowState.of(area);
+                cleanupExpiredSessions(area, now);
+                adjustOpenEventForAfterHours(area, now, minMinutes, nightLabel, adjustments, owners);
+                for (com.fa26se040.icss.entity.AreaEventSchedule schedule : eventScheduleRepository
+                        .findByAreaIdAndStatusOrderByStartAtAsc(areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)) {
+                    adjustScheduleForAfterHours(area, schedule, now, minMinutes, nightLabel, adjustments, owners);
+                }
+                bumpVersionIfChanged(area, before);
+            }
+        });
+
+        if (!adjustments.isEmpty()) {
+            sendAfterHoursAdjustmentNotifications(owners, nightLabel);
+            log.info("EV-N8: đổi giờ ban đêm thành {} -> {} lịch / sự kiện bị cắt hoặc huỷ", nightLabel, adjustments.size());
         }
-        return totalHours;
+        return adjustments;
     }
 
-    private double calculateSingleOverlapHours(com.fa26se040.icss.dto.area.TimeInterval interval,
-                                               OffsetDateTime windowStart, OffsetDateTime windowEnd) {
-        OffsetDateTime oStart = interval.start().isAfter(windowStart) ? interval.start() : windowStart;
-        OffsetDateTime oEnd = interval.end().isBefore(windowEnd) ? interval.end() : windowEnd;
-        if (oEnd.isAfter(oStart)) {
-            return java.time.Duration.between(oStart, oEnd).toMinutes() / 60.0;
+    private void adjustOpenEventForAfterHours(Area area, OffsetDateTime now, int minMinutes, String nightLabel,
+                                              List<com.fa26se040.icss.dto.area.EventNightAdjustment> adjustments,
+                                              java.util.Map<com.fa26se040.icss.dto.area.EventNightAdjustment, User> owners) {
+        if (!area.isEventActive(now) || area.getOpenUntil() == null) {
+            return;
         }
-        return 0.0;
+        OffsetDateTime oldEnd = area.getOpenUntil();
+        com.fa26se040.icss.entity.AreaEventSession session = eventSessionRepository.findByAreaIdAndActualEndIsNull(area.getId()).orElse(null);
+        // Phần còn lại tính từ now; phiên (dữ liệu bất thường) có started_at sau now thì tính từ started_at để giữ
+        // chk_event_sessions_actual_end (started_at <= actual_end <= planned_end)
+        OffsetDateTime from = session != null && session.getStartedAt() != null && session.getStartedAt().isAfter(now)
+                ? session.getStartedAt() : now;
+        java.util.Optional<OffsetDateTime> night = afterHoursWindow.firstAfterHoursInstant(from, oldEnd);
+        if (night.isEmpty()) {
+            return;
+        }
+        com.fa26se040.icss.entity.AreaEventSchedule source = session != null && session.getScheduleId() != null
+                ? eventScheduleRepository.findById(session.getScheduleId()).orElse(null) : null;
+        String title = source != null ? source.getTitle() : null;
+        User owner = activeOrNull(session != null ? session.getStartedBy() : null);
+        OffsetDateTime cut = night.get();
+        boolean stop = java.time.Duration.between(from, cut).toMinutes() < minMinutes;
+        String reason = AFTER_HOURS_CHANGE_REASON + " (khung ban đêm mới " + nightLabel + ")";
+
+        com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot oldSnapshot =
+                new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(true, oldEnd, null, null, null,
+                        session != null ? session.getId() : null, oldEnd, source != null ? source.getId() : null,
+                        source != null ? source.getStatus().name() : null);
+        com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot newSnapshot;
+        com.fa26se040.icss.enums.AuditAction action;
+        com.fa26se040.icss.dto.area.EventNightAdjustment adjustment;
+        if (stop) {
+            String scheduleStatus = null;
+            if (session != null) {
+                session.setActualEnd(from);
+                session.setEndedBy(null);
+                eventSessionRepository.save(session);
+                scheduleStatus = finishScheduleOfSession(session, com.fa26se040.icss.enums.AreaEventScheduleStatus.ENDED_EARLY);
+            }
+            area.setOpenToMembers(false);
+            area.setOpenUntil(null);
+            area.setUpdatedAt(now);
+            areaRepository.save(area);
+            action = com.fa26se040.icss.enums.AuditAction.DISABLE_EVENT_MODE;
+            newSnapshot = new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(false, null, null,
+                    AFTER_HOURS_CHANGE_REASON, null, session != null ? session.getId() : null, oldEnd,
+                    source != null ? source.getId() : null, scheduleStatus);
+            adjustment = new com.fa26se040.icss.dto.area.EventNightAdjustment(area.getId(), area.getName(),
+                    com.fa26se040.icss.dto.area.EventNightAdjustment.TARGET_EVENT, session != null ? session.getId() : null,
+                    title, session != null ? session.getStartedAt() : null, oldEnd, null,
+                    com.fa26se040.icss.dto.area.EventNightAdjustment.OUTCOME_STOPPED);
+        } else {
+            if (session != null) {
+                session.setPlannedEnd(cut);
+                eventSessionRepository.save(session);
+            }
+            if (source != null && source.getStatus() == com.fa26se040.icss.enums.AreaEventScheduleStatus.STARTED) {
+                source.setEndAt(cut);
+                source.setUpdatedAt(now);
+                eventScheduleRepository.save(source);
+            }
+            area.setOpenUntil(cut);
+            area.setUpdatedAt(now);
+            areaRepository.save(area);
+            action = com.fa26se040.icss.enums.AuditAction.EXTEND_EVENT_MODE;
+            newSnapshot = new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventModeAuditSnapshot(true, cut, null,
+                    AFTER_HOURS_CHANGE_REASON, null, session != null ? session.getId() : null, cut,
+                    source != null ? source.getId() : null, source != null ? source.getStatus().name() : null);
+            adjustment = new com.fa26se040.icss.dto.area.EventNightAdjustment(area.getId(), area.getName(),
+                    com.fa26se040.icss.dto.area.EventNightAdjustment.TARGET_EVENT, session != null ? session.getId() : null,
+                    title, session != null ? session.getStartedAt() : null, oldEnd, cut,
+                    com.fa26se040.icss.dto.area.EventNightAdjustment.OUTCOME_TRIMMED);
+        }
+        auditService.record(com.fa26se040.icss.enums.AuditTargetType.AREA_EVENT_MODE, action, area.getId().toString(), area,
+                null, oldSnapshot, newSnapshot, reason, com.fa26se040.icss.dto.audit.AuditActor.system(AFTER_HOURS_CHANGE_SOURCE));
+        adjustments.add(adjustment);
+        owners.put(adjustment, owner);
+    }
+
+    private void adjustScheduleForAfterHours(Area area, com.fa26se040.icss.entity.AreaEventSchedule schedule, OffsetDateTime now,
+                                             int minMinutes, String nightLabel,
+                                             List<com.fa26se040.icss.dto.area.EventNightAdjustment> adjustments,
+                                             java.util.Map<com.fa26se040.icss.dto.area.EventNightAdjustment, User> owners) {
+        OffsetDateTime startAt = schedule.getStartAt();
+        OffsetDateTime oldEnd = schedule.getEndAt();
+        java.util.Optional<OffsetDateTime> night = afterHoursWindow.firstAfterHoursInstant(startAt, oldEnd);
+        if (night.isEmpty()) {
+            return;
+        }
+        OffsetDateTime cut = night.get();
+        boolean startsInNight = !cut.isAfter(startAt);
+        boolean cancel = startsInNight || java.time.Duration.between(startAt, cut).toMinutes() < minMinutes;
+        String reason = AFTER_HOURS_CHANGE_REASON + " (khung ban đêm mới " + nightLabel + ")";
+
+        com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot oldSnapshot =
+                new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot(schedule.getId(), schedule.getTitle(),
+                        startAt, oldEnd, schedule.getStatus().name(), schedule.getReasonCode(), schedule.getReasonLabel(), schedule.getNote());
+        com.fa26se040.icss.enums.AuditAction action;
+        com.fa26se040.icss.dto.area.EventNightAdjustment adjustment;
+        if (cancel) {
+            schedule.setStatus(com.fa26se040.icss.enums.AreaEventScheduleStatus.CANCELLED);
+            schedule.setCancelledBy(null);
+            schedule.setCancelledAt(now);
+            schedule.setCancelReasonCode(null);
+            schedule.setCancelReasonLabel(AFTER_HOURS_CHANGE_REASON);
+            schedule.setCancelNote(startsInNight
+                    ? "Giờ bắt đầu nằm trong khung ban đêm mới " + nightLabel
+                    : "Phần còn lại trước khung ban đêm mới " + nightLabel + " ngắn hơn " + minMinutes + " phút");
+            action = com.fa26se040.icss.enums.AuditAction.CANCEL;
+            adjustment = new com.fa26se040.icss.dto.area.EventNightAdjustment(area.getId(), area.getName(),
+                    com.fa26se040.icss.dto.area.EventNightAdjustment.TARGET_SCHEDULE, schedule.getId(), schedule.getTitle(),
+                    startAt, oldEnd, null, com.fa26se040.icss.dto.area.EventNightAdjustment.OUTCOME_CANCELLED);
+        } else {
+            schedule.setEndAt(cut);
+            schedule.setUpdatedAt(now);
+            action = com.fa26se040.icss.enums.AuditAction.UPDATE;
+            adjustment = new com.fa26se040.icss.dto.area.EventNightAdjustment(area.getId(), area.getName(),
+                    com.fa26se040.icss.dto.area.EventNightAdjustment.TARGET_SCHEDULE, schedule.getId(), schedule.getTitle(),
+                    startAt, oldEnd, cut, com.fa26se040.icss.dto.area.EventNightAdjustment.OUTCOME_TRIMMED);
+        }
+        com.fa26se040.icss.entity.AreaEventSchedule saved = eventScheduleRepository.save(schedule);
+        com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot newSnapshot =
+                new com.fa26se040.icss.dto.accesscontrol.snapshot.AreaEventScheduleAuditSnapshot(saved.getId(), saved.getTitle(),
+                        saved.getStartAt(), saved.getEndAt(), saved.getStatus().name(), null, AFTER_HOURS_CHANGE_REASON,
+                        cancel ? saved.getCancelNote() : null);
+        auditService.record(com.fa26se040.icss.enums.AuditTargetType.AREA_EVENT_SCHEDULE, action, saved.getId().toString(), area,
+                null, oldSnapshot, newSnapshot, reason, com.fa26se040.icss.dto.audit.AuditActor.system(AFTER_HOURS_CHANGE_SOURCE));
+        adjustments.add(adjustment);
+        owners.put(adjustment, activeOrNull(schedule.getCreatedBy()));
+    }
+
+    /** Đọc trạng thái người dùng TRONG transaction (open-in-view tắt); người gửi sau commit chỉ dùng id. */
+    private static User activeOrNull(User user) {
+        return user != null && Boolean.TRUE.equals(user.getIsActive()) ? user : null;
+    }
+
+    /**
+     * EV-N8: sau commit, mỗi lịch / sự kiện bị đổi gửi 1 thông báo cho người tạo lịch / mở sự kiện + mọi FM + mọi GUARD đang
+     * hoạt động (createForUsers bỏ trùng người nhận). Loại thông báo theo mẫu sẵn có: lịch -> EVENT_MODE_SCHEDULED,
+     * sự kiện đang mở -> EVENT_MODE_CHANGED.
+     */
+    private void sendAfterHoursAdjustmentNotifications(java.util.Map<com.fa26se040.icss.dto.area.EventNightAdjustment, User> owners,
+                                                       String nightLabel) {
+        executeAfterCommitOrImmediately(() -> {
+            InAppNotificationService notifService = inAppNotificationServiceProvider.getIfAvailable();
+            if (notifService == null) {
+                return;
+            }
+            List<User> staff = new java.util.ArrayList<>(userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.FACILITY_MANAGER));
+            staff.addAll(userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.GUARD));
+            String why = "Lý do: " + AFTER_HOURS_CHANGE_REASON + " (khung ban đêm mới " + nightLabel + ").";
+            for (java.util.Map.Entry<com.fa26se040.icss.dto.area.EventNightAdjustment, User> entry : owners.entrySet()) {
+                com.fa26se040.icss.dto.area.EventNightAdjustment a = entry.getKey();
+                List<User> recipients = new java.util.ArrayList<>();
+                if (entry.getValue() != null) {
+                    recipients.add(entry.getValue());
+                }
+                recipients.addAll(staff);
+                if (recipients.isEmpty()) {
+                    continue;
+                }
+                String what = a.title() != null ? " \"" + a.title() + "\"" : "";
+                String range = (a.startAt() != null ? EVENT_TIME_FORMAT.format(a.startAt()) : "?") + " – " + EVENT_TIME_FORMAT.format(a.oldEndAt());
+                boolean isSchedule = com.fa26se040.icss.dto.area.EventNightAdjustment.TARGET_SCHEDULE.equals(a.target());
+                String message;
+                if (com.fa26se040.icss.dto.area.EventNightAdjustment.OUTCOME_TRIMMED.equals(a.outcome())) {
+                    message = String.format("Khu vực %s: %s%s (%s) đổi giờ kết thúc thành %s. %s", a.areaName(),
+                            isSchedule ? "lịch sự kiện" : "sự kiện đang mở", what, range, EVENT_TIME_FORMAT.format(a.newEndAt()), why);
+                } else if (com.fa26se040.icss.dto.area.EventNightAdjustment.OUTCOME_CANCELLED.equals(a.outcome())) {
+                    message = String.format("Khu vực %s: lịch sự kiện%s (%s) đã bị huỷ. %s", a.areaName(), what, range, why);
+                } else {
+                    message = String.format("Khu vực %s: sự kiện đang mở%s (%s) đã được tắt. %s", a.areaName(), what, range, why);
+                }
+                notifService.createForUsers(recipients,
+                        isSchedule ? com.fa26se040.icss.enums.NotificationType.EVENT_MODE_SCHEDULED
+                                : com.fa26se040.icss.enums.NotificationType.EVENT_MODE_CHANGED,
+                        isSchedule ? "Lịch chế độ sự kiện khu vực" : "Chế độ sự kiện khu vực thay đổi",
+                        message, a.areaId(), "AREA");
+            }
+        });
     }
 
     public void cleanupExpiredSessions(Area area, OffsetDateTime now) {
@@ -2008,10 +2052,8 @@ public class AreaService {
         if (durationMinutes < minMinutes) {
             throw new AreaException(AreaErrorCode.ERR_AREA_035, minMinutes);
         }
-        int maxHours = getEventModeMaxHours();
-        if (durationMinutes > maxHours * 60L) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_036, maxHours);
-        }
+        // EV-N1: không còn trần thời lượng mỗi phiên. EV-N7: không được chạm khung ban đêm
+        requireOutsideAfterHours(req.startAt(), req.endAt());
 
         String title = requireEventTitle(req.title());
         // BR-ES-20 (sửa 21/10): ghi chú không bắt buộc
@@ -2039,12 +2081,7 @@ public class AreaService {
             }
         }
 
-        int maxSchedules = getEventModeMaxSchedulesPerArea();
-        if (scheduledSchedules.size() >= maxSchedules) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_039, maxSchedules);
-        }
-
-        validateEventBudget(areaId, new com.fa26se040.icss.dto.area.TimeInterval(req.startAt(), req.endAt()), null);
+        // EV-N1, EV-N2: không còn ngân sách giờ theo cửa sổ và giới hạn số lịch chờ mỗi khu
 
         User actor = userRepository.findByEmail(actorEmail)
                 .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
@@ -2136,10 +2173,8 @@ public class AreaService {
         if (durationMinutes < minMinutes) {
             throw new AreaException(AreaErrorCode.ERR_AREA_035, minMinutes);
         }
-        int maxHours = getEventModeMaxHours();
-        if (durationMinutes > maxHours * 60L) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_036, maxHours);
-        }
+        // EV-N1: không còn trần thời lượng mỗi phiên. EV-N7: không được chạm khung ban đêm
+        requireOutsideAfterHours(req.startAt(), req.endAt());
 
         String title = requireEventTitle(req.title());
         String trimmedNote = requireEventNote(req.note());
@@ -2169,7 +2204,7 @@ public class AreaService {
             }
         }
 
-        validateEventBudget(areaId, new com.fa26se040.icss.dto.area.TimeInterval(req.startAt(), req.endAt()), scheduleId);
+        // EV-N1: không còn ngân sách giờ theo cửa sổ
 
         User actor = userRepository.findByEmail(actorEmail)
                 .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
@@ -2426,15 +2461,20 @@ public class AreaService {
             boolean isMissed = !schedule.getEndAt().isAfter(now);
             boolean isAreaActive = Boolean.TRUE.equals(area.getIsActive()) && area.getDeletedAt() == null;
             boolean isLevelAllowed = eventModeAllowed(area.getAreaLevel());
+            // EV-N7: lịch cũ trong DB chạm khung ban đêm hiện hành -> không mở, FAILED + audit SYSTEM + báo FM
+            boolean touchesAfterHours = afterHoursWindow
+                    .firstAfterHoursInstant(schedule.getStartAt(), schedule.getEndAt()).isPresent();
 
-            if (isMissed || !isAreaActive || !isLevelAllowed) {
+            if (isMissed || !isAreaActive || !isLevelAllowed || touchesAfterHours) {
                 String failReason;
                 if (isMissed) {
                     failReason = "Lịch sự kiện bị lỡ thời gian kết thúc";
                 } else if (!isAreaActive) {
                     failReason = "Khu vực đã ngừng hoạt động hoặc đã bị xoá";
-                } else {
+                } else if (!isLevelAllowed) {
                     failReason = "Cấp độ khu vực không còn phù hợp cho chế độ sự kiện";
+                } else {
+                    failReason = "Lịch sự kiện chạm khung ban đêm " + afterHoursLabel();
                 }
 
                 schedule.setStatus(com.fa26se040.icss.enums.AreaEventScheduleStatus.FAILED);

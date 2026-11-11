@@ -24,6 +24,7 @@ public enum AreaErrorCode {
     ERR_AREA_024("ERR_AREA_024", HttpStatus.BAD_REQUEST, "Ghi chú phải có {min}–{max} ký tự"),
     ERR_AREA_025("ERR_AREA_025", HttpStatus.BAD_REQUEST, "Mã lý do không tồn tại hoặc đã ngừng sử dụng"),
     ERR_AREA_026("ERR_AREA_026", HttpStatus.BAD_REQUEST, "Mã lý do không phù hợp với loại thao tác sự kiện"),
+    // 027, 028, 036, 039: không còn ném từ V115 (EV-N1, EV-N2 bỏ trần giờ / ngân sách / số lịch); giữ mã để không đổi số
     ERR_AREA_027("ERR_AREA_027", HttpStatus.BAD_REQUEST, "Thời gian mở sự kiện vượt quá giới hạn tối đa cho một phiên ({maxHours} giờ)"),
     ERR_AREA_028("ERR_AREA_028", HttpStatus.BAD_REQUEST, "Vượt quá ngân sách thời gian mở sự kiện của khu vực"),
     ERR_AREA_029("ERR_AREA_029", HttpStatus.BAD_REQUEST, "Không thể ngừng sử dụng mục lý do mặc định 'Khác'"),
@@ -60,7 +61,9 @@ public enum AreaErrorCode {
     // V87: tên sự kiện của lịch
     ERR_AREA_057("ERR_AREA_057", HttpStatus.BAD_REQUEST, "Tên sự kiện bắt buộc, tối đa {max} ký tự"),
     // X-01a: chế độ sự kiện chỉ mở qua lịch; PATCH /event-mode chỉ còn DISABLE
-    ERR_AREA_058("ERR_AREA_058", HttpStatus.BAD_REQUEST, "Không bật hoặc điều chỉnh sự kiện thủ công. Hãy đặt lịch ở màn Quản lý sự kiện.");
+    ERR_AREA_058("ERR_AREA_058", HttpStatus.BAD_REQUEST, "Không bật hoặc điều chỉnh sự kiện thủ công. Hãy đặt lịch ở màn Quản lý sự kiện."),
+    // EV-N7 (V115): lịch sự kiện không được giao khung ban đêm AI_AFTER_HOUR_START–AI_AFTER_HOUR_END của bất kỳ ngày nào
+    ERR_AREA_059("ERR_AREA_059", HttpStatus.BAD_REQUEST, "Lịch sự kiện không được chạm khung ban đêm {start}–{end} (giờ Việt Nam). Khoảng đã nhập: {range}");
 
     private final String code;
     private final HttpStatus httpStatus;

@@ -214,7 +214,6 @@ public class SystemConfigService {
                     } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)) {
                         syncAiRuntimeConfig();
                     }
-                    checkEventModeLimitsAndNotifyFm(key);
                 }
 
                 @Override
@@ -234,74 +233,27 @@ public class SystemConfigService {
             } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)) {
                 syncAiRuntimeConfig();
             }
-            checkEventModeLimitsAndNotifyFm(key);
+        }
+
+        // EV-N8 (V115): đổi giờ ban đêm -> hệ thống cắt / huỷ lịch, cắt / tắt sự kiện đang mở trong CÙNG transaction.
+        // Gọi SAU khi đã đăng ký afterCompletion ở trên: lỗi ở đây rollback cả việc lưu cấu hình và cache về giá trị cũ.
+        // EV-N1: không còn thông báo "khu vực vượt giới hạn mới" khi đổi cấu hình sự kiện (BR-EV-29 bỏ).
+        List<com.fa26se040.icss.dto.area.EventNightAdjustment> eventAdjustments = null;
+        if (isAfterHoursKey(key)) {
+            AreaService areaService = areaServiceProvider.getIfAvailable();
+            if (areaService != null) {
+                eventAdjustments = areaService.applyAfterHoursChange(now);
+            }
         }
 
         log.info("Cập nhật SystemConfiguration thành công: key={}, old={}, new={}, actor={}",
                 key, oldValue, value, actorEmail);
 
-        return mapToResponse(saved);
+        return mapToResponse(saved).withEventAdjustments(eventAdjustments);
     }
 
-    private void checkEventModeLimitsAndNotifyFm(String key) {
-        if (!"EVENT_MODE_MAX_HOURS".equals(key) && !"EVENT_MODE_WINDOW_DAYS".equals(key) && !"EVENT_MODE_BUDGET_HOURS".equals(key)) {
-            return;
-        }
-
-        AreaService areaService = areaServiceProvider.getIfAvailable();
-        InAppNotificationService notificationService = notificationServiceProvider.getIfAvailable();
-        if (areaService == null || notificationService == null) {
-            return;
-        }
-
-        int maxHours = areaService.getEventModeMaxHours();
-        int windowDays = areaService.getEventModeWindowDays();
-        int budgetHours = areaService.getEventModeBudgetHours();
-
-        List<com.fa26se040.icss.entity.Area> violating = areaService.findAreasViolatingNewEventLimits(maxHours, windowDays, budgetHours);
-        if (violating.isEmpty()) {
-            log.info("No active event areas violate new event limits after config key {} updated", key);
-            return;
-        }
-
-        List<com.fa26se040.icss.entity.User> activeFms = userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.FACILITY_MANAGER);
-        if (activeFms.isEmpty()) {
-            return;
-        }
-
-        java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
-        StringBuilder sb = new StringBuilder("Giới hạn chế độ sự kiện đã thay đổi. Các khu vực vượt giới hạn mới: ");
-        for (int i = 0; i < violating.size(); i++) {
-            com.fa26se040.icss.entity.Area a = violating.get(i);
-            if (i > 0) sb.append("; ");
-            sb.append(a.getName());
-            boolean hasDetail = false;
-            if (a.isEventActive(java.time.OffsetDateTime.now()) && a.getOpenUntil() != null) {
-                sb.append(" (kết thúc: ").append(dtf.format(a.getOpenUntil())).append(")");
-                hasDetail = true;
-            }
-            List<com.fa26se040.icss.entity.AreaEventSchedule> vScheds = areaService.getViolatingSchedules(a.getId(), maxHours, windowDays, budgetHours);
-            if (!vScheds.isEmpty()) {
-                sb.append(" [Lịch vi phạm: ");
-                for (int j = 0; j < vScheds.size(); j++) {
-                    if (j > 0) sb.append(", ");
-                    com.fa26se040.icss.entity.AreaEventSchedule sc = vScheds.get(j);
-                    sb.append(dtf.format(sc.getStartAt())).append(" - ").append(dtf.format(sc.getEndAt()));
-                }
-                sb.append("]");
-            } else if (!hasDetail && a.getOpenUntil() != null) {
-                sb.append(" (kết thúc: ").append(dtf.format(a.getOpenUntil())).append(")");
-            }
-        }
-
-        notificationService.createForUsers(
-                activeFms,
-                com.fa26se040.icss.enums.NotificationType.EVENT_MODE_LIMIT_CHANGED,
-                "Giới hạn chế độ sự kiện đã thay đổi",
-                sb.toString(),
-                violating.get(0).getId(),
-                "AREA"
-        );
+    private static boolean isAfterHoursKey(String key) {
+        return ConfigKey.AI_AFTER_HOUR_START.getKey().equals(key) || ConfigKey.AI_AFTER_HOUR_END.getKey().equals(key);
     }
 
     private void syncAfterHourToAi() {
@@ -393,18 +345,7 @@ public class SystemConfigService {
                 if (config.getMaxValue() != null && intVal > config.getMaxValue().intValue()) {
                     throw new IllegalArgumentException("Giá trị không được lớn hơn " + config.getMaxValue().intValue());
                 }
-                if ("EVENT_MODE_MIN_MINUTES".equals(config.getConfigKey())) {
-                    int maxHours = getInt(ConfigKey.EVENT_MODE_MAX_HOURS);
-                    if (intVal > maxHours * 60) {
-                        throw new IllegalArgumentException("Thời lượng tối thiểu (EVENT_MODE_MIN_MINUTES) không được lớn hơn thời lượng tối đa (EVENT_MODE_MAX_HOURS * 60 phút)");
-                    }
-                }
-                if ("EVENT_MODE_MAX_HOURS".equals(config.getConfigKey())) {
-                    int minMinutes = getInt(ConfigKey.EVENT_MODE_MIN_MINUTES);
-                    if (intVal * 60 < minMinutes) {
-                        throw new IllegalArgumentException("Thời lượng tối đa (EVENT_MODE_MAX_HOURS * 60 phút) không được nhỏ hơn thời lượng tối thiểu (EVENT_MODE_MIN_MINUTES)");
-                    }
-                }
+                // V115 (EV-N1): bỏ ràng buộc chéo EVENT_MODE_MIN_MINUTES ≤ EVENT_MODE_MAX_HOURS × 60 cùng với EVENT_MODE_MAX_HOURS
                 validateNotificationScanConfig(config.getConfigKey(), intVal);
             }
             case "DECIMAL" -> {

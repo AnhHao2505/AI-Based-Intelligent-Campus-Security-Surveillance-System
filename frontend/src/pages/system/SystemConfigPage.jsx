@@ -48,6 +48,14 @@ const CONFIG_SUBGROUPS = {
 	],
 };
 
+/** EV-N8: một dòng kết quả "khu · tên: giờ cũ → mới / đã huỷ / đã tắt". */
+function describeNightAdjustment(a) {
+	const head = `${a.areaName}${a.title ? ` · ${a.title}` : ""}: ${a.startAt ? formatDateTime(a.startAt) : "?"} → ${formatDateTime(a.oldEndAt)}`;
+	if (a.outcome === "TRIMMED") return `${head} — giờ kết thúc mới ${formatDateTime(a.newEndAt)}`;
+	if (a.outcome === "CANCELLED") return `${head} — đã huỷ lịch`;
+	return `${head} — đã tắt sự kiện đang mở`;
+}
+
 export default function SystemConfigPage() {
 	const navigate = useNavigate();
 	const reasonLimits = useReasonLimits();
@@ -58,6 +66,7 @@ export default function SystemConfigPage() {
 	const [errorMsg, setErrorMsg] = useState(null);
 	const [loadError, setLoadError] = useState(null);
 	const [successMsg, setSuccessMsg] = useState(null);
+	const [nightAdjustments, setNightAdjustments] = useState(null);
 
 	// Tab state: active groupKey (no 'ALL' tab)
 	const [activeTab, setActiveTab] = useState("");
@@ -156,12 +165,15 @@ export default function SystemConfigPage() {
 		setConfirmReasonError("");
 		setErrorMsg(null);
 		setSuccessMsg(null);
+		setNightAdjustments(null);
 
 		try {
 			const updated = await updateSystemConfig(key, value, trimmedReason);
 			setSuccessMsg(
 				`Cập nhật cấu hình "${confirmModalConfig.description || key}" thành công!`,
 			);
+			// EV-N8: chỉ có khi lưu AI_AFTER_HOUR_START / AI_AFTER_HOUR_END
+			setNightAdjustments(Array.isArray(updated?.eventAdjustments) ? updated.eventAdjustments : null);
 
 			setConfigs((prev) =>
 				prev.map((c) => (c.configKey === key ? updated : c)),
@@ -320,6 +332,29 @@ export default function SystemConfigPage() {
 						className="syscfg-alert__icon"
 					/>
 					<span className="syscfg-alert__text">{successMsg}</span>
+				</div>
+			)}
+
+			{/* EV-N8: lưu giờ ban đêm -> các lịch / sự kiện hệ thống đã cắt / huỷ / tắt */}
+			{nightAdjustments && (
+				<div className="syscfg-alert" role="status">
+					<Info size={18} className="syscfg-alert__icon" />
+					<div className="syscfg-alert__text">
+						{nightAdjustments.length === 0 ? (
+							"Không có lịch hoặc sự kiện nào bị ảnh hưởng bởi khung ban đêm mới."
+						) : (
+							<>
+								<strong>
+									Hệ thống đã điều chỉnh {nightAdjustments.length} lịch / sự kiện theo khung ban đêm mới:
+								</strong>
+								<ul className="syscfg-adjust-list">
+									{nightAdjustments.map((a) => (
+										<li key={`${a.target}-${a.targetId}`}>{describeNightAdjustment(a)}</li>
+									))}
+								</ul>
+							</>
+						)}
+					</div>
 				</div>
 			)}
 
