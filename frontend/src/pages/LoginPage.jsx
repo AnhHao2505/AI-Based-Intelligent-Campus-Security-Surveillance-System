@@ -399,7 +399,8 @@ export default function LoginPage({
 										</span>
 									)}
 								</div>
-								<span
+								<button
+									type="button"
 									className="login-card__forgot-link"
 									onClick={() => {
 										setMode("forgot");
@@ -407,7 +408,7 @@ export default function LoginPage({
 									}}
 								>
 									Quên mật khẩu?
-								</span>
+								</button>
 								<button
 									type="submit"
 									className="login-card__submit-btn"
