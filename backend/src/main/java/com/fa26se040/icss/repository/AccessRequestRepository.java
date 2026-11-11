@@ -98,16 +98,17 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
             @Param("now") OffsetDateTime now
     );
 
+    /** Đơn có trạng thái {@code status} bắt đầu trong (after, until]: sau {@code after} (không tính), tới {@code until} (tính). */
     @Query("SELECT DISTINCT ar FROM AccessRequest ar " +
            "JOIN FETCH ar.area " +
            "JOIN FETCH ar.requester " +
            "LEFT JOIN FETCH ar.members m " +
            "LEFT JOIN FETCH m.user " +
-           "WHERE ar.status = :status AND ar.startTime >= :windowStart AND ar.startTime <= :windowEnd")
-    List<AccessRequest> findApprovedRequestsStartingBetween(
+           "WHERE ar.status = :status AND ar.startTime > :after AND ar.startTime <= :until")
+    List<AccessRequest> findRequestsStartingAfterAndUpTo(
             @Param("status") RequestStatus status,
-            @Param("windowStart") OffsetDateTime windowStart,
-            @Param("windowEnd") OffsetDateTime windowEnd
+            @Param("after") OffsetDateTime after,
+            @Param("until") OffsetDateTime until
     );
 
     @Query("SELECT ar FROM AccessRequest ar " +

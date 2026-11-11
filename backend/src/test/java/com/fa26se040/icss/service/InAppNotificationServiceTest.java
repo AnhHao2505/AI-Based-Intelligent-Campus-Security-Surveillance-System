@@ -187,12 +187,12 @@ class InAppNotificationServiceTest {
                 .build();
 
         when(systemConfigService.getInt(ConfigKey.NOTIFICATION_EXPIRING_SOON_LEAD_MINUTES)).thenReturn(30);
-        when(accessRequestRepository.findApprovedRequestsStartingBetween(eq(RequestStatus.APPROVED), any(), any()))
+        when(accessRequestRepository.findRequestsStartingAfterAndUpTo(eq(RequestStatus.APPROVED), any(), any()))
                 .thenReturn(List.of(req));
         when(notificationRepository.existsByReferenceIdAndType(refId, NotificationType.EXPIRING_SOON))
                 .thenReturn(true);
 
-        inAppNotificationService.scanAndNotifyExpiringSoonRequests();
+        inAppNotificationService.scanAndNotifyExpiringSoonRequests(OffsetDateTime.now());
 
         verify(notificationRepository, never()).saveAll(anyList());
     }
@@ -220,7 +220,7 @@ class InAppNotificationServiceTest {
                 .thenReturn(false);
         when(notificationRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
 
-        inAppNotificationService.scanAndNotifyPendingOverdueRequests();
+        inAppNotificationService.scanAndNotifyPendingOverdueRequests(OffsetDateTime.now());
 
         verify(notificationRepository, times(1)).saveAll(anyList());
     }
