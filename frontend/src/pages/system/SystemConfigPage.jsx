@@ -583,6 +583,7 @@ export default function SystemConfigPage() {
 				isOpen={historyModalOpen}
 				onClose={() => setHistoryModalOpen(false)}
 				title="Nhật ký thay đổi cấu hình"
+				closeOnBackdrop
 				subtitle={historyConfigName}
 				size="lg"
 			>

@@ -14,7 +14,7 @@ import './Modal.css';
  * @param {'brand'|'warning'|'danger'|'success'} [props.iconVariant='brand']
  * @param {'sm'|'md'|'lg'|'xl'} [props.size='md']
  * @param {React.ReactNode} [props.footer]
- * @param {boolean} [props.closeOnBackdrop=true]
+ * @param {boolean} [props.closeOnBackdrop=false] true chỉ cho popup thuần hiển thị (không ô nhập / chọn file / form); Esc và nút X vẫn đóng
  * @param {'dialog'|'field'} [props.initialFocus='dialog'] 'field': focus ô nhập đầu tiên khi mở
  * @param {string} [props.className='']
  * @param {React.ReactNode} props.children
@@ -28,7 +28,7 @@ export default function Modal({
   iconVariant = 'brand',
   size = 'md',
   footer,
-  closeOnBackdrop = true,
+  closeOnBackdrop = false,
   initialFocus = 'dialog',
   className = '',
   children,

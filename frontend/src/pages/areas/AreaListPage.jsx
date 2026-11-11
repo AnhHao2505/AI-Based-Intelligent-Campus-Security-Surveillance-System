@@ -956,10 +956,8 @@ export default function AreaListPage() {
 
 			{/* CREATE ZONE MODAL */}
 			{createModalOpen && (
-				<div
-					className="area-modal-backdrop"
-					onClick={() => setCreateModalOpen(false)}
-				>
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+				<div className="area-modal-backdrop">
 					<div
 						className="area-modal"
 						onClick={(e) => e.stopPropagation()}
@@ -1195,10 +1193,8 @@ export default function AreaListPage() {
 
 			{/* EDIT ZONE MODAL */}
 			{editModalOpen && selectedArea && (
-				<div
-					className="area-modal-backdrop"
-					onClick={() => setEditModalOpen(false)}
-				>
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+				<div className="area-modal-backdrop">
 					<div
 						className="area-modal"
 						onClick={(e) => e.stopPropagation()}
@@ -1466,10 +1462,8 @@ export default function AreaListPage() {
 
 			{/* DEACTIVATE ZONE MODAL — Step 6 (BR-AD-01, 08): xem trước + lý do + version */}
 			{deactivateModalOpen && deactivateTarget && (
-				<div
-					className="area-modal-backdrop"
-					onClick={closeDeactivateModal}
-				>
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+				<div className="area-modal-backdrop">
 					<div
 						className="area-modal"
 						onClick={(e) => e.stopPropagation()}
@@ -1610,15 +1604,8 @@ export default function AreaListPage() {
 
 			{/* RESTORE ZONE MODAL — Step 6 (BR-AD-07) */}
 			{restoreTarget && (
-				<div
-					className="area-modal-backdrop"
-					onClick={() => {
-						if (!restoreLoading) {
-							setRestoreTarget(null);
-							setRestoreReasonError(null);
-						}
-					}}
-				>
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+				<div className="area-modal-backdrop">
 					<div
 						className="area-modal"
 						onClick={(e) => e.stopPropagation()}

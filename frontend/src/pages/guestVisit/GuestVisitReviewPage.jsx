@@ -433,6 +433,7 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
         isOpen={!!detail}
         onClose={() => setDetail(null)}
         title="Chi tiết lượt khách"
+        closeOnBackdrop
         icon={ClipboardCheck}
         size="lg"
         footer={
@@ -576,7 +577,6 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
         icon={Check}
         iconVariant="success"
         size="md"
-        closeOnBackdrop={!actionLoading}
         footer={
           <>
             <Button
@@ -635,7 +635,6 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
         icon={X}
         iconVariant="danger"
         size="md"
-        closeOnBackdrop={!actionLoading}
         footer={
           <>
             <Button
@@ -704,7 +703,6 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
         icon={Ban}
         iconVariant="danger"
         size="md"
-        closeOnBackdrop={!actionLoading}
         footer={
           <>
             <Button

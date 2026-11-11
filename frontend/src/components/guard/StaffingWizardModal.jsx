@@ -311,12 +311,8 @@ export default function StaffingWizardModal({
   if (!isOpen) return null;
 
   return (
-    <div
-      className="schedule-modal-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !loading) onClose();
-      }}
-    >
+    // Popup có form nhập liệu → không đóng khi bấm ra ngoài, chỉ đóng bằng X / Huỷ.
+    <div className="schedule-modal-backdrop">
       <div className="schedule-modal schedule-modal--lg max-w-2xl w-full">
         {/* HEADER */}
         <div className="schedule-modal__header px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex items-center justify-between">
