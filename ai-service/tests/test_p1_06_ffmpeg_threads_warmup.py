@@ -78,8 +78,8 @@ def test_model_warmup_and_health_readiness():
     assert success is True
     # Kiểm tra cả 3 mô hình đều được gọi với dummy input
     assert mock_pipeline.human_detector.detect_and_track.call_count >= 1
-    assert mock_pipeline.face_detector.detect.call_count >= 1
-    assert mock_pipeline.face_embedder.get_embedding.call_count >= 1
+    assert mock_pipeline.face_detector.detect_in_image.call_count >= 1
+    assert mock_pipeline.face_embedder.extract_embedding.call_count >= 1
 
     # Kiểm tra logic endpoint /health
     from fastapi.testclient import TestClient

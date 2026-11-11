@@ -575,8 +575,8 @@ class EdgeMqttAgent:
 
         embedder = self.face_embedder
         if embedder is None:
-            from ..core.face_embedder import FaceEmbedder
-            embedder = FaceEmbedder(embedding_dim=512)
+            from ..core.face_embedder import get_shared_face_embedder
+            embedder = get_shared_face_embedder()
             self.face_embedder = embedder
 
         faces = detector.detect_in_image(img)

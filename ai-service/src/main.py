@@ -491,10 +491,10 @@ async def analyze_frame(file: UploadFile = File(...)):
 
 from fastapi import Form
 from .core.face_detector import FaceDetector
-from .core.face_embedder import FaceEmbedder
+from .core.face_embedder import get_shared_face_embedder
 
 face_detector = FaceDetector()
-face_embedder = FaceEmbedder(embedding_dim=512)
+face_embedder = get_shared_face_embedder()
 
 @app.post("/api/v1/faces/process-registration", dependencies=[Depends(require_service_key)])
 async def process_face_registration(

@@ -121,6 +121,10 @@ class TrackedPerson:
     roi_first_entered_time: Optional[float] = None
     security_display_state: str = "NEUTRAL"  # NEUTRAL, VERIFYING, AUTHORIZED, UNAUTHORIZED, UNKNOWN, INTRUSION
 
+    # Bộ đếm hiệu năng và độ trễ nhận diện (Task 1)
+    first_matched_time: Optional[float] = None
+    access_checked_time: Optional[float] = None
+
     def __post_init__(self):
         if self.yolo_last_seen_time is None:
             self.yolo_last_seen_time = self.first_seen_time

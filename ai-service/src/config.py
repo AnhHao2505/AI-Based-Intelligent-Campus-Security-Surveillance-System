@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     FACE_SCAN_INITIAL_WINDOW_SECONDS: float = Field(default=2.0, validation_alias="FACE_SCAN_INITIAL_WINDOW_SECONDS")
     FACE_SCAN_BACKOFF_INTERVAL: float = Field(default=0.05, validation_alias="FACE_SCAN_BACKOFF_INTERVAL")
     FACE_MIN_CROP_SIZE: int = Field(default=24, validation_alias="FACE_MIN_CROP_SIZE")
+    FACE_CROP_UPSCALE_THRESHOLD: int = Field(default=160, validation_alias="FACE_CROP_UPSCALE_THRESHOLD")
     FACE_MIN_LAPLACIAN_VARIANCE: float = Field(default=15.0, validation_alias="FACE_MIN_LAPLACIAN_VARIANCE")
     ANALYSIS_MAX_FPS: float = Field(default=30.0, validation_alias="ANALYSIS_MAX_FPS")
     UPPER_BODY_CROP_RATIO: float = 0.60
