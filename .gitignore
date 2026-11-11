@@ -81,3 +81,7 @@ video/
 
 # MQTT outbox (SQLite cảnh báo chờ gửi của AI service)
 ai-service/data/
+
+# Dữ liệu local có tài khoản / bản sao repo (L21): không bao giờ commit. Neo ở gốc repo.
+/data_text/
+/SEP/

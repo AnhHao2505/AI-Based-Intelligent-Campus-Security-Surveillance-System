@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  L24: che e-mail trong mọi log backend. Giữ nguyên định dạng console mặc định của Spring Boot (cùng CONSOLE_LOG_PATTERN,
+  màu, charset, ngưỡng, các logger mặc định từ defaults.xml); chỉ thay converter của thông điệp (%m, %msg, %message) và
+  của exception (%wEx, %wex) bằng bản che e-mail theo LogMasker.maskEmail.
+  Thứ tự bắt buộc: conversionRule phải khai báo SAU defaults.xml (ghi đè wEx / wex của Spring Boot) và TRƯỚC appender
+  (encoder biên dịch pattern lúc khởi tạo appender).
+  logging.level.* trong application.yml vẫn áp dụng như cũ. Không có file appender: hiện không profile nào đặt
+  logging.file.name / logging.file.path.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <conversionRule conversionWord="m" converterClass="com.fa26se040.icss.logging.EmailMaskingMessageConverter"/>
+    <conversionRule conversionWord="msg" converterClass="com.fa26se040.icss.logging.EmailMaskingMessageConverter"/>
+    <conversionRule conversionWord="message" converterClass="com.fa26se040.icss.logging.EmailMaskingMessageConverter"/>
+    <conversionRule conversionWord="wEx" converterClass="com.fa26se040.icss.logging.EmailMaskingExtendedThrowableConverter"/>
+    <conversionRule conversionWord="wex" converterClass="com.fa26se040.icss.logging.EmailMaskingThrowableConverter"/>
+
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
