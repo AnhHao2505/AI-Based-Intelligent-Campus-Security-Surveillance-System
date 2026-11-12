@@ -200,7 +200,7 @@ class _AuthorizedNetworkImageState extends State<AuthorizedNetworkImage> {
               minScale: 0.5,
               maxScale: 4.0,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(6),
                 child: Image.network(
                   url,
                   headers: headers,
