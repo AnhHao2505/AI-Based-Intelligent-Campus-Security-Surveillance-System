@@ -239,7 +239,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
     final pendingCount = incidentProvider.pendingCount;
 
     return Scaffold(
-      backgroundColor: AppColors.bg(context),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: AppColors.crd(context),
         surfaceTintColor: Colors.transparent,
@@ -397,13 +397,13 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
 
     return InkWell(
       onTap: () => setState(() => _selectedTab = tab),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? color : color.withAlpha(20),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected ? color : color.withAlpha(60),
             width: 1,
@@ -426,7 +426,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
                   color: isSelected ? Colors.white : color,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(5),
                 ),
                 child: Text(
                   '$badgeCount',
@@ -506,7 +506,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.crd(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isPending ? sevColor.withAlpha(80) : AppColors.crdBorder(context),
           width: isPending ? 1.5 : 1,
@@ -522,7 +522,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           onTap: () {
             // Xem chi tiết / xử lý
             if (isClaimedByMe) {
@@ -551,7 +551,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: sevColor.withAlpha(25),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(4),
                         border: Border.all(color: sevColor.withAlpha(80)),
                       ),
                       child: Row(
@@ -631,13 +631,13 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
                   const SizedBox(height: 10),
                   InkWell(
                     onTap: () => _showImagePreview(context, incident.imageUrl!),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(5),
                     child: Container(
                       height: 110,
                       width: double.infinity,
                       decoration: BoxDecoration(
                         color: Colors.black26,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(5),
                         border: Border.all(color: AppColors.crdBorder(context)),
                       ),
                       clipBehavior: Clip.antiAlias,
@@ -661,7 +661,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
                                 color: Colors.black.withAlpha(160),
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(3),
                               ),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -689,7 +689,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFF3B82F6).withAlpha(15),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: const Color(0xFF3B82F6).withAlpha(40)),
                     ),
                     child: Row(
@@ -717,7 +717,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFF10B981).withAlpha(15),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: const Color(0xFF10B981).withAlpha(40)),
                     ),
                     child: Row(
@@ -872,7 +872,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withAlpha(20),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(3),
         border: Border.all(color: color.withAlpha(50)),
       ),
       child: Text(
