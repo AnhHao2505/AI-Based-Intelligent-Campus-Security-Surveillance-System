@@ -8,6 +8,7 @@ import {
 	cancelEventSchedule,
 } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
+import { getSystemConfigs } from "../../services/systemConfigService";
 import { formatDisplayDateTime } from "../../utils/areaHelpers";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
 
@@ -47,7 +48,9 @@ const EMPTY_FORM = { title: "", startAt: "", endAt: "", areaId: "", reasonCode: 
  * - create: Tên → Bắt đầu → Kết thúc → Khu vực (Bảo mật đang hoạt động) → Ghi chú (không bắt buộc) → Loại sự kiện (EVENT_SCHEDULE_CREATE)
  * - edit: lịch SCHEDULED — đổi tên / giờ, lý do sửa (EVENT_SCHEDULE_UPDATE) + ghi chú lý do bắt buộc; loại và ghi chú gốc giữ nguyên
  * - cancel: lịch SCHEDULED — lý do huỷ (EVENT_SCHEDULE_CANCEL) + ghi chú bắt buộc (BR-ES-25)
- * Mọi giới hạn nghiệp vụ (số lịch, thời lượng, đặt trước, ngân sách, chồng giờ) do backend quyết; lỗi hiện đúng câu backend trả.
+ * Mọi giới hạn nghiệp vụ (thời lượng tối thiểu, đặt trước, chồng giờ, khung ban đêm EV-N7) do backend quyết; lỗi hiện đúng câu
+ * backend trả. V115 bỏ trần giờ, ngân sách giờ và số lịch tối đa. Gợi ý khung ban đêm đọc từ cấu hình hệ thống (FM đọc được);
+ * đọc lỗi thì không hiện gợi ý, chỉ dựa vào lỗi backend.
  */
 export default function EventScheduleFormModal({ mode, schedule, areas, onClose, onSaved }) {
 	const reasonLimits = useReasonLimits();
@@ -58,7 +61,28 @@ export default function EventScheduleFormModal({ mode, schedule, areas, onClose,
 	const [errors, setErrors] = useState({});
 	const [formError, setFormError] = useState(null);
 	const [submitting, setSubmitting] = useState(false);
+	const [nightWindow, setNightWindow] = useState(null);
 	const noteRef = useRef(null);
+
+	// EV-N7: khung ban đêm hiện hành (AI_AFTER_HOUR_START–AI_AFTER_HOUR_END) để gợi ý; START = END là không có ban đêm
+	useEffect(() => {
+		if (mode !== "create" && mode !== "edit") return;
+		let isMounted = true;
+		getSystemConfigs()
+			.then((list) => {
+				if (!isMounted || !Array.isArray(list)) return;
+				const value = (key) => list.find((c) => c.configKey === key)?.configValue;
+				const start = value("AI_AFTER_HOUR_START");
+				const end = value("AI_AFTER_HOUR_END");
+				setNightWindow(start && end && start !== end ? { start, end } : null);
+			})
+			.catch(() => {
+				if (isMounted) setNightWindow(null);
+			});
+		return () => {
+			isMounted = false;
+		};
+	}, [mode]);
 
 	// Mở form -> điền sẵn
 	useEffect(() => {
@@ -272,6 +296,11 @@ export default function EventScheduleFormModal({ mode, schedule, areas, onClose,
 								required
 							/>
 						</div>
+						{nightWindow && (
+							<div className="evm-muted">
+								Không được chạm khung ban đêm {nightWindow.start}–{nightWindow.end}
+							</div>
+						)}
 						<Select
 							id="evm-area"
 							label="Khu vực"

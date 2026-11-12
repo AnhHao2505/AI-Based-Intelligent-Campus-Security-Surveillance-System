@@ -266,10 +266,31 @@
   cursor: pointer;
   transition: color 0.2s ease;
   font-weight: 500;
+  margin: 0;
+}
+
+/* Link dạng <button> để Tab/Enter/Space dùng được: bỏ style mặc định của nút */
+.login-card__forgot-link,
+.login-card__back-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  border-radius: 2px;
 }
 
 .login-card__forgot-link:hover {
   color: #fdba74;
+  text-decoration: underline;
+}
+
+.login-card__forgot-link:focus-visible,
+.login-card__back-link:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
   text-decoration: underline;
 }
 

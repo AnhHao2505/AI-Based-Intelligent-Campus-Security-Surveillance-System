@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
-	Building2,
 	Plus,
 	Pencil,
 	Trash2,
@@ -12,26 +11,26 @@ import {
 	Layers,
 	Cctv,
 	VideoOff,
-	MapPinPlus,
 	Search,
 	AlertTriangle,
 	Info,
 	ExternalLink,
 	RotateCcw,
+	Crosshair,
 } from "lucide-react";
+import { toast } from "sonner";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaListView from "../../components/area/AreaListView";
 import CampusMapView from "../../components/area/CampusMapView";
+import FloorDigitizerStudio from "../../components/area/FloorDigitizerStudio";
 import ErrorBoundary from "../../components/common/ErrorBoundary";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
-import PageHeader from "../../components/ui/PageHeader";
-import { LoadingState, ErrorState, Select } from "../../components/ui";
+import { LoadingState, ErrorState, DialogPanel } from "../../components/ui";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
 import {
 	getAreas,
 	getDependencies,
-	createArea,
 	updateArea,
 	deactivateArea,
 	restoreArea,
@@ -39,6 +38,11 @@ import {
 	getTypeChangePreview,
 } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
+import {
+	DEFAULT_BUILDINGS_META,
+	matchesBuilding,
+	resolveFloorOrder,
+} from "../../data/campusIndoor3dData";
 import {
 	AREA_LEVEL_OPTIONS,
 	getErrorMessage,
@@ -48,44 +52,12 @@ import {
 import "../../styles/AreaListPage.css";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
 
-// Toạ độ tâm bắt buộc khi tạo và khi sửa (khớp backend: tạo @NotNull, sửa ERR_AREA_006); thiếu ô nào cũng từ chối
-const COORDINATE_PAIR_ERROR = "Vui lòng nhập đủ vĩ độ và kinh độ.";
-const isBlankCoordinate = (value) => String(value ?? "").trim() === "";
-
-const validateCenterCoordinates = (latitude, longitude) => {
-	const latBlank = isBlankCoordinate(latitude);
-	const lngBlank = isBlankCoordinate(longitude);
-	if (latBlank || lngBlank) {
-		return { error: COORDINATE_PAIR_ERROR };
+const toNullableCoord = (value) => {
+	if (value === null || value === undefined || String(value).trim() === "") {
+		return null;
 	}
-	const centerLatitude = Number(String(latitude).trim());
-	const centerLongitude = Number(String(longitude).trim());
-	if (
-		!Number.isFinite(centerLatitude) ||
-		centerLatitude < -90 ||
-		centerLatitude > 90
-	) {
-		return { error: "Vĩ độ phải nằm trong khoảng -90 đến 90." };
-	}
-	if (
-		!Number.isFinite(centerLongitude) ||
-		centerLongitude < -180 ||
-		centerLongitude > 180
-	) {
-		return { error: "Kinh độ phải nằm trong khoảng -180 đến 180." };
-	}
-
-	return { centerLatitude, centerLongitude };
-};
-
-// UI-11: lỗi tại chỗ cho 1 ô toạ độ (giới hạn toán học, cùng câu với validateCenterCoordinates); ô trống không báo
-const coordinateFieldError = (value, min, max, label) => {
-	if (value === "" || value === null || value === undefined) return null;
-	const n = Number(value);
-	if (!Number.isFinite(n) || n < min || n > max) {
-		return `${label} phải nằm trong khoảng ${min} đến ${max}.`;
-	}
-	return null;
+	const num = Number(value);
+	return Number.isFinite(num) ? num : null;
 };
 
 // V83: 3 loại, cấp cố định theo loại (Công khai 1, Bảo mật 2, Bảo mật cao 3)
@@ -112,6 +84,8 @@ export default function AreaListPage() {
 	// Split-View: Danh sách bên trái + Bản đồ khuôn viên bên phải
 	const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
 	const [isCreatingOnMap, setIsCreatingOnMap] = useState(false);
+	const [rebindingAreaId, setRebindingAreaId] = useState(null);
+	const [digitizerStudioOpen, setDigitizerStudioOpen] = useState(false);
 
 	const handleStartCreateOnMap = () => {
 		setIsCreatingOnMap(true);
@@ -128,6 +102,7 @@ export default function AreaListPage() {
 							version: updated.version ?? a.version,
 							building: updated.building ?? a.building,
 							floor: updated.floor ?? a.floor,
+							floorId: updated.floorId ?? a.floorId,
 						}
 					: a,
 			),
@@ -141,14 +116,13 @@ export default function AreaListPage() {
 	const [loading, setLoading] = useState(true);
 	const [pageError, setPageError] = useState(null);
 
-	// Filters
-	const [selectedBuilding, setSelectedBuilding] = useState("");
+	// Filters (default ALL so all 3D campus buildings render together on overview)
+	const [selectedBuilding, setSelectedBuilding] = useState("ALL");
 	const [selectedFloor, setSelectedFloor] = useState("ALL");
 	const [selectedAreaId, setSelectedAreaId] = useState(null);
 	const [cameraCounts, setCameraCounts] = useState({});
 
 	// Modal states
-	const [createModalOpen, setCreateModalOpen] = useState(false);
 	const [editModalOpen, setEditModalOpen] = useState(false);
 	const [editReasonError, setEditReasonError] = useState(null);
 	const editReasonRef = useRef(null);
@@ -276,25 +250,46 @@ export default function AreaListPage() {
 		fetchData();
 	}, [fetchData]);
 
-	// Derived available buildings
+	// Derived available buildings (bao gồm cả 2 tòa nhà 3D: Tòa Alpha 3 tầng & Tòa Epsilon 5 tầng)
 	const availableBuildings = useMemo(() => {
+		const mapByName = new Map();
 		if (buildingsList.length > 0) {
-			return buildingsList.map((b) => ({
-				id: b.id,
-				name: b.name,
-				floors: b.floors || [],
+			buildingsList.forEach((b) => {
+				mapByName.set(b.name, {
+					id: b.id,
+					name: b.name,
+					floors: b.floors || [],
+				});
+			});
+		} else {
+			areas.forEach((a) => {
+				if (a.building && !mapByName.has(a.building)) {
+					mapByName.set(a.building, { id: null, name: a.building, floors: [] });
+				}
+			});
+		}
+
+		DEFAULT_BUILDINGS_META.forEach((b3d) => {
+			const hasAlias = Array.from(mapByName.keys()).some((existing) =>
+				matchesBuilding(existing, b3d.name),
+			);
+			if (!hasAlias) {
+				mapByName.set(b3d.name, {
+					id: null,
+					name: b3d.name,
+					floors: b3d.floors.map((fl) => ({ id: null, name: fl.name })),
+				});
+			}
+		});
+
+		if (mapByName.size === 0) {
+			return ["Tòa Alpha", "Tòa Epsilon"].map((name) => ({
+				id: null,
+				name,
+				floors: [],
 			}));
 		}
-		const bSet = new Set();
-		areas.forEach((a) => {
-			if (a.building) bSet.add(a.building);
-		});
-		const list = Array.from(bSet).sort();
-		return (list.length > 0 ? list : ["Tòa Alpha", "Tòa Beta"]).map((name) => ({
-			id: null,
-			name,
-			floors: [],
-		}));
+		return Array.from(mapByName.values());
 	}, [buildingsList, areas]);
 
 	// Default building initialization
@@ -319,6 +314,11 @@ export default function AreaListPage() {
 			areas.forEach((a) => {
 				if (a.floor) fSet.add(a.floor);
 			});
+			DEFAULT_BUILDINGS_META.forEach((b3d) => {
+				b3d.floors.forEach((fl) => {
+					if (fl?.name) fSet.add(fl.name);
+				});
+			});
 			if (fSet.size === 0) {
 				fSet.add("Tầng Trệt");
 				fSet.add("Tầng 1");
@@ -337,7 +337,9 @@ export default function AreaListPage() {
 
 		const currentBuildingObj = availableBuildings.find(
 			(b) =>
-				(b.name || "").toUpperCase() === (selectedBuilding || "").toUpperCase(),
+				(b.name || "").toUpperCase() ===
+					(selectedBuilding || "").toUpperCase() ||
+				matchesBuilding(b.name, selectedBuilding),
 		);
 		if (
 			currentBuildingObj &&
@@ -355,7 +357,8 @@ export default function AreaListPage() {
 			.filter(
 				(a) =>
 					(a.building || "").toUpperCase() ===
-					(selectedBuilding || "").toUpperCase(),
+						(selectedBuilding || "").toUpperCase() ||
+					matchesBuilding(a.building, selectedBuilding),
 			)
 			.forEach((a) => {
 				if (a.floor) fSet.add(a.floor);
@@ -391,34 +394,21 @@ export default function AreaListPage() {
 		}
 	}, [availableFloors, selectedFloor]);
 
-	// Modal floors for current form building
-	const modalFloors = useMemo(() => {
-		const bObj = availableBuildings.find(
-			(b) =>
-				(b.name || "").toUpperCase() ===
-				(formData.building || "").toUpperCase(),
-		);
-		if (bObj && bObj.floors && bObj.floors.length > 0) {
-			return bObj.floors;
-		}
-		return [
-			{ id: null, name: "Tầng Trệt" },
-			{ id: null, name: "Tầng 1" },
-		];
-	}, [availableBuildings, formData.building]);
-
-	// Filtered areas on current building and floor (for list view & map view)
+	// Filtered areas on current building and floor (for list view & map view, hỗ trợ alias Tòa HCM <-> Tòa Alpha, Tòa Epsilon <-> Tòa Beta)
 	const floorAreas = useMemo(() => {
 		return areas.filter((a) => {
 			const matchBuilding =
 				!selectedBuilding ||
 				selectedBuilding === "ALL" ||
 				(a.building || "").toUpperCase() ===
-					(selectedBuilding || "").toUpperCase();
+					(selectedBuilding || "").toUpperCase() ||
+				matchesBuilding(a.building, selectedBuilding);
 			const matchFloor =
 				!selectedFloor ||
 				selectedFloor === "ALL" ||
-				(a.floor || "").toUpperCase() === (selectedFloor || "").toUpperCase();
+				(a.floor || "").toUpperCase() === (selectedFloor || "").toUpperCase() ||
+				resolveFloorOrder(a.building, a.floor) ===
+					resolveFloorOrder(selectedBuilding, selectedFloor);
 			return matchBuilding && matchFloor;
 		});
 	}, [areas, selectedBuilding, selectedFloor]);
@@ -462,17 +452,11 @@ export default function AreaListPage() {
 		};
 	}, [areas, cameraCounts]);
 
-	// Handle switching building or floor
-	const handleSelectBuilding = (b) => {
-		setSelectedBuilding(b);
-		setSelectedFloor("ALL");
+	const handleSyncMapFilter = useCallback((nextBuilding, nextFloor) => {
+		setSelectedBuilding(nextBuilding || "ALL");
+		setSelectedFloor(nextFloor || "ALL");
 		setSelectedAreaId(null);
-	};
-
-	const handleSelectFloor = (fl) => {
-		setSelectedFloor(fl);
-		setSelectedAreaId(null);
-	};
+	}, []);
 
 	// Area selection
 	const handleSelectArea = (areaId) => {
@@ -482,57 +466,6 @@ export default function AreaListPage() {
 				behavior: "smooth",
 				block: "nearest",
 			});
-		}
-	};
-
-	// Lỗi khoảng giá trị của từng ô; BR-AR-COORD-02 (chỉ nhập một ô) hiện dưới ô đang trống
-	const latitudeError =
-		coordinateFieldError(formData.centerLatitude, -90, 90, "Vĩ độ") ||
-		(isBlankCoordinate(formData.centerLatitude) && !isBlankCoordinate(formData.centerLongitude)
-			? COORDINATE_PAIR_ERROR
-			: null);
-	const longitudeError =
-		coordinateFieldError(formData.centerLongitude, -180, 180, "Kinh độ") ||
-		(isBlankCoordinate(formData.centerLongitude) && !isBlankCoordinate(formData.centerLatitude)
-			? COORDINATE_PAIR_ERROR
-			: null);
-
-	const handleCreateSubmit = async (e) => {
-		e.preventDefault();
-		const nameValidationError = validateAreaName(formData.name);
-		if (nameValidationError) {
-			setNameError(nameValidationError);
-			return;
-		}
-		setModalError(null);
-		const coordinates = validateCenterCoordinates(
-			formData.centerLatitude,
-			formData.centerLongitude,
-		);
-		if (coordinates.error) {
-			setModalError(coordinates.error);
-			return;
-		}
-		setModalLoading(true);
-		try {
-			const payload = {
-				name: normalizeAreaName(formData.name),
-				areaLevel: formData.areaLevel,
-				building: formData.building ? formData.building.trim() : null,
-				floor: formData.floor ? formData.floor.trim() : null,
-				floorId: formData.floorId || null,
-				centerLatitude: coordinates.centerLatitude,
-				centerLongitude: coordinates.centerLongitude,
-			};
-
-			const created = await createArea(payload);
-			setCreateModalOpen(false);
-			await fetchData(created.id);
-		} catch (err) {
-			console.error("Create area failed:", err);
-			setModalError(getErrorMessage(err));
-		} finally {
-			setModalLoading(false);
 		}
 	};
 
@@ -561,8 +494,8 @@ export default function AreaListPage() {
 			floor: flName,
 			floorId:
 				areaToEdit.floorEntity?.id || areaToEdit.floorId || flObj?.id || null,
-			centerLatitude: areaToEdit.centerLatitude ?? "",
-			centerLongitude: areaToEdit.centerLongitude ?? "",
+			centerLatitude: toNullableCoord(areaToEdit.centerLatitude),
+			centerLongitude: toNullableCoord(areaToEdit.centerLongitude),
 			reason: "",
 			// Step 5b: loại lúc mở để biết có đổi loại không (bắt lý do), version gửi kèm PUT (BR-TC-13)
 			originalAreaLevel: areaToEdit.areaLevel || null,
@@ -582,14 +515,6 @@ export default function AreaListPage() {
 			return;
 		}
 		setModalError(null);
-		const coordinates = validateCenterCoordinates(
-			formData.centerLatitude,
-			formData.centerLongitude,
-		);
-		if (coordinates.error) {
-			setModalError(coordinates.error);
-			return;
-		}
 
 		const targetId = formData.id || selectedArea?.id;
 		if (!targetId) return;
@@ -606,14 +531,15 @@ export default function AreaListPage() {
 		}
 		setEditReasonError(null);
 
+		// Phương án U1: Form Sửa gửi nguyên vẹn cặp tọa độ hiện có (kể cả null/null cho khu vực chưa gắn block 3D)
 		const payload = {
 			name: normalizeAreaName(formData.name),
 			areaLevel: formData.areaLevel,
 			building: formData.building ? formData.building.trim() : null,
 			floor: formData.floor ? formData.floor.trim() : null,
 			floorId: formData.floorId || null,
-			centerLatitude: coordinates.centerLatitude,
-			centerLongitude: coordinates.centerLongitude,
+			centerLatitude: toNullableCoord(formData.centerLatitude),
+			centerLongitude: toNullableCoord(formData.centerLongitude),
 			version: formData.version,
 			...(isTypeChange ? { reason: trimmedReason } : {}),
 		};
@@ -706,7 +632,8 @@ export default function AreaListPage() {
 		setDeactivateReasonError(null);
 	};
 
-	const deactivateBlocked = !dependencies || (dependencies.blockers || []).length > 0;
+	const deactivateBlocked =
+		!dependencies || (dependencies.blockers || []).length > 0;
 
 	const handleDeactivateSubmit = async () => {
 		if (!deactivateTarget || !dependencies) return;
@@ -721,7 +648,10 @@ export default function AreaListPage() {
 		setModalError(null);
 		setDeactivateReasonError(null);
 		try {
-			await deactivateArea(targetId, { reason: trimmed, version: dependencies.version });
+			await deactivateArea(targetId, {
+				reason: trimmed,
+				version: dependencies.version,
+			});
 			closeDeactivateModal();
 			setSelectedAreaId(null);
 			await fetchData();
@@ -792,11 +722,23 @@ export default function AreaListPage() {
 		setRestoreError(null);
 		setRestoreReasonError(null);
 		try {
-			await restoreArea(restoreTarget.id, { reason: trimmed, version: restoreTarget.version });
+			const restored = await restoreArea(restoreTarget.id, {
+				reason: trimmed,
+				version: restoreTarget.version,
+			});
 			setRestoreTarget(null);
 			setRestoreReason("");
 			setRestoreReasonError(null);
 			await Promise.all([fetchDeactivatedAreas(), fetchData()]);
+			if (
+				restored?.centerLatitude == null ||
+				restored?.centerLongitude == null
+			) {
+				toast.info(
+					"Khu vực đã khôi phục nhưng cần chọn lại block 3D mới để hiển thị trên bản đồ.",
+					{ duration: 5000 },
+				);
+			}
 		} catch (err) {
 			console.error("Restore area failed:", err);
 			if (err?.code === "ERR_AREA_045") {
@@ -814,80 +756,49 @@ export default function AreaListPage() {
 
 	return (
 		<div className="zone-page">
-			<PageHeader
-				title="Quản lý khu vực"
-				description={
-					isAdmin
-						? "Thêm mới phân khu, cấu hình cấp độ bảo mật, liên kết camera và thiết lập hạ tầng an ninh."
-						: "Quản lý danh sách nhân sự được chỉ định, tra cứu phân quyền và vận hành phân khu."
-				}
-				actions={null}
-			/>
-
 			{/* ============================================================ */}
-			{/* 1. TOOLBAR: Building, Floor tabs, Spacer, Toggle, Add button */}
+			{/* 1. TOOLBAR: Action buttons (ADMIN ONLY)                      */}
 			{/* ============================================================ */}
-			<div className="zone-toolbar">
-				{/* Building Selector */}
-				<div className="zone-toolbar__select">
-					<Building2
-						size={16}
-						className="zone-toolbar__select-icon"
-					/>
-					<Select
-						className="ui-select-group--filter"
-						value={selectedBuilding}
-						onChange={(e) => handleSelectBuilding(e.target.value)}
-						title="Chọn tòa nhà"
-						options={[
-							{ value: "ALL", label: "Tất cả tòa nhà" },
-							...availableBuildings.map((b) => ({ value: b.name, label: b.name })),
-						]}
-					/>
-				</div>
+			{isAdmin && (
+				<div className="zone-toolbar">
+					<div className="zone-toolbar__spacer" />
+					<div className="zone-toolbar__actions">
+						<button
+							type="button"
+							className="zone-toolbar__studio-btn"
+							onClick={() => setDigitizerStudioOpen(true)}
+							title="Mở Studio 3D"
+						>
+							<Layers
+								size={16}
+								strokeWidth={2.2}
+							/>
+							<span>Studio 3D</span>
+						</button>
 
-				{/* Floor Selector (Options) */}
-				<div className="zone-toolbar__select">
-					<Layers
-						size={16}
-						className="zone-toolbar__select-icon"
-					/>
-					<Select
-						className="ui-select-group--filter"
-						value={selectedFloor}
-						onChange={(e) => handleSelectFloor(e.target.value)}
-						title="Chọn tầng"
-						options={[
-							{ value: "ALL", label: "Tất cả tầng" },
-							...availableFloors.map((fl) => ({ value: fl.name, label: fl.name })),
-						]}
-					/>
-				</div>
-
-				<div className="zone-toolbar__spacer" />
-
-				{/* Add Area Button Group */}
-				<div className="zone-toolbar__actions">
-					{isAdmin && (
 						<button
 							type="button"
 							className="zone-toolbar__add-btn"
 							onClick={handleStartCreateOnMap}
-							title="Thêm vùng mới (chọn tọa độ trên bản đồ)"
+							title="Thêm khu vực từ block 3D"
 						>
 							<Plus
 								size={16}
 								strokeWidth={2.5}
 							/>
-							<span>Thêm vùng</span>	
+							<span>Thêm khu vực</span>
 						</button>
-					)}
+					</div>
 				</div>
-			</div>
+			)}
 
 			{/* MAIN CONTENT: SPLIT-VIEW (MAP + AREA LIST) FOR BOTH ADMIN & FM */}
-			<div className={`zone-split-layout ${isLeftSidebarCollapsed ? "zone-split-layout--sidebar-collapsed" : ""}`}>
-				<aside className={`zone-split-sidebar ${isLeftSidebarCollapsed ? "zone-split-sidebar--collapsed" : ""}`}>
+			<div
+				className={`zone-split-layout ${isLeftSidebarCollapsed ? "zone-split-layout--sidebar-collapsed" : ""}`}
+			>
+				<aside
+					className={`zone-split-sidebar ${isLeftSidebarCollapsed ? "zone-split-sidebar--collapsed" : ""}`}
+				>
 					{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
 
 					{!loading && pageError && (
@@ -900,8 +811,6 @@ export default function AreaListPage() {
 					{!loading && !pageError && (
 						<AreaListView
 							floorAreas={floorAreas}
-							selectedFloor={selectedFloor}
-							selectedBuilding={selectedBuilding}
 							selectedAreaId={selectedAreaId}
 							cameraCounts={cameraCounts}
 							isAdmin={isAdmin}
@@ -912,6 +821,14 @@ export default function AreaListPage() {
 							onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
 							onOpenEditModal={handleOpenEditModal}
 							onOpenDeactivateModal={handleOpenDeactivateModal}
+							onStartRebind3d={
+								isAdmin
+									? (area) => {
+											setSelectedAreaId(area.id);
+											setRebindingAreaId(area.id);
+										}
+									: undefined
+							}
 							showDeactivated={showDeactivated}
 							onToggleShowDeactivated={setShowDeactivated}
 							deactivatedAreas={deactivatedAreas}
@@ -926,7 +843,7 @@ export default function AreaListPage() {
 				<section className="zone-split-map">
 					<ErrorBoundary>
 						<CampusMapView
-							areas={floorAreas}
+							areas={areas}
 							selectedAreaId={selectedAreaId}
 							cameraCounts={cameraCounts}
 							isAdmin={isAdmin}
@@ -936,15 +853,23 @@ export default function AreaListPage() {
 							buildingsList={availableBuildings}
 							selectedBuilding={selectedBuilding}
 							selectedFloor={selectedFloor}
+							onSyncMapFilter={handleSyncMapFilter}
 							isCreatingArea={isAdmin ? isCreatingOnMap : false}
+							onStartCreateFromRoom={
+								isAdmin ? () => setIsCreatingOnMap(true) : undefined
+							}
 							onCancelCreateArea={() => setIsCreatingOnMap(false)}
+							rebindAreaRequestId={rebindingAreaId}
+							onRebindAreaDone={() => setRebindingAreaId(null)}
 							onAreaCreated={async (newArea) => {
 								setIsCreatingOnMap(false);
 								await fetchData(newArea.id);
 							}}
 							hideRail={true}
 							isLeftSidebarCollapsed={isLeftSidebarCollapsed}
-							onToggleLeftSidebar={() => setIsLeftSidebarCollapsed((prev) => !prev)}
+							onToggleLeftSidebar={() =>
+								setIsLeftSidebarCollapsed((prev) => !prev)
+							}
 						/>
 					</ErrorBoundary>
 				</section>
@@ -954,254 +879,14 @@ export default function AreaListPage() {
 			{/* 4. MODALS (CREATE, EDIT, DEACTIVATE)                         */}
 			{/* ============================================================ */}
 
-			{/* CREATE ZONE MODAL */}
-			{createModalOpen && (
-				<div
-					className="area-modal-backdrop"
-					onClick={() => setCreateModalOpen(false)}
-				>
-					<div
-						className="area-modal"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<div className="area-modal__header">
-							<div className="area-modal__header-left">
-								<div className="area-modal__icon-badge">
-									<MapPinPlus size={16} />
-								</div>
-								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Thêm vùng mới</h3>
-									<p className="area-modal__subtitle">
-										Tạo khu vực giám sát trong tòa nhà
-									</p>
-								</div>
-							</div>
-							<button
-								type="button"
-								className="area-modal__close-btn"
-								onClick={() => setCreateModalOpen(false)}
-								aria-label="Đóng"
-							>
-								<X size={16} />
-							</button>
-						</div>
-
-						<form onSubmit={handleCreateSubmit}>
-							<div className="area-modal__body">
-								{modalError && (
-									<div className="zone-modal-alert">
-										<AlertCircle size={15} />
-										<span>{modalError}</span>
-									</div>
-								)}
-
-								{/* 3. Tên khu vực (bắt buộc) */}
-								<div className="area-form-group">
-									<label
-										htmlFor="create-name"
-										className="area-form-label"
-									>
-										Tên khu vực <span className="required">*</span>
-									</label>
-									<input
-										id="create-name"
-										type="text"
-										required
-										className={`area-form-input ${nameError ? "area-form-input--error" : ""}`}
-										placeholder="Cổng chính tòa nhà"
-										value={formData.name}
-										onChange={(e) => {
-											setFormData({ ...formData, name: e.target.value });
-											if (nameError)
-												setNameError(validateAreaName(e.target.value));
-										}}
-										onBlur={(e) =>
-											setNameError(validateAreaName(e.target.value))
-										}
-									/>
-									{nameError && (
-										<div className="area-form-error">{nameError}</div>
-									)}
-								</div>
-
-								{/* 3c. Cấp độ an ninh (bắt buộc) - 3 thẻ chọn */}
-								<div className="area-form-group">
-									<label className="area-form-label">
-										Loại khu vực <span className="required">*</span>
-									</label>
-									<div className="area-level-selector">
-										{AREA_LEVEL_CARDS.map((card) => {
-											const isSelected = formData.areaLevel === card.value;
-											const levelClass = AREA_LEVEL_BTN_CLASS[card.value];
-											const subText = `Cấp ${card.level}, cố định theo loại`;
-
-											return (
-												<button
-													key={card.value}
-													type="button"
-													className={`area-level-btn ${levelClass} ${isSelected ? "is-selected" : ""}`}
-													onClick={() =>
-														setFormData({ ...formData, areaLevel: card.value })
-													}
-												>
-													<span
-														className="area-level-btn__dot"
-														style={{ backgroundColor: card.color }}
-													/>
-													<span className="area-level-btn__name">
-														{card.name}
-													</span>
-													{subText && (
-														<span className="area-level-btn__sub">
-															{subText}
-														</span>
-													)}
-												</button>
-											);
-										})}
-									</div>
-								</div>
-
-								{/* 3d. Toà nhà và Tầng - phân cấp chuẩn */}
-								<div className="area-form-row">
-									<div className="area-form-group">
-										<label
-											htmlFor="create-building"
-											className="area-form-label"
-										>
-											Tòa nhà / Phân khu <span className="required">*</span>
-										</label>
-										<Select
-											id="create-building"
-											value={formData.building}
-											onChange={(e) => {
-												const newB = e.target.value;
-												const bObj = availableBuildings.find(
-													(b) => b.name === newB,
-												);
-												const firstFloor = bObj?.floors?.[0];
-												setFormData({
-													...formData,
-													building: newB,
-													floor: firstFloor ? firstFloor.name : "Tầng Trệt",
-													floorId: firstFloor ? firstFloor.id : null,
-												});
-											}}
-											options={availableBuildings.map((b) => ({ value: b.name, label: b.name }))}
-										/>
-									</div>
-
-									<div className="area-form-group">
-										<label
-											htmlFor="create-floor"
-											className="area-form-label"
-										>
-											Tầng <span className="required">*</span>
-										</label>
-										<Select
-											id="create-floor"
-											value={formData.floor}
-											onChange={(e) => {
-												const newF = e.target.value;
-												const flObj = modalFloors.find((f) => f.name === newF);
-												setFormData({
-													...formData,
-													floor: newF,
-													floorId: flObj ? flObj.id : null,
-												});
-											}}
-											options={modalFloors.map((fl) => ({ value: fl.name, label: fl.name }))}
-										/>
-									</div>
-								</div>
-								<div className="area-form-row">
-									<div className="area-form-group">
-										<label
-											htmlFor="create-center-latitude"
-											className="area-form-label"
-										>
-											Vĩ độ
-										</label>
-										<input
-											id="create-center-latitude"
-											type="number"
-											step="any"
-											min="-90"
-											max="90"
-											className={`area-form-input ${latitudeError ? "area-form-input--error" : ""}`}
-											aria-invalid={Boolean(latitudeError)}
-											placeholder="Ví dụ: 10.8411"
-											value={formData.centerLatitude}
-											onChange={(e) =>
-												setFormData({
-													...formData,
-													centerLatitude: e.target.value,
-												})
-											}
-										/>
-										{latitudeError && <div className="area-form-error">{latitudeError}</div>}
-									</div>
-									<div className="area-form-group">
-										<label
-											htmlFor="create-center-longitude"
-											className="area-form-label"
-										>
-											Kinh độ
-										</label>
-										<input
-											id="create-center-longitude"
-											type="number"
-											step="any"
-											min="-180"
-											max="180"
-											className={`area-form-input ${longitudeError ? "area-form-input--error" : ""}`}
-											aria-invalid={Boolean(longitudeError)}
-											placeholder="Ví dụ: 106.8090"
-											value={formData.centerLongitude}
-											onChange={(e) =>
-												setFormData({
-													...formData,
-													centerLongitude: e.target.value,
-												})
-											}
-										/>
-										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
-									</div>
-								</div>
-							</div>
-
-							{/* 4. Phần chân: 2 nút chia đôi chiều rộng, gap 9px */}
-							<div className="area-modal__footer">
-								<button
-									type="button"
-									className="area-btn-modal area-btn-modal--cancel"
-									onClick={() => setCreateModalOpen(false)}
-									disabled={modalLoading}
-								>
-									Huỷ
-								</button>
-								<button
-									type="submit"
-									className="area-btn-modal area-btn-modal--submit"
-									disabled={modalLoading || Boolean(latitudeError || longitudeError)}
-								>
-									{modalLoading ? "Đang tạo..." : "Tạo khu vực"}
-								</button>
-							</div>
-						</form>
-					</div>
-				</div>
-			)}
-
 			{/* EDIT ZONE MODAL */}
 			{editModalOpen && selectedArea && (
-				<div
-					className="area-modal-backdrop"
-					onClick={() => setEditModalOpen(false)}
-				>
-					<div
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài; đóng bằng X / Huỷ / Esc (Esc bị chặn khi đang gửi).
+				<div className="area-modal-backdrop">
+					<DialogPanel
 						className="area-modal"
-						onClick={(e) => e.stopPropagation()}
+						labelledBy="area-modal-title-edit"
+						onClose={() => !modalLoading && setEditModalOpen(false)}
 					>
 						<div className="area-modal__header">
 							<div className="area-modal__header-left">
@@ -1209,10 +894,12 @@ export default function AreaListPage() {
 									<Pencil size={16} />
 								</div>
 								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Chỉnh sửa khu vực</h3>
-									<p className="area-modal__subtitle">
-										Cập nhật thông tin: {selectedArea.name}
-									</p>
+									<h3
+										className="area-modal__title"
+										id="area-modal-title-edit"
+									>
+										Chỉnh sửa khu vực
+									</h3>
 								</div>
 							</div>
 							<button
@@ -1262,19 +949,13 @@ export default function AreaListPage() {
 								</div>
 
 								<div className="area-form-group">
-									<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-										<label className="area-form-label" style={{ marginBottom: 0 }}>
-											Loại khu vực <span className="required">*</span>
-										</label>
-										<span style={{ fontSize: "12.5px", color: "var(--theme-text-secondary, #475569)" }}>
-											Cấp theo loại: <strong>{AREA_LEVEL_CARDS.find((c) => c.value === formData.areaLevel)?.level ?? "—"}</strong>
-										</span>
-									</div>
+									<label className="area-form-label">
+										Loại khu vực <span className="required">*</span>
+									</label>
 									<div className="area-level-selector">
 										{AREA_LEVEL_CARDS.map((card) => {
 											const isSelected = formData.areaLevel === card.value;
 											const levelClass = AREA_LEVEL_BTN_CLASS[card.value];
-											const subText = `Cấp ${card.level}, cố định theo loại`;
 
 											return (
 												<button
@@ -1292,11 +973,9 @@ export default function AreaListPage() {
 													<span className="area-level-btn__name">
 														{card.name}
 													</span>
-													{subText && (
-														<span className="area-level-btn__sub">
-															{subText}
-														</span>
-													)}
+													<span className="area-level-btn__sub">
+														Cấp {card.level}
+													</span>
 												</button>
 											);
 										})}
@@ -1304,131 +983,61 @@ export default function AreaListPage() {
 								</div>
 
 								{/* Step 5b (BR-TC-02): đổi loại -> bắt buộc lý do (độ dài theo cấu hình), ghi vào audit CHANGE_TYPE */}
-								{formData.originalAreaLevel && formData.areaLevel !== formData.originalAreaLevel && (
-									<div className="area-form-group">
-										<ReasonTextarea
-											ref={editReasonRef}
-											id="edit-type-change-reason"
-											label="Lý do đổi loại khu vực"
-											placeholder={`Nêu lý do đổi loại (${reasonLimits.range} ký tự)...`}
-											value={formData.reason || ""}
-											onChange={(e) => {
-												const val = e.target.value;
-												setFormData({ ...formData, reason: val });
-												if (editReasonError && reasonLimits.isValid(val)) {
-													setEditReasonError(null);
-												}
-											}}
-											error={editReasonError}
-											hint="Đổi loại sẽ áp cấp truy cập theo mặc định của loại mới và có thể huỷ các đơn truy cập không còn phù hợp."
-											required
-										/>
-									</div>
-								)}
+								{formData.originalAreaLevel &&
+									formData.areaLevel !== formData.originalAreaLevel && (
+										<div className="area-form-group">
+											<ReasonTextarea
+												ref={editReasonRef}
+												id="edit-type-change-reason"
+												label="Lý do đổi loại"
+												placeholder={`Lý do đổi loại (${reasonLimits.range} ký tự)...`}
+												value={formData.reason || ""}
+												onChange={(e) => {
+													const val = e.target.value;
+													setFormData({ ...formData, reason: val });
+													if (editReasonError && reasonLimits.isValid(val)) {
+														setEditReasonError(null);
+													}
+												}}
+												error={editReasonError}
+												hint="Đổi loại sẽ cập nhật cấp truy cập mặc định."
+												required
+											/>
+										</div>
+									)}
 
-								<div className="area-form-row">
-									<div className="area-form-group">
-										<label
-											htmlFor="edit-building"
-											className="area-form-label"
-										>
-											Tòa nhà / Phân khu <span className="required">*</span>
-										</label>
-										<Select
-											id="edit-building"
-											value={formData.building}
-											onChange={(e) => {
-												const newB = e.target.value;
-												const bObj = availableBuildings.find(
-													(b) => b.name === newB,
-												);
-												const firstFloor = bObj?.floors?.[0];
-												setFormData({
-													...formData,
-													building: newB,
-													floor: firstFloor ? firstFloor.name : "Tầng Trệt",
-													floorId: firstFloor ? firstFloor.id : null,
-												});
-											}}
-											options={availableBuildings.map((b) => ({ value: b.name, label: b.name }))}
-										/>
-									</div>
-
-									<div className="area-form-group">
-										<label
-											htmlFor="edit-floor"
-											className="area-form-label"
-										>
-											Tầng <span className="required">*</span>
-										</label>
-										<Select
-											id="edit-floor"
-											value={formData.floor}
-											onChange={(e) => {
-												const newF = e.target.value;
-												const flObj = modalFloors.find((f) => f.name === newF);
-												setFormData({
-													...formData,
-													floor: newF,
-													floorId: flObj ? flObj.id : null,
-												});
-											}}
-											options={modalFloors.map((fl) => ({ value: fl.name, label: fl.name }))}
-										/>
-									</div>
-								</div>
-								<div className="area-form-row">
-									<div className="area-form-group">
-										<label
-											htmlFor="edit-center-latitude"
-											className="area-form-label"
-										>
-											Vĩ độ
-										</label>
-										<input
-											id="edit-center-latitude"
-											type="number"
-											step="any"
-											min="-90"
-											max="90"
-											className={`area-form-input ${latitudeError ? "area-form-input--error" : ""}`}
-											aria-invalid={Boolean(latitudeError)}
-											placeholder="Ví dụ: 10.8411"
-											value={formData.centerLatitude}
-											onChange={(e) =>
-												setFormData({
-													...formData,
-													centerLatitude: e.target.value,
-												})
-											}
-										/>
-										{latitudeError && <div className="area-form-error">{latitudeError}</div>}
-									</div>
-									<div className="area-form-group">
-										<label
-											htmlFor="edit-center-longitude"
-											className="area-form-label"
-										>
-											Kinh độ
-										</label>
-										<input
-											id="edit-center-longitude"
-											type="number"
-											step="any"
-											min="-180"
-											max="180"
-											className={`area-form-input ${longitudeError ? "area-form-input--error" : ""}`}
-											aria-invalid={Boolean(longitudeError)}
-											placeholder="Ví dụ: 106.8090"
-											value={formData.centerLongitude}
-											onChange={(e) =>
-												setFormData({
-													...formData,
-													centerLongitude: e.target.value,
-												})
-											}
-										/>
-										{longitudeError && <div className="area-form-error">{longitudeError}</div>}
+								<div className="area-form-group">
+									<label className="area-form-label">Vị trí 3D</label>
+									<div className="area-readonly-location-bar">
+										<div className="area-readonly-location-bar__info">
+											<strong>
+												{formData.building || "—"} · {formData.floor || "—"}
+											</strong>
+											{(formData.centerLatitude == null ||
+												formData.centerLongitude == null) && (
+												<span className="area-location-status--missing">
+													Chưa gắn block 3D
+												</span>
+											)}
+										</div>
+										{isAdmin && formData.id && (
+											<button
+												type="button"
+												className="area-rebind-3d-btn"
+												onClick={() => {
+													const targetId = formData.id;
+													setEditModalOpen(false);
+													setSelectedAreaId(targetId);
+													setRebindingAreaId(targetId);
+												}}
+											>
+												<Crosshair size={13} />
+												{formData.centerLatitude == null ||
+												formData.centerLongitude == null
+													? "Chọn block 3D"
+													: "Đổi block 3D"}
+											</button>
+										)}
 									</div>
 								</div>
 							</div>
@@ -1445,13 +1054,13 @@ export default function AreaListPage() {
 								<button
 									type="submit"
 									className="area-btn-modal area-btn-modal--submit"
-									disabled={modalLoading || Boolean(latitudeError || longitudeError)}
+									disabled={modalLoading}
 								>
 									{modalLoading ? "Đang lưu..." : "Lưu thay đổi"}
 								</button>
 							</div>
 						</form>
-					</div>
+					</DialogPanel>
 				</div>
 			)}
 			{/* BL2: render sau form sửa để nằm trên (cùng z-index 1000) */}
@@ -1466,13 +1075,12 @@ export default function AreaListPage() {
 
 			{/* DEACTIVATE ZONE MODAL — Step 6 (BR-AD-01, 08): xem trước + lý do + version */}
 			{deactivateModalOpen && deactivateTarget && (
-				<div
-					className="area-modal-backdrop"
-					onClick={closeDeactivateModal}
-				>
-					<div
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài; đóng bằng X / Huỷ / Esc (Esc bị chặn khi đang gửi).
+				<div className="area-modal-backdrop">
+					<DialogPanel
 						className="area-modal"
-						onClick={(e) => e.stopPropagation()}
+						labelledBy="area-modal-title-deactivate"
+						onClose={() => !modalLoading && closeDeactivateModal()}
 					>
 						<div className="area-modal__header">
 							<div className="area-modal__header-left">
@@ -1480,10 +1088,12 @@ export default function AreaListPage() {
 									<Trash2 size={16} />
 								</div>
 								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Vô hiệu hóa khu vực</h3>
-									<p className="area-modal__subtitle">
-										Khu vực ngừng hoạt động, không còn nhận đơn hay lượt khách
-									</p>
+									<h3
+										className="area-modal__title"
+										id="area-modal-title-deactivate"
+									>
+										Vô hiệu hóa khu vực
+									</h3>
 								</div>
 							</div>
 							<button
@@ -1505,7 +1115,7 @@ export default function AreaListPage() {
 							)}
 
 							<p className="area-modal__lead">
-								Vô hiệu hóa khu vực <strong>{deactivateTarget.name}</strong>?
+								Vô hiệu hóa <strong>{deactivateTarget.name}</strong>?
 							</p>
 
 							{modalLoading && !dependencies && (
@@ -1525,7 +1135,7 @@ export default function AreaListPage() {
 								>
 									<div className="area-deactivate-blockers__title">
 										<AlertTriangle size={15} />
-										<span>Chưa thể vô hiệu hóa — cần xử lý trước:</span>
+										<span>Chưa thể vô hiệu hóa:</span>
 									</div>
 									<ul>
 										{dependencies.blockers.map((b) => (
@@ -1538,23 +1148,23 @@ export default function AreaListPage() {
 							{dependencies && (
 								<div className="area-dependencies-box">
 									<div className="area-dependencies-box__title">
-										Hệ thống sẽ tự xử lý khi vô hiệu hóa:
+										Tác động đi kèm:
 									</div>
 									<ul>
 										<li>
-											Nhân sự chỉ định bị thu hồi:{" "}
+											Thu hồi nhân sự chỉ định:{" "}
 											<strong>{dependencies.apToRevoke ?? 0}</strong>
 										</li>
 										<li>
-											Đơn truy cập bị huỷ:{" "}
+											Huỷ đơn truy cập:{" "}
 											<strong>{dependencies.requestsToCancel ?? 0}</strong>
 										</li>
 										<li>
-											Lượt khách chờ duyệt bị huỷ:{" "}
+											Huỷ lượt khách chờ duyệt:{" "}
 											<strong>{dependencies.guestVisitsToCancel ?? 0}</strong>
 										</li>
 										<li>
-											Lượt khách đã duyệt bị thu hồi (xóa ảnh khuôn mặt):{" "}
+											Thu hồi lượt khách đã duyệt:{" "}
 											<strong>{dependencies.guestVisitsToRevoke ?? 0}</strong>
 										</li>
 									</ul>
@@ -1567,7 +1177,7 @@ export default function AreaListPage() {
 										ref={deactivateReasonRef}
 										id="deactivate-reason"
 										label="Lý do vô hiệu hóa"
-										placeholder={`Nêu lý do vô hiệu hóa (${reasonLimits.range} ký tự)...`}
+										placeholder={`Lý do vô hiệu hóa (${reasonLimits.range} ký tự)...`}
 										value={deactivateReason}
 										onChange={(e) => {
 											const val = e.target.value;
@@ -1599,29 +1209,26 @@ export default function AreaListPage() {
 								onClick={handleDeactivateSubmit}
 								disabled={modalLoading || deactivateBlocked}
 							>
-								{modalLoading && dependencies
-									? "Đang vô hiệu hóa..."
-									: "Xác nhận vô hiệu hóa"}
+								{modalLoading && dependencies ? "Đang xử lý..." : "Vô hiệu hóa"}
 							</button>
 						</div>
-					</div>
+					</DialogPanel>
 				</div>
 			)}
 
 			{/* RESTORE ZONE MODAL — Step 6 (BR-AD-07) */}
 			{restoreTarget && (
-				<div
-					className="area-modal-backdrop"
-					onClick={() => {
-						if (!restoreLoading) {
-							setRestoreTarget(null);
-							setRestoreReasonError(null);
-						}
-					}}
-				>
-					<div
+				// Popup có form nhập liệu → không đóng khi bấm ra ngoài; đóng bằng X / Huỷ / Esc (Esc bị chặn khi đang gửi).
+				<div className="area-modal-backdrop">
+					<DialogPanel
 						className="area-modal"
-						onClick={(e) => e.stopPropagation()}
+						labelledBy="area-modal-title-restore"
+						onClose={() => {
+							if (!restoreLoading) {
+								setRestoreTarget(null);
+								setRestoreReasonError(null);
+							}
+						}}
 					>
 						<div className="area-modal__header">
 							<div className="area-modal__header-left">
@@ -1629,10 +1236,12 @@ export default function AreaListPage() {
 									<RotateCcw size={16} />
 								</div>
 								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Khôi phục khu vực</h3>
-									<p className="area-modal__subtitle">
-										Mở lại khu vực đã vô hiệu hóa
-									</p>
+									<h3
+										className="area-modal__title"
+										id="area-modal-title-restore"
+									>
+										Khôi phục khu vực
+									</h3>
 								</div>
 							</div>
 							<button
@@ -1657,17 +1266,15 @@ export default function AreaListPage() {
 								</div>
 							)}
 							<p className="area-modal__lead">
-								Khôi phục khu vực <strong>{restoreTarget.name}</strong> (
-								{restoreTarget.building || "—"} / {restoreTarget.floor || "—"})?
+								Khôi phục <strong>{restoreTarget.name}</strong> (
+								{restoreTarget.building || "—"} · {restoreTarget.floor || "—"})?
 							</p>
 							<div className="area-dependencies-box">
 								<div className="area-dependencies-box__title">Lưu ý</div>
 								<ul>
 									<li>
-										Nhân sự chỉ định, đơn truy cập và lượt khách đã bị huỷ / thu
-										hồi KHÔNG tự hồi phục.
+										Nhân sự, đơn, lượt khách cũ và camera không tự khôi phục.
 									</li>
-									<li>Camera cần được gán lại nếu cần.</li>
 								</ul>
 							</div>
 							<div className="area-form-group">
@@ -1675,7 +1282,7 @@ export default function AreaListPage() {
 									ref={restoreReasonRef}
 									id="restore-reason"
 									label="Lý do khôi phục"
-									placeholder={`Nêu lý do khôi phục (${reasonLimits.range} ký tự)...`}
+									placeholder={`Lý do khôi phục (${reasonLimits.range} ký tự)...`}
 									value={restoreReason}
 									onChange={(e) => {
 										const val = e.target.value;
@@ -1709,10 +1316,10 @@ export default function AreaListPage() {
 								onClick={handleRestoreSubmit}
 								disabled={restoreLoading}
 							>
-								{restoreLoading ? "Đang khôi phục..." : "Xác nhận khôi phục"}
+								{restoreLoading ? "Đang khôi phục..." : "Khôi phục"}
 							</button>
 						</div>
-					</div>
+					</DialogPanel>
 				</div>
 			)}
 
@@ -1732,9 +1339,7 @@ export default function AreaListPage() {
 									<Cctv size={18} />
 								</div>
 								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">
-										Danh sách Camera
-									</h3>
+									<h3 className="area-modal__title">Danh sách Camera</h3>
 								</div>
 							</div>
 							<button
@@ -1944,6 +1549,14 @@ export default function AreaListPage() {
 				area={assignedPersonnelModalArea}
 				isFacilityManager={isFacilityManager}
 			/>
+
+			{/* Standalone 3D Floor Plan Digitizer Studio (ADMIN Dev Tool ONLY) */}
+			{isAdmin && digitizerStudioOpen && (
+				<FloorDigitizerStudio
+					isOpen={digitizerStudioOpen}
+					onClose={() => setDigitizerStudioOpen(false)}
+				/>
+			)}
 		</div>
 	);
 }

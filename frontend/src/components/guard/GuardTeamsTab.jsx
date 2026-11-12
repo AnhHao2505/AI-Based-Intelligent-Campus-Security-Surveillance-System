@@ -1979,7 +1979,7 @@ export default function GuardTeamsTab({
                         ...(!buildings || buildings.length === 0
                           ? [
                               { value: 'Tòa Alpha', label: 'Tòa Alpha' },
-                              { value: 'Tòa Beta', label: 'Tòa Beta' },
+                              { value: 'Tòa Epsilon', label: 'Tòa Epsilon' },
                             ]
                           : []),
                       ]}

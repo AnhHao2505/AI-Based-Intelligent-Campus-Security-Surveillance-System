@@ -23,8 +23,8 @@ icss:
     event-mode-tick-cron: "-"
     expire-overdue-cron: "-"
     finish-elapsed-cron: "-"
-    notification-expiring-soon-cron: "-"
-    notification-pending-overdue-cron: "-"
+    # Nhịp job thông báo (NotificationScanScheduler, V113): test gọi thẳng tick(now)
+    notification-scan-tick-cron: "-"
     rate-limiter-cleanup-cron: "-"
     # Job lượt khách (GuestVisitJobService)
     guest-visit-tick-cron: "-"

@@ -92,9 +92,7 @@ export default function AreaTypeChangePreviewModal({ isOpen, areaName, preview, 
 							{preview.blockingReasons.map((b) => (
 								<li key={b.code} className="atcp-alert atcp-alert--danger">
 									<Ban size={15} />
-									<span>
-										<strong>{b.code}</strong> — {b.message}
-									</span>
+									<span>{b.message}</span>
 								</li>
 							))}
 						</ul>

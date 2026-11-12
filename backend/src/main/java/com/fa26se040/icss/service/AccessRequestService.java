@@ -400,11 +400,13 @@ public class AccessRequestService {
         if (pageable.getSort().isUnsorted()) {
             effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "createdAt"));
         }
-        Specification<AccessRequest> spec = AccessRequestSpecification.filter(requester.getId(), status, areaId);
+        // T1b: lọc và trả trạng thái HIỆU LỰC theo cùng một mốc now
+        OffsetDateTime now = OffsetDateTime.now();
+        Specification<AccessRequest> spec = AccessRequestSpecification.filter(requester.getId(), status, areaId, now);
         Page<AccessRequest> page = accessRequestRepository.findAll(spec, effectivePageable);
         return page.map(ar -> {
             boolean isReq = ar.getRequester() != null && requester.getId().equals(ar.getRequester().getId());
-            return mapToResponse(ar, isReq);
+            return mapToResponse(ar, isReq, now);
         });
     }
 
@@ -419,9 +421,11 @@ public class AccessRequestService {
         if (pageable.getSort().isUnsorted()) {
             effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "createdAt"));
         }
-        Specification<AccessRequest> spec = AccessRequestSpecification.filter(null, status, areaId);
+        // T1b: lọc và trả trạng thái HIỆU LỰC theo cùng một mốc now
+        OffsetDateTime now = OffsetDateTime.now();
+        Specification<AccessRequest> spec = AccessRequestSpecification.filter(null, status, areaId, now);
         Page<AccessRequest> page = accessRequestRepository.findAll(spec, effectivePageable);
-        return page.map(this::mapToResponse);
+        return page.map(ar -> mapToResponse(ar, null, now));
     }
 
     @Transactional(readOnly = true)
@@ -723,7 +727,8 @@ public class AccessRequestService {
         AccessRequest current = accessRequestRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
 
-        if (current.getStatus() == RequestStatus.EXPIRED) {
+        // T1b: PENDING đã tới giờ bắt đầu (job chưa chạy) cũng là EXPIRED — cùng lỗi như đã lưu EXPIRED
+        if (current.effectiveStatus(now) == RequestStatus.EXPIRED) {
             throw new ConcurrentReviewException("Yêu cầu này đã hết hạn, không thể huỷ.");
         }
         String reviewerName = (current.getReviewer() != null && current.getReviewer().getFullName() != null)
@@ -1012,7 +1017,9 @@ public class AccessRequestService {
         AccessRequest accessRequest = accessRequestRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
 
-        if (accessRequest.getStatus() != RequestStatus.APPROVED) {
+        // T1b: xét trạng thái HIỆU LỰC — APPROVED đã qua endTime là FINISHED (hết giờ), cùng lỗi như đơn đã lưu FINISHED
+        OffsetDateTime now = OffsetDateTime.now();
+        if (accessRequest.effectiveStatus(now) != RequestStatus.APPROVED) {
             throw new IllegalArgumentException("Chỉ yêu cầu truy cập ở trạng thái Đã duyệt (APPROVED) mới có thể chuyển sang Hoàn thành.");
         }
 
@@ -1025,7 +1032,6 @@ public class AccessRequestService {
         }
 
         // BR-RQ-46: chỉ hoàn thành đơn đã tới giờ bắt đầu (now >= startTime); chưa bắt đầu thì không phải "kết thúc"
-        OffsetDateTime now = OffsetDateTime.now();
         if (accessRequest.getStartTime() != null && now.isBefore(accessRequest.getStartTime())) {
             throw new AccessControlException(AccessControlErrorCode.ERR_AC_007,
                     (Object) accessRequest.getStartTime().atZoneSameInstant(VN_ZONE).format(VN_DATE_TIME_FORMATTER));
@@ -1093,7 +1099,8 @@ public class AccessRequestService {
             throw new AccessControlException(AccessControlErrorCode.ERR_AC_007,
                     (Object) current.getStartTime().atZoneSameInstant(VN_ZONE).format(VN_DATE_TIME_FORMATTER));
         }
-        throw new ConcurrentReviewException("Yêu cầu này đã ở trạng thái " + current.getStatus() + ", không thể hoàn thành.");
+        // T1b: báo trạng thái HIỆU LỰC (APPROVED đã qua endTime -> FINISHED)
+        throw new ConcurrentReviewException("Yêu cầu này đã ở trạng thái " + current.effectiveStatus(now) + ", không thể hoàn thành.");
     }
 
     /**
@@ -1170,16 +1177,18 @@ public class AccessRequestService {
         // 0 dòng: đọc lại để báo đúng nguyên nhân
         AccessRequest current = accessRequestRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
-        if (current.getStatus() == RequestStatus.APPROVED) {
+        // T1b: xét trạng thái HIỆU LỰC — APPROVED đã qua endTime là FINISHED: báo như đơn đã lưu FINISHED, không ERR_AC_008
+        RequestStatus effective = current.effectiveStatus(now);
+        if (effective == RequestStatus.APPROVED) {
             String start = current.getStartTime() != null
                     ? current.getStartTime().atZoneSameInstant(VN_ZONE).format(VN_DATE_TIME_FORMATTER)
                     : "";
             throw new AccessControlException(AccessControlErrorCode.ERR_AC_008, (Object) start);
         }
-        if (current.getStatus() == RequestStatus.PENDING) {
+        if (effective == RequestStatus.PENDING) {
             throw new IllegalArgumentException("Chỉ huỷ được yêu cầu đã được duyệt; yêu cầu đang chờ duyệt hãy dùng Từ chối.");
         }
-        throw new ConcurrentReviewException("Yêu cầu này đã ở trạng thái " + current.getStatus() + ", không thể huỷ.");
+        throw new ConcurrentReviewException("Yêu cầu này đã ở trạng thái " + effective + ", không thể huỷ.");
     }
 
     private void validateCommonRules(Area area, OffsetDateTime startTime, OffsetDateTime endTime) {
@@ -1296,10 +1305,16 @@ public class AccessRequestService {
     }
 
     private AccessRequestResponse mapToResponse(AccessRequest ar) {
-        return mapToResponse(ar, null);
+        return mapToResponse(ar, null, OffsetDateTime.now());
     }
 
-    private AccessRequestResponse mapToResponse(AccessRequest ar, Boolean isRequester) {
+    /**
+     * T1b: status trả ra là trạng thái HIỆU LỰC tại now (AccessRequest.effectiveStatus). Đơn APPROVED đã qua endTime trả
+     * FINISHED kèm finishReason = FINISH_REASON_ELAPSED như job sẽ ghi, nên sau khi job chạy kết quả không đổi.
+     */
+    private AccessRequestResponse mapToResponse(AccessRequest ar, Boolean isRequester, OffsetDateTime now) {
+        RequestStatus effectiveStatus = ar.effectiveStatus(now);
+        boolean finishedByTime = effectiveStatus == RequestStatus.FINISHED && ar.getStatus() == RequestStatus.APPROVED;
         List<MemberInfo> memberInfos = List.of();
         if (ar.getMembers() != null && !ar.getMembers().isEmpty()) {
             memberInfos = ar.getMembers().stream()
@@ -1327,7 +1342,7 @@ public class AccessRequestService {
                 ar.getPurpose(),
                 ar.getStartTime(),
                 ar.getEndTime(),
-                ar.getStatus(),
+                effectiveStatus,
                 ar.getReviewer() != null ? ar.getReviewer().getId() : null,
                 ar.getReviewer() != null ? ar.getReviewer().getFullName() : null,
                 ar.getReviewer() != null ? ar.getReviewer().getEmail() : null,
@@ -1340,7 +1355,7 @@ public class AccessRequestService {
                 ar.getCancelSource(),
                 ar.getCancelReason(),
                 ar.getCancelledBy() != null ? ar.getCancelledBy().getId() : null,
-                ar.getFinishReason(),
+                finishedByTime ? FINISH_REASON_ELAPSED : ar.getFinishReason(),
                 ar.getFinishedBy() != null ? ar.getFinishedBy().getFullName() : null
         );
     }

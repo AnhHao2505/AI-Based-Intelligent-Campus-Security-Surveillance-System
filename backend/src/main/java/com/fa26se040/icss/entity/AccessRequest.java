@@ -129,6 +129,31 @@ public class AccessRequest {
         updatedAt = OffsetDateTime.now();
     }
 
+    /** T1b: trạng thái hiệu lực tại now, xem {@link #effectiveStatus(RequestStatus, OffsetDateTime, OffsetDateTime, OffsetDateTime)}. */
+    public RequestStatus effectiveStatus(OffsetDateTime now) {
+        return effectiveStatus(status, startTime, endTime, now);
+    }
+
+    /**
+     * T1b (Lucas chốt 11/11): trạng thái hiển thị / dùng cho thao tác ngay tại now, không chờ job.
+     * <ul>
+     *   <li>lưu APPROVED và now ≥ endTime -> FINISHED (hết giờ; job finishElapsedApprovedRequests sẽ ghi sau)</li>
+     *   <li>lưu PENDING và now ≥ startTime -> EXPIRED (job expireOverdueRequests sẽ ghi sau)</li>
+     *   <li>còn lại -> trạng thái lưu</li>
+     * </ul>
+     * Cùng điều kiện với bộ lọc AccessRequestSpecification và các câu UPDATE có điều kiện của AccessRequestRepository.
+     */
+    public static RequestStatus effectiveStatus(RequestStatus stored, OffsetDateTime startTime, OffsetDateTime endTime,
+                                                OffsetDateTime now) {
+        if (stored == RequestStatus.APPROVED && endTime != null && !now.isBefore(endTime)) {
+            return RequestStatus.FINISHED;
+        }
+        if (stored == RequestStatus.PENDING && startTime != null && !now.isBefore(startTime)) {
+            return RequestStatus.EXPIRED;
+        }
+        return stored;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

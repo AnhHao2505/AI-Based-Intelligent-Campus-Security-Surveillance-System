@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
 	LayoutDashboard,
@@ -13,8 +13,9 @@ import {
 	LogOut,
 	History,
 	Bell,
-	ChevronLeft,
-	ChevronRight,
+	ChevronDown,
+	Pin,
+	PinOff,
 	CalendarClock,
 	CalendarDays,
 	Sliders,
@@ -26,46 +27,53 @@ import {
 } from "lucide-react";
 import { ROLES, ROLE_SHORT_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
-import { useUiStore } from "../../store/useUiStore";
 import { notificationService } from "../../services/notificationService";
 import FptBrandLogo from "../common/FptBrandLogo";
 import "../../styles/Sidebar.css";
 
-export default function Sidebar({ user, onLogout }) {
+export default function Sidebar({ user, onLogout, onLayoutChange }) {
 	const { theme, toggleTheme } = useTheme();
-	const { sidebarCollapsed, toggleSidebar } = useUiStore();
+	const { pathname } = useLocation();
 
 	const [unreadCount, setUnreadCount] = useState(0);
-	const { pathname } = useLocation();
-	// Vùng menu cuộn được (.sidebar__header): mục active tự hiện ra, bóng mờ báo còn mục bên dưới (UI-AUDIT #15)
-	const menuRef = useRef(null);
-	const [hasMoreBelow, setHasMoreBelow] = useState(false);
+	const [isOpen, setIsOpen] = useState(false);
+	const [isPinned, setIsPinned] = useState(false);
+	const [isTwoRow, setIsTwoRow] = useState(false);
+	const closeTimerRef = useRef(null);
+	const headbarRef = useRef(null);
+	const navRef = useRef(null);
 
-	const updateMoreBelow = useCallback(() => {
-		const el = menuRef.current;
-		if (!el) return;
-		setHasMoreBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 1);
+	const clearCloseTimer = useCallback(() => {
+		if (closeTimerRef.current) {
+			clearTimeout(closeTimerRef.current);
+			closeTimerRef.current = null;
+		}
 	}, []);
 
-	useEffect(() => {
-		const active = menuRef.current?.querySelector(".sidebar__link--active");
-		active?.scrollIntoView({ block: "nearest" });
-		updateMoreBelow();
-	}, [pathname, sidebarCollapsed, updateMoreBelow]);
+	const openHeadbar = useCallback(() => {
+		clearCloseTimer();
+		setIsOpen(true);
+	}, [clearCloseTimer]);
+
+	const scheduleClose = useCallback(() => {
+		if (isPinned) return;
+		clearCloseTimer();
+		closeTimerRef.current = setTimeout(() => {
+			setIsOpen(false);
+			closeTimerRef.current = null;
+		}, 240);
+	}, [isPinned, clearCloseTimer]);
 
 	useEffect(() => {
-		const el = menuRef.current;
-		if (!el) return undefined;
-		el.addEventListener("scroll", updateMoreBelow, { passive: true });
-		const observer = new ResizeObserver(updateMoreBelow);
-		observer.observe(el);
-		const nav = el.querySelector(".sidebar__nav");
-		if (nav) observer.observe(nav);
-		return () => {
-			el.removeEventListener("scroll", updateMoreBelow);
-			observer.disconnect();
-		};
-	}, [updateMoreBelow]);
+		return () => clearCloseTimer();
+	}, [clearCloseTimer]);
+
+	// Close on touch/narrow navigation when unpinned
+	useEffect(() => {
+		if (!isPinned && window.matchMedia?.("(hover: none)")?.matches) {
+			setIsOpen(false);
+		}
+	}, [pathname, isPinned]);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -115,440 +123,270 @@ export default function Sidebar({ user, onLogout }) {
 		userRole === "INTERNAL_GUARD" ||
 		userRole === "OUTSOURCED_GUARD";
 
-	return (
-		<aside
-			className={`sidebar ${sidebarCollapsed ? "sidebar--collapsed" : ""} ${hasMoreBelow ? "sidebar--more-below" : ""}`}
-		>
-			<div className="sidebar__header" ref={menuRef}>
-				<NavLink
-					to={isNormalUser ? "/access-requests" : "/dashboard"}
-					className="sidebar__brand"
-					title={sidebarCollapsed ? "FPTU SecureVision" : undefined}
-				>
-					<div className="sidebar__logo">
-						<FptBrandLogo variant="symbol" height={22} />
-					</div>
-					<div>
-						<div className="sidebar__title">FPTU SecureVision</div>
-						<div className="sidebar__subtitle">Campus Security</div>
-					</div>
-				</NavLink>
-				<button
-					type="button"
-					className="sidebar__collapse-button"
-					onClick={toggleSidebar}
-					aria-label={
-						sidebarCollapsed
-							? "Mở rộng thanh điều hướng"
-							: "Thu gọn thanh điều hướng"
+	const navItems = useMemo(() => {
+		if (isNormalUser) {
+			return [
+				{ to: "/access-requests", label: "Yêu cầu truy cập", Icon: KeyRound },
+				{ to: "/access-history", label: "Lịch sử ra vào của tôi", Icon: History },
+				{ to: "/guest-visits", label: "Khách của tôi", Icon: UserPlus },
+				{ to: "/notifications", label: "Thông báo", Icon: Bell, hasUnread: true },
+			];
+		}
+
+		const items = [{ to: "/dashboard", label: "Tổng quan", Icon: LayoutDashboard }];
+
+		if (isGuard) {
+			items.push(
+				{ to: "/guard", label: "Trung tâm Giám sát", Icon: ShieldAlert },
+				{ to: "/recordings", label: "Kho lưu trữ ghi hình", Icon: Film },
+				{ to: "/notifications", label: "Thông báo", Icon: Bell, hasUnread: true },
+			);
+		}
+
+		if (isAdmin) {
+			items.push(
+				{ to: "/cameras", label: "Quản lý camera", Icon: Video },
+				{ to: "/recordings", label: "Kho lưu trữ ghi hình", Icon: Film },
+			);
+		}
+
+		if (isFacilityManager || isAdmin) {
+			items.push(
+				{ to: "/admin/areas", label: "Quản lý khuôn viên", Icon: MapPin },
+				{ to: "/admin/events", label: "Quản lý sự kiện", Icon: CalendarDays },
+				{ to: "/admin/access-history", label: "Lịch sử ra vào", Icon: History },
+			);
+		}
+
+		if (isFacilityManager) {
+			items.push(
+				{ to: "/guest-visits", label: "Khách của tôi", Icon: UserPlus },
+				{ to: "/notifications", label: "Thông báo", Icon: Bell, hasUnread: true },
+				{ to: "/admin/access-requests", label: "Phê duyệt yêu cầu", Icon: ClipboardCheck },
+				{ to: "/admin/guard-teams", label: "Quản lý Đội bảo vệ", Icon: CalendarClock },
+				{ to: "/fm/access-levels", label: "Cấp truy cập người dùng", Icon: ShieldCheck },
+				{ to: "/admin/audit-logs", label: "Nhật ký kiểm toán", Icon: History },
+			);
+		}
+
+		if (isAdmin) {
+			items.push(
+				{ to: "/notifications", label: "Thông báo", Icon: Bell, hasUnread: true },
+				{ to: "/admin/accounts", label: "Quản lý tài khoản", Icon: Users },
+				{ to: "/admin/guest-photos", label: "Ảnh khách", Icon: Camera },
+				{ to: "/admin/audit-logs", label: "Nhật ký kiểm toán", Icon: History },
+				{ to: "/admin/system-configurations", label: "Cấu hình hệ thống", Icon: Sliders },
+				{ to: "/admin/reason-catalogs", label: "Danh mục lý do", Icon: Tag },
+			);
+		}
+
+		return items;
+	}, [isNormalUser, isGuard, isAdmin, isFacilityManager]);
+
+	const visible = isOpen || isPinned;
+
+	// Sync headbar height with AppLayout so content pushes down cleanly when dropped
+	useEffect(() => {
+		if (!onLayoutChange) return undefined;
+		const el = headbarRef.current;
+		const notify = () => {
+			onLayoutChange(visible, el?.offsetHeight || 0);
+		};
+		notify();
+
+		if (!el || typeof ResizeObserver === "undefined") return undefined;
+		const observer = new ResizeObserver(notify);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [visible, onLayoutChange, userRole]);
+
+	// Measure whether all tabs fit comfortably on 1 row; otherwise use balanced 2-row grid
+	useEffect(() => {
+		const nav = navRef.current;
+		if (!nav) return undefined;
+
+		const updateLayout = () => {
+			const links = Array.from(nav.querySelectorAll(".headbar__link"));
+			if (navItems.length <= 4) {
+				setIsTwoRow(false);
+			} else {
+				const totalLinksWidth = links.reduce((sum, link) => sum + link.scrollWidth, 0);
+				const minSpacing = Math.max(0, navItems.length - 1) * 10;
+				const needsTwoRows = nav.clientWidth > 0 && totalLinksWidth + minSpacing > nav.clientWidth;
+				setIsTwoRow(needsTwoRows);
+			}
+
+			requestAnimationFrame(() => {
+				const items = Array.from(nav.children);
+				items.forEach((item, idx) => {
+					const next = items[idx + 1];
+					const isRowEnd = Boolean(next && next.offsetTop > item.offsetTop + 4);
+					if (isRowEnd) {
+						item.setAttribute("data-row-end", "true");
+					} else {
+						item.removeAttribute("data-row-end");
 					}
-					title={sidebarCollapsed ? "Mở rộng" : "Thu gọn"}
-				>
-					{sidebarCollapsed ? (
-						<ChevronRight size={16} />
-					) : (
-						<ChevronLeft size={16} />
-					)}
-				</button>
+				});
+			});
+		};
 
-				<nav className="sidebar__nav">
-					{isNormalUser ? (
-						<div className="sidebar__section">
-							<NavLink
-								to="/access-requests"
-								className={({ isActive }) =>
-									`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-								}
-								title={sidebarCollapsed ? "Yêu cầu truy cập" : undefined}
+		updateLayout();
+		if (typeof ResizeObserver === "undefined") return undefined;
+		const observer = new ResizeObserver(updateLayout);
+		observer.observe(nav);
+		return () => observer.disconnect();
+	}, [navItems, visible, unreadCount]);
+
+	const gridCols = Math.max(1, Math.ceil(navItems.length / 2));
+
+	const linkClass = ({ isActive }) =>
+		`headbar__link ${isActive ? "headbar__link--active" : ""}`;
+
+	return (
+		<>
+			{/* Invisible full-width top edge hover sensor */}
+			<div
+				className="headbar-hotspot"
+				onMouseEnter={openHeadbar}
+				aria-hidden="true"
+			/>
+
+			{/* Centered sleek peek handle when headbar is tucked away */}
+			<button
+				type="button"
+				className={`headbar-peek ${visible ? "headbar-peek--hidden" : ""}`}
+				onMouseEnter={openHeadbar}
+				onClick={openHeadbar}
+				aria-label="Mở thanh điều hướng"
+				title="Di chuột lên để mở thanh điều hướng"
+			>
+				<span className="headbar-peek__bar" />
+				<ChevronDown size={13} className="headbar-peek__icon" />
+				<span className="headbar-peek__label">Menu</span>
+				{unreadCount > 0 && (
+					<span className="headbar-peek__badge">
+						{unreadCount > 9 ? "9+" : unreadCount}
+					</span>
+				)}
+			</button>
+
+			{/* Floating Drop-Down Headbar */}
+			<header
+				ref={headbarRef}
+				className={`headbar ${visible ? "headbar--open" : ""}`}
+				onMouseEnter={openHeadbar}
+				onMouseLeave={scheduleClose}
+				onFocus={openHeadbar}
+				onBlur={(e) => {
+					if (!e.currentTarget.contains(e.relatedTarget)) {
+						scheduleClose();
+					}
+				}}
+			>
+				<div className="headbar__inner">
+					{/* Row 1: Brand & Quick Controls */}
+					<div className="headbar__top">
+						<NavLink
+							to={isNormalUser ? "/access-requests" : "/dashboard"}
+							className="headbar__brand"
+						>
+							<div className="headbar__logo">
+								<FptBrandLogo variant="symbol" height={18} />
+							</div>
+							<div className="headbar__brand-text">
+								<span className="headbar__title">FPTU SecureVision</span>
+								<span className="headbar__subtitle">Campus Security</span>
+							</div>
+						</NavLink>
+
+						<div className="headbar__controls">
+							<button
+								type="button"
+								className={`headbar__icon-btn ${isPinned ? "headbar__icon-btn--active" : ""}`}
+								onClick={() => {
+									setIsPinned((prev) => !prev);
+									setIsOpen(true);
+								}}
+								title={isPinned ? "Tự động ẩn khi rời chuột" : "Ghim thanh điều hướng"}
+								aria-label={isPinned ? "Bỏ ghim thanh điều hướng" : "Ghim thanh điều hướng"}
 							>
-								<KeyRound size={18} />
-								<span>Yêu cầu truy cập</span>
-							</NavLink>
+								{isPinned ? <PinOff size={15} /> : <Pin size={15} />}
+							</button>
 
-							<NavLink
-								to="/access-history"
-								className={({ isActive }) =>
-									`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+							<button
+								type="button"
+								className="headbar__theme-toggle"
+								onClick={toggleTheme}
+								title={
+									theme === "light"
+										? "Chuyển sang giao diện tối"
+										: "Chuyển sang giao diện sáng"
 								}
-								title={sidebarCollapsed ? "Lịch sử ra vào của tôi" : undefined}
-							>
-								<History size={18} />
-								<span>Lịch sử ra vào của tôi</span>
-							</NavLink>
-
-							<NavLink
-								to="/guest-visits"
-								className={({ isActive }) =>
-									`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
+								aria-label={
+									theme === "light"
+										? "Chuyển sang giao diện tối"
+										: "Chuyển sang giao diện sáng"
 								}
-								title={sidebarCollapsed ? "Khách của tôi" : undefined}
 							>
-								<UserPlus size={18} />
-								<span>Khách của tôi</span>
-							</NavLink>
-
-							<NavLink
-								to="/notifications"
-								className={({ isActive }) =>
-									`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-								}
-								title={sidebarCollapsed ? "Thông báo" : undefined}
-							>
-								<Bell size={18} />
-								<span>Thông báo</span>
-								{unreadCount > 0 && (
-									<span className="sidebar__unread-badge">
-										{unreadCount > 9 ? "9+" : unreadCount}
-									</span>
-								)}
-							</NavLink>
-						</div>
-					) : (
-						<>
-							<div className="sidebar__section">
-								<NavLink
-									to="/dashboard"
-									className={({ isActive }) =>
-										`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-									}
-									title={sidebarCollapsed ? "Tổng quan" : undefined}
-								>
-									<LayoutDashboard size={18} />
-									<span>Tổng quan</span>
-								</NavLink>
-
-								{isGuard && (
-									<NavLink
-										to="/guard"
-										className={({ isActive }) =>
-											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-										}
-										title={sidebarCollapsed ? "Trung tâm Giám sát" : undefined}
-									>
-										<ShieldAlert size={18} />
-										<span>Trung tâm Giám sát</span>
-									</NavLink>
-								)}
-
-								{isGuard && (
-									<NavLink
-										to="/recordings"
-										className={({ isActive }) =>
-											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-										}
-										title={sidebarCollapsed ? "Kho lưu trữ ghi hình" : undefined}
-									>
-										<Film size={18} />
-										<span>Kho lưu trữ ghi hình</span>
-									</NavLink>
-								)}
-
-								{isGuard && (
-									<NavLink
-										to="/notifications"
-										className={({ isActive }) =>
-											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-										}
-										title={sidebarCollapsed ? "Thông báo" : undefined}
-									>
-										<Bell size={18} />
-										<span>Thông báo</span>
-										{unreadCount > 0 && (
-											<span className="sidebar__unread-badge">
-												{unreadCount > 9 ? "9+" : unreadCount}
-											</span>
-										)}
-									</NavLink>
-								)}
-
-								{isAdmin && (
+								{theme === "light" ? (
 									<>
-										<NavLink
-											to="/cameras"
-											className={({ isActive }) =>
-												`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-											}
-											title={sidebarCollapsed ? "Quản lý camera" : undefined}
-										>
-											<Video size={18} />
-											<span>Quản lý camera</span>
-										</NavLink>
-										<NavLink
-											to="/recordings"
-											className={({ isActive }) =>
-												`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-											}
-											title={sidebarCollapsed ? "Kho lưu trữ ghi hình" : undefined}
-										>
-											<Film size={18} />
-											<span>Kho lưu trữ ghi hình</span>
-										</NavLink>
+										<Moon size={15} />
+										<span>Tối</span>
+									</>
+								) : (
+									<>
+										<Sun size={15} />
+										<span>Sáng</span>
 									</>
 								)}
-							</div>
+							</button>
 
-							{(isFacilityManager || isAdmin) && (
-								<div className="sidebar__section">
-									<NavLink
-										to="/admin/areas"
-										className={({ isActive }) =>
-											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-										}
-										title={
-											sidebarCollapsed
-												? "Quản lý khu vực"
-												: undefined
-										}
-									>
-										<MapPin size={18} />
-										<span>Quản lý khu vực</span>
-									</NavLink>
-
-									<NavLink
-										to="/admin/events"
-										className={({ isActive }) =>
-											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-										}
-										title={sidebarCollapsed ? "Quản lý sự kiện" : undefined}
-									>
-										<CalendarDays size={18} />
-										<span>Quản lý sự kiện</span>
-									</NavLink>
-
-									<NavLink
-										to="/admin/access-history"
-										className={({ isActive }) =>
-											`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-										}
-										title={sidebarCollapsed ? "Lịch sử ra vào" : undefined}
-									>
-										<History size={18} />
-										<span>Lịch sử ra vào</span>
-									</NavLink>
-
-									{/* B-04: ADMIN không làm host khách — chỉ FM thấy "Khách của tôi" trong khối này */}
-									{isFacilityManager && (
-										<NavLink
-											to="/guest-visits"
-											className={({ isActive }) =>
-												`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-											}
-											title={sidebarCollapsed ? "Khách của tôi" : undefined}
-										>
-											<UserPlus size={18} />
-											<span>Khách của tôi</span>
-										</NavLink>
-									)}
-
-									{isFacilityManager && (
-										<>
-											<NavLink
-												to="/notifications"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={sidebarCollapsed ? "Thông báo" : undefined}
-											>
-												<Bell size={18} />
-												<span>Thông báo</span>
-												{unreadCount > 0 && (
-													<span className="sidebar__unread-badge">
-														{unreadCount > 9 ? "9+" : unreadCount}
-													</span>
-												)}
-											</NavLink>
-											<NavLink
-												to="/admin/access-requests"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Phê duyệt yêu cầu" : undefined
-												}
-											>
-												<ClipboardCheck size={18} />
-												<span>Phê duyệt yêu cầu</span>
-											</NavLink>
-											<NavLink
-												to="/admin/guard-teams"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Quản lý Đội bảo vệ" : undefined
-												}
-											>
-												<CalendarClock size={18} />
-												<span>Quản lý Đội bảo vệ</span>
-											</NavLink>
-											<NavLink
-												to="/fm/access-levels"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Cấp truy cập người dùng" : undefined
-												}
-											>
-												<ShieldCheck size={18} />
-												<span>Cấp truy cập người dùng</span>
-											</NavLink>
-											<NavLink
-												to="/admin/audit-logs"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Nhật ký kiểm toán" : undefined
-												}
-											>
-												<History size={18} />
-												<span>Nhật ký kiểm toán</span>
-											</NavLink>
-										</>
-									)}
-
-									{isAdmin && (
-										<>
-											<NavLink
-												to="/notifications"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={sidebarCollapsed ? "Thông báo" : undefined}
-											>
-												<Bell size={18} />
-												<span>Thông báo</span>
-												{unreadCount > 0 && (
-													<span className="sidebar__unread-badge">
-														{unreadCount > 9 ? "9+" : unreadCount}
-													</span>
-												)}
-											</NavLink>
-											<NavLink
-												to="/admin/accounts"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Quản lý tài khoản" : undefined
-												}
-											>
-												<Users size={18} />
-												<span>Quản lý tài khoản</span>
-											</NavLink>
-											<NavLink
-												to="/admin/guest-photos"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={sidebarCollapsed ? "Ảnh khách" : undefined}
-											>
-												<Camera size={18} />
-												<span>Ảnh khách</span>
-											</NavLink>
-											<NavLink
-												to="/admin/audit-logs"
-												className={({ isActive }) =>
-													`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-												}
-												title={
-													sidebarCollapsed ? "Nhật ký kiểm toán" : undefined
-												}
-											>
-												<History size={18} />
-												<span>Nhật ký kiểm toán</span>
-											</NavLink>
-
-											<div className="sidebar__section">
-												<NavLink
-													to="/admin/system-configurations"
-													className={({ isActive }) =>
-														`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-													}
-													title={
-														sidebarCollapsed ? "Cấu hình hệ thống" : undefined
-													}
-												>
-													<Sliders size={18} />
-													<span>Cấu hình hệ thống</span>
-												</NavLink>
-												<NavLink
-													to="/admin/reason-catalogs"
-													className={({ isActive }) =>
-														`sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-													}
-													title={
-														sidebarCollapsed ? "Danh mục lý do" : undefined
-													}
-												>
-													<Tag size={18} />
-													<span>Danh mục lý do</span>
-												</NavLink>
-											</div>
-										</>
-									)}
+							<div className="headbar__user">
+								<div className="headbar__avatar">{getInitials(user?.fullName)}</div>
+								<div className="headbar__user-info">
+									<span className="headbar__username" title={user?.fullName || undefined}>
+										{user?.fullName || "Người dùng"}
+									</span>
+									<span className="headbar__userrole">
+										{ROLE_SHORT_LABELS[userRole] || "Người dùng"}
+									</span>
 								</div>
-							)}
-						</>
-					)}
-				</nav>
-			</div>
-
-			<div className="sidebar__bottom">
-				{/* Theme Toggle Button */}
-				<button
-					type="button"
-					className="sidebar__theme-toggle"
-					onClick={toggleTheme}
-					title={
-						theme === "light"
-							? "Chuyển sang giao diện tối"
-							: "Chuyển sang giao diện sáng"
-					}
-					aria-label={
-						theme === "light"
-							? "Chuyển sang giao diện tối"
-							: "Chuyển sang giao diện sáng"
-					}
-				>
-					{theme === "light" ? (
-						<>
-							<Moon size={16} />
-							<span>Giao diện tối</span>
-						</>
-					) : (
-						<>
-							<Sun size={16} />
-							<span>Giao diện sáng</span>
-						</>
-					)}
-				</button>
-
-				{/* User Profile Footer */}
-				<div className="sidebar__footer">
-					<div className="sidebar__user">
-						<div className="sidebar__avatar">{getInitials(user?.fullName)}</div>
-						<div className="sidebar__user-info">
-							<span className="sidebar__username" title={user?.fullName || undefined}>
-								{user?.fullName || "Người dùng"}
-							</span>
-							<span className="sidebar__userrole">
-								{ROLE_SHORT_LABELS[userRole] || "Người dùng"}
-							</span>
+								<button
+									type="button"
+									className="headbar__logout-btn"
+									onClick={onLogout}
+									title="Đăng xuất"
+									aria-label="Đăng xuất"
+								>
+									<LogOut size={15} />
+								</button>
+							</div>
 						</div>
 					</div>
-					<button
-						type="button"
-						className="sidebar__logout-btn"
-						onClick={onLogout}
-						title="Đăng xuất"
-						aria-label="Đăng xuất"
+
+					{/* Row 2: Evenly Spaced Horizontal Navigation Tabs with Thin Dividers */}
+					<nav
+						ref={navRef}
+						className={`headbar__nav ${isTwoRow ? "headbar__nav--grid" : ""}`}
+						style={isTwoRow ? { "--headbar-cols": gridCols } : undefined}
+						aria-label="Điều hướng chính"
 					>
-						<LogOut size={16} />
-					</button>
+						{navItems.map(({ to, label, Icon, hasUnread }) => (
+							<div key={to} className="headbar__item">
+								<NavLink to={to} className={linkClass}>
+									<Icon size={14} />
+									<span>{label}</span>
+									{hasUnread && unreadCount > 0 && (
+										<span className="headbar__unread-badge">
+											{unreadCount > 9 ? "9+" : unreadCount}
+										</span>
+									)}
+								</NavLink>
+							</div>
+						))}
+					</nav>
 				</div>
-			</div>
-		</aside>
+			</header>
+		</>
 	);
 }

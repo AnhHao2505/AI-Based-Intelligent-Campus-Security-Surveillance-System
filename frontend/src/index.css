@@ -160,7 +160,7 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
+  *:not(.headbar):not(.headbar *):not(.headbar-peek):not(.headbar-peek *):not(.app-layout__content):not(.area-dashboard),
   *::before,
   *::after {
     animation-duration: 0.01ms !important;

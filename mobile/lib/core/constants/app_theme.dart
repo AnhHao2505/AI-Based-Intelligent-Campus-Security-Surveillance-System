@@ -1,29 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 class AppTheme {
-  // Dark Theme (Tactical Dark - Matching Web Dark Mode)
+  // Dark Theme (Command Center Obsidian - Matching Web Dark Mode)
   static ThemeData get darkTheme {
-    return ThemeData(
-      useMaterial3: true,
+    final base = ThemeData.dark(useMaterial3: true);
+    return base.copyWith(
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.darkBackground,
+      textTheme: GoogleFonts.ibmPlexSansTextTheme(base.textTheme).apply(
+        bodyColor: AppColors.darkTextPrimary,
+        displayColor: AppColors.darkTextPrimary,
+      ),
       colorScheme: const ColorScheme.dark(
         primary: AppColors.primaryLight,
-        secondary: AppColors.primary,
+        secondary: AppColors.fptBlue,
         surface: AppColors.darkSurface,
-        error: AppColors.danger,
+        error: AppColors.dangerLight,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: AppColors.darkTextPrimary,
         onError: Colors.white,
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: AppColors.darkBackground,
         elevation: 0,
         centerTitle: false,
-        iconTheme: IconThemeData(color: AppColors.darkTextPrimary),
-        titleTextStyle: TextStyle(
+        iconTheme: const IconThemeData(color: AppColors.darkTextPrimary),
+        titleTextStyle: GoogleFonts.ibmPlexSans(
           color: AppColors.darkTextPrimary,
           fontSize: 18,
           fontWeight: FontWeight.bold,
@@ -54,20 +59,20 @@ class AppTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.danger),
+          borderSide: const BorderSide(color: AppColors.dangerLight),
         ),
         labelStyle: const TextStyle(color: AppColors.darkTextSecondary),
         hintStyle: const TextStyle(color: AppColors.darkTextMuted),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.primaryLight,
           foregroundColor: Colors.white,
           minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
+          textStyle: GoogleFonts.ibmPlexSans(
             fontSize: 15,
             fontWeight: FontWeight.bold,
           ),
@@ -82,13 +87,17 @@ class AppTheme {
 
   // Light Theme (Clean Crisp - Matching Web Light Mode)
   static ThemeData get lightTheme {
-    return ThemeData(
-      useMaterial3: true,
+    final base = ThemeData.light(useMaterial3: true);
+    return base.copyWith(
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.lightBackground,
+      textTheme: GoogleFonts.ibmPlexSansTextTheme(base.textTheme).apply(
+        bodyColor: AppColors.lightTextPrimary,
+        displayColor: AppColors.lightTextPrimary,
+      ),
       colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
-        secondary: AppColors.primaryLight,
+        secondary: AppColors.fptBlue,
         surface: AppColors.lightSurface,
         error: AppColors.danger,
         onPrimary: Colors.white,
@@ -96,12 +105,12 @@ class AppTheme {
         onSurface: AppColors.lightTextPrimary,
         onError: Colors.white,
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: AppColors.lightBackground,
         elevation: 0,
         centerTitle: false,
-        iconTheme: IconThemeData(color: AppColors.lightTextPrimary),
-        titleTextStyle: TextStyle(
+        iconTheme: const IconThemeData(color: AppColors.lightTextPrimary),
+        titleTextStyle: GoogleFonts.ibmPlexSans(
           color: AppColors.lightTextPrimary,
           fontSize: 18,
           fontWeight: FontWeight.bold,
@@ -145,7 +154,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
+          textStyle: GoogleFonts.ibmPlexSans(
             fontSize: 15,
             fontWeight: FontWeight.bold,
           ),

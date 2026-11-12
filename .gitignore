@@ -1,5 +1,6 @@
 # Local Agent Rules
 .agents/
+.superpowers/
 
 # OS Files
 .DS_Store
@@ -91,3 +92,7 @@ mosquitto/certs/*
 *.srl
 *.jks
 *.p12
+
+# Dữ liệu local có tài khoản / bản sao repo (L21): không bao giờ commit. Neo ở gốc repo.
+/data_text/
+/SEP/

@@ -36,11 +36,12 @@ public final class LogMasker {
 
     /**
      * Che mọi e-mail xuất hiện trong một đoạn text (ví dụ thông điệp lỗi SMTP "550 <user@domain> rejected"), phần còn
-     * lại giữ nguyên. {@code null -> null}.
+     * lại giữ nguyên. {@code null -> null}. Không đổi chuỗi đã che ({@code h***@miền}: ký tự trước @ là '*', không khớp).
+     * L24: gọi cho MỌI dòng log (logback-spring.xml) nên không có '@' thì trả ngay, không chạy regex.
      */
     public static String maskEmailsIn(String text) {
-        if (text == null) {
-            return null;
+        if (text == null || text.indexOf('@') < 0) {
+            return text;
         }
         return EMAIL_IN_TEXT.matcher(text).replaceAll(m -> java.util.regex.Matcher.quoteReplacement(maskEmail(m.group())));
     }

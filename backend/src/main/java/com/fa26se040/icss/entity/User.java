@@ -62,6 +62,13 @@ public class User {
     @Column(name = "import_batch_id")
     private UUID importBatchId;
 
+    /**
+     * V114 (L3): khoá đăng nhập tới thời điểm này. Chỉ đọc qua JPA: ghi bằng UPDATE nguyên tử ở UserLoginLockRepository,
+     * để save() của luồng khác (sửa hồ sơ, đổi mật khẩu) không ghi đè trạng thái khoá bằng giá trị cũ.
+     */
+    @Column(name = "login_locked_until", insertable = false, updatable = false)
+    private OffsetDateTime loginLockedUntil;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
