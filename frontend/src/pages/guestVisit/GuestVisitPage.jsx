@@ -32,6 +32,7 @@ import "../../styles/GuestVisitPage.css";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
+import useRevealMessage from "../../hooks/useRevealMessage";
 
 const PAGE_SIZE = 10;
 const EMPTY_GUEST = { fullName: "", organization: "" };
@@ -77,6 +78,9 @@ export default function GuestVisitPage() {
 	const [guests, setGuests] = useState([{ ...EMPTY_GUEST }]);
 	const [creating, setCreating] = useState(false);
 	const [createError, setCreateError] = useState("");
+	// Banner lỗi ở đầu popup tạo lượt khách, nút Gửi duyệt ở chân popup -> cuộn banner vào tầm nhìn (LT-01)
+	const createErrorRef = useRef(null);
+	useRevealMessage(createErrorRef, createError);
 
 	// Chi tiết / huỷ
 	const [detail, setDetail] = useState(null);
@@ -473,7 +477,12 @@ export default function GuestVisitPage() {
 			>
 				<fieldset className="guest-visit__form" disabled={creating}>
 					{createError && (
-						<div className="guest-visit__alert guest-visit__alert--danger">
+						<div
+							ref={createErrorRef}
+							tabIndex={-1}
+							role="alert"
+							className="guest-visit__alert guest-visit__alert--danger"
+						>
 							<AlertCircle size={16} />
 							<span>{createError}</span>
 						</div>

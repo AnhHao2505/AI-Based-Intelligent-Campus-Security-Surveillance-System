@@ -30,6 +30,7 @@ import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import useRevealMessage from "../../hooks/useRevealMessage";
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
@@ -60,6 +61,9 @@ export default function AccessRequestPage() {
 	// Submit & Alert state
 	const [submitting, setSubmitting] = useState(false);
 	const [formError, setFormError] = useState(null);
+	// Banner lỗi ở đầu form, nút Gửi ở cuối form -> cuộn banner vào tầm nhìn khi có lỗi (LT-01)
+	const formErrorRef = useRef(null);
+	useRevealMessage(formErrorRef, formError);
 	// Lỗi tra cứu / thêm thành viên: hiện ngay dưới ô mã thành viên (không đẩy lên đầu form)
 	const [memberError, setMemberError] = useState(null);
 	const [formSuccess, setFormSuccess] = useState(null);
@@ -612,6 +616,9 @@ export default function AccessRequestPage() {
 
 				{formError && (
 					<div
+						ref={formErrorRef}
+						tabIndex={-1}
+						role="alert"
 						className="arp-banner arp-banner--error"
 						style={{ margin: "14px 20px 0 20px" }}
 					>

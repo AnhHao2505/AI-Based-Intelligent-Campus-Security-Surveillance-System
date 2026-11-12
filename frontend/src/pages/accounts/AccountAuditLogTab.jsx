@@ -7,6 +7,7 @@ import {
 	LOGIN_FAILURE_REASON_LABELS,
 	TARGET_TYPE_LABELS,
 	getActionLabel,
+	maskEmail,
 	renderSystemActor,
 } from "../../utils/auditLabels";
 import Button from "../../components/ui/Button";
@@ -29,15 +30,6 @@ const MODULE_OF_TARGET = {
 };
 
 const yesNo = (v) => (v ? "Có" : "Không");
-
-// audit-login-privacy: luôn hiện e-mail đăng nhập ở dạng đã che (h***@miền). Giá trị đã che từ backend giữ nguyên.
-const EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const maskEmail = (value) => {
-	if (!value) return "—";
-	if (!EMAIL_SHAPE.test(value)) return value.includes("*") ? value : "***";
-	const at = value.lastIndexOf("@");
-	return `${value.charAt(0)}***@${value.slice(at + 1)}`;
-};
 
 /**
  * PR-AUDIT (F1–F3): tab "Nhật ký" của màn Quản lý tài khoản (chỉ ADMIN) — tài khoản, đăng nhập, cấu hình hệ thống.

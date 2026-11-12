@@ -11,6 +11,7 @@ import { getActiveReasons } from "../../services/reasonCatalogService";
 import { getSystemConfigs } from "../../services/systemConfigService";
 import { formatDisplayDateTime } from "../../utils/areaHelpers";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
+import useRevealMessage from "../../hooks/useRevealMessage";
 
 // Nhóm lý do riêng cho từng thao tác với lịch (Step 5b, BR-ES-L1/L2)
 const REASON_ACTION = {
@@ -60,6 +61,9 @@ export default function EventScheduleFormModal({ mode, schedule, areas, onClose,
 	const [loadingReasons, setLoadingReasons] = useState(false);
 	const [errors, setErrors] = useState({});
 	const [formError, setFormError] = useState(null);
+	// Banner lỗi ở đầu popup (vd 409 chồng lịch), nút gửi ở chân popup -> cuộn banner vào tầm nhìn (LT-01)
+	const formErrorRef = useRef(null);
+	useRevealMessage(formErrorRef, formError);
 	const [submitting, setSubmitting] = useState(false);
 	const [nightWindow, setNightWindow] = useState(null);
 	const noteRef = useRef(null);
@@ -255,7 +259,7 @@ export default function EventScheduleFormModal({ mode, schedule, areas, onClose,
 		>
 			<div className="evm-form" onKeyDown={(e) => e.key === "Enter" && e.target.tagName !== "TEXTAREA" && e.preventDefault()}>
 				{formError && (
-					<div className="evm-alert evm-alert--error" role="alert">
+					<div ref={formErrorRef} tabIndex={-1} className="evm-alert evm-alert--error" role="alert">
 						<AlertCircle size={16} />
 						<span>{formError}</span>
 					</div>

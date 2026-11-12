@@ -31,6 +31,7 @@ import {
 	ErrorState,
 } from "../../components/ui";
 import { formatDateTime } from "../../utils/formatDateTime";
+import { maskEmail } from "../../utils/auditLabels";
 import "../../styles/SystemConfigPage.css";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
 
@@ -668,7 +669,7 @@ export default function SystemConfigPage() {
 												<strong>{log.changedByName || "Quản trị viên"}</strong>
 												{log.changedByEmail && (
 													<span className="syscfg-history-email">
-														{log.changedByEmail}
+														{maskEmail(log.changedByEmail)}
 													</span>
 												)}
 											</div>

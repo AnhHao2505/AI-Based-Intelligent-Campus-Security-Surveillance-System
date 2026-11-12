@@ -15,17 +15,32 @@ export const SYSTEM_ACTOR_LABELS = {
 	ACCOUNT_SERVICE: "Quản lý tài khoản",
 	USER_BULK_IMPORT: "Nạp tài khoản theo lô",
 	FACE_REGISTRATION: "Đăng ký khuôn mặt",
+	// AreaService.AFTER_HOURS_CHANGE_SOURCE: đổi AI_AFTER_HOUR_START làm hệ thống cắt / huỷ lịch, tắt sự kiện (LT-07)
+	AFTER_HOURS_CONFIG_CHANGE: "Đổi khung giờ ban đêm",
+	// AuditService: ghi nhật ký không xác định được người thực hiện
+	SYSTEM_AUTOMATION: "Tác vụ tự động",
 };
 
 // Dòng do migration Flyway ghi (vd FLYWAY_MIGRATION_V83) -> "Nâng cấp dữ liệu V83"
 const MIGRATION_SOURCE = /^FLYWAY_MIGRATION_(V[\d_]+)$/;
 
+// Nguồn backend mới chưa có nhãn: không hiện mã kỹ thuật cho người dùng (mã gốc vẫn xem được qua title ở AuditLogPage)
 export const renderSystemActor = (source) => {
 	if (!source) return "Hệ thống";
 	if (SYSTEM_ACTOR_LABELS[source]) return `Hệ thống – ${SYSTEM_ACTOR_LABELS[source]}`;
 	const migration = MIGRATION_SOURCE.exec(source);
 	if (migration) return `Hệ thống – Nâng cấp dữ liệu ${migration[1].replace(/_/g, ".")}`;
-	return `Hệ thống – ${source}`;
+	return "Hệ thống – Tác vụ tự động";
+};
+
+// audit-login-privacy: luôn hiện e-mail ở dạng đã che (h***@miền). Giá trị đã che từ backend giữ nguyên.
+// Dùng chung: tab Nhật ký (AccountAuditLogTab), popup Lịch sử cấu hình (SystemConfigPage).
+const EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+export const maskEmail = (value) => {
+	if (!value) return "—";
+	if (!EMAIL_SHAPE.test(value)) return value.includes("*") ? value : "***";
+	const at = value.lastIndexOf("@");
+	return `${value.charAt(0)}***@${value.slice(at + 1)}`;
 };
 
 export const TARGET_TYPE_LABELS = {
