@@ -19,6 +19,8 @@ import 'features/incident/screens/incident_list_screen.dart';
 import 'features/incident/widgets/incident_offer_banner.dart';
 import 'features/shift/providers/shift_provider.dart';
 import 'features/shift/screens/guard_schedule_screen.dart';
+import 'features/chat/providers/guard_chat_provider.dart';
+import 'features/chat/services/guard_chat_service.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -55,6 +57,7 @@ void main() async {
   final apiClient = ApiClient();
   final stompService = StompService();
   final incidentService = IncidentService(apiClient);
+  final guardChatService = GuardChatService(apiClient);
 
   runApp(
     MultiProvider(
@@ -74,6 +77,12 @@ void main() async {
         ChangeNotifierProvider(
           create: (_) => IncidentProvider(
             incidentService: incidentService,
+            stompService: stompService,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => GuardChatProvider(
+            chatService: guardChatService,
             stompService: stompService,
           ),
         ),

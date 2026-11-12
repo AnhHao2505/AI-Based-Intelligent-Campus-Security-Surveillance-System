@@ -8,6 +8,7 @@ import '../models/area_pin_model.dart';
 import '../providers/map_provider.dart';
 import '../widgets/area_detail_card.dart';
 import '../widgets/area_marker_layer.dart';
+import '../../chat/widgets/floating_guard_chat_button.dart';
 
 class GuardMapScreen extends StatefulWidget {
   final AreaPinModel? initialDestination;
@@ -490,6 +491,13 @@ class _GuardMapScreenState extends State<GuardMapScreen>
                 ),
               ],
             ),
+          ),
+
+          // 3b. Floating Guard Chat Button
+          Positioned(
+            left: 16,
+            bottom: mapState.selectedArea != null ? 230 : 28,
+            child: const FloatingGuardChatButton(heroTag: 'fab_chat_map'),
           ),
 
           // 4. Area Detail Card at bottom when an area is selected
