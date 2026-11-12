@@ -192,6 +192,31 @@ class AccessRequestReviewerRulesIntegrationTest extends AbstractIntegrationTest 
         assertThat(statusOf(requestId)).isEqualTo(RequestStatus.APPROVED);
     }
 
+    @Test
+    @DisplayName("BE-08 (BR-RQ-06): thành viên đơn nhóm (sau đó thành FM) tự duyệt / tự từ chối đơn có tên mình -> 403 ERR_AC_006, đơn vẫn PENDING; FM khác duyệt -> APPROVED")
+    void be08_groupMemberPromotedToFm_cannotReviewRequestListingThem() throws Exception {
+        MvcResult created = send(post("/api/access-requests/group"), requester, groupBody());
+        assertThat(created.getResponse().getStatus()).as(describe(created)).isEqualTo(201);
+        UUID requestId = UUID.fromString(json(created).path("data").path("id").asText());
+
+        // Thành viên của đơn được đổi role sang FACILITY_MANAGER (qua repository), token mới mang role mới
+        member.setRole(Role.FACILITY_MANAGER);
+        member = userRepository.saveAndFlush(member);
+
+        for (RequestStatus decision : List.of(RequestStatus.APPROVED, RequestStatus.REJECTED)) {
+            MvcResult self = send(patch("/api/access-requests/{id}/review", requestId), member, review(decision));
+            assertThat(self.getResponse().getStatus()).as(decision + ": " + describe(self)).isEqualTo(403);
+            assertThat(json(self).path("code").asText()).as(describe(self)).isEqualTo("ERR_AC_006");
+            assertThat(json(self).path("message").asText()).as(describe(self))
+                    .isEqualTo("Người tạo đơn hoặc thành viên của đơn không được tự duyệt hoặc tự từ chối đơn truy cập có tên mình");
+            assertThat(statusOf(requestId)).as("đơn phải giữ PENDING sau khi thành viên tự " + decision).isEqualTo(RequestStatus.PENDING);
+        }
+
+        MvcResult other = send(patch("/api/access-requests/{id}/review", requestId), fmOther, review(RequestStatus.APPROVED));
+        assertThat(other.getResponse().getStatus()).as(describe(other)).isEqualTo(200);
+        assertThat(statusOf(requestId)).isEqualTo(RequestStatus.APPROVED);
+    }
+
     // ================================================================== BR-RQ-07
 
     @Test

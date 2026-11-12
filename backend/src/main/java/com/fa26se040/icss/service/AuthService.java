@@ -144,6 +144,21 @@ public class AuthService {
         }
     }
 
+    /**
+     * BE-06 (V119): mật khẩu mới dài ít nhất PASSWORD_MIN_LENGTH ký tự, có ít nhất 1 chữ cái và 1 chữ số.
+     * Câu lỗi nội suy giá trị cấu hình hiện hành.
+     */
+    void validateNewPassword(String newPassword) {
+        int minLength = systemConfigService.getInt(ConfigKey.PASSWORD_MIN_LENGTH);
+        String value = newPassword != null ? newPassword : "";
+        boolean hasLetter = value.codePoints().anyMatch(Character::isLetter);
+        boolean hasDigit = value.codePoints().anyMatch(Character::isDigit);
+        if (value.codePointCount(0, value.length()) < minLength || !hasLetter || !hasDigit) {
+            throw new IllegalArgumentException(
+                    "Mật khẩu mới phải có ít nhất " + minLength + " ký tự, gồm cả chữ cái và chữ số.");
+        }
+    }
+
     @org.springframework.transaction.annotation.Transactional
     public void resetPassword(ResetPasswordRequest request) {
         log.info("Resetting password using token");
@@ -170,6 +185,9 @@ public class AuthService {
             throw new UnauthorizedException(RESET_LINK_INVALID_MESSAGE);
         }
 
+        // BE-06: mật khẩu mới đủ độ dài (PASSWORD_MIN_LENGTH) và có cả chữ lẫn số; lỗi thì token chưa bị dùng
+        validateNewPassword(request.getNewPassword());
+
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
@@ -186,12 +204,14 @@ public class AuthService {
      * PR-AU (BR-AU-32, P1–P3): mọi lần thất bại ném cùng một UnauthorizedException(LOGIN_FAILED_MESSAGE).
      * Thứ tự cố định để thời gian và hành vi không lộ trạng thái tài khoản:
      * 1. luôn chạy passwordEncoder.matches đúng một lần (e-mail không có tài khoản / đã xoá -> hash giả);
-     * 2. đang khoá tạm -> từ chối (kể cả mật khẩu đúng), không đếm thêm;
+     * 2. đang khoá tạm -> từ chối (kể cả mật khẩu đúng), không đếm thêm. Tài khoản có thật: giữ một lượt thử bằng UPDATE
+     *    nguyên tử (BE-05), hết lượt trong cửa sổ cũng từ chối như đang khoá;
      * 3. sai mật khẩu -> đếm: tài khoản có thật lưu ở bảng users (V114, sống qua restart), e-mail không có tài khoản / đã
      *    xoá đếm theo e-mail đã chuẩn hoá trong RAM; mở đợt khoá mới với tài khoản có thật
      *    -> báo chủ tài khoản (mail) và mọi ADMIN đang hoạt động (in-app), một lần mỗi đợt;
-     * 4. mật khẩu đúng nhưng tài khoản vô hiệu hoá -> từ chối;
-     * 5. thành công -> xoá bộ đếm.
+     * 4. mật khẩu đúng -> xoá bộ đếm nếu chưa bị request khác khoá (bị khoá thì từ chối như bước 2);
+     * 5. mật khẩu đúng nhưng tài khoản vô hiệu hoá -> từ chối;
+     * 6. thành công.
      */
     public AuthResponse authenticateLocalUser(LoginRequest request) {
         String key = LoginAttemptLimiter.normalize(request.getEmail());
@@ -205,7 +225,10 @@ public class AuthService {
         String hash = hasRealHash ? user.getPassword().trim() : dummyPasswordHash;
         boolean passwordMatches = passwordEncoder.matches(rawPassword, hash) && hasRealHash;
 
-        boolean locked = user != null ? loginAttemptLimiter.isAccountLocked(user) : loginAttemptLimiter.isLocked(key);
+        // BE-05: tài khoản có thật giữ một lượt thử bằng UPDATE nguyên tử trước khi báo kết quả mật khẩu — loạt request song
+        // song chỉ có tối đa LOGIN_MAX_FAILED_ATTEMPTS request được báo đúng / sai trong cửa sổ, còn lại từ chối như đang khoá
+        java.util.OptionalInt attempt = user != null ? loginAttemptLimiter.reserveAccountAttempt(user) : java.util.OptionalInt.empty();
+        boolean locked = user != null ? attempt.isEmpty() : loginAttemptLimiter.isLocked(key);
         if (locked) {
             log.warn("Authentication failed: login temporarily locked for {}", who(user, key));
             auditLoginFailed(key, found, AuthAuditRecorder.METHOD_PASSWORD, AuthAuditRecorder.LOCKED);
@@ -213,7 +236,9 @@ public class AuthService {
         }
 
         if (!passwordMatches) {
-            boolean newlyLocked = user != null ? loginAttemptLimiter.recordAccountFailure(user) : loginAttemptLimiter.recordFailure(key);
+            boolean newlyLocked = user != null
+                    ? loginAttemptLimiter.lockAccountIfThresholdReached(user, attempt.getAsInt())
+                    : loginAttemptLimiter.recordFailure(key);
             log.warn("Authentication failed: {} for {}", user == null ? "no account" : "wrong password", who(user, key));
             String reason = found == null ? AuthAuditRecorder.UNKNOWN_ACCOUNT
                     : found.getDeletedAt() != null ? AuthAuditRecorder.DELETED : AuthAuditRecorder.BAD_PASSWORD;
@@ -228,13 +253,20 @@ public class AuthService {
             throw loginFailed();
         }
 
+        // BE-05: đúng mật khẩu -> xoá bộ đếm CHỈ khi tài khoản chưa bị request khác khoá (trước đây xoá vô điều kiện, nên
+        // request đúng mật khẩu chạy cùng lúc lần sai cuối vẫn đăng nhập được và xoá luôn dấu khoá vừa đặt)
+        if (!loginAttemptLimiter.resetAccountIfNotLocked(user)) {
+            log.warn("Authentication failed: login locked concurrently for {}", who(user, key));
+            auditLoginFailed(key, found, AuthAuditRecorder.METHOD_PASSWORD, AuthAuditRecorder.LOCKED);
+            throw loginFailed();
+        }
+
         if (!isActiveAccount(user)) {
             log.warn("Authentication failed: account is inactive for {}", who(user, key));
             auditLoginFailed(key, found, AuthAuditRecorder.METHOD_PASSWORD, AuthAuditRecorder.DEACTIVATED);
             throw loginFailed();
         }
 
-        loginAttemptLimiter.resetAccount(user);
         if (authAudit != null) {
             authAudit.loginSuccess(key, user, AuthAuditRecorder.METHOD_PASSWORD);
         }

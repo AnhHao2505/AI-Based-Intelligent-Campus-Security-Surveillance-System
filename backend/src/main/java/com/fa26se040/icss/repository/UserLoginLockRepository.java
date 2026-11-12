@@ -44,7 +44,59 @@ public class UserLoginLockRepository {
             + "login_locked_until = NULL WHERE id = :id "
             + "AND (failed_login_count <> 0 OR failed_login_window_start IS NOT NULL OR login_locked_until IS NOT NULL)";
 
+    /**
+     * BE-05: giữ một lượt thử TRƯỚC khi báo kết quả mật khẩu. Chỉ được giữ khi tài khoản không đang khoá và số lượt sau khi
+     * tăng không vượt :maxAttempts — loạt request song song chỉ có tối đa :maxAttempts request được báo đúng / sai, các
+     * request còn lại bị từ chối như đang khoá. Dấu khoá cũ đã hết hạn được xoá cùng lúc (cửa sổ đếm bắt đầu lại).
+     */
+    private static final String RESERVE_ATTEMPT_SQL = "UPDATE users SET "
+            + "failed_login_count = " + NEW_COUNT + ", "
+            + "failed_login_window_start = CASE WHEN " + WINDOW_RESTARTS + " THEN :now ELSE failed_login_window_start END, "
+            + "login_locked_until = NULL "
+            + "WHERE id = :id AND (login_locked_until IS NULL OR login_locked_until <= :now) AND " + NEW_COUNT + " <= :maxAttempts "
+            + "RETURNING failed_login_count";
+
+    /** BE-05: lượt sai đã đủ ngưỡng -> mở đợt khoá; chỉ một request đặt được (login_locked_until IS NULL). */
+    private static final String LOCK_IF_THRESHOLD_SQL = "UPDATE users SET login_locked_until = :lockUntil "
+            + "WHERE id = :id AND login_locked_until IS NULL AND failed_login_count >= :maxAttempts "
+            + "RETURNING login_locked_until";
+
+    /** BE-05: đúng mật khẩu -> xoá bộ đếm, CHỈ khi tài khoản không đang khoá (request khác vừa khoá thì 0 dòng). */
+    private static final String RESET_IF_NOT_LOCKED_SQL = "UPDATE users SET failed_login_count = 0, "
+            + "failed_login_window_start = NULL, login_locked_until = NULL "
+            + "WHERE id = :id AND (login_locked_until IS NULL OR login_locked_until <= :now)";
+
     private final NamedParameterJdbcTemplate jdbc;
+
+    /**
+     * BE-05: giữ một lượt thử. Rỗng khi tài khoản đang khoá hoặc đã hết lượt trong cửa sổ (kể cả lượt của request đang chạy).
+     *
+     * @return số lượt đã dùng trong cửa sổ, tính cả lượt vừa giữ
+     */
+    public java.util.OptionalInt reserveAttempt(UUID userId, OffsetDateTime now, OffsetDateTime windowStartedBefore,
+                                                int maxAttempts) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("id", userId)
+                .addValue("now", now)
+                .addValue("windowStartedBefore", windowStartedBefore)
+                .addValue("maxAttempts", maxAttempts);
+        List<Integer> rows = jdbc.query(RESERVE_ATTEMPT_SQL, params, (rs, i) -> rs.getInt("failed_login_count"));
+        return rows.isEmpty() ? java.util.OptionalInt.empty() : java.util.OptionalInt.of(rows.get(0));
+    }
+
+    /** BE-05: @return true nếu chính lời gọi này mở đợt khoá. */
+    public boolean lockIfThresholdReached(UUID userId, int maxAttempts, OffsetDateTime lockUntil) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("id", userId)
+                .addValue("maxAttempts", maxAttempts)
+                .addValue("lockUntil", lockUntil);
+        return !jdbc.query(LOCK_IF_THRESHOLD_SQL, params, (rs, i) -> rs.getObject("login_locked_until", OffsetDateTime.class)).isEmpty();
+    }
+
+    /** BE-05: @return true nếu đã xoá bộ đếm (tài khoản không đang khoá). */
+    public boolean resetIfNotLocked(UUID userId, OffsetDateTime now) {
+        return jdbc.update(RESET_IF_NOT_LOCKED_SQL, new MapSqlParameterSource().addValue("id", userId).addValue("now", now)) > 0;
+    }
 
     /**
      * Ghi một lần sai. Rỗng khi tài khoản đang trong đợt khoá (không đếm thêm, không kéo dài khoá) hoặc không còn dòng.

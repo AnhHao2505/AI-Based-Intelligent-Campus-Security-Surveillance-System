@@ -5,6 +5,7 @@ import com.fa26se040.icss.entity.User;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -121,4 +122,16 @@ public interface AreaAssignedPersonnelRepository extends JpaRepository<AreaAssig
            "AND (a.validTo IS NULL OR a.validTo > :at) " +
            "ORDER BY a.id ASC")
     List<AreaAssignedPersonnel> findNotRevokedNotExpiredByUser(@Param("userId") UUID userId, @Param("at") OffsetDateTime at);
+
+    /**
+     * BE-04: thu hồi có điều kiện — chỉ dòng chưa thu hồi. Hai FM thu hồi cùng lúc: UPDATE thứ hai chờ khoá dòng,
+     * sau khi người đầu commit thì điều kiện {@code revokedAt IS NULL} sai -> 0 dòng. Kết quả UPDATE là nguồn chân lý.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE AreaAssignedPersonnel a SET a.revokedAt = :now, a.revokedBy = :actor, a.revokeReason = :reason, " +
+            "a.updatedAt = :now WHERE a.id = :id AND a.revokedAt IS NULL")
+    int revokeIfNotRevoked(@Param("id") UUID id,
+                           @Param("now") OffsetDateTime now,
+                           @Param("actor") User actor,
+                           @Param("reason") String reason);
 }

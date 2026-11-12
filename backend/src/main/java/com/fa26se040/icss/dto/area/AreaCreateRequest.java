@@ -19,8 +19,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AreaCreateRequest {
+    // BE-09: độ dài 3–100 ký tự (sau chuẩn hoá) chỉ kiểm ở AreaValidator (ERR_AREA_005), không đặt giới hạn thứ hai ở DTO
     @NotBlank(message = "Tên khu vực không được để trống")
-    @Size(max = 150, message = "Tên khu vực tối đa 150 ký tự")
     private String name;
 
     @NotNull(message = "Cấp độ khu vực không được để trống")

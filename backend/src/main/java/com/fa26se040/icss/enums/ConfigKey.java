@@ -70,6 +70,8 @@ public enum ConfigKey {
     REASON_MAX_LENGTH("REASON_MAX_LENGTH", "500"),
     // M-03 (V89): hạn link đặt lại mật khẩu (phút), đọc lúc tạo token
     PASSWORD_RESET_TOKEN_MINUTES("PASSWORD_RESET_TOKEN_MINUTES", "15"),
+    // BE-06 (V119): độ dài tối thiểu mật khẩu mới người dùng tự đặt (kèm quy tắc có chữ + số ở AuthService)
+    PASSWORD_MIN_LENGTH("PASSWORD_MIN_LENGTH", "8"),
     // Phân phối sự cố (V90, K7): bật mời theo đợt, cửa sổ tính load score, chu kỳ job lời mời;
     // mức độ khi không có luật severity khớp (BR-SEV-03, validate riêng trong SystemConfigService)
     DISPATCH_ENABLED("DISPATCH_ENABLED", "false"),

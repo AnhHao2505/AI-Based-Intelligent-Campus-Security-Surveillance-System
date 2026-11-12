@@ -391,6 +391,19 @@
   background-color: var(--theme-success);
 }
 
+.account-badge--locked {
+  background-color: var(--theme-warning-bg);
+  color: var(--theme-warning-text);
+  border-color: var(--theme-warning-border);
+}
+
+.account-badge--locked .account-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--theme-warning);
+}
+
 .account-badge--inactive {
   background-color: var(--theme-bg-surface-elevated);
   color: var(--theme-text-muted);

@@ -42,7 +42,7 @@ import { useAuth } from "../../context/AuthContext";
 import "../../styles/ManageAccountPage.css";
 import PageHeader from "../../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
-import { formatDateTime } from "../../utils/formatDateTime";
+import { formatDateTime, formatTime } from "../../utils/formatDateTime";
 import useDialogA11y from "../../hooks/useDialogA11y";
 import AccountAuditLogTab from "./AccountAuditLogTab";
 
@@ -1025,14 +1025,19 @@ export default function ManageAccountPage() {
 											<td>
 												<span
 													className={`account-badge ${
-														item.isActive
+														item.isActive && item.loginLockedUntil
+															? "account-badge--locked"
+															: item.isActive
 															? "account-badge--active"
 															: "account-badge--inactive"
 													}`}
 												>
 													<span className="account-badge__dot" />
 													<span>
-														{item.isActive
+														{/* LT-03: BE chỉ trả loginLockedUntil khi tài khoản đang bị khoá đăng nhập tạm */}
+														{item.isActive && item.loginLockedUntil
+															? `Đang khoá đăng nhập đến ${formatTime(item.loginLockedUntil)}`
+															: item.isActive
 															? "Đang hoạt động"
 															: "Đã vô hiệu hóa"}
 													</span>

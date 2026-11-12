@@ -94,6 +94,8 @@ public class UserService {
 
     // Báo AI Service làm mới kho khuôn mặt sau commit (dùng chung với luồng khách)
     private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
+    // BE-06: độ dài mật khẩu tạm = max(12, PASSWORD_MIN_LENGTH)
+    private final SystemConfigService systemConfigService;
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
@@ -128,8 +130,8 @@ public class UserService {
             throw new DuplicateResourceException(String.join(". ", duplicateReasons));
         }
 
-        // BR-06: Generate 12-char temporary password
-        String tempPassword = generateRandomPassword(12);
+        // BR-06: mật khẩu tạm dài max(12, PASSWORD_MIN_LENGTH), có chữ + số (BE-06)
+        String tempPassword = newTemporaryPassword();
         String encodedPassword = passwordEncoder.encode(tempPassword);
 
         // 1. Process Face Registration with AI-Service & MinIO (VAL-05, BR-04, BR-08)
@@ -222,7 +224,9 @@ public class UserService {
             userPage = userRepository.searchUsers(kw, pageable);
         }
 
-        Page<UserListResponse> dtoPage = userPage.map(UserListResponse::fromEntity);
+        // LT-03: chỉ ADMIN thấy thời điểm hết khoá đăng nhập (FM xem danh sách bảo vệ không cần)
+        OffsetDateTime lockCheckAt = guardScopeOnly ? null : OffsetDateTime.now();
+        Page<UserListResponse> dtoPage = userPage.map(u -> UserListResponse.fromEntity(u, lockCheckAt));
 
         // Caller giới hạn không được biết tổng số tài khoản thường/quản trị — chỉ đếm trong tập được xem.
         long normalCount = guardScopeOnly ? 0 : userRepository.countByRolesAndDeletedAtIsNull(NORMAL_ROLES);
@@ -735,12 +739,14 @@ public class UserService {
         return userBulkImportService.bulkImportStaffUsers(zipFile);
     }
 
+    private String newTemporaryPassword() {
+        return generateRandomPassword(com.fa26se040.icss.util.TemporaryPasswordGenerator.lengthFor(
+                systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.PASSWORD_MIN_LENGTH)));
+    }
+
+    // BE-06: luôn có ít nhất 1 chữ cái và 1 chữ số
     private String generateRandomPassword(int length) {
-        StringBuilder sb = new StringBuilder(length);
-        for (int i = 0; i < length; i++) {
-            sb.append(DATA_FOR_RANDOM_STRING.charAt(random.nextInt(DATA_FOR_RANDOM_STRING.length())));
-        }
-        return sb.toString();
+        return com.fa26se040.icss.util.TemporaryPasswordGenerator.generate(length, DATA_FOR_RANDOM_STRING, random);
     }
 
     @Transactional(readOnly = true)
