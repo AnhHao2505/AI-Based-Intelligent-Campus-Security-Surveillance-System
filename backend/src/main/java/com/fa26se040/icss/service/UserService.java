@@ -737,12 +737,9 @@ public class UserService {
         return userBulkImportService.bulkImportStaffUsers(zipFile);
     }
 
+    // BE-06: luôn có ít nhất 1 chữ cái và 1 chữ số
     private String generateRandomPassword(int length) {
-        StringBuilder sb = new StringBuilder(length);
-        for (int i = 0; i < length; i++) {
-            sb.append(DATA_FOR_RANDOM_STRING.charAt(random.nextInt(DATA_FOR_RANDOM_STRING.length())));
-        }
-        return sb.toString();
+        return com.fa26se040.icss.util.TemporaryPasswordGenerator.generate(length, DATA_FOR_RANDOM_STRING, random);
     }
 
     @Transactional(readOnly = true)
