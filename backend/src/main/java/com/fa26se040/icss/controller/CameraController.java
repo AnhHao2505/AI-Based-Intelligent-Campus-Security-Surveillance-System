@@ -21,6 +21,7 @@ import com.fa26se040.icss.service.CameraSnapshotService;
 import com.fa26se040.icss.service.CameraStreamLifecycleService;
 import com.fa26se040.icss.service.CameraRecordingService;
 import com.fa26se040.icss.service.AnnotatedStreamTokenService;
+import com.fa26se040.icss.service.RecordingStreamTokenService;
 import org.springframework.http.HttpHeaders;
 
 import java.io.IOException;
@@ -39,6 +40,7 @@ public class CameraController {
     private final CameraStreamLifecycleService cameraStreamLifecycleService;
     private final CameraRecordingService cameraRecordingService;
     private final AnnotatedStreamTokenService annotatedStreamTokenService;
+    private final RecordingStreamTokenService recordingStreamTokenService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -191,14 +193,30 @@ public class CameraController {
         return ResponseEntity.ok(ApiResponse.success(list, "Lấy danh sách video ghi hình thành công"));
     }
 
+    /**
+     * BE-03: thẻ &lt;video&gt; không gửi được header Authorization nên endpoint này để permitAll ở SecurityConfig,
+     * nhưng bắt buộc query {@code token} do {@link #issueRecordingStreamToken} cấp (thiếu / sai / hết hạn → 401).
+     */
     @GetMapping("/recordings/stream")
     public ResponseEntity<org.springframework.core.io.Resource> streamRecording(
             @RequestParam String path,
             @RequestParam(required = false, defaultValue = "recording") String source,
             @RequestParam(required = false, defaultValue = "false") boolean download,
+            @RequestParam(required = false) String token,
             @RequestHeader HttpHeaders headers) throws IOException {
+        recordingStreamTokenService.verify(path, source, token);
         log.debug("REST request to stream recording: {}, source: {}", path, source);
         return cameraRecordingService.streamVideo(path, source, headers, download);
+    }
+
+    /** BE-03: token ngắn hạn mở một file ghi hình; cùng vai trò với GET /recordings (ADMIN, GUARD). */
+    @PostMapping("/recordings/stream-token")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
+    public ResponseEntity<ApiResponse<RecordingStreamTokenService.TokenResponse>> issueRecordingStreamToken(
+            @Valid @RequestBody RecordingStreamTokenRequest request) {
+        RecordingStreamTokenService.TokenResponse response =
+                recordingStreamTokenService.issue(request.path(), request.source());
+        return ResponseEntity.ok(ApiResponse.success(response, "Cấp token xem video ghi hình thành công"));
     }
 
     @PostMapping("/{cameraCode}/annotated-stream-token")

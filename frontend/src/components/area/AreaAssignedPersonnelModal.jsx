@@ -26,7 +26,7 @@ import {
 } from "../../utils/areaHelpers";
 import "../../styles/AreaAssignedPersonnelModal.css";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
-import { getSystemConfigs } from "../../services/systemConfigService";
+import { getAfterHoursWindow } from "../../services/systemConfigService";
 
 const STATUS_FILTERS = [
 	{ key: "ALL", label: "Tất cả" },
@@ -70,10 +70,9 @@ export default function AreaAssignedPersonnelModal({
 	useEffect(() => {
 		if (!isIndefinite || closingTime) return;
 		let cancelled = false;
-		getSystemConfigs()
-			.then((list) => {
-				const cfg = (list || []).find((c) => c.configKey === "AI_AFTER_HOUR_START");
-				if (!cancelled && cfg?.configValue) setClosingTime(String(cfg.configValue).trim());
+		getAfterHoursWindow()
+			.then((nightCfg) => {
+				if (!cancelled && nightCfg?.start) setClosingTime(String(nightCfg.start).trim());
 			})
 			.catch((err) => console.error("Không đọc được giờ đóng cửa (AI_AFTER_HOUR_START):", err));
 		return () => {

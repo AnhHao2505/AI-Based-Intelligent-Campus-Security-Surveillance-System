@@ -68,6 +68,9 @@ class CameraAnnotatedStreamTokenSecurityTest {
     @MockBean
     private AnnotatedStreamTokenService annotatedStreamTokenService;
 
+    @MockBean
+    private RecordingStreamTokenService recordingStreamTokenService;
+
     private final String cameraCode = "CAM-001";
 
     @BeforeEach

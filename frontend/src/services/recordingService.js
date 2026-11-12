@@ -1,4 +1,5 @@
 import { getAccessToken } from "./authService";
+import { apiPost } from "../api/apiClient";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -72,4 +73,20 @@ export async function fetchDiskRecordings({ cameraId = "", search = "", fromDate
       downloadUrl,
     };
   });
+}
+
+/**
+ * BE-03: gắn token ngắn hạn vào URL xem / tải video ghi hình. Thẻ <video> và cửa sổ tải file không gửi được header
+ * Authorization, nên backend bắt buộc query `token` cấp qua POST /api/cameras/recordings/stream-token (ADMIN, GUARD).
+ * Gọi ngay trước khi phát / tải; token hết hạn thì mở lại video để xin token mới.
+ * @param {string} url videoUrl hoặc downloadUrl lấy từ fetchDiskRecordings
+ * @returns {Promise<string>} URL đã gắn token
+ */
+export async function withRecordingStreamToken(url) {
+  const parsed = new URL(url, API_BASE_URL);
+  const path = parsed.searchParams.get("path");
+  const source = parsed.searchParams.get("source") || "recording";
+  const data = await apiPost("/api/cameras/recordings/stream-token", { path, source });
+  parsed.searchParams.set("token", data?.token || "");
+  return parsed.toString();
 }

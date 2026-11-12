@@ -8,7 +8,7 @@ import {
 	cancelEventSchedule,
 } from "../../services/areaService";
 import { getActiveReasons } from "../../services/reasonCatalogService";
-import { getSystemConfigs } from "../../services/systemConfigService";
+import { getAfterHoursWindow } from "../../services/systemConfigService";
 import { formatDisplayDateTime } from "../../utils/areaHelpers";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
 import useRevealMessage from "../../hooks/useRevealMessage";
@@ -72,12 +72,10 @@ export default function EventScheduleFormModal({ mode, schedule, areas, onClose,
 	useEffect(() => {
 		if (mode !== "create" && mode !== "edit") return;
 		let isMounted = true;
-		getSystemConfigs()
-			.then((list) => {
-				if (!isMounted || !Array.isArray(list)) return;
-				const value = (key) => list.find((c) => c.configKey === key)?.configValue;
-				const start = value("AI_AFTER_HOUR_START");
-				const end = value("AI_AFTER_HOUR_END");
+		getAfterHoursWindow()
+			.then((nightCfg) => {
+				if (!isMounted || !nightCfg) return;
+				const { start, end } = nightCfg;
 				setNightWindow(start && end && start !== end ? { start, end } : null);
 			})
 			.catch(() => {

@@ -144,6 +144,10 @@ icss:
     service-key: ${INTERNAL_SERVICE_KEY:}
   ai:
     annotated-stream-token-seconds: ${AI_ANNOTATED_STREAM_TOKEN_SECONDS:60}
+  camera:
+    # BE-03: thời hạn (giây) token xem / tải một file ghi hình (GET /api/cameras/recordings/stream?token=...).
+    # Đủ cho một đoạn 1 phút + tua; hết hạn thì mở lại video từ danh sách để xin token mới
+    recording-stream-token-seconds: ${RECORDING_STREAM_TOKEN_SECONDS:300}
 
 recording:
   storage:

@@ -7,6 +7,7 @@ import com.fa26se040.icss.service.CameraService;
 import com.fa26se040.icss.service.CameraSnapshotService;
 import com.fa26se040.icss.service.CameraStreamLifecycleService;
 import com.fa26se040.icss.service.AnnotatedStreamTokenService;
+import com.fa26se040.icss.service.RecordingStreamTokenService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,13 +61,17 @@ class CameraControllerSecurityTest {
         AnnotatedStreamTokenService annotatedStreamTokenService() { return mock(AnnotatedStreamTokenService.class); }
 
         @Bean
+        RecordingStreamTokenService recordingStreamTokenService() { return mock(RecordingStreamTokenService.class); }
+
+        @Bean
         CameraController cameraController(
                 CameraService cameraService,
                 CameraConnectionService cameraConnectionService,
                 CameraSnapshotService cameraSnapshotService,
                 CameraStreamLifecycleService cameraStreamLifecycleService,
                 CameraRecordingService cameraRecordingService,
-                AnnotatedStreamTokenService annotatedStreamTokenService
+                AnnotatedStreamTokenService annotatedStreamTokenService,
+                RecordingStreamTokenService recordingStreamTokenService
         ) {
             return new CameraController(
                     cameraService,
@@ -74,7 +79,8 @@ class CameraControllerSecurityTest {
                     cameraSnapshotService,
                     cameraStreamLifecycleService,
                     cameraRecordingService,
-                    annotatedStreamTokenService
+                    annotatedStreamTokenService,
+                    recordingStreamTokenService
             );
         }
 

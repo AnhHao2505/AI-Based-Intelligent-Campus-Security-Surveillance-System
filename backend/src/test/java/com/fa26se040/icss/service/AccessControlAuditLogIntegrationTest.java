@@ -267,12 +267,27 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                         .content("{\"accessLevel\": 3, \"reason\": \"   \"}"))
                 .andExpect(status().isBadRequest());
 
-        // 2. Thử cập nhật Area access rules với reason = null qua MockMvc -> 400
+        // 2. Thử cập nhật Area access rules với reason = null qua MockMvc -> 400.
+        // PATCH /access-rules chỉ dành cho ADMIN: từ PR-6 (BE-01) FM bị chặn 403 ở SecurityConfig trước khi validate body,
+        // nên bước kiểm lý do dùng tài khoản ADMIN; FM vẫn được kiểm là bị từ chối và không đổi dữ liệu.
+        User adminActor = userRepository.save(User.builder()
+                .userCode("AD-" + uniqueSuffix)
+                .fullName("Admin MockMvc Reason Test")
+                .email("ad-" + uniqueSuffix + "@fpt.edu.vn")
+                .role(Role.ADMIN)
+                .isActive(true)
+                .build());
+        String adminToken = "Bearer " + jwtTokenProvider.generateToken(adminActor);
+        mockMvc.perform(patch("/api/areas/{id}/access-rules", testArea.getId())
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": true, \"reason\": null}"))
+                .andExpect(status().isBadRequest());
         mockMvc.perform(patch("/api/areas/{id}/access-rules", testArea.getId())
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": true, \"reason\": null}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden());
 
         // 3. Thử cập nhật Preset với reason = 501 chars qua MockMvc -> 400
         mockMvc.perform(put("/api/access-control/level-presets/{areaLevel}", AreaLevel.PUBLIC)
@@ -298,6 +313,10 @@ class AccessControlAuditLogIntegrationTest extends AbstractIntegrationTest {
                 "SELECT COUNT(*) FROM audit_logs WHERE changed_by = :actorId"
         ).setParameter("actorId", fmActor.getId()).getSingleResult();
         assertEquals(0, auditCount.intValue(), "Không có bản ghi audit log nào được ghi vào DB khi request bị từ chối");
+        Number adminAuditCount = (Number) entityManager.createNativeQuery(
+                "SELECT COUNT(*) FROM audit_logs WHERE changed_by = :actorId"
+        ).setParameter("actorId", adminActor.getId()).getSingleResult();
+        assertEquals(0, adminAuditCount.intValue(), "ADMIN gửi thiếu lý do cũng không ghi audit log");
     }
 
     @Test
