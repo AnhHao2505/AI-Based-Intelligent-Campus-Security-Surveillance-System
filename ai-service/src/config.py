@@ -142,7 +142,9 @@ class Settings(BaseSettings):
 
     # Backend Access Decision Service Integration
     BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
-    ACCESS_DECISION_CACHE_TTL: float = 30.0
+    ACCESS_CHECK_TIMEOUT_SECONDS: float = Field(default=1.5, validation_alias="ACCESS_CHECK_TIMEOUT_SECONDS")
+    ACCESS_DECISION_CACHE_TTL: float = Field(default=30.0, validation_alias="ACCESS_DECISION_CACHE_TTL")
+    ACCESS_DENY_CACHE_TTL: float = Field(default=5.0, validation_alias="ACCESS_DENY_CACHE_TTL")
     ACCESS_STALE_MAX_SECONDS: float = Field(default=600.0, validation_alias="ACCESS_STALE_MAX_SECONDS")
     # Backend lỗi: quyết định CHO PHÉP cũ chỉ được dùng tạm nếu hết hạn chưa quá số giây này (Lucas K8).
     # Quá hạn thì coi như không có cache -> khu hạn chế Fail-Closed, khu công cộng cho qua.

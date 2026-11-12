@@ -271,6 +271,40 @@ class EdgeMqttAgent:
         if cooldown is not None:
             settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS = float(cooldown)
 
+        # M3: Timeout check-entry và TTL cache quyền ra vào
+        timeout_val = data.get("access_check_timeout_seconds")
+        if timeout_val is not None:
+            try:
+                t_val = float(timeout_val)
+                if 0.5 <= t_val <= 10.0:
+                    settings.ACCESS_CHECK_TIMEOUT_SECONDS = t_val
+                else:
+                    logger.warning(f"⚠️ [EdgeAgent] access_check_timeout_seconds={t_val} ngoài khoảng [0.5, 10.0], bỏ qua")
+            except (ValueError, TypeError):
+                logger.warning(f"⚠️ [EdgeAgent] access_check_timeout_seconds không hợp lệ: {timeout_val}, bỏ qua")
+
+        decision_ttl_val = data.get("access_decision_cache_ttl")
+        if decision_ttl_val is not None:
+            try:
+                d_val = float(decision_ttl_val)
+                if 1.0 <= d_val <= 600.0:
+                    settings.ACCESS_DECISION_CACHE_TTL = d_val
+                else:
+                    logger.warning(f"⚠️ [EdgeAgent] access_decision_cache_ttl={d_val} ngoài khoảng [1.0, 600.0], bỏ qua")
+            except (ValueError, TypeError):
+                logger.warning(f"⚠️ [EdgeAgent] access_decision_cache_ttl không hợp lệ: {decision_ttl_val}, bỏ qua")
+
+        deny_ttl_val = data.get("access_deny_cache_ttl")
+        if deny_ttl_val is not None:
+            try:
+                dn_val = float(deny_ttl_val)
+                if 1.0 <= dn_val <= 600.0:
+                    settings.ACCESS_DENY_CACHE_TTL = dn_val
+                else:
+                    logger.warning(f"⚠️ [EdgeAgent] access_deny_cache_ttl={dn_val} ngoài khoảng [1.0, 600.0], bỏ qua")
+            except (ValueError, TypeError):
+                logger.warning(f"⚠️ [EdgeAgent] access_deny_cache_ttl không hợp lệ: {deny_ttl_val}, bỏ qua")
+
         default_pipe = self.default_pipeline_getter() if self.default_pipeline_getter else None
         if default_pipe is not None:
             default_pipe.analysis_engine.after_hour_start = settings.DEFAULT_AFTER_HOUR_START

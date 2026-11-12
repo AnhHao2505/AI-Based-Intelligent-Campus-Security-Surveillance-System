@@ -357,6 +357,9 @@ class AIRuntimeConfigRequest(BaseModel):
     max_inactive_seconds: Optional[float] = None
     unknown_alert_cooldown: Optional[float] = None
     face_match_threshold: Optional[float] = None
+    access_check_timeout_seconds: Optional[float] = None
+    access_decision_cache_ttl: Optional[float] = None
+    access_deny_cache_ttl: Optional[float] = None
 
 @app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])
 async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
@@ -387,15 +390,36 @@ async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
             raise HTTPException(status_code=400, detail="face_match_threshold must be between 0.1 and 1.0")
         settings.FACE_MATCH_THRESHOLD = req.face_match_threshold
 
+    # M3: Timeout check-entry và TTL cache quyền
+    if req.access_check_timeout_seconds is not None:
+        if req.access_check_timeout_seconds < 0.5 or req.access_check_timeout_seconds > 10.0:
+            raise HTTPException(status_code=400, detail="access_check_timeout_seconds must be between 0.5 and 10.0")
+        settings.ACCESS_CHECK_TIMEOUT_SECONDS = req.access_check_timeout_seconds
+
+    if req.access_decision_cache_ttl is not None:
+        if req.access_decision_cache_ttl < 1.0 or req.access_decision_cache_ttl > 600.0:
+            raise HTTPException(status_code=400, detail="access_decision_cache_ttl must be between 1.0 and 600.0")
+        settings.ACCESS_DECISION_CACHE_TTL = req.access_decision_cache_ttl
+
+    if req.access_deny_cache_ttl is not None:
+        if req.access_deny_cache_ttl < 1.0 or req.access_deny_cache_ttl > 600.0:
+            raise HTTPException(status_code=400, detail="access_deny_cache_ttl must be between 1.0 and 600.0")
+        settings.ACCESS_DENY_CACHE_TTL = req.access_deny_cache_ttl
+
     logger.info(
         f"✅ Cập nhật cấu hình runtime AI: max_inactive_seconds={settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS}s, "
-        f"cooldown={settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS}s, threshold={settings.FACE_MATCH_THRESHOLD}"
+        f"cooldown={settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS}s, threshold={settings.FACE_MATCH_THRESHOLD}, "
+        f"timeout={settings.ACCESS_CHECK_TIMEOUT_SECONDS}s, decision_ttl={settings.ACCESS_DECISION_CACHE_TTL}s, "
+        f"deny_ttl={settings.ACCESS_DENY_CACHE_TTL}s"
     )
     return {
         "success": True,
         "max_inactive_seconds": settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS,
         "unknown_alert_cooldown": settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS,
-        "face_match_threshold": settings.FACE_MATCH_THRESHOLD
+        "face_match_threshold": settings.FACE_MATCH_THRESHOLD,
+        "access_check_timeout_seconds": settings.ACCESS_CHECK_TIMEOUT_SECONDS,
+        "access_decision_cache_ttl": settings.ACCESS_DECISION_CACHE_TTL,
+        "access_deny_cache_ttl": settings.ACCESS_DENY_CACHE_TTL
     }
 
 @app.post("/api/v1/cameras/configure", dependencies=[Depends(require_service_key)])

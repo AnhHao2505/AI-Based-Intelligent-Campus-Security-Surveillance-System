@@ -48,13 +48,22 @@ class FaceMatcher:
         # Dùng chung 1 phiên ArcFace cho mọi camera (không nạp lại model 174MB theo từng VideoPipeline)
         self.embedder = get_shared_face_embedder()
         self.access_cache: Dict[str, Tuple[bool, str, Optional[str], float, Optional[str], Optional[str]]] = {}
-        self.access_cache_ttl = getattr(settings, "ACCESS_DECISION_CACHE_TTL", 30.0)
         self._access_cache_lock = threading.Lock()
         self.last_best_score: float = 0.0
 
         # Nạp cache lần đầu nếu cache còn rỗng và chưa từng nạp
+        # (background refresh chỉ chạy sau cache_ttl, thiếu bước này mọi người sẽ là UNKNOWN lúc mới khởi động)
         if not self.cache.cached_faces and self.cache.last_cache_time == 0:
             self.refresh_cache()
+
+    @property
+    def access_cache_ttl(self) -> float:
+        """Đọc động từ settings tại thời điểm truy cập để thay đổi cấu hình runtime có hiệu lực ngay"""
+        return float(getattr(settings, "ACCESS_DECISION_CACHE_TTL", 30.0))
+
+    @access_cache_ttl.setter
+    def access_cache_ttl(self, val: float):
+        settings.ACCESS_DECISION_CACHE_TTL = float(val)
 
     @property
     def cached_faces(self) -> List[Dict]:
@@ -268,6 +277,11 @@ class FaceMatcher:
         if duration_seconds is not None:
             payload["durationSeconds"] = round(duration_seconds, 1)
 
+        # M3: Đọc timeout và TTL từ settings tại thời điểm gọi, cập nhật lúc chạy có hiệu lực ngay
+        timeout = float(getattr(settings, "ACCESS_CHECK_TIMEOUT_SECONDS", 1.5))
+        decision_ttl = float(getattr(settings, "ACCESS_DECISION_CACHE_TTL", 30.0))
+        deny_ttl = float(getattr(settings, "ACCESS_DENY_CACHE_TTL", 5.0))
+
         import requests
         from ..utils.http_client import get_http_session
         last_error = None
@@ -282,7 +296,7 @@ class FaceMatcher:
                     endpoint,
                     json=payload,
                     headers=headers,
-                    timeout=1.5
+                    timeout=timeout
                 )
                 if resp.status_code == 200:
                     res_json = resp.json()
@@ -302,7 +316,7 @@ class FaceMatcher:
                         with self._access_cache_lock:
                             self.access_cache.pop(cache_key, None)
                     else:
-                        ttl = self.access_cache_ttl if allowed else min(self.access_cache_ttl, 5.0)
+                        ttl = decision_ttl if allowed else deny_ttl
                         with self._access_cache_lock:
                             self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl, source, deny_reason)
 

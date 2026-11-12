@@ -260,4 +260,18 @@ class SystemConfigServiceTest {
         assertEquals(12.5, systemConfigService.getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS));
         assertEquals(30, systemConfigService.getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS));
     }
+
+    @Test
+    @DisplayName("M3: getAiRuntimeConfigMap chứa đầy đủ 3 khóa mới: timeout check-entry và TTL cache")
+    void testGetAiRuntimeConfigMap_ContainsM3Keys() {
+        when(systemConfigurationRepository.findAll()).thenReturn(List.of());
+        systemConfigService.initCache();
+
+        var map = systemConfigService.getAiRuntimeConfigMap();
+        assertNotNull(map);
+        assertEquals(1.5, map.get("access_check_timeout_seconds"));
+        assertEquals(30.0, map.get("access_decision_cache_ttl"));
+        assertEquals(5.0, map.get("access_deny_cache_ttl"));
+        assertEquals(0.75, map.get("face_match_threshold"));
+    }
 }
