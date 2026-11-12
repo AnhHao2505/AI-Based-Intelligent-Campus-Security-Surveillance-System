@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-	Building2,
 	Cctv,
 	VideoOff,
 	Users,
@@ -71,8 +70,6 @@ const LEVEL_SECTIONS = [
 
 export default function AreaListView({
 	floorAreas = [],
-	selectedFloor,
-	selectedBuilding,
 	selectedAreaId,
 	cameraCounts = {},
 	isAdmin = false,
@@ -83,6 +80,7 @@ export default function AreaListView({
 	onOpenAssignedPersonnelModal,
 	onOpenEditModal,
 	onOpenDeactivateModal,
+	onStartRebind3d,
 	showDeactivated = false,
 	onToggleShowDeactivated,
 	deactivatedAreas = [],
@@ -143,6 +141,8 @@ export default function AreaListView({
 		const levelConfig = getLevelConfig(levelKey);
 		const camCount = cameraCounts[area.id] ?? area.cameraCount ?? 0;
 		const locationStr = formatLocation(area.building, area.floor);
+		const isUnpositioned =
+			area.centerLatitude == null || area.centerLongitude == null;
 
 		return (
 			<div
@@ -165,6 +165,24 @@ export default function AreaListView({
 						<span className="zone-item-row__title" title={area.name}>
 							{area.name}
 						</span>
+						{isUnpositioned &&
+							(isAdmin && onStartRebind3d ? (
+								<button
+									type="button"
+									className="zone-card__pill-unpositioned"
+									title="Chọn block 3D cho khu vực này"
+									onClick={(e) => {
+										e.stopPropagation();
+										onStartRebind3d(area);
+									}}
+								>
+									Chưa gắn block 3D
+								</button>
+							) : (
+								<span className="zone-card__pill-unpositioned zone-card__pill-unpositioned--static">
+									Chưa gắn block 3D
+								</span>
+							))}
 						{area.eventActive && area.openUntil && (
 							<span
 								className="zone-card__pill-event"
@@ -323,8 +341,10 @@ export default function AreaListView({
 					</div>
 				) : (
 					<div className="zone-sidebar-title-simple">
-						<Layers size={14} className="zone-sidebar-title-icon" />
-						<span className="zone-sidebar-title-text">Khu vực hoạt động</span>
+						<div className="zone-sidebar-title-group">
+							<Layers size={14} className="zone-sidebar-title-icon" />
+							<span className="zone-sidebar-title-text">Khu vực hoạt động</span>
+						</div>
 						<span className="zone-sidebar-tab__badge">
 							{floorAreas.length}
 						</span>
@@ -332,7 +352,7 @@ export default function AreaListView({
 				)}
 			</div>
 
-			{/* 2. Search / Quick Filter Bar */}
+			{/* 3. Search / Quick Filter Bar */}
 			<div className="zone-sidebar-search-box">
 				<Search size={13} className="zone-sidebar-search-icon" />
 				<input

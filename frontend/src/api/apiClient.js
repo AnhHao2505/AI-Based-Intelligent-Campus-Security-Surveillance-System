@@ -152,7 +152,7 @@ function getDemoResponse(path) {
       ],
       topIncidentAreas: [
         { areaId: 'a1', areaName: 'Phòng Server Trung Tâm', building: 'Tòa Alpha', count: 5 },
-        { areaId: 'a2', areaName: 'Khu Thí Nghiệm Vi Mạch', building: 'Tòa Beta', count: 4 },
+        { areaId: 'a2', areaName: 'Khu Thí Nghiệm Vi Mạch', building: 'Tòa Epsilon', count: 4 },
         { areaId: 'a3', areaName: 'Cổng Sau Phân Khu 2', building: 'Khuôn viên', count: 3 },
         { areaId: 'a4', areaName: 'Hành Lang Tầng 3', building: 'Tòa Alpha', count: 2 }
       ],
@@ -188,7 +188,7 @@ function getDemoResponse(path) {
           id: 'inc-2',
           detectedAt: new Date(Date.now() - 14400000).toISOString(),
           cameraCode: 'CAM-012',
-          location: 'Tòa Beta · Khu Thí Nghiệm Vi Mạch',
+          location: 'Tòa Epsilon · Khu Thí Nghiệm Vi Mạch',
           eventType: 'Đột nhập sau giờ hoạt động',
           severity: 'HIGH',
           status: 'Đã xác minh',

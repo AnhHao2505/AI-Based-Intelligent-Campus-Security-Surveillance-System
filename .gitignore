@@ -1,5 +1,6 @@
 # Local Agent Rules
 .agents/
+.superpowers/
 
 # OS Files
 .DS_Store

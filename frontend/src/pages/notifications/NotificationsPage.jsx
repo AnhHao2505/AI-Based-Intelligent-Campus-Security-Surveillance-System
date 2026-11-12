@@ -125,7 +125,7 @@ export default function NotificationsPage() {
       }
     }
 
-    // A-05: thông báo khu vực / chế độ sự kiện (BE gắn referenceType = "AREA") -> màn Quản lý khu vực.
+    // A-05: thông báo khu vực / chế độ sự kiện (BE gắn referenceType = "AREA") -> màn Quản lý khuôn viên.
     // GUARD (nhận EVENT_MODE_CHANGED) không có màn này nên chỉ đánh dấu đã đọc.
     if (notif.referenceType === 'AREA' || notif.reference_type === 'AREA') {
       const role = user?.role || user?.role_type || '';
