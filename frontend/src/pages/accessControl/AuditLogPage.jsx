@@ -803,7 +803,10 @@ export default function AuditLogPage() {
 												<td>
 													{isSystemActor ? (
 														<div className="flex-col-stack">
-															<span className="font-semibold audit-system-actor">
+															<span
+																className="font-semibold audit-system-actor"
+																title={log.actorSource || undefined}
+															>
 																{renderSystemActor(log.actorSource)}
 															</span>
 														</div>

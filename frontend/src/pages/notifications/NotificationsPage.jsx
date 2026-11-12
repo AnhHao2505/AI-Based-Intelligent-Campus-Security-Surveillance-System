@@ -35,6 +35,15 @@ import '../../components/ui/Button.css';
 import { formatDateTime } from '../../utils/formatDateTime';
 import { toast } from 'sonner';
 
+// Thông báo về lịch sự kiện (AreaService: sendGuardScheduleNotification, thông báo cắt / huỷ lịch khi đổi giờ ban đêm,
+// sendFmScheduleStartingNotification, sendFmScheduleFailedNotification). EVENT_MODE_CHANGED / EXPIRING / LIMIT_CHANGED
+// là thay đổi chế độ sự kiện đang mở của khu -> vẫn về /admin/areas.
+const EVENT_SCHEDULE_NOTIFICATION_TYPES = new Set([
+  'EVENT_MODE_SCHEDULED',
+  'EVENT_MODE_SCHEDULE_STARTING',
+  'EVENT_MODE_SCHEDULE_FAILED',
+]);
+
 export default function NotificationsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -127,10 +136,14 @@ export default function NotificationsPage() {
 
     // A-05: thông báo khu vực / chế độ sự kiện (BE gắn referenceType = "AREA") -> màn Quản lý khuôn viên.
     // GUARD (nhận EVENT_MODE_CHANGED) không có màn này nên chỉ đánh dấu đã đọc.
+    // LT-05: thông báo về LỊCH sự kiện (đặt / sửa / huỷ / bị hệ thống cắt giờ, sắp bắt đầu, kích hoạt lỗi)
+    // -> màn Quản lý sự kiện, lọc theo khu (referenceId là id khu, BE không gửi id lịch).
     if (notif.referenceType === 'AREA' || notif.reference_type === 'AREA') {
       const role = user?.role || user?.role_type || '';
       if (role === 'FACILITY_MANAGER' || role === 'ADMIN') {
-        navigate('/admin/areas');
+        const areaRef = notif.referenceId || notif.reference_id;
+        const eventsPath = `/admin/events${areaRef ? `?areaId=${encodeURIComponent(areaRef)}` : ''}`;
+        navigate(EVENT_SCHEDULE_NOTIFICATION_TYPES.has(notif.type) ? eventsPath : '/admin/areas');
       }
       return;
     }
