@@ -215,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final themeProvider = context.watch<ThemeProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.bg(context),
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Stack(
           children: [
@@ -248,14 +248,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 80,
                           height: 80,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withAlpha(50),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: AppColors.primaryLight.withAlpha(100), width: 1.5),
+                            color: AppColors.isDark(context)
+                                ? AppColors.darkSurface
+                                : AppColors.lightSurface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.isDark(context)
+                                  ? AppColors.primaryLight.withAlpha(110)
+                                  : AppColors.primary.withAlpha(80),
+                              width: 1.5,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primary.withAlpha(60),
-                                blurRadius: 24,
-                                offset: const Offset(0, 8),
+                                color: AppColors.isDark(context)
+                                    ? Colors.black.withAlpha(110)
+                                    : Colors.black.withAlpha(18),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
                               ),
                             ],
                           ),
