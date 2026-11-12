@@ -17,5 +17,5 @@ INSERT INTO system_configurations (
     editable
 ) VALUES
     ('PASSWORD_MIN_LENGTH', '8', 'INTEGER', 6, 64, 'ký tự', 'SECURITY', 67,
-     '[Mật khẩu] Số ký tự tối thiểu của mật khẩu mới do người dùng tự đặt (đặt lại mật khẩu). Mật khẩu mới còn phải có ít nhất 1 chữ cái và 1 chữ số. Mật khẩu đang có không bị kiểm lại', true)
+     '[Mật khẩu] Số ký tự tối thiểu của mật khẩu mới do người dùng tự đặt (đặt lại mật khẩu). Mật khẩu mới còn phải có ít nhất 1 chữ cái và 1 chữ số. Mật khẩu tạm hệ thống cấp dài max(12, giá trị này). Mật khẩu đang có không bị kiểm lại', true)
 ON CONFLICT (config_key) DO NOTHING;

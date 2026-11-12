@@ -215,7 +215,7 @@ public class UserBulkImportService {
                     ZipImageEntry imgEntry = imageMap.get(userCode.toLowerCase());
                     byte[] imgBytes = imgEntry != null ? imgEntry.bytes : null;
                     String imgFileName = imgEntry != null ? imgEntry.fileName : userCode + ".jpg";
-                    String tempPassword = generateRandomPassword(12);
+                    String tempPassword = newTemporaryPassword();
 
                     BulkImportRowResult result = userBulkImportHelper.processSingleRow(
                             rowIndex, userCode, fullName, email, Role.NORMAL_USER, importBatchId, imgBytes, imgFileName, tempPassword
@@ -405,7 +405,7 @@ public class UserBulkImportService {
                     ZipImageEntry imgEntry = imageMap.get(userCode.toLowerCase());
                     byte[] imgBytes = imgEntry != null ? imgEntry.bytes : null;
                     String imgFileName = imgEntry != null ? imgEntry.fileName : userCode + ".jpg";
-                    String tempPassword = generateRandomPassword(12);
+                    String tempPassword = newTemporaryPassword();
 
                     BulkImportRowResult result = userBulkImportHelper.processSingleRow(
                             rowIndex, userCode, fullName, email, targetRole, importBatchId, imgBytes, imgFileName, tempPassword
@@ -635,6 +635,12 @@ public class UserBulkImportService {
         }
         values.add(sb.toString().trim());
         return values.toArray(new String[0]);
+    }
+
+    // BE-06: mật khẩu tạm dài max(12, PASSWORD_MIN_LENGTH), có chữ + số
+    private String newTemporaryPassword() {
+        return generateRandomPassword(com.fa26se040.icss.util.TemporaryPasswordGenerator.lengthFor(
+                systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.PASSWORD_MIN_LENGTH)));
     }
 
     // BE-06: luôn có ít nhất 1 chữ cái và 1 chữ số

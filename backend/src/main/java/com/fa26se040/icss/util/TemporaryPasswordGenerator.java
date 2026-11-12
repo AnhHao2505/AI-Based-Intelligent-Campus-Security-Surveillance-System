@@ -11,7 +11,18 @@ import java.security.SecureRandom;
  */
 public final class TemporaryPasswordGenerator {
 
+    /** Độ dài mật khẩu tạm khi PASSWORD_MIN_LENGTH nhỏ hơn (BR-AU-06: 12 ký tự). */
+    public static final int BASE_LENGTH = 12;
+
     private TemporaryPasswordGenerator() {
+    }
+
+    /**
+     * Lucas chốt 12/11: độ dài mật khẩu tạm = max(12, PASSWORD_MIN_LENGTH) để mật khẩu tạm không ngắn hơn mức tối thiểu
+     * người dùng phải tự đặt. PASSWORD_MIN_LENGTH tối đa 64 (V119) nên mật khẩu tạm không vượt 64.
+     */
+    public static int lengthFor(int passwordMinLength) {
+        return Math.max(BASE_LENGTH, passwordMinLength);
     }
 
     /**

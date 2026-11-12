@@ -94,6 +94,8 @@ public class UserService {
 
     // Báo AI Service làm mới kho khuôn mặt sau commit (dùng chung với luồng khách)
     private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
+    // BE-06: độ dài mật khẩu tạm = max(12, PASSWORD_MIN_LENGTH)
+    private final SystemConfigService systemConfigService;
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
@@ -128,8 +130,8 @@ public class UserService {
             throw new DuplicateResourceException(String.join(". ", duplicateReasons));
         }
 
-        // BR-06: Generate 12-char temporary password
-        String tempPassword = generateRandomPassword(12);
+        // BR-06: mật khẩu tạm dài max(12, PASSWORD_MIN_LENGTH), có chữ + số (BE-06)
+        String tempPassword = newTemporaryPassword();
         String encodedPassword = passwordEncoder.encode(tempPassword);
 
         // 1. Process Face Registration with AI-Service & MinIO (VAL-05, BR-04, BR-08)
@@ -735,6 +737,11 @@ public class UserService {
 
     public BulkImportResponse bulkImportStaffUsers(MultipartFile zipFile) {
         return userBulkImportService.bulkImportStaffUsers(zipFile);
+    }
+
+    private String newTemporaryPassword() {
+        return generateRandomPassword(com.fa26se040.icss.util.TemporaryPasswordGenerator.lengthFor(
+                systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.PASSWORD_MIN_LENGTH)));
     }
 
     // BE-06: luôn có ít nhất 1 chữ cái và 1 chữ số

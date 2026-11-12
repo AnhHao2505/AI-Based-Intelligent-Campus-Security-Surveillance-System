@@ -1,5 +1,7 @@
 package com.fa26se040.icss.util;
 
+import com.fa26se040.icss.enums.ConfigKey;
+import com.fa26se040.icss.service.SystemConfigService;
 import com.fa26se040.icss.service.UserBulkImportService;
 import com.fa26se040.icss.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -62,5 +64,34 @@ class TemporaryPasswordGeneratorTest {
             assertThat(TemporaryPasswordGenerator.hasLetterAndDigit(a)).as(a).isTrue();
             assertThat(TemporaryPasswordGenerator.hasLetterAndDigit(b)).as(b).isTrue();
         }
+    }
+
+    /** Lucas chốt 12/11: độ dài mật khẩu tạm = max(12, PASSWORD_MIN_LENGTH). */
+    private static void assertTemporaryPasswordLength(int passwordMinLength, int expectedLength) {
+        SystemConfigService config = Mockito.mock(SystemConfigService.class);
+        Mockito.when(config.getInt(ConfigKey.PASSWORD_MIN_LENGTH)).thenReturn(passwordMinLength);
+        UserService userService = Mockito.mock(UserService.class, Mockito.CALLS_REAL_METHODS);
+        ReflectionTestUtils.setField(userService, "systemConfigService", config);
+        UserBulkImportService bulk = new UserBulkImportService(null, config);
+        for (int i = 0; i < 500; i++) {
+            // Đúng hàm hai service gọi khi tạo tài khoản / nạp theo lô
+            String a = ReflectionTestUtils.invokeMethod(userService, "newTemporaryPassword");
+            String b = ReflectionTestUtils.invokeMethod(bulk, "newTemporaryPassword");
+            assertThat(a).hasSize(expectedLength);
+            assertThat(b).hasSize(expectedLength);
+            assertThat(TemporaryPasswordGenerator.hasLetterAndDigit(a)).as(a).isTrue();
+            assertThat(TemporaryPasswordGenerator.hasLetterAndDigit(b)).as(b).isTrue();
+        }
+    }
+
+    @Test
+    void passwordMinLength16_temporaryPasswordIs16WithLetterAndDigit() {
+        assertTemporaryPasswordLength(16, 16);
+    }
+
+    @Test
+    void passwordMinLengthBelow12_temporaryPasswordStays12() {
+        assertTemporaryPasswordLength(8, 12);
+        assertThat(TemporaryPasswordGenerator.lengthFor(64)).isEqualTo(64);
     }
 }
