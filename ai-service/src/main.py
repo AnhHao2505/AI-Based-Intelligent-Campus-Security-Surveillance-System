@@ -513,6 +513,14 @@ async def process_face_registration(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Không thể đọc file ảnh chính diện: {str(e)}")
 
+    # Thiếu model ArcFace thì extract_embedding âm thầm trả vector dự phòng DCT: vector đó "giống" mọi người
+    # (cos ~0.8) và không bao giờ khớp mặt thật trên camera -> phải từ chối đăng ký thay vì lưu dữ liệu hỏng.
+    if getattr(face_embedder, "session", None) is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Mô hình nhận diện khuôn mặt (ArcFace) chưa được nạp trên AI service, không thể tạo dữ liệu khuôn mặt. Vui lòng thử lại sau."
+        )
+
     try:
         detector = default_pipeline.face_detector if default_pipeline else face_detector
         faces = detector.detect_in_image(img)
@@ -535,6 +543,9 @@ async def process_face_registration(
             landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in faces[0].landmarks]
 
         vector_512 = face_embedder.extract_embedding(face_crop, landmarks=landmarks)
+    except HTTPException:
+        # Giữ nguyên mã lỗi 400 (không thấy khuôn mặt) thay vì bị khối dưới đổi thành 500
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()

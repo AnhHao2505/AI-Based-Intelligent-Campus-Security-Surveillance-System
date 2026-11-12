@@ -579,6 +579,17 @@ class EdgeMqttAgent:
             embedder = get_shared_face_embedder()
             self.face_embedder = embedder
 
+        # Thiếu model ArcFace thì extract_embedding trả vector dự phòng DCT (giống mọi người, không bao giờ khớp camera)
+        # -> từ chối thay vì để Backend lưu dữ liệu khuôn mặt hỏng.
+        if getattr(embedder, "session", None) is None:
+            return {
+                "correlationId": corr_id,
+                "success": False,
+                "errorCode": "ERR_MODEL_NOT_READY",
+                "errorMessage": "Mô hình nhận diện khuôn mặt (ArcFace) chưa được nạp trên thiết bị biên",
+                "latencyMs": int((time.time() - t0) * 1000),
+            }
+
         faces = detector.detect_in_image(img)
         face_count = len(faces)
         if not faces:
