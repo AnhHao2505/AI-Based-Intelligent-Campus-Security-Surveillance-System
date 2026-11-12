@@ -94,6 +94,8 @@ class VideoPipeline:
         self.face_min_laplacian_variance = getattr(settings, "FACE_MIN_LAPLACIAN_VARIANCE", 15.0)
         self._track_face_scan_times = {}
         self._track_arcface_times = {}
+        self._track_identify_stats = {}
+        self._identify_stats_lock = threading.Lock()
         self._last_occupied_motion_time: float = 0.0
         self._cached_motion_res = None
         self._suspicious_motion_start_time: Optional[float] = None
@@ -107,6 +109,9 @@ class VideoPipeline:
         # Khởi tạo các module tích hợp
         from concurrent.futures import ThreadPoolExecutor
         self.access_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix=f"access-{camera_code}")
+        # Ghi log VÀO/RA ROI (skip_cache, không ảnh hưởng hiển thị) chạy executor riêng để không chặn hàng đợi
+        # kiểm tra quyền -> người vừa nhận diện xong không phải chờ các request ghi log phía trước.
+        self.access_log_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix=f"access-log-{camera_code}")
         self.upload_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix=f"upload-{camera_code}")
         self.io_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix=f"io-{camera_code}")
         self.executor = self.io_executor  # Backward compatibility
@@ -116,8 +121,60 @@ class VideoPipeline:
         self.visualizer = FrameVisualizer()
         self._last_heartbeat_time: Optional[float] = None
 
+    def _record_access_checked(self, track_id: int, user_code: Optional[str], current_time: Optional[float] = None):
+        """Ghi nhận mốc thời gian có kết quả thẩm định quyền và kích hoạt log hiệu năng (IdentifyLatency)"""
+        stats = self._track_identify_stats.get(track_id)
+        if not stats:
+            return
+        # Được gọi từ cả luồng phân tích lẫn access_executor -> khoá để không in log 2 lần
+        with self._identify_stats_lock:
+            now = current_time or time.time()
+            if stats.get("access_checked_time") is None:
+                stats["access_checked_time"] = now
+            if user_code and not stats.get("matched_code"):
+                stats["matched_code"] = user_code
+            if stats.get("first_matched_time") is not None and not stats.get("latency_logged", False):
+                self._log_identify_latency(track_id, stats, now)
+
+    def _log_identify_latency(self, track_id: int, stats: dict, current_time: float):
+        """In MỘT dòng log INFO tóm tắt hiệu năng nhận diện khi track được định danh hoặc bị xóa"""
+        if stats.get("latency_logged", False):
+            return
+        stats["latency_logged"] = True
+
+        first_seen = stats.get("first_seen_time", current_time)
+        first_matched = stats.get("first_matched_time")
+        access_checked = stats.get("access_checked_time")
+        target = stats.get("matched_code")
+
+        drop_nf = stats.get("drop_no_face", 0)
+        drop_ts = stats.get("drop_too_small", 0)
+        drop_bl = stats.get("drop_blurry", 0)
+        drop_ls = stats.get("drop_low_score", 0)
+        best_sc = stats.get("best_unmatched_score", 0.0)
+
+        if first_matched is not None and target:
+            see_to_match = max(0.0, first_matched - first_seen)
+            if access_checked is not None:
+                match_to_access = max(0.0, access_checked - first_matched)
+                access_str = f"khớp→có quyền {match_to_access:.2f}s"
+            else:
+                access_str = "khớp→có quyền N/A"
+            logger.info(
+                f"⏱️ [IdentifyLatency:{self.camera_code}] Track #{track_id} -> {target}: "
+                f"thấy→khớp {see_to_match:.2f}s, {access_str}, "
+                f"bỏ: không mặt={drop_nf}, nhỏ={drop_ts}, mờ={drop_bl}, dưới ngưỡng={drop_ls} (best {best_sc:.2f})"
+            )
+        else:
+            duration = max(0.0, current_time - first_seen)
+            logger.info(
+                f"⏱️ [IdentifyLatency:{self.camera_code}] Track #{track_id} -> CHƯA ĐỊNH DANH (tồn tại {duration:.2f}s), "
+                f"bỏ: không mặt={drop_nf}, nhỏ={drop_ts}, mờ={drop_bl}, dưới ngưỡng={drop_ls} (best {best_sc:.2f})"
+            )
+
     def _apply_access_decision(self, face_info, is_allowed: bool, access_reason: str, area_name: Optional[str],
-                               access_source: Optional[str] = None, access_deny_reason: Optional[str] = None):
+                               access_source: Optional[str] = None, access_deny_reason: Optional[str] = None,
+                               track_id: Optional[int] = None):
         reason_lower = (access_reason or "").lower()
         if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
             face_info.matched_code = None
@@ -138,6 +195,10 @@ class VideoPipeline:
             f"🚪 [VideoPipeline:{self.camera_code}] [AccessDecision] Thẩm quyền của [{target_name}] tại [{area_name or self.camera_code}]: "
             f"{'✅ HỢP LỆ' if face_info.is_authorized else '⛔ TỪ CHỐI'} (Lý do: {face_info.access_reason}, Nguồn: {face_info.access_source or 'N/A'})"
         )
+        # Không dò track_id bằng cách duyệt active_tracks: hàm này chạy cả trên luồng access_executor / API,
+        # duyệt dict trong lúc luồng phân tích sửa sẽ gây "dictionary changed size during iteration".
+        if track_id is not None:
+            self._record_access_checked(track_id, face_info.matched_code)
 
     def _handle_identity_switch(
         self,
@@ -184,7 +245,7 @@ class VideoPipeline:
                 deny_reason = res[4] if len(res) >= 5 else None
                 existing = self.analysis_engine.active_tracks.get(track_id)
                 if existing and existing.face_info and existing.face_info.matched_code == new_code:
-                    self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason)
+                    self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id)
                     existing.roi_entry_logged = True
             except Exception as e:
                 logger.warning(f"[VideoPipeline] Lỗi khi ghi ENTRY cho mã mới {new_code}: {e}")
@@ -204,7 +265,7 @@ class VideoPipeline:
             deny_reason = res[4] if len(res) >= 5 else None
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing and existing.face_info and existing.face_info.matched_code == user_code:
-                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason)
+                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id)
                 if getattr(existing, "is_in_roi", False):
                     existing.roi_entry_logged = True
         except Exception as e:
@@ -226,7 +287,7 @@ class VideoPipeline:
             area_name = cached[2]
             access_source = cached[3] if len(cached) >= 4 else None
             deny_reason = cached[4] if len(cached) >= 5 else None
-            self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source, deny_reason)
+            self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id)
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing:
                 existing.roi_entry_logged = True
@@ -380,10 +441,16 @@ class VideoPipeline:
                                 face_res.is_active = is_active
                                 face_res.role = role
                                 face_res.score = score
-                                is_allowed, reason, area_name = self.face_matcher.check_camera_access(self.camera_code, code)
-                                self._apply_access_decision(face_res, is_allowed, reason, area_name)
+                                # check_camera_access trả 5 phần tử (allowed, reason, area, source, deny_reason)
+                                res = self.face_matcher.check_camera_access(self.camera_code, code)
+                                self._apply_access_decision(
+                                    face_res, res[0], res[1], res[2],
+                                    res[3] if len(res) >= 4 else None,
+                                    res[4] if len(res) >= 5 else None
+                                )
                             else:
-                                is_allowed, reason, area_name = self.face_matcher.check_camera_access(self.camera_code, "UNKNOWN")
+                                res = self.face_matcher.check_camera_access(self.camera_code, "UNKNOWN")
+                                is_allowed, reason, area_name = res[0], res[1], res[2]
                                 face_res.is_authorized = is_allowed
                                 face_res.access_reason = reason
                                 face_res.area_name = area_name
@@ -770,6 +837,21 @@ class VideoPipeline:
             if track_id < 0:
                 continue
 
+            if track_id not in self._track_identify_stats:
+                self._track_identify_stats[track_id] = {
+                    "first_seen_time": current_time,
+                    "first_matched_time": None,
+                    "access_checked_time": None,
+                    "matched_code": None,
+                    "drop_no_face": 0,
+                    "drop_too_small": 0,
+                    "drop_blurry": 0,
+                    "drop_low_score": 0,
+                    "best_unmatched_score": 0.0,
+                    "latency_logged": False
+                }
+            track_stats = self._track_identify_stats[track_id]
+
             in_roi, roi_label = self.is_bbox_in_roi(bbox, w, h)
 
             # Tối ưu hiệu năng: Nếu Track ID này đã nhận diện được danh tính trong active_tracks,
@@ -785,6 +867,14 @@ class VideoPipeline:
                     existing = parent_res[1]
             is_reverifying = False
             if existing and existing.face_detected and existing.face_info and existing.face_info.matched_code:
+                if track_stats.get("first_matched_time") is None:
+                    # Danh tính có sẵn (kế thừa từ track cha / bộ đếm tạo lại sau khi track bị xoá rồi xuất hiện lại):
+                    # độ trễ đã được đo và in ở lần nhận diện gốc. Không đo lại ở đây, vì first_seen_time của người
+                    # có thể từ hàng chục giây trước -> ra số vô nghĩa ("khớp→có quyền 55s") và in trùng dòng log.
+                    track_stats["first_matched_time"] = current_time
+                    track_stats["matched_code"] = existing.face_info.matched_code
+                    track_stats["latency_logged"] = True
+
                 # Nếu người này trước đó ở ngoài ROI, nay bước chân vào ROI:
                 if in_roi and not getattr(existing.face_info, "access_checked", False):
                     self._resolve_access_for_person(
@@ -840,7 +930,9 @@ class VideoPipeline:
                         person_upper_crop,
                         offset_xy=(x1, y1)
                     )
-                    if face_result:
+                    if not face_result:
+                        track_stats["drop_no_face"] += 1
+                    else:
                         fx1, fy1, fx2, fy2 = face_result.bbox.to_int_xyxy()
                         fx1, fy1 = max(0, fx1), max(0, fy1)
                         fx2, fy2 = min(w, fx2), min(h, fy2)
@@ -851,178 +943,202 @@ class VideoPipeline:
                         # 1. Kích thước tối thiểu
                         if face_w < self.face_min_crop_size or face_h < self.face_min_crop_size:
                             # Mặt quá nhỏ, chất lượng kém -> Bỏ qua, không xóa danh tính cũ và không phá vỡ grace period
+                            track_stats["drop_too_small"] += 1
                             continue
 
                         face_crop = frame[fy1:fy2, fx1:fx2]
-                        if face_crop.size > 0:
-                            # 2. Lọc độ mờ (Laplacian variance)
-                            if self._is_face_blurry(face_crop):
-                                logger.debug(
-                                    f"⚠️ [VideoPipeline:{self.camera_code}] [FaceFilter] Track #{track_id}: Mặt bị mờ do chuyển động -> Bỏ qua ArcFace"
-                                )
-                                # Mặt bị mờ do chuyển động -> Bỏ qua, không xóa danh tính cũ và không phá vỡ grace period
-                                continue
-                            crop_landmarks = None
-                            if face_result.landmarks:
-                                crop_landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in face_result.landmarks]
+                        if face_crop.size == 0:
+                            track_stats["drop_too_small"] += 1
+                            continue
 
+                        # 2. Lọc độ mờ (Laplacian variance)
+                        if self._is_face_blurry(face_crop):
+                            track_stats["drop_blurry"] += 1
+                            logger.debug(
+                                f"⚠️ [VideoPipeline:{self.camera_code}] [FaceFilter] Track #{track_id}: Mặt bị mờ do chuyển động -> Bỏ qua ArcFace"
+                            )
+                            # Mặt bị mờ do chuyển động -> Bỏ qua, không xóa danh tính cũ và không phá vỡ grace period
+                            continue
 
-                            # Tầng 2: ArcFace Throttling (0.2s/lần trong ROI để chống bão CPU)
-                            match = None
-                            can_run_arcface = True
-                            if in_roi and not is_reverifying:
-                                if track_id in self._track_arcface_times:
-                                    last_arcface_t = self._track_arcface_times[track_id]
-                                    if (current_time - last_arcface_t) < (self.face_scan_initial_interval - 1e-4):
-                                        can_run_arcface = False
+                        crop_landmarks = None
+                        if face_result.landmarks:
+                            crop_landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in face_result.landmarks]
 
-                            if can_run_arcface:
-                                self._track_arcface_times[track_id] = current_time
-                                match = self.face_matcher.match_face(
-                                    face_crop,
-                                    threshold=settings.FACE_MATCH_THRESHOLD,
-                                    landmarks=crop_landmarks
-                                )
-                            if match:
-                                if len(match) >= 5:
-                                    code, name, score, is_active, role = match
-                                else:
-                                    code, name, score, is_active = match[:4]
-                                    role = "NORMAL_USER"
-                                logger.info(
-                                    f"✅ [VideoPipeline:{self.camera_code}] [FaceMatcher] Track #{track_id} -> Nhận diện: {code} ({name}) "
-                                    f"[Khớp: {score:.1%}, Vai trò: {role}, Hoạt động: {is_active}]"
-                                )
-                                # Điểm 8: Nếu đang re-verify cho 1 track đã có danh tính:
-                                identity_switched = False
-                                if is_reverifying and existing and existing.face_info and existing.face_info.matched_code:
-                                    prev_code = existing.face_info.matched_code
-                                    prev_score = getattr(existing.face_info, "score", 0.0) or 0.0
-                                    existing.last_face_match_time = current_time
+                        # Tầng 2: ArcFace Throttling (0.2s/lần trong ROI để chống bão CPU)
+                        match = None
+                        can_run_arcface = True
+                        if in_roi and not is_reverifying:
+                            if track_id in self._track_arcface_times:
+                                last_arcface_t = self._track_arcface_times[track_id]
+                                if (current_time - last_arcface_t) < (self.face_scan_initial_interval - 1e-4):
+                                    can_run_arcface = False
 
-                                    if code == prev_code:
-                                        # Cùng mã: xóa candidate pending
-                                        existing.pending_reverify_code = None
-                                        existing.pending_reverify_count = 0
-                                        # Đã xác thực khuôn mặt độc lập trên track này -> Xóa cờ kế thừa!
-                                        existing.is_inherited_identity = False
-                                        if existing.face_info:
-                                            existing.face_info.is_inherited = False
-                                        # Chỉ cập nhật điểm nếu điểm mới cao hơn điểm cũ
-                                        if score > prev_score:
-                                            existing.face_info.score = score
-                                            face_result.score = score
-                                        continue
+                        if can_run_arcface:
+                            self._track_arcface_times[track_id] = current_time
+                            match = self.face_matcher.match_face(
+                                face_crop,
+                                threshold=settings.FACE_MATCH_THRESHOLD,
+                                landmarks=crop_landmarks
+                            )
+                        if match:
+                            if len(match) >= 5:
+                                code, name, score, is_active, role = match
+                            else:
+                                code, name, score, is_active = match[:4]
+                                role = "NORMAL_USER"
 
-                                    # Mã mới KHÁC danh tính hiện tại:
-                                    # Điểm mới phải >= prev_score + 0.05
-                                    if score < (prev_score + 0.05):
-                                        continue
+                            if track_stats.get("first_matched_time") is None:
+                                track_stats["first_matched_time"] = current_time
+                                track_stats["matched_code"] = code
 
-                                    # Yêu cầu 2 lần match liên tiếp cùng mã mới trước khi đổi (POINT-08a)
-                                    if getattr(existing, "pending_reverify_code", None) == code:
-                                        existing.pending_reverify_count = getattr(existing, "pending_reverify_count", 0) + 1
-                                    else:
-                                        existing.pending_reverify_code = code
-                                        existing.pending_reverify_count = 1
+                            logger.info(
+                                f"✅ [VideoPipeline:{self.camera_code}] [FaceMatcher] Track #{track_id} -> Nhận diện: {code} ({name}) "
+                                f"[Khớp: {score:.1%}, Vai trò: {role}, Hoạt động: {is_active}]"
+                            )
+                            # Điểm 8: Nếu đang re-verify cho 1 track đã có danh tính:
+                            identity_switched = False
+                            if is_reverifying and existing and existing.face_info and existing.face_info.matched_code:
+                                prev_code = existing.face_info.matched_code
+                                prev_score = getattr(existing.face_info, "score", 0.0) or 0.0
+                                existing.last_face_match_time = current_time
 
-                                    if existing.pending_reverify_count < 2:
-                                        # Lần 1: chưa đủ 2 lần liên tiếp -> BỎ QUA, không đổi
-                                        continue
-
-                                    # Lần 2 liên tiếp cùng mã mới -> Thực hiện đổi danh tính:
-                                    logger.info(
-                                        f"🔄 [Face Re-verify] Track #{track_id} đổi danh tính từ {prev_code} "
-                                        f"sang {code} (score mới: {score:.3f}, score cũ: {prev_score:.3f})"
-                                    )
+                                if code == prev_code:
+                                    # Cùng mã: xóa candidate pending
                                     existing.pending_reverify_code = None
                                     existing.pending_reverify_count = 0
+                                    # Đã xác thực khuôn mặt độc lập trên track này -> Xóa cờ kế thừa!
                                     existing.is_inherited_identity = False
                                     if existing.face_info:
                                         existing.face_info.is_inherited = False
+                                    # Chỉ cập nhật điểm nếu điểm mới cao hơn điểm cũ
+                                    if score > prev_score:
+                                        existing.face_info.score = score
+                                        face_result.score = score
+                                    continue
 
-                                    # POINT-08b: Reset cảnh báo vi phạm
-                                    existing.alert_unauthorized_sent = False
-                                    existing.alert_unknown_sent = False
-                                    existing.track_unauthorized_alert_time = 0.0
+                                # Mã mới KHÁC danh tính hiện tại:
+                                # Điểm mới phải >= prev_score + 0.05
+                                if score < (prev_score + 0.05):
+                                    continue
 
-                                    # POINT-08c: Đổi danh tính A -> B: Ghi EXIT(A) rồi ENTRY(B) tuần tự trong MỘT task
-                                    need_exit = getattr(existing, "roi_entry_logged", False)
-                                    need_entry = in_roi
-
-                                    if (need_exit or need_entry) and self.face_matcher:
-                                        if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
-                                            self.access_executor.submit(
-                                                self._handle_identity_switch,
-                                                track_id,
-                                                prev_code,
-                                                code,
-                                                roi_label or "Vùng giám sát",
-                                                need_exit,
-                                                need_entry
-                                            )
-                                        else:
-                                            self._handle_identity_switch(
-                                                track_id,
-                                                prev_code,
-                                                code,
-                                                roi_label or "Vùng giám sát",
-                                                need_exit,
-                                                need_entry
-                                            )
-                                        existing.roi_entry_logged = False
-                                        identity_switched = True
-
-                                face_result.matched_code = code
-                                face_result.matched_name = name
-                                face_result.is_active = is_active
-                                face_result.role = role
-                                face_result.score = score
-
-                                if existing:
-                                    existing.last_face_match_time = current_time
-
-                                # CHỈ kiểm tra thẩm quyền và ghi nhận truy cập khi đã thực sự bước chân vào vùng ROI!
-                                if in_roi:
-                                    if not identity_switched:
-                                        self._resolve_access_for_person(
-                                            track_id,
-                                            face_result,
-                                            code,
-                                            roi_label or "Vùng giám sát"
-                                        )
+                                # Yêu cầu 2 lần match liên tiếp cùng mã mới trước khi đổi (POINT-08a)
+                                if getattr(existing, "pending_reverify_code", None) == code:
+                                    existing.pending_reverify_count = getattr(existing, "pending_reverify_count", 0) + 1
                                 else:
-                                    # Người dùng đang ở ngoài vùng ROI:
-                                    cached_decision = self.face_matcher.get_cached_access(self.camera_code, code) if self.face_matcher else None
-                                    if existing and getattr(existing, "has_entered_roi", False) and existing.face_info and getattr(existing.face_info, "access_checked", False):
-                                        # Giữ nguyên thẩm quyền đã được thẩm định khi vào ROI (Sticky State)
-                                        face_result.is_authorized = existing.face_info.is_authorized
-                                        face_result.access_reason = existing.face_info.access_reason
-                                        face_result.access_checked = True
-                                    elif cached_decision is not None:
-                                        face_result.is_authorized = cached_decision[0]
-                                        face_result.access_reason = cached_decision[1]
-                                        face_result.access_checked = True
-                                    else:
-                                        face_result.is_authorized = False
-                                        face_result.access_reason = "Đang ở ngoài vùng ROI"
-                                        face_result.access_checked = False
-                                        # Pre-warm: Tải trước quyền truy cập từ Backend ngay khi nhận diện ngoài hành lang
-                                        if self.face_matcher:
-                                            cache_key = f"{self.camera_code}:{code}"
-                                            should_submit = False
-                                            with self._pending_checks_lock:
-                                                if cache_key not in self._pending_access_checks:
-                                                    self._pending_access_checks.add(cache_key)
-                                                    should_submit = True
-                                            if should_submit and self.access_executor and not getattr(self.access_executor, "_shutdown", False):
-                                                self.access_executor.submit(self._async_resolve_camera_access, track_id, code, roi_label or "Vùng giám sát")
-                            else:
-                                logger.debug(
-                                    f"❓ [VideoPipeline:{self.camera_code}] [FaceMatcher] Track #{track_id} -> Không khớp khuôn mặt trong CSDL (UNKNOWN)"
+                                    existing.pending_reverify_code = code
+                                    existing.pending_reverify_count = 1
+
+                                if existing.pending_reverify_count < 2:
+                                    # Lần 1: chưa đủ 2 lần liên tiếp -> BỎ QUA, không đổi
+                                    continue
+
+                                # Lần 2 liên tiếp cùng mã mới -> Thực hiện đổi danh tính:
+                                logger.info(
+                                    f"🔄 [Face Re-verify] Track #{track_id} đổi danh tính từ {prev_code} "
+                                    f"sang {code} (score mới: {score:.3f}, score cũ: {prev_score:.3f})"
                                 )
+                                existing.pending_reverify_code = None
+                                existing.pending_reverify_count = 0
+                                existing.is_inherited_identity = False
+                                if existing.face_info:
+                                    existing.face_info.is_inherited = False
+
+                                # POINT-08b: Reset cảnh báo vi phạm
+                                existing.alert_unauthorized_sent = False
+                                existing.alert_unknown_sent = False
+                                existing.track_unauthorized_alert_time = 0.0
+
+                                # POINT-08c: Đổi danh tính A -> B: Ghi EXIT(A) rồi ENTRY(B) tuần tự trong MỘT task
+                                need_exit = getattr(existing, "roi_entry_logged", False)
+                                need_entry = in_roi
+
+                                if (need_exit or need_entry) and self.face_matcher:
+                                    if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
+                                        self.access_executor.submit(
+                                            self._handle_identity_switch,
+                                            track_id,
+                                            prev_code,
+                                            code,
+                                            roi_label or "Vùng giám sát",
+                                            need_exit,
+                                            need_entry
+                                        )
+                                    else:
+                                        self._handle_identity_switch(
+                                            track_id,
+                                            prev_code,
+                                            code,
+                                            roi_label or "Vùng giám sát",
+                                            need_exit,
+                                            need_entry
+                                        )
+                                    existing.roi_entry_logged = False
+                                    identity_switched = True
+
+                            face_result.matched_code = code
+                            face_result.matched_name = name
+                            face_result.is_active = is_active
+                            face_result.role = role
+                            face_result.score = score
+
+                            if existing:
+                                existing.last_face_match_time = current_time
+
+                            # CHỈ kiểm tra thẩm quyền và ghi nhận truy cập khi đã thực sự bước chân vào vùng ROI!
+                            if in_roi:
+                                if not identity_switched:
+                                    self._resolve_access_for_person(
+                                        track_id,
+                                        face_result,
+                                        code,
+                                        roi_label or "Vùng giám sát"
+                                    )
+                            else:
+                                # Người dùng đang ở ngoài vùng ROI:
+                                cached_decision = self.face_matcher.get_cached_access(self.camera_code, code) if self.face_matcher else None
+                                if existing and getattr(existing, "has_entered_roi", False) and existing.face_info and getattr(existing.face_info, "access_checked", False):
+                                    # Giữ nguyên thẩm quyền đã được thẩm định khi vào ROI (Sticky State)
+                                    face_result.is_authorized = existing.face_info.is_authorized
+                                    face_result.access_reason = existing.face_info.access_reason
+                                    face_result.access_checked = True
+                                elif cached_decision is not None:
+                                    face_result.is_authorized = cached_decision[0]
+                                    face_result.access_reason = cached_decision[1]
+                                    face_result.access_checked = True
+                                    self._record_access_checked(track_id, code, current_time=current_time)
+                                else:
+                                    face_result.is_authorized = False
+                                    face_result.access_reason = "Đang ở ngoài vùng ROI"
+                                    face_result.access_checked = False
+                                    # Pre-warm: Tải trước quyền truy cập từ Backend ngay khi nhận diện ngoài hành lang
+                                    if self.face_matcher:
+                                        cache_key = f"{self.camera_code}:{code}"
+                                        should_submit = False
+                                        with self._pending_checks_lock:
+                                            if cache_key not in self._pending_access_checks:
+                                                self._pending_access_checks.add(cache_key)
+                                                should_submit = True
+                                        if should_submit and self.access_executor and not getattr(self.access_executor, "_shutdown", False):
+                                            self.access_executor.submit(self._async_resolve_camera_access, track_id, code, roi_label or "Vùng giám sát")
+                        elif can_run_arcface:
+                            # Chỉ đếm khi ArcFace thực sự chạy (frame bị throttle không phải "dưới ngưỡng")
+                            track_stats["drop_low_score"] += 1
+                            raw_sc = getattr(self.face_matcher, "last_best_score", 0.0)
+                            try:
+                                last_sc = float(raw_sc)
+                            except (TypeError, ValueError):
+                                last_sc = 0.0
+                            if last_sc > track_stats["best_unmatched_score"]:
+                                track_stats["best_unmatched_score"] = last_sc
+                            logger.debug(
+                                f"❓ [VideoPipeline:{self.camera_code}] [FaceMatcher] Track #{track_id} -> Không khớp khuôn mặt trong CSDL (UNKNOWN)"
+                            )
 
                         self.analysis_engine.associate_face(track_id, face_result)
+                else:
+                    track_stats["drop_no_face"] += 1
+            else:
+                track_stats["drop_too_small"] += 1
 
         # ------------------------------------------------------------------
         # 4. PHÂN TÍCH XÂM NHẬP VÙNG CẤM (FRAME ANALYSIS ENGINE)
@@ -1040,7 +1156,7 @@ class VideoPipeline:
             area_name=cam_area_name
         )
 
-        # Dọn dẹp track cũ trong bộ nhớ đệm throttling (P0-02)
+        # Dọn dẹp track cũ trong bộ nhớ đệm throttling (P0-02) và in tóm tắt độ trễ nhận diện (Task 1)
         active_tids = set(self.analysis_engine.active_tracks.keys())
         for tid in list(self._track_face_scan_times.keys()):
             if tid not in active_tids:
@@ -1048,15 +1164,22 @@ class VideoPipeline:
         for tid in list(self._track_arcface_times.keys()):
             if tid not in active_tids:
                 del self._track_arcface_times[tid]
+        for tid in list(self._track_identify_stats.keys()):
+            if tid not in active_tids:
+                stats = self._track_identify_stats.pop(tid)
+                with self._identify_stats_lock:
+                    if not stats.get("latency_logged", False):
+                        self._log_identify_latency(tid, stats, current_time)
 
         if early_alerts:
             alerts = early_alerts + alerts
 
         # 4b. Xử lý ghi log sự kiện RA / VÀO vùng ROI ngầm (Async qua ThreadPoolExecutor)
         if roi_events and self.face_matcher:
+            log_executor = getattr(self, "access_log_executor", None) or self.access_executor
             for ev in roi_events:
-                if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
-                    self.access_executor.submit(
+                if log_executor and not getattr(log_executor, "_shutdown", False):
+                    log_executor.submit(
                         self.face_matcher.check_camera_access,
                         self.camera_code,
                         ev["user_code"],
@@ -1209,6 +1332,12 @@ class VideoPipeline:
             except TypeError:
                 self.access_executor.shutdown(wait=False)
             self.access_executor = None
+        if getattr(self, "access_log_executor", None):
+            try:
+                self.access_log_executor.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                self.access_log_executor.shutdown(wait=False)
+            self.access_log_executor = None
         if hasattr(self, "upload_executor") and self.upload_executor:
             try:
                 self.upload_executor.shutdown(wait=False, cancel_futures=True)

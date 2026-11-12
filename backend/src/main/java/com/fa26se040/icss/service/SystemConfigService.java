@@ -31,6 +31,7 @@ import com.fa26se040.icss.config.AiServiceRestTemplate;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -211,7 +212,8 @@ public class SystemConfigService {
                 public void afterCommit() {
                     if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
                         syncAfterHourToAi();
-                    } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)) {
+                    } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)
+                            || "AI_ACCESS_CHECK_TIMEOUT_SECONDS".equals(key) || "AI_ACCESS_DECISION_CACHE_TTL".equals(key) || "AI_ACCESS_DENY_CACHE_TTL".equals(key)) {
                         syncAiRuntimeConfig();
                     }
                 }
@@ -230,7 +232,8 @@ public class SystemConfigService {
         } else {
             if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
                 syncAfterHourToAi();
-            } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)) {
+            } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)
+                    || "AI_ACCESS_CHECK_TIMEOUT_SECONDS".equals(key) || "AI_ACCESS_DECISION_CACHE_TTL".equals(key) || "AI_ACCESS_DENY_CACHE_TTL".equals(key)) {
                 syncAiRuntimeConfig();
             }
         }
@@ -292,11 +295,13 @@ public class SystemConfigService {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            Map<String, Object> body = Map.of(
-                    "max_inactive_seconds", getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS),
-                    "unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS),
-                    "face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD)
-            );
+            Map<String, Object> body = new HashMap<>();
+            body.put("max_inactive_seconds", getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS));
+            body.put("unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS));
+            body.put("face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD));
+            body.put("access_check_timeout_seconds", getDouble(ConfigKey.AI_ACCESS_CHECK_TIMEOUT_SECONDS));
+            body.put("access_decision_cache_ttl", getDouble(ConfigKey.AI_ACCESS_DECISION_CACHE_TTL));
+            body.put("access_deny_cache_ttl", getDouble(ConfigKey.AI_ACCESS_DENY_CACHE_TTL));
             aiRestTemplate.postForObject(aiServiceUrl + "/api/v1/system-config/ai-runtime",
                     new HttpEntity<>(body, headers), Map.class);
             log.info("Synced AI runtime config to AI service: {}", body);
@@ -313,13 +318,16 @@ public class SystemConfigService {
     }
 
     public Map<String, Object> getAiRuntimeConfigMap() {
-        return Map.of(
-                "face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD),
-                "after_hour_start", getString(ConfigKey.AI_AFTER_HOUR_START),
-                "after_hour_end", getString(ConfigKey.AI_AFTER_HOUR_END),
-                "max_inactive_seconds", getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS),
-                "unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS)
-        );
+        Map<String, Object> map = new HashMap<>();
+        map.put("face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD));
+        map.put("after_hour_start", getString(ConfigKey.AI_AFTER_HOUR_START));
+        map.put("after_hour_end", getString(ConfigKey.AI_AFTER_HOUR_END));
+        map.put("max_inactive_seconds", getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS));
+        map.put("unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS));
+        map.put("access_check_timeout_seconds", getDouble(ConfigKey.AI_ACCESS_CHECK_TIMEOUT_SECONDS));
+        map.put("access_decision_cache_ttl", getDouble(ConfigKey.AI_ACCESS_DECISION_CACHE_TTL));
+        map.put("access_deny_cache_ttl", getDouble(ConfigKey.AI_ACCESS_DENY_CACHE_TTL));
+        return map;
     }
 
     @Transactional(readOnly = true)

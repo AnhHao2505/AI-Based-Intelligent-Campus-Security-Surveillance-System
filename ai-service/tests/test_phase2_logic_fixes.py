@@ -30,12 +30,30 @@ def test_upload_executor_isolation_prevents_io_deadlock(
 
     assert pipeline.upload_executor is not pipeline.io_executor, "upload_executor và io_executor phải độc lập"
     assert pipeline.upload_executor is not pipeline.access_executor, "upload_executor và access_executor phải độc lập"
+    # Ghi log VÀO/RA ROI không được chung hàng đợi với kiểm tra quyền
+    assert pipeline.access_log_executor is not pipeline.access_executor, "access_log_executor và access_executor phải độc lập"
 
-    # Dừng an toàn cả 3
+    # Dừng an toàn tất cả executor
     pipeline.stop()
     assert pipeline.upload_executor is None
     assert pipeline.io_executor is None
     assert pipeline.access_executor is None
+    assert pipeline.access_log_executor is None
+
+
+def test_face_embedder_is_shared_across_matchers():
+    """Mọi FaceMatcher (mỗi camera 1 cái) dùng chung 1 phiên ArcFace, không nạp lại model theo camera."""
+    from src.core import face_embedder as fe_mod
+    from src.core.face_matcher import FaceMatcher
+
+    sentinel = MagicMock()
+    with patch.object(fe_mod, "_shared_embedder", None), \
+         patch.object(fe_mod, "FaceEmbedder", return_value=sentinel) as mock_cls:
+        cache = MagicMock(cached_faces=[{"code": "X"}], last_cache_time=1.0, db_params={})
+        m1 = FaceMatcher(cache=cache)
+        m2 = FaceMatcher(cache=cache)
+        assert m1.embedder is sentinel and m2.embedder is sentinel
+        assert mock_cls.call_count == 1
 
 
 def test_unauthorized_alert_flapping_and_cooldown():

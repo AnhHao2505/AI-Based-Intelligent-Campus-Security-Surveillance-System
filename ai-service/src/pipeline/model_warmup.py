@@ -37,17 +37,26 @@ def warmup_pipeline_models(pipeline) -> bool:
     face_detector = getattr(pipeline, "face_detector", None)
     if face_detector:
         try:
-            if hasattr(face_detector, "detect"):
+            if hasattr(face_detector, "detect_in_image"):
+                face_detector.detect_in_image(dummy_frame)
+            elif hasattr(face_detector, "detect"):
                 face_detector.detect(dummy_frame)
             warmed_count += 1
         except Exception as e:
             logger.warning(f"⚠️ [Warmup] Lỗi khi warm-up YuNet FaceDetector: {e}")
 
     # 3. Warm-up ArcFace Face Embedder
+    # VideoPipeline giữ embedder trong face_matcher.embedder (không có thuộc tính face_embedder riêng).
+    # Lần chạy đầu của ONNX CUDA mất ~1s (khởi tạo cuDNN) -> phải warm-up để lần nhận diện đầu tiên không bị trễ.
     face_embedder = getattr(pipeline, "face_embedder", None)
+    if face_embedder is None:
+        face_matcher = getattr(pipeline, "face_matcher", None)
+        face_embedder = getattr(face_matcher, "embedder", None) if face_matcher else None
     if face_embedder:
         try:
-            if hasattr(face_embedder, "get_embedding"):
+            if hasattr(face_embedder, "extract_embedding"):
+                face_embedder.extract_embedding(dummy_face_crop)
+            elif hasattr(face_embedder, "get_embedding"):
                 face_embedder.get_embedding(dummy_face_crop)
             warmed_count += 1
         except Exception as e:

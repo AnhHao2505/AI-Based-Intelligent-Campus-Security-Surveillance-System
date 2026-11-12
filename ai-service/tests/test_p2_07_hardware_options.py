@@ -35,12 +35,13 @@ def test_ai_half_setting_default_and_yolo_parameter():
         detector.detect_and_track(dummy_frame)
         assert mock_model.track.call_count == 1
         _, track_kwargs = mock_model.track.call_args
-        assert track_kwargs.get("half") is False, "Kỳ vọng half=False khi AI_HALF=False"
+        # FP32: không truyền half/quantize (truyền 'half' làm ultralytics >= 8.4 in cảnh báo deprecated mỗi khung hình)
+        assert "half" not in track_kwargs and "quantize" not in track_kwargs, "FP32 không được truyền half/quantize"
 
         detector.detect(dummy_frame)
         assert mock_model.call_count == 1
         _, detect_kwargs = mock_model.call_args
-        assert detect_kwargs.get("half") is False
+        assert "half" not in detect_kwargs and "quantize" not in detect_kwargs
 
     # 2. Trường hợp bật AI_HALF=True trên GPU
     with patch("src.core.human_detector.YOLO") as mock_yolo_cls, \
@@ -54,7 +55,8 @@ def test_ai_half_setting_default_and_yolo_parameter():
 
         detector_gpu.detect_and_track(dummy_frame)
         _, track_kwargs_gpu = mock_model.track.call_args
-        assert track_kwargs_gpu.get("half") is True, "Kỳ vọng half=True khi AI_HALF=True trên GPU"
+        # FP16: 'quantize=16' với ultralytics mới, 'half=True' với bản cũ chưa có 'quantize'
+        assert track_kwargs_gpu.get("quantize") == 16 or track_kwargs_gpu.get("half") is True,             "Kỳ vọng bật FP16 (quantize=16 hoặc half=True) khi AI_HALF=True trên GPU"
 
     # 3. Trường hợp bật AI_HALF=True nhưng chạy trên CPU -> tự động ép False
     with patch("src.core.human_detector.YOLO") as mock_yolo_cls, \

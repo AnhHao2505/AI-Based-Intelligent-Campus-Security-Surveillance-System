@@ -234,8 +234,9 @@ def enforce_emergency_evidence_retention(
                         from ..integration.mqtt_client import get_security_mqtt_client
                         mqtt = get_security_mqtt_client()
                         if mqtt is not None:
+                            edge_id = getattr(settings, "MQTT_CLIENT_ID", "campus-security-ai-service")
                             mqtt.publish_json(
-                                "campus/system/health",
+                                f"campus/edge/health/{edge_id}",
                                 {
                                     "event_type": "SYSTEM_STORAGE_EMERGENCY",
                                     "severity": "CRITICAL",

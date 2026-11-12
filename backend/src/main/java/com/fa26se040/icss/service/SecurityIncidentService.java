@@ -40,9 +40,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -126,7 +129,8 @@ public class SecurityIncidentService {
             imageUrl = imageUrl.replace("minio:9000", "localhost:9000");
         }
 
-        OffsetDateTime detectedAt = OffsetDateTime.now();
+        // M5: Sử dụng detected_at chuẩn từ payload AI (chính xác đến mili giây), fallback về now() nếu thiếu/lệch
+        OffsetDateTime detectedAt = parseDetectedAt(eventDto.getDetectedAt());
 
         String rawEventType = eventDto.getEventType() != null ? eventDto.getEventType() : "SECURITY_ALERT";
         String normalizedEventType = normalizeEventType(rawEventType);
@@ -727,6 +731,50 @@ public class SecurityIncidentService {
         }
 
         return new ExtractedPersonInfo("UNKNOWN", "Người lạ / Chưa rõ mặt", false, null);
+    }
+
+    /**
+     * M5: Parse thời điểm phát hiện sự cố (detected_at) từ payload AI.
+     * Chấp nhận định dạng ISO-8601 có hoặc không có mili giây, 'Z' hoặc offset (+07:00).
+     * Nếu thiếu, sai định dạng, hoặc lệch quá xa server time (tương lai > 5 phút hoặc quá khứ > 24 giờ),
+     * hệ thống sẽ fallback về now và log WARN.
+     */
+    public OffsetDateTime parseDetectedAt(String rawDetectedAt) {
+        return parseDetectedAt(rawDetectedAt, OffsetDateTime.now());
+    }
+
+    public OffsetDateTime parseDetectedAt(String rawDetectedAt, OffsetDateTime now) {
+        if (rawDetectedAt == null || rawDetectedAt.isBlank()) {
+            log.warn("detected_at trong cảnh báo bị rỗng/null, dùng thời gian hiện tại của server: {}", now);
+            return now;
+        }
+
+        OffsetDateTime parsed;
+        try {
+            parsed = OffsetDateTime.parse(rawDetectedAt.trim());
+        } catch (DateTimeParseException e) {
+            try {
+                parsed = LocalDateTime.parse(rawDetectedAt.trim()).atZone(ZoneOffset.UTC).toOffsetDateTime();
+            } catch (Exception ex) {
+                log.warn("detected_at [{}] sai định dạng ISO-8601, dùng thời gian hiện tại của server {}: {}",
+                        rawDetectedAt, now, e.getMessage());
+                return now;
+            }
+        }
+
+        if (parsed.isAfter(now.plusMinutes(5))) {
+            log.warn("detected_at [{}] lệch về tương lai > 5 phút so với server time [{}], dùng thời gian hiện tại của server",
+                    parsed, now);
+            return now;
+        }
+
+        if (parsed.isBefore(now.minusHours(24))) {
+            log.warn("detected_at [{}] quá cũ (> 24 giờ) so với server time [{}], dùng thời gian hiện tại của server",
+                    parsed, now);
+            return now;
+        }
+
+        return parsed;
     }
 
     /**

@@ -8,7 +8,7 @@ try:
 except ImportError:
     psycopg2 = None
 
-from .face_embedder import FaceEmbedder
+from .face_embedder import FaceEmbedder, get_shared_face_embedder
 from .shared_face_cache import SharedFaceCache, get_shared_face_cache
 from ..config import settings, INTERNAL_SERVICE_KEY_HEADER
 
@@ -45,14 +45,25 @@ class FaceMatcher:
             self.cache = get_shared_face_cache()
 
         self.db_params = self.cache.db_params
-        self.embedder = FaceEmbedder(embedding_dim=512)
+        # Dùng chung 1 phiên ArcFace cho mọi camera (không nạp lại model 174MB theo từng VideoPipeline)
+        self.embedder = get_shared_face_embedder()
         self.access_cache: Dict[str, Tuple[bool, str, Optional[str], float, Optional[str], Optional[str]]] = {}
-        self.access_cache_ttl = getattr(settings, "ACCESS_DECISION_CACHE_TTL", 30.0)
         self._access_cache_lock = threading.Lock()
+        self.last_best_score: float = 0.0
 
         # Nạp cache lần đầu nếu cache còn rỗng và chưa từng nạp
+        # (background refresh chỉ chạy sau cache_ttl, thiếu bước này mọi người sẽ là UNKNOWN lúc mới khởi động)
         if not self.cache.cached_faces and self.cache.last_cache_time == 0:
             self.refresh_cache()
+
+    @property
+    def access_cache_ttl(self) -> float:
+        """Đọc động từ settings tại thời điểm truy cập để thay đổi cấu hình runtime có hiệu lực ngay"""
+        return float(getattr(settings, "ACCESS_DECISION_CACHE_TTL", 30.0))
+
+    @access_cache_ttl.setter
+    def access_cache_ttl(self, val: float):
+        settings.ACCESS_DECISION_CACHE_TTL = float(val)
 
     @property
     def cached_faces(self) -> List[Dict]:
@@ -142,6 +153,7 @@ class FaceMatcher:
         Trả về: (Mã SV/CB, Họ và Tên, Độ tương đồng Cosine Score, Trạng thái hoạt động is_active, Role) nếu score >= threshold.
         """
         if face_crop is None or face_crop.size == 0:
+            self.last_best_score = 0.0
             return None
 
         if threshold is None:
@@ -152,6 +164,7 @@ class FaceMatcher:
         cam_vec = np.array(vec_list, dtype=np.float32)
         norm = np.linalg.norm(cam_vec)
         if norm < 1e-6:
+            self.last_best_score = 0.0
             return None
         cam_vec = cam_vec / norm
 
@@ -159,6 +172,7 @@ class FaceMatcher:
         # Dữ liệu được background thread tự động duy trì trong self.cache.
         cached_faces = self.cached_faces
         if not cached_faces:
+            self.last_best_score = 0.0
             return None
 
         # Tối ưu hóa Vectorized Matrix Multiplication (BLAS GEMV: (N, 512) @ (512,) -> (N,))
@@ -171,6 +185,7 @@ class FaceMatcher:
         scores = np.dot(cached_matrix, cam_vec)
         best_idx = int(np.argmax(scores))
         best_score = float(scores[best_idx])
+        self.last_best_score = best_score
         best_match = cached_faces[best_idx]
 
         if best_match and best_score >= threshold:
@@ -262,6 +277,11 @@ class FaceMatcher:
         if duration_seconds is not None:
             payload["durationSeconds"] = round(duration_seconds, 1)
 
+        # M3: Đọc timeout và TTL từ settings tại thời điểm gọi, cập nhật lúc chạy có hiệu lực ngay
+        timeout = float(getattr(settings, "ACCESS_CHECK_TIMEOUT_SECONDS", 1.5))
+        decision_ttl = float(getattr(settings, "ACCESS_DECISION_CACHE_TTL", 30.0))
+        deny_ttl = float(getattr(settings, "ACCESS_DENY_CACHE_TTL", 5.0))
+
         import requests
         from ..utils.http_client import get_http_session
         last_error = None
@@ -276,7 +296,7 @@ class FaceMatcher:
                     endpoint,
                     json=payload,
                     headers=headers,
-                    timeout=1.5
+                    timeout=timeout
                 )
                 if resp.status_code == 200:
                     res_json = resp.json()
@@ -296,7 +316,7 @@ class FaceMatcher:
                         with self._access_cache_lock:
                             self.access_cache.pop(cache_key, None)
                     else:
-                        ttl = self.access_cache_ttl if allowed else min(self.access_cache_ttl, 5.0)
+                        ttl = decision_ttl if allowed else deny_ttl
                         with self._access_cache_lock:
                             self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl, source, deny_reason)
 

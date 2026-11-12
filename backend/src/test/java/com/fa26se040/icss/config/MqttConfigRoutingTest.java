@@ -1,6 +1,7 @@
 package com.fa26se040.icss.config;
 
 import com.fa26se040.icss.consumer.CameraRecordingMqttConsumer;
+import com.fa26se040.icss.consumer.EdgeStatusMqttConsumer;
 import com.fa26se040.icss.consumer.SecurityIncidentMqttConsumer;
 import com.fa26se040.icss.service.EdgeMqttControlService;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
@@ -39,12 +40,15 @@ class MqttConfigRoutingTest {
     @Mock
     private EdgeMqttControlService edgeMqttControlService;
 
+    @Mock
+    private EdgeStatusMqttConsumer edgeStatusConsumer;
+
     private MqttConfig config;
     private final MqttMessage message = new MqttMessage("{}".getBytes(StandardCharsets.UTF_8));
 
     @BeforeEach
     void setUp() {
-        config = new MqttConfig(incidentConsumer, recordingConsumer, edgeMqttControlService);
+        config = new MqttConfig(incidentConsumer, recordingConsumer, edgeMqttControlService, edgeStatusConsumer);
         ReflectionTestUtils.setField(config, "incidentsTopic", INCIDENTS);
         ReflectionTestUtils.setField(config, "recordingsTopic", RECORDINGS);
     }
@@ -76,6 +80,17 @@ class MqttConfigRoutingTest {
 
         verify(edgeMqttControlService).handleRpcReplyMessage(topic, message);
         verifyNoInteractions(incidentConsumer, recordingConsumer);
+    }
+
+    @Test
+    @DisplayName("Topic campus/edge/status/<edge_id> -> EdgeStatusMqttConsumer")
+    void edgeStatusTopic_goesToEdgeStatusConsumer() throws Exception {
+        String topic = "campus/edge/status/edge-device-01";
+
+        config.routeUnlistenedMessage(topic, message);
+
+        verify(edgeStatusConsumer).messageArrived(topic, message);
+        verifyNoInteractions(incidentConsumer, recordingConsumer, edgeMqttControlService);
     }
 
     @Test

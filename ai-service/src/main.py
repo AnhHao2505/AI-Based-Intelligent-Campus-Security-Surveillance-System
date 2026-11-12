@@ -357,6 +357,9 @@ class AIRuntimeConfigRequest(BaseModel):
     max_inactive_seconds: Optional[float] = None
     unknown_alert_cooldown: Optional[float] = None
     face_match_threshold: Optional[float] = None
+    access_check_timeout_seconds: Optional[float] = None
+    access_decision_cache_ttl: Optional[float] = None
+    access_deny_cache_ttl: Optional[float] = None
 
 @app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])
 async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
@@ -387,15 +390,36 @@ async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
             raise HTTPException(status_code=400, detail="face_match_threshold must be between 0.1 and 1.0")
         settings.FACE_MATCH_THRESHOLD = req.face_match_threshold
 
+    # M3: Timeout check-entry và TTL cache quyền
+    if req.access_check_timeout_seconds is not None:
+        if req.access_check_timeout_seconds < 0.5 or req.access_check_timeout_seconds > 10.0:
+            raise HTTPException(status_code=400, detail="access_check_timeout_seconds must be between 0.5 and 10.0")
+        settings.ACCESS_CHECK_TIMEOUT_SECONDS = req.access_check_timeout_seconds
+
+    if req.access_decision_cache_ttl is not None:
+        if req.access_decision_cache_ttl < 1.0 or req.access_decision_cache_ttl > 600.0:
+            raise HTTPException(status_code=400, detail="access_decision_cache_ttl must be between 1.0 and 600.0")
+        settings.ACCESS_DECISION_CACHE_TTL = req.access_decision_cache_ttl
+
+    if req.access_deny_cache_ttl is not None:
+        if req.access_deny_cache_ttl < 1.0 or req.access_deny_cache_ttl > 600.0:
+            raise HTTPException(status_code=400, detail="access_deny_cache_ttl must be between 1.0 and 600.0")
+        settings.ACCESS_DENY_CACHE_TTL = req.access_deny_cache_ttl
+
     logger.info(
         f"✅ Cập nhật cấu hình runtime AI: max_inactive_seconds={settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS}s, "
-        f"cooldown={settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS}s, threshold={settings.FACE_MATCH_THRESHOLD}"
+        f"cooldown={settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS}s, threshold={settings.FACE_MATCH_THRESHOLD}, "
+        f"timeout={settings.ACCESS_CHECK_TIMEOUT_SECONDS}s, decision_ttl={settings.ACCESS_DECISION_CACHE_TTL}s, "
+        f"deny_ttl={settings.ACCESS_DENY_CACHE_TTL}s"
     )
     return {
         "success": True,
         "max_inactive_seconds": settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS,
         "unknown_alert_cooldown": settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS,
-        "face_match_threshold": settings.FACE_MATCH_THRESHOLD
+        "face_match_threshold": settings.FACE_MATCH_THRESHOLD,
+        "access_check_timeout_seconds": settings.ACCESS_CHECK_TIMEOUT_SECONDS,
+        "access_decision_cache_ttl": settings.ACCESS_DECISION_CACHE_TTL,
+        "access_deny_cache_ttl": settings.ACCESS_DENY_CACHE_TTL
     }
 
 @app.post("/api/v1/cameras/configure", dependencies=[Depends(require_service_key)])
@@ -491,10 +515,10 @@ async def analyze_frame(file: UploadFile = File(...)):
 
 from fastapi import Form
 from .core.face_detector import FaceDetector
-from .core.face_embedder import FaceEmbedder
+from .core.face_embedder import get_shared_face_embedder
 
 face_detector = FaceDetector()
-face_embedder = FaceEmbedder(embedding_dim=512)
+face_embedder = get_shared_face_embedder()
 
 @app.post("/api/v1/faces/process-registration", dependencies=[Depends(require_service_key)])
 async def process_face_registration(
@@ -512,6 +536,14 @@ async def process_face_registration(
         img, jpeg_bytes = decode_image_safely(raw_bytes)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Không thể đọc file ảnh chính diện: {str(e)}")
+
+    # Thiếu model ArcFace thì extract_embedding âm thầm trả vector dự phòng DCT: vector đó "giống" mọi người
+    # (cos ~0.8) và không bao giờ khớp mặt thật trên camera -> phải từ chối đăng ký thay vì lưu dữ liệu hỏng.
+    if getattr(face_embedder, "session", None) is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Mô hình nhận diện khuôn mặt (ArcFace) chưa được nạp trên AI service, không thể tạo dữ liệu khuôn mặt. Vui lòng thử lại sau."
+        )
 
     try:
         detector = default_pipeline.face_detector if default_pipeline else face_detector
@@ -535,6 +567,9 @@ async def process_face_registration(
             landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in faces[0].landmarks]
 
         vector_512 = face_embedder.extract_embedding(face_crop, landmarks=landmarks)
+    except HTTPException:
+        # Giữ nguyên mã lỗi 400 (không thấy khuôn mặt) thay vì bị khối dưới đổi thành 500
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()

@@ -70,6 +70,8 @@ services:
     restart: always
     ports:
       - "127.0.0.1:1883:1883"
+      - "8883:8883"
+      - "8884:8884"
     environment:
       MQTT_AI_PASSWORD: ${MQTT_AI_PASSWORD}
       MQTT_BACKEND_PASSWORD: ${MQTT_BACKEND_PASSWORD}
@@ -78,6 +80,7 @@ services:
       - mosquittodata:/mosquitto/data
       - ./mosquitto/config/acl:/mosquitto/config/acl:ro
       - ./mosquitto/init.sh:/init.sh:ro
+      - ./mosquitto/certs:/mosquitto/certs:ro
     entrypoint: ["sh", "/init.sh"]
     networks:
       - sep_network

@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     # MQTT Configuration (Edge-Cloud Control Plane & Real-time Telemetry)
     MQTT_BROKER_HOST: str = Field(default="localhost", validation_alias="MQTT_BROKER_HOST")
     MQTT_BROKER_PORT: int = Field(default=1883, validation_alias="MQTT_BROKER_PORT")
-    MQTT_CLIENT_ID: str = Field(default="campus-security-ai-service", validation_alias="MQTT_CLIENT_ID")
+    # Định danh edge trên broker (client id + edge_id của heartbeat). KHÔNG đọc MQTT_CLIENT_ID vì Backend cũng đọc biến đó:
+    # dùng chung 1 file .env thì 2 client trùng id sẽ đá nhau khỏi broker liên tục.
+    MQTT_CLIENT_ID: str = Field(default="campus-security-ai-service", validation_alias="MQTT_AI_CLIENT_ID")
     MQTT_TOPIC_ALERTS: str = "campus/alerts/incidents"
     MQTT_TOPIC_RECORDINGS: str = "campus/recordings/completed"
     MQTT_TOPIC_HEALTH: str = "campus/cameras/{camera_id}/health"
@@ -36,6 +38,12 @@ class Settings(BaseSettings):
     MQTT_OUTBOX_INFLIGHT_TIMEOUT_SECONDS: float = Field(default=30.0, validation_alias="MQTT_OUTBOX_INFLIGHT_TIMEOUT_SECONDS")
     MQTT_OUTBOX_MAX_ROWS: int = Field(default=10000, validation_alias="MQTT_OUTBOX_MAX_ROWS")
     MQTT_OUTBOX_MAX_AGE_HOURS: float = Field(default=24.0, validation_alias="MQTT_OUTBOX_MAX_AGE_HOURS")
+    EDGE_HEARTBEAT_SECONDS: float = Field(default=30.0, validation_alias="EDGE_HEARTBEAT_SECONDS")
+    # MQTT TLS & Transport (M1)
+    MQTT_TLS_ENABLED: bool = Field(default=False, validation_alias="MQTT_TLS_ENABLED")
+    MQTT_TLS_CA_PATH: Optional[str] = Field(default=None, validation_alias="MQTT_TLS_CA_PATH")
+    MQTT_TLS_INSECURE: bool = Field(default=False, validation_alias="MQTT_TLS_INSECURE")
+    MQTT_TRANSPORT: str = Field(default="tcp", validation_alias="MQTT_TRANSPORT")
 
     # MediaMTX Edge & Cloud Relay Configuration
     MEDIAMTX_API_URL: str = Field(default="http://localhost:9997", validation_alias="MEDIAMTX_API_URL")
@@ -82,6 +90,9 @@ class Settings(BaseSettings):
     FACE_SCAN_INITIAL_WINDOW_SECONDS: float = Field(default=2.0, validation_alias="FACE_SCAN_INITIAL_WINDOW_SECONDS")
     FACE_SCAN_BACKOFF_INTERVAL: float = Field(default=0.05, validation_alias="FACE_SCAN_BACKOFF_INTERVAL")
     FACE_MIN_CROP_SIZE: int = Field(default=24, validation_alias="FACE_MIN_CROP_SIZE")
+    FACE_CROP_UPSCALE_THRESHOLD: int = Field(default=160, validation_alias="FACE_CROP_UPSCALE_THRESHOLD")
+    # Crop nửa trên cơ thể có cạnh dài > giá trị này thì thu nhỏ trước khi chạy YuNet (camera độ phân giải cao). 0 = tắt
+    FACE_CROP_MAX_DIM: int = Field(default=480, validation_alias="FACE_CROP_MAX_DIM")
     FACE_MIN_LAPLACIAN_VARIANCE: float = Field(default=15.0, validation_alias="FACE_MIN_LAPLACIAN_VARIANCE")
     ANALYSIS_MAX_FPS: float = Field(default=30.0, validation_alias="ANALYSIS_MAX_FPS")
     UPPER_BODY_CROP_RATIO: float = 0.60
@@ -139,7 +150,9 @@ class Settings(BaseSettings):
 
     # Backend Access Decision Service Integration
     BACKEND_API_URL: str = Field(default="http://localhost:8080", validation_alias="BACKEND_API_URL")
-    ACCESS_DECISION_CACHE_TTL: float = 30.0
+    ACCESS_CHECK_TIMEOUT_SECONDS: float = Field(default=1.5, validation_alias="ACCESS_CHECK_TIMEOUT_SECONDS")
+    ACCESS_DECISION_CACHE_TTL: float = Field(default=30.0, validation_alias="ACCESS_DECISION_CACHE_TTL")
+    ACCESS_DENY_CACHE_TTL: float = Field(default=5.0, validation_alias="ACCESS_DENY_CACHE_TTL")
     ACCESS_STALE_MAX_SECONDS: float = Field(default=600.0, validation_alias="ACCESS_STALE_MAX_SECONDS")
     # Backend lỗi: quyết định CHO PHÉP cũ chỉ được dùng tạm nếu hết hạn chưa quá số giây này (Lucas K8).
     # Quá hạn thì coi như không có cache -> khu hạn chế Fail-Closed, khu công cộng cho qua.

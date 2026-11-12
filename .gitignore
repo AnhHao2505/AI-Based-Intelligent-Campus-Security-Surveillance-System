@@ -83,6 +83,16 @@ video/
 # MQTT outbox (SQLite cảnh báo chờ gửi của AI service)
 ai-service/data/
 
+# MQTT TLS Certificates & Keys (Tuyệt đối không commit chứng chỉ hoặc khoá)
+mosquitto/certs/*
+!mosquitto/certs/.gitkeep
+*.crt
+*.key
+*.csr
+*.srl
+*.jks
+*.p12
+
 # Dữ liệu local có tài khoản / bản sao repo (L21): không bao giờ commit. Neo ở gốc repo.
 /data_text/
 /SEP/

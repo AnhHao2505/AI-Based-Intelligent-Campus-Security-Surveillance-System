@@ -61,25 +61,34 @@ def test_db_down_does_not_block_hot_path():
         time.sleep(5.0)
         raise RuntimeError("Database connection timed out")
 
-    with patch("psycopg2.connect", side_effect=slow_failing_db):
-        t0 = time.perf_counter()
-        # Gọi get_camera_area_name
-        area = matcher.get_camera_area_name("CAM-PUB-01")
-        # Gọi is_camera_public
-        is_pub = matcher.is_camera_public("CAM-PUB-01")
-        # Gọi match_face
-        dummy_face = np.zeros((112, 112, 3), dtype=np.uint8)
-        with patch.object(matcher.embedder, "extract_embedding", return_value=mock_vec.tolist()):
-            match_res = matcher.match_face(dummy_face)
+    # Tắt GC trong đoạn bấm giờ: chạy cả bộ test, heap lớn (YOLO/ArcFace...) khiến một lượt dọn rác có thể
+    # rơi đúng vào đây (~0.17s) làm test fail chập chờn. Test chỉ cần chứng minh KHÔNG chờ DB 5s.
+    import gc
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        with patch("psycopg2.connect", side_effect=slow_failing_db):
+            t0 = time.perf_counter()
+            # Gọi get_camera_area_name
+            area = matcher.get_camera_area_name("CAM-PUB-01")
+            # Gọi is_camera_public
+            is_pub = matcher.is_camera_public("CAM-PUB-01")
+            # Gọi match_face
+            dummy_face = np.zeros((112, 112, 3), dtype=np.uint8)
+            with patch.object(matcher.embedder, "extract_embedding", return_value=mock_vec.tolist()):
+                match_res = matcher.match_face(dummy_face)
 
-        elapsed = time.perf_counter() - t0
+            elapsed = time.perf_counter() - t0
+    finally:
+        if gc_was_enabled:
+            gc.enable()
 
-        # Đường nóng PHẢI trả lời trong < 100ms (hoàn toàn không bị block bởi 5s DB timeout)
-        assert elapsed < 0.1, f"Đường nóng bị block {elapsed:.3f}s do gọi DB đồng bộ!"
-        assert area == "Cong chinh"
-        assert is_pub is True
-        assert match_res is not None
-        assert match_res[0] == "U01"
+    # Đường nóng PHẢI trả lời trong < 100ms (hoàn toàn không bị block bởi 5s DB timeout)
+    assert elapsed < 0.1, f"Đường nóng bị block {elapsed:.3f}s do gọi DB đồng bộ!"
+    assert area == "Cong chinh"
+    assert is_pub is True
+    assert match_res is not None
+    assert match_res[0] == "U01"
 
 
 def test_atomic_swap_and_exponential_backoff():
