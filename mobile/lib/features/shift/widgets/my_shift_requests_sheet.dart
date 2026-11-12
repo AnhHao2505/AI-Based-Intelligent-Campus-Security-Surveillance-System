@@ -59,7 +59,7 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
       padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 24),
       decoration: BoxDecoration(
         color: AppColors.crd(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -72,7 +72,7 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
               height: 4,
               decoration: BoxDecoration(
                 color: AppColors.crdBorder(context),
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(1),
               ),
             ),
           ),
@@ -163,7 +163,7 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
                                 color: isSubstitute
                                     ? Colors.teal.withAlpha(15)
                                     : AppColors.surfLight(context),
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(7),
                                 border: Border.all(
                                   color: isSubstitute
                                       ? Colors.teal.withAlpha(80)
@@ -191,7 +191,7 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                         decoration: BoxDecoration(
                                           color: statusBg,
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(3),
                                         ),
                                         child: Text(
                                           req.statusLabel,

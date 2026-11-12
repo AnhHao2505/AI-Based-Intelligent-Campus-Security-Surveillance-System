@@ -32,7 +32,7 @@ class ShiftListItem extends StatelessWidget {
           ? (AppColors.isDark(context) ? AppColors.darkSurfaceLight : const Color(0xFFEFF6FF))
           : AppColors.crd(context),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(7),
         side: BorderSide(
           color: isSelected ? AppColors.primaryLight : AppColors.crdBorder(context),
           width: isSelected ? 1.5 : 1.0,
@@ -40,7 +40,7 @@ class ShiftListItem extends StatelessWidget {
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(7),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
@@ -51,7 +51,7 @@ class ShiftListItem extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
                 decoration: BoxDecoration(
                   color: AppColors.surfLight(context),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(5),
                   border: Border.all(color: AppColors.crdBorder(context)),
                 ),
                 child: Column(
@@ -103,7 +103,7 @@ class ShiftListItem extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
                               color: Colors.amber.withAlpha(40),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(2),
                               border: Border.all(color: Colors.amber.shade700),
                             ),
                             child: const Text(
@@ -153,7 +153,7 @@ class ShiftListItem extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: shift.statusColor.withAlpha(25),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: shift.statusColor.withAlpha(80)),
                 ),
                 child: Text(

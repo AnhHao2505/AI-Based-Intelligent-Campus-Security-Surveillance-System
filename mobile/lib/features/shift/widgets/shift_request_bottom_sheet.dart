@@ -183,7 +183,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
       ),
       decoration: BoxDecoration(
         color: AppColors.crd(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -197,7 +197,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                 height: 4,
                 decoration: BoxDecoration(
                   color: AppColors.crdBorder(context),
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(1),
                 ),
               ),
             ),
@@ -229,7 +229,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.surfLight(context),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: AppColors.crdBorder(context)),
               ),
               child: Row(
@@ -262,7 +262,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: Colors.amber.shade200,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                       child: const Text(
                         'OT',
@@ -285,7 +285,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                         _errorMessage = null;
                       });
                     },
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(5),
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       alignment: Alignment.center,
@@ -293,7 +293,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                         color: _requestType == 'SWAP'
                             ? AppColors.primary
                             : (isDark ? Colors.grey.shade900 : Colors.grey.shade100),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(5),
                       ),
                       child: Text(
                         'Đổi ca',
@@ -315,7 +315,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                         _errorMessage = null;
                       });
                     },
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(5),
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       alignment: Alignment.center,
@@ -323,7 +323,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                         color: _requestType == 'LEAVE'
                             ? AppColors.primary
                             : (isDark ? Colors.grey.shade900 : Colors.grey.shade100),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(5),
                       ),
                       child: Text(
                         'Xin nghỉ ca',
@@ -345,7 +345,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: AppColors.surfLight(context),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(4),
                 border: Border.all(color: AppColors.crdBorder(context)),
               ),
               child: Text(
@@ -370,7 +370,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: AppColors.danger.withAlpha(20),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(5),
                   border: Border.all(color: AppColors.danger.withAlpha(80)),
                 ),
                 child: Text(
@@ -405,7 +405,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: AppColors.surfLight(context),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(5),
                   ),
                   child: Text(
                     'Hiện không có ca trực của đồng nghiệp nào thỏa mãn điều kiện hoán đổi (không trùng lịch và đạt chuẩn nghỉ ngơi).',
@@ -417,7 +417,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: AppColors.surfLight(context),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: AppColors.crdBorder(context)),
                   ),
                   child: DropdownButtonHideUnderline(
@@ -510,15 +510,15 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                 filled: true,
                 fillColor: AppColors.surfLight(context),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(6),
                   borderSide: BorderSide(color: AppColors.crdBorder(context)),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(6),
                   borderSide: BorderSide(color: AppColors.crdBorder(context)),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(6),
                   borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
                 ),
               ),
@@ -531,7 +531,7 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
               ),
               onPressed: _submitting ? null : _handleSubmit,
               child: _submitting

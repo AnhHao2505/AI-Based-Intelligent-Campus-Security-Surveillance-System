@@ -34,7 +34,7 @@ class WeeklyDateBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         color: AppColors.crd(context),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.crdBorder(context)),
       ),
       child: Column(
@@ -111,7 +111,7 @@ class WeeklyDateBar extends StatelessWidget {
                       color: isSelected
                         ? AppColors.primary
                         : (isToday ? AppColors.surfLight(context) : Colors.transparent),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(7),
                     border: isToday && !isSelected
                         ? Border.all(color: AppColors.primaryLight, width: 1.2)
                         : null,
