@@ -31,6 +31,7 @@ import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -213,7 +214,9 @@ class AuthLoginIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Khoá tạm: sai N lần -> lần N+1 đúng mật khẩu vẫn 401 câu chung; hết LOGIN_LOCK_MINUTES -> đăng nhập được; thành công xoá bộ đếm")
     void lockAfterMaxFailures_unlockAfterLockMinutes_successResetsCounter() throws Exception {
-        MutableTestClock clock = new MutableTestClock(Instant.now());
+        // PostgreSQL TIMESTAMPTZ stores microsecond precision and rounds >= 500ns up, which would leave
+        // clock.instant() before login_locked_until after advancing by exact LOGIN_LOCK_MINUTES.
+        MutableTestClock clock = new MutableTestClock(Instant.now().truncatedTo(ChronoUnit.MICROS));
         loginAttemptLimiter.setClock(clock);
         User user = newUser("lock", Role.NORMAL_USER);
         String ip = randomIp();
