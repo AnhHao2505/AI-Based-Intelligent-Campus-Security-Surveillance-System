@@ -259,10 +259,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.shield_outlined,
-                            color: AppColors.primaryLight,
-                            size: 44,
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Image.asset(
+                              'assets/images/fpt-logo.png',
+                              fit: BoxFit.contain,
+                            ),
                           ),
                         ),
                       ),
