@@ -69,6 +69,10 @@ class UserServiceAccessLevelTest {
     @Mock
     private com.fa26se040.icss.repository.AccessRequestRepository accessRequestRepository;
 
+    // BE-06: UserService đọc PASSWORD_MIN_LENGTH cho độ dài mật khẩu tạm (mock trả 0 -> max(12, 0) = 12)
+    @Mock
+    private SystemConfigService systemConfigService;
+
     @InjectMocks
     private UserService userService;
 
