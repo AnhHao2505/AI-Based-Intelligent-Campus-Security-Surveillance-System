@@ -24,7 +24,8 @@ def pytest_configure(config):
     #     thiếu file thì ultralytics tự tải từ GitHub (mạng ngoài, dễ chập chờn).
     #   - dựng FaceEmbedder thật -> ArcFace (models/w600k_r50.onnx); thiếu file thì tự tải ~166 MB từ HuggingFace.
     # Job ai-service-test trên CI chạy `pytest -m "not requires_model"`; máy dev có model thì chạy đủ.
-    # Danh sách hiện tại (14 test):
+    # Danh sách hiện tại (17 test):
+    #   test_identify_latency.py::TestIdentifyLatency (3 test)
     #   test_motion_gated_pipeline.py::TestMotionGatedPipeline (2 test)
     #   test_suppress_dual_warning_roi.py::TestSuppressDualWarningROI (3 test)
     #   test_p1_05_lazy_overlay.py (cả file, 3 test)

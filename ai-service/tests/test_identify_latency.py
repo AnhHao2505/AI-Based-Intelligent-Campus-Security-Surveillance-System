@@ -2,10 +2,14 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 import numpy as np
+import pytest
 
 from src.core.entity import BoundingBox, FaceDetectionResult
 from src.pipeline.video_pipeline import VideoPipeline
 
+
+# setUp dựng VideoPipeline thật -> nạp YOLO (yolo26n.pt) và ArcFace (w600k_r50.onnx), không có trên CI
+@pytest.mark.requires_model
 class TestIdentifyLatency(unittest.TestCase):
     def setUp(self):
         self.pipeline = VideoPipeline(camera_code="CAM-TEST-01")
