@@ -175,13 +175,18 @@ public class AreaAssignedPersonnelService {
             throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_012);
         }
 
-        // BR-AP-08: thu hồi có hiệu lực ngay
+        // BR-AP-08: thu hồi có hiệu lực ngay.
+        // BE-04: UPDATE có điều kiện (revoked_at IS NULL); 0 dòng = người khác vừa thu hồi -> ERR_AP_009, không audit
+        if (assignedPersonnelRepository.revokeIfNotRevoked(entity.getId(), now, actor, reason) == 0) {
+            throw new AssignedPersonnelException(AssignedPersonnelErrorCode.ERR_AP_009);
+        }
+        // Đồng bộ entity đang quản lý với dòng vừa ghi (cùng giá trị, chỉ để trả response / audit)
         entity.setRevokedAt(now);
         entity.setRevokedBy(actor);
         entity.setRevokeReason(reason);
         entity.setUpdatedAt(now);
 
-        AreaAssignedPersonnel saved = assignedPersonnelRepository.save(entity);
+        AreaAssignedPersonnel saved = entity;
         log.info("Revoked assigned personnel {} by {}", saved.getId(), actorEmail);
 
         com.fa26se040.icss.dto.accesscontrol.snapshot.AreaAssignmentAuditSnapshot oldSnapshot =

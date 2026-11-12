@@ -10,7 +10,7 @@ public enum AccessControlErrorCode {
     // V83 (D2): bảng cấp theo loại chỉ để xem; PUT/PATCH /api/access-control/level-presets/{areaLevel} luôn trả lỗi này
     ERR_AC_005("ERR_AC_005", HttpStatus.BAD_REQUEST, "Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Tuyệt mật: cấp 3), không sửa được"),
     // BR-RQ-06: người duyệt đơn truy cập phải khác người tạo đơn
-    ERR_AC_006("ERR_AC_006", HttpStatus.FORBIDDEN, "Người tạo đơn không được tự duyệt hoặc tự từ chối đơn truy cập của chính mình"),
+    ERR_AC_006("ERR_AC_006", HttpStatus.FORBIDDEN, "Người tạo đơn hoặc thành viên của đơn không được tự duyệt hoặc tự từ chối đơn truy cập có tên mình"),
     // BR-RQ-46: chỉ chuyển sang Hoàn thành khi khung giờ của đơn đã bắt đầu; trước đó dùng Huỷ
     ERR_AC_007("ERR_AC_007", HttpStatus.BAD_REQUEST, "Đơn truy cập chưa đến giờ bắt đầu ({startTime}) nên chưa thể chuyển sang Hoàn thành"),
     // BR-RQ-47: FM chỉ huỷ đơn đã duyệt khi chưa tới giờ bắt đầu; đã bắt đầu thì dùng Hoàn thành

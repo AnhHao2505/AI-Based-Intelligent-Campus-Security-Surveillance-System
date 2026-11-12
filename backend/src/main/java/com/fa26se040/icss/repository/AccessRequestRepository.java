@@ -31,6 +31,16 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, UU
            "WHERE ar.id = :id")
     Optional<AccessRequest> findByIdWithDetails(@Param("id") UUID id);
 
+    /** BE-07: id khu + id người tạo của đơn, đọc dạng chuỗi (không nạp entity) để khoá trước khi đọc đơn. */
+    interface ReviewLockKeys {
+        String getAreaId();
+        String getRequesterId();
+    }
+
+    @Query(value = "SELECT CAST(area_id AS text) AS areaId, CAST(requester_id AS text) AS requesterId " +
+            "FROM access_requests WHERE id = :id", nativeQuery = true)
+    Optional<ReviewLockKeys> findReviewLockKeys(@Param("id") UUID id);
+
     @Query(value = "SELECT ar FROM AccessRequest ar " +
                    "JOIN FETCH ar.area " +
                    "WHERE ar.requester.id = :requesterId " +

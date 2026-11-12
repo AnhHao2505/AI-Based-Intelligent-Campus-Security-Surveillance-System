@@ -125,6 +125,12 @@ class AreaAssignedPersonnelServiceTest {
             return store.stream().filter(a -> a.getArea().getId().equals(areaId)).toList();
         });
 
+        // BE-04: giả lập UPDATE có điều kiện revokeIfNotRevoked (WHERE id = :id AND revokedAt IS NULL)
+        lenient().when(assignedPersonnelRepository.revokeIfNotRevoked(any(), any(), any(), any())).thenAnswer(inv -> {
+            UUID id = inv.getArgument(0);
+            return (int) store.stream().filter(a -> a.getId().equals(id) && a.getRevokedAt() == null).count();
+        });
+
         // Giả lập đúng điều kiện JPQL findOverlappingNotRevoked
         lenient().when(assignedPersonnelRepository.findOverlappingNotRevoked(any(), any(), any(), any()))
                 .thenAnswer(inv -> {

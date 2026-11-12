@@ -86,6 +86,48 @@ public class LoginAttemptLimiter {
         return true;
     }
 
+    /**
+     * BE-05: giữ một lượt thử cho tài khoản (UPDATE nguyên tử) trước khi báo kết quả mật khẩu.
+     *
+     * @return số lượt đã dùng trong cửa sổ (tính cả lượt này); rỗng = đang khoá hoặc hết lượt -> từ chối như đang khoá
+     */
+    public java.util.OptionalInt reserveAccountAttempt(User account) {
+        OffsetDateTime now = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+        int maxAttempts = systemConfigService.getInt(ConfigKey.LOGIN_MAX_FAILED_ATTEMPTS);
+        int windowMinutes = systemConfigService.getInt(ConfigKey.LOGIN_FAILED_WINDOW_MINUTES);
+        return userLoginLockRepository.reserveAttempt(account.getId(), now, now.minusMinutes(windowMinutes), maxAttempts);
+    }
+
+    /**
+     * BE-05: lượt đã giữ ra kết quả sai. Đủ ngưỡng thì mở đợt khoá (chỉ một request mở được).
+     *
+     * @return true nếu chính lần sai này mở đợt khoá mới
+     */
+    public boolean lockAccountIfThresholdReached(User account, int usedAttempts) {
+        int maxAttempts = systemConfigService.getInt(ConfigKey.LOGIN_MAX_FAILED_ATTEMPTS);
+        if (usedAttempts < maxAttempts) {
+            return false;
+        }
+        int windowMinutes = systemConfigService.getInt(ConfigKey.LOGIN_FAILED_WINDOW_MINUTES);
+        int lockMinutes = systemConfigService.getInt(ConfigKey.LOGIN_LOCK_MINUTES);
+        OffsetDateTime now = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+        boolean locked = userLoginLockRepository.lockIfThresholdReached(account.getId(), maxAttempts, now.plusMinutes(lockMinutes));
+        if (locked) {
+            log.warn("Login locked for {} minutes after {} failed attempts within {} minutes", lockMinutes, maxAttempts,
+                    windowMinutes);
+        }
+        return locked;
+    }
+
+    /**
+     * BE-05: lượt đã giữ ra kết quả đúng mật khẩu -> xoá bộ đếm nếu tài khoản không đang khoá.
+     *
+     * @return false nếu request khác vừa khoá tài khoản (người gọi phải từ chối như đang khoá)
+     */
+    public boolean resetAccountIfNotLocked(User account) {
+        return userLoginLockRepository.resetIfNotLocked(account.getId(), OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC));
+    }
+
     /** Đăng nhập thành công: 3 cột khoá của tài khoản về mặc định. */
     public void resetAccount(User account) {
         userLoginLockRepository.reset(account.getId());

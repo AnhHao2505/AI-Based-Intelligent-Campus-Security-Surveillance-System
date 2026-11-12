@@ -222,7 +222,9 @@ public class UserService {
             userPage = userRepository.searchUsers(kw, pageable);
         }
 
-        Page<UserListResponse> dtoPage = userPage.map(UserListResponse::fromEntity);
+        // LT-03: chỉ ADMIN thấy thời điểm hết khoá đăng nhập (FM xem danh sách bảo vệ không cần)
+        OffsetDateTime lockCheckAt = guardScopeOnly ? null : OffsetDateTime.now();
+        Page<UserListResponse> dtoPage = userPage.map(u -> UserListResponse.fromEntity(u, lockCheckAt));
 
         // Caller giới hạn không được biết tổng số tài khoản thường/quản trị — chỉ đếm trong tập được xem.
         long normalCount = guardScopeOnly ? 0 : userRepository.countByRolesAndDeletedAtIsNull(NORMAL_ROLES);

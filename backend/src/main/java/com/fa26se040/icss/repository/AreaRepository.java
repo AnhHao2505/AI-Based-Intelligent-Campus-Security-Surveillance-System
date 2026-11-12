@@ -44,6 +44,14 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
     @Query("SELECT a FROM Area a WHERE a.id = :id")
     Optional<Area> findByIdWithLock(@Param("id") UUID id);
 
+    /**
+     * BE-07: khoá chia sẻ dòng areas (SELECT ... FOR SHARE) khi FM duyệt đơn. Xung đột với khoá ghi của vô hiệu hoá /
+     * đổi loại khu (findByIdWithLock) nên duyệt và huỷ hệ thống chạy tuần tự; nhiều FM duyệt cùng khu vẫn song song.
+     * Chỉ trả id (không nạp entity) để lần đọc sau thấy dữ liệu mới nhất.
+     */
+    @Query(value = "SELECT CAST(id AS text) FROM areas WHERE id = :id FOR SHARE", nativeQuery = true)
+    Optional<String> lockRowForShareById(@Param("id") UUID id);
+
     /** Step 5b: đọc loại hiện tại (không khoá, không nạp entity) để kiểm dữ liệu trước khi khoá. */
     @Query("SELECT a.areaLevel FROM Area a WHERE a.id = :id AND a.deletedAt IS NULL")
     Optional<com.fa26se040.icss.enums.AreaLevel> findAreaLevelById(@Param("id") UUID id);

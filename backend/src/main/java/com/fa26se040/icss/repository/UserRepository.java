@@ -208,4 +208,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      */
     @Query(value = "SELECT CAST(id AS text) FROM users WHERE id = :id FOR UPDATE", nativeQuery = true)
     java.util.Optional<String> lockRowById(@org.springframework.data.repository.query.Param("id") java.util.UUID id);
+
+    /**
+     * BE-07: khoá chia sẻ dòng users (SELECT ... FOR SHARE) của người tạo khi FM duyệt đơn. Xung đột với khoá ghi của
+     * vô hiệu hoá / xoá tài khoản (lockRowById) nên duyệt và huỷ hệ thống chạy tuần tự.
+     */
+    @Query(value = "SELECT CAST(id AS text) FROM users WHERE id = :id FOR SHARE", nativeQuery = true)
+    java.util.Optional<String> lockRowForShareById(@org.springframework.data.repository.query.Param("id") java.util.UUID id);
 }

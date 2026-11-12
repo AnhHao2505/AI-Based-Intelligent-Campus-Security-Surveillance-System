@@ -451,6 +451,15 @@ public class AccessRequestService {
         return mapToResponse(accessRequest);
     }
 
+    /** BR-RQ-06 / BE-08: người dùng là người tạo đơn hoặc có tên trong danh sách thành viên. */
+    private static boolean isRequesterOrMember(AccessRequest request, UUID userId) {
+        if (request.getRequester() != null && request.getRequester().getId().equals(userId)) {
+            return true;
+        }
+        return request.getMembers() != null && request.getMembers().stream()
+                .anyMatch(m -> m.getUser() != null && userId.equals(m.getUser().getId()));
+    }
+
     @Transactional
     public AccessRequestResponse reviewRequest(UUID id, AccessRequestReviewRequest reviewRequest, String actorEmail) {
         log.info("Reviewing access request {} by reviewer {}", id, actorEmail);
@@ -468,13 +477,23 @@ public class AccessRequestService {
             reasonValidator.validate(reviewRequest.rejectionReason(), "Lý do từ chối");
         }
 
-        // BR-RQ-06: người duyệt phải khác người tạo đơn — áp cho cả APPROVED và REJECTED, kiểm trước mọi ghi DB nên đơn giữ PENDING.
+        // BE-07: khoá chia sẻ dòng khu rồi dòng người tạo TRƯỚC khi đọc đơn. Vô hiệu hoá / đổi loại khu (khoá ghi areas) và
+        // vô hiệu hoá / xoá người tạo (khoá ghi users) đọc danh sách đơn cần huỷ SAU khi khoá, nên hai phía chạy tuần tự:
+        // hệ thống trước -> đơn đã CANCELLED, UPDATE dưới đây 0 dòng -> 409; duyệt trước -> hệ thống thấy đơn APPROVED và huỷ.
+        // Thứ tự khoá areas -> users; luồng hệ thống không giữ cả hai nên không tạo vòng chờ.
+        accessRequestRepository.findReviewLockKeys(id).ifPresent(keys -> {
+            areaRepository.lockRowForShareById(UUID.fromString(keys.getAreaId()));
+            userRepository.lockRowForShareById(UUID.fromString(keys.getRequesterId()));
+        });
+
+        // BR-RQ-06: người duyệt phải khác người tạo đơn và không có tên trong danh sách thành viên (BE-08) — áp cho cả
+        // APPROVED và REJECTED, kiểm trước mọi ghi DB nên đơn giữ PENDING.
         // Không phải pre-check trạng thái: kết quả conditional UPDATE vẫn là nguồn chân lý cho 409.
         User reviewer = userRepository.findByEmail(actorEmail)
                 .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin người duyệt"));
         AccessRequest targetReq = accessRequestRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu truy cập với mã: " + id));
-        if (targetReq.getRequester() != null && targetReq.getRequester().getId().equals(reviewer.getId())) {
+        if (isRequesterOrMember(targetReq, reviewer.getId())) {
             throw new AccessControlException(AccessControlErrorCode.ERR_AC_006);
         }
         // D-1 (như BR-GV-12): đơn PENDING đã tới giờ bắt đầu thì không duyệt / từ chối, kiểm trước BR-RQ-02 để báo đúng lý do.

@@ -416,4 +416,65 @@ class AreaNameValidationIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code", is("ERR_AREA_019")));
     }
+
+    @Test
+    @DisplayName("BE-09: tên 101 / 151 ký tự -> 400 ERR_AREA_005 'Tên khu vực bắt buộc, dài 3–100 ký tự' khi tạo và khi sửa (một quy tắc duy nhất); 100 ký tự -> được")
+    void testNameLength_101And151Rejected_100Accepted() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 6);
+        String prefix = "Khu " + suffix + " ";
+
+        AreaCreateRequest max = AreaCreateRequest.builder()
+                .name(prefix + "b".repeat(100 - prefix.length()))
+                .areaLevel(AreaLevel.CONFIDENTIAL)
+                .floorId(testFloor1.getId())
+                .centerLatitude(10.84175)
+                .centerLongitude(106.80922)
+                .build();
+        org.junit.jupiter.api.Assertions.assertEquals(100, max.getName().length());
+        String created = mockMvc.perform(post("/api/areas")
+                        .header("Authorization", adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(max)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        com.fasterxml.jackson.databind.JsonNode data = objectMapper.readTree(created).path("data");
+        UUID areaId = UUID.fromString(data.path("id").asText());
+        long version = data.path("version").asLong();
+
+        for (int length : new int[]{101, 151}) {
+            String longName = prefix + "a".repeat(length - prefix.length());
+            org.junit.jupiter.api.Assertions.assertEquals(length, longName.length());
+
+            AreaCreateRequest create = AreaCreateRequest.builder()
+                    .name(longName)
+                    .areaLevel(AreaLevel.CONFIDENTIAL)
+                    .floorId(testFloor1.getId())
+                    .centerLatitude(10.84175)
+                    .centerLongitude(106.80922)
+                    .build();
+            mockMvc.perform(post("/api/areas")
+                            .header("Authorization", adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(create)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code", is("ERR_AREA_005")))
+                    .andExpect(jsonPath("$.message", is("Tên khu vực bắt buộc, dài 3–100 ký tự")));
+
+            AreaUpdateRequest update = AreaUpdateRequest.builder()
+                    .name(longName)
+                    .areaLevel(AreaLevel.CONFIDENTIAL)
+                    .floorId(testFloor1.getId())
+                    .centerLatitude(10.84175)
+                    .centerLongitude(106.80922)
+                    .version(version)
+                    .build();
+            mockMvc.perform(put("/api/areas/{id}", areaId)
+                            .header("Authorization", adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(update)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code", is("ERR_AREA_005")))
+                    .andExpect(jsonPath("$.message", is("Tên khu vực bắt buộc, dài 3–100 ký tự")));
+        }
+    }
 }

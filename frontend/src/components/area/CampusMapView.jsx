@@ -36,6 +36,7 @@ import {
 	getAccessLevelConfig,
 	getErrorMessage,
 	AREA_LEVEL_CONFIG,
+	validateAreaName,
 } from "../../utils/areaHelpers";
 import { createArea, updateArea } from "../../services/areaService";
 import {
@@ -658,8 +659,10 @@ export default function CampusMapView({
 			setCreateFormError("Tên khu vực không được để trống.");
 			return;
 		}
-		if (nameTrimmed.length > 150) {
-			setCreateFormError("Tên khu vực tối đa 150 ký tự.");
+		// BE-09: cùng quy tắc backend (AreaValidator, 3–100 ký tự sau chuẩn hoá)
+		const nameError = validateAreaName(nameTrimmed);
+		if (nameError) {
+			setCreateFormError(nameError);
 			return;
 		}
 
