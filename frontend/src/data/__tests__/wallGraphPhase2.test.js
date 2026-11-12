@@ -12,6 +12,7 @@ import {
 	getPolygonInteriorPoint,
 	isPointInPolygonWithHoles,
 	isPointInRing,
+	matchesBuilding,
 	migrateStoreToWallGraph,
 } from "../campusIndoor3dData.js";
 
@@ -44,13 +45,13 @@ describe("Wall Graph Phase 2 (Q3) - Hole-aware Polygon Helpers & Room Clipping",
 		assert.equal(isPointInPolygonWithHoles(interior, outer, [hole]), true);
 	});
 
-	it("Q3(b): clips all 10 protruding starter rooms strictly within concave/convex buildingBoundaries", () => {
+	it("Q3(b): keeps all 162 finalized rooms strictly within concave/convex buildingBoundaries", () => {
 		const store = createDefaultGeometryStore();
-		assert.equal(store.roomPolygons.length, 26, "All 26 starter rooms must remain intact after clipping");
+		assert.equal(store.roomPolygons.length, 162, "All 162 digitized rooms must remain intact inside boundaries");
 
 		for (const room of store.roomPolygons) {
 			const bound = store.buildingBoundaries.find(
-				(b) => b.building === room.building && b.floorOrder === room.floorOrder,
+				(b) => matchesBuilding(b.building, room.building) && b.floorOrder === room.floorOrder,
 			);
 			assert.ok(bound, `Boundary missing for ${room.building} F${room.floorOrder}`);
 			const verts = room.ring.slice(0, -1);

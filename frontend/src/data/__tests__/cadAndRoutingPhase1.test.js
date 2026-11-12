@@ -11,6 +11,7 @@ import {
 	computeDigitizedRoute,
 	createDefaultGeometryStore,
 	isNodeOutdoor,
+	matchesBuilding,
 	resolveBestSnapTarget,
 } from "../campusIndoor3dData.js";
 
@@ -247,15 +248,29 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 	it("findClosestNode for startBuilding='OUTDOOR' does not lock onto closer indoor corridor node behind perimeter wall", () => {
 		const store = createDefaultGeometryStore();
 		const boundaries = store.buildingBoundaries;
-		const outGate = store.navNodes.find((n) => n.id === "out-gate");
-		const indoorSouth = store.navNodes.find((n) => n.id === "hcm-0-ent-s");
+		const outNode = store.navNodes.find((n) => isNodeOutdoor(boundaries, n));
+		const indoorSouth = store.navNodes.find(
+			(n) =>
+				matchesBuilding(n.building, "Tòa Alpha") &&
+				Number(n.floorOrder) === 0 &&
+				!isNodeOutdoor(boundaries, n),
+		);
+		const epsLobby = store.navNodes.find(
+			(n) =>
+				matchesBuilding(n.building, "Tòa Epsilon") &&
+				Number(n.floorOrder) === 0 &&
+				!isNodeOutdoor(boundaries, n),
+		);
 
-		assert.equal(isNodeOutdoor(boundaries, outGate), true);
+		assert.ok(outNode && indoorSouth && epsLobby);
+		assert.equal(isNodeOutdoor(boundaries, outNode), true);
 		assert.equal(isNodeOutdoor(boundaries, indoorSouth), false);
 
-		// Pick outdoor coordinate just 2m outside southern HCM wall (closer to indoor corridor than out-gate!)
-		const hcm0Room004 = store.roomPolygons.find((r) => r.building === "Tòa Alpha" && r.floorOrder === 0);
-		const wallStart = hcm0Room004.ring[2];
+		// Pick outdoor coordinate just ~4m outside southern Tòa Alpha wall
+		const hcm0Room = store.roomPolygons.find(
+			(r) => matchesBuilding(r.building, "Tòa Alpha") && Number(r.floorOrder) === 0,
+		);
+		const wallStart = hcm0Room.ring[2];
 		const slightlyOutside = [wallStart[0], wallStart[1] - 0.00004];
 
 		const route = computeDigitizedRoute({
@@ -263,7 +278,7 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 			startCoords: slightlyOutside,
 			startBuilding: "OUTDOOR",
 			startFloorOrder: 0,
-			endCoords: store.navNodes.find((n) => n.id === "eps-0-lobby").coords,
+			endCoords: epsLobby.coords,
 			endBuilding: "Tòa Epsilon",
 			endFloorOrder: 0,
 		});

@@ -12,9 +12,11 @@
  */
 
 import { buildRoomLabelSpriteId } from "../utils/mapRoomLabelSprites.js";
+import { DEFAULT_CAMPUS_GEOMETRY_V3 } from "./defaultCampusGeometryV3.js";
 
-export const STORAGE_KEY_3D_GEOMETRY = "icss_campus_3d_geometry_v3";
-const LEGACY_STORAGE_KEYS = ["icss_campus_3d_geometry_v2"];
+export const DEFAULT_GEOMETRY_SEED_VERSION =
+	DEFAULT_CAMPUS_GEOMETRY_V3.seedVersion;
+export const STORAGE_KEY_3D_GEOMETRY = "icss_campus_3d_geometry_v4";
 
 export const FLOOR_ELEVATION_STEP = 3.5;
 export const EXPLODED_FLOOR_STEP_OPTIONS = [
@@ -229,722 +231,36 @@ export function resolveFloorOrder(buildingName, floorName) {
 	return 0;
 }
 
-function uvToCoord(bounds, u, v) {
-	if (Array.isArray(bounds?.corners) && bounds.corners.length === 4) {
-		const [nw, ne, se, sw] = bounds.corners;
-		const lng =
-			(1 - u) * (1 - v) * nw[0] +
-			u * (1 - v) * ne[0] +
-			u * v * se[0] +
-			(1 - u) * v * sw[0];
-		const lat =
-			(1 - u) * (1 - v) * nw[1] +
-			u * (1 - v) * ne[1] +
-			u * v * se[1] +
-			(1 - u) * v * sw[1];
-		return [Number(lng.toFixed(6)), Number(lat.toFixed(6))];
-	}
-	return [
-		Number((bounds.west + u * (bounds.east - bounds.west)).toFixed(6)),
-		Number((bounds.north - v * (bounds.north - bounds.south)).toFixed(6)),
-	];
-}
-
-function uvRectRing(bounds, u1, v1, u2, v2) {
-	const p1 = uvToCoord(bounds, u1, v1);
-	const p2 = uvToCoord(bounds, u2, v1);
-	const p3 = uvToCoord(bounds, u2, v2);
-	const p4 = uvToCoord(bounds, u1, v2);
-	return [p1, p2, p3, p4, p1];
-}
-
-const HCM_B = HCM_CALIBRATED_BOUNDS;
-const EPS_B = EPS_CALIBRATED_BOUNDS;
-
 /**
- * Initial starter geometry aligned to calibrated campus footprints
+ * Initial finalized geometry store cloned from the committed Option A campus seed (`epsilon 1`).
  */
 export function createDefaultGeometryStore() {
-	const hcmGroundRing = [
-		[106.809642, 10.842129],
-		[106.809201, 10.84169],
-		[106.810273, 10.840676],
-		[106.81068, 10.841082],
-		[106.810473, 10.84148],
-		[106.809642, 10.842129],
-	];
-
-	const epsGroundRing = [
-		[106.811427, 10.840864],
-		[106.81155, 10.840756],
-		[106.811344, 10.840524],
-		[106.811436, 10.840444],
-		[106.811641, 10.840678],
-		[106.811766, 10.840567],
-		[106.811433, 10.840192],
-		[106.811093, 10.840482],
-		[106.811427, 10.840864],
-	];
-
-	const buildingBoundaries = [
-		// Tòa Alpha outer boundary (all 3 floors aligned to moved Floor G footprint)
-		...[0, 1, 2].map((floorOrder) => ({
-			id: `bound-hcm-${floorOrder}`,
-			building: "Tòa Alpha",
-			floorOrder,
-			ring: hcmGroundRing.map((pt) => [...pt]),
-		})),
-		// Tòa Epsilon U-shape outer boundary (L1 & LV2 aligned to moved L1 footprint)
-		...[0, 1].map((floorOrder) => ({
-			id: `bound-eps-${floorOrder}`,
-			building: "Tòa Epsilon",
-			floorOrder,
-			ring: epsGroundRing.map((pt) => [...pt]),
-		})),
-	];
-
-	// Pure geometric room polygons (no Area business fields attached)
-	const roomPolygons = [
-		// Tòa Alpha - Floor 0 (Tầng Trệt - exact user-digitized rooms)
-		{
-			id: "room-1794307089747",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			ring: [
-				[106.810388, 10.841053],
-				[106.810277, 10.840935],
-				[106.810334, 10.840886],
-				[106.810448, 10.840998],
-				[106.810388, 10.841053],
-			],
-		},
-		{
-			id: "room-1794307097719",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			ring: [
-				[106.810448, 10.841111],
-				[106.810388, 10.841053],
-				[106.810448, 10.840998],
-				[106.810507, 10.841056],
-				[106.810448, 10.841111],
-			],
-		},
-		{
-			id: "room-1794307111205",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			ring: [
-				[106.81052, 10.841038],
-				[106.810582, 10.84098],
-				[106.810411, 10.840802],
-				[106.810346, 10.840866],
-				[106.81052, 10.841038],
-			],
-		},
-		{
-			id: "room-1794307197893",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			ring: [
-				[106.809747, 10.841289],
-				[106.810144, 10.84091],
-				[106.810083, 10.840854],
-				[106.809687, 10.841229],
-				[106.809747, 10.841289],
-			],
-		},
-		{
-			id: "room-1794307211587",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			ring: [
-				[106.809263, 10.841755],
-				[106.8094, 10.841615],
-				[106.809344, 10.841555],
-				[106.809201, 10.84169],
-				[106.809263, 10.841755],
-			],
-		},
-		{
-			id: "room-1794307259741",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			ring: [
-				[106.809519, 10.842023],
-				[106.809698, 10.841836],
-				[106.809467, 10.8416],
-				[106.809283, 10.841775],
-				[106.809519, 10.842023],
-			],
-		},
-		{
-			id: "room-1794307313261",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			ring: [
-				[106.809911, 10.841922],
-				[106.810223, 10.841682],
-				[106.81017, 10.841613],
-				[106.809849, 10.841853],
-				[106.809911, 10.841922],
-			],
-		},
-		// Tòa Alpha - Floor 1 (Tầng 1)
-		{
-			id: "room-hcm-1-1",
-			building: "Tòa Alpha",
-			floorOrder: 1,
-			ring: uvRectRing(HCM_B, 0.082, 0.33, 0.225, 0.715),
-		},
-		{
-			id: "room-hcm-1-2",
-			building: "Tòa Alpha",
-			floorOrder: 1,
-			ring: uvRectRing(HCM_B, 0.186, 0.748, 0.588, 0.822),
-		},
-		{
-			id: "room-hcm-1-3",
-			building: "Tòa Alpha",
-			floorOrder: 1,
-			ring: uvRectRing(HCM_B, 0.808, 0.325, 0.855, 0.635),
-		},
-		{
-			id: "room-hcm-1-4",
-			building: "Tòa Alpha",
-			floorOrder: 1,
-			ring: uvRectRing(HCM_B, 0.868, 0.325, 0.914, 0.482),
-		},
-		// Tòa Alpha - Floor 2 (Tầng 2)
-		{
-			id: "room-hcm-2-1",
-			building: "Tòa Alpha",
-			floorOrder: 2,
-			ring: uvRectRing(HCM_B, 0.082, 0.33, 0.225, 0.715),
-		},
-		{
-			id: "room-hcm-2-2",
-			building: "Tòa Alpha",
-			floorOrder: 2,
-			ring: uvRectRing(HCM_B, 0.185, 0.752, 0.495, 0.828),
-		},
-		{
-			id: "room-hcm-2-3",
-			building: "Tòa Alpha",
-			floorOrder: 2,
-			ring: uvRectRing(HCM_B, 0.676, 0.752, 0.914, 0.828),
-		},
-		{
-			id: "room-hcm-2-4",
-			building: "Tòa Alpha",
-			floorOrder: 2,
-			ring: uvRectRing(HCM_B, 0.808, 0.34, 0.914, 0.642),
-		},
-		// Tòa Epsilon - Floor 0 (L1)
-		{
-			id: "room-eps-0-1",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			ring: uvRectRing(EPS_B, 0.224, 0.72, 0.396, 0.84),
-		},
-		{
-			id: "room-eps-0-2",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			ring: uvRectRing(EPS_B, 0.54, 0.72, 0.712, 0.84),
-		},
-		{
-			id: "room-eps-0-3",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			ring: uvRectRing(EPS_B, 0.224, 0.335, 0.292, 0.665),
-		},
-		{
-			id: "room-eps-0-4",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			ring: uvRectRing(EPS_B, 0.32, 0.268, 0.396, 0.478),
-		},
-		{
-			id: "room-eps-0-5",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			ring: uvRectRing(EPS_B, 0.224, 0.138, 0.398, 0.232),
-		},
-		{
-			id: "room-eps-0-6",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			ring: uvRectRing(EPS_B, 0.538, 0.138, 0.712, 0.232),
-		},
-		{
-			id: "room-eps-0-7",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			ring: uvRectRing(EPS_B, 0.538, 0.268, 0.712, 0.562),
-		},
-		// Tòa Epsilon - Floor 1 (LV2)
-		{
-			id: "room-eps-1-1",
-			building: "Tòa Epsilon",
-			floorOrder: 1,
-			ring: uvRectRing(EPS_B, 0.224, 0.735, 0.712, 0.842),
-		},
-		{
-			id: "room-eps-1-2",
-			building: "Tòa Epsilon",
-			floorOrder: 1,
-			ring: uvRectRing(EPS_B, 0.224, 0.335, 0.3, 0.692),
-		},
-		{
-			id: "room-eps-1-3",
-			building: "Tòa Epsilon",
-			floorOrder: 1,
-			ring: uvRectRing(EPS_B, 0.332, 0.215, 0.402, 0.455),
-		},
-		{
-			id: "room-eps-1-4",
-			building: "Tòa Epsilon",
-			floorOrder: 1,
-			ring: uvRectRing(EPS_B, 0.54, 0.14, 0.712, 0.685),
-		},
-	];
-
-	const navNodes = [
-		// Outdoor walkway nodes connecting moved Tòa HCM & Tòa Epsilon
-		{
-			id: "out-gate",
-			type: "OUTDOOR",
-			building: "OUTDOOR",
-			floorOrder: 0,
-			coords: [106.80945, 10.84105],
-		},
-		{
-			id: "out-mid",
-			type: "OUTDOOR",
-			building: "OUTDOOR",
-			floorOrder: 0,
-			coords: [106.81005, 10.84072],
-		},
-		{
-			id: "out-link",
-			type: "OUTDOOR",
-			building: "OUTDOOR",
-			floorOrder: 0,
-			coords: [106.81068, 10.84052],
-		},
-		{
-			id: "out-eps",
-			type: "OUTDOOR",
-			building: "OUTDOOR",
-			floorOrder: 0,
-			coords: [106.81115, 10.84024],
-		},
-
-		// Tòa Alpha - Floor 0 (user-digitized corridor loop + aligned entrances & stairs)
-		{
-			id: "node-1794307597801",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.809473, 10.841577],
-		},
-		{
-			id: "node-1794307602171",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.80931, 10.841707],
-		},
-		{
-			id: "node-1794307629249",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.809772, 10.841895],
-		},
-		{
-			id: "node-1794307634367",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.809617, 10.842019],
-		},
-		{
-			id: "node-1794307643227",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.80989, 10.841825],
-		},
-		{
-			id: "node-1794307645265",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.809944, 10.841759],
-		},
-		{
-			id: "node-1794307652919",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.810436, 10.841383],
-		},
-		{
-			id: "node-1794307656813",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.810572, 10.841105],
-		},
-		{
-			id: "node-1794307661173",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.810474, 10.84102],
-		},
-		{
-			id: "node-1794307662821",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.810404, 10.840929],
-		},
-		{
-			id: "node-1794307666981",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.810215, 10.840748],
-		},
-		{
-			id: "node-1794307696551",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: [106.810175, 10.840903],
-		},
-		{
-			id: "hcm-0-ent-s",
-			type: "ENTRANCE",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: uvToCoord(HCM_B, 0.44, 0.82),
-		},
-		{
-			id: "hcm-0-ent-e",
-			type: "ENTRANCE",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: uvToCoord(HCM_B, 0.79, 0.72),
-		},
-		{
-			id: "hcm-0-stair-w",
-			type: "STAIRS",
-			portalGroupId: "HCM_STAIR_W",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: uvToCoord(HCM_B, 0.22, 0.5),
-		},
-		{
-			id: "hcm-0-stair-e",
-			type: "STAIRS",
-			portalGroupId: "HCM_STAIR_E",
-			building: "Tòa Alpha",
-			floorOrder: 0,
-			coords: uvToCoord(HCM_B, 0.86, 0.34),
-		},
-
-		// Tòa Alpha - Floor 1
-		{
-			id: "hcm-1-stair-w",
-			type: "STAIRS",
-			portalGroupId: "HCM_STAIR_W",
-			building: "Tòa Alpha",
-			floorOrder: 1,
-			coords: uvToCoord(HCM_B, 0.22, 0.5),
-		},
-		{
-			id: "hcm-1-stair-e",
-			type: "STAIRS",
-			portalGroupId: "HCM_STAIR_E",
-			building: "Tòa Alpha",
-			floorOrder: 1,
-			coords: uvToCoord(HCM_B, 0.86, 0.34),
-		},
-		{
-			id: "hcm-1-cor-sw",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 1,
-			coords: uvToCoord(HCM_B, 0.22, 0.72),
-		},
-		{
-			id: "hcm-1-cor-sm",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 1,
-			coords: uvToCoord(HCM_B, 0.44, 0.72),
-		},
-		{
-			id: "hcm-1-cor-se",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 1,
-			coords: uvToCoord(HCM_B, 0.79, 0.72),
-		},
-		{
-			id: "hcm-1-cor-ne",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 1,
-			coords: uvToCoord(HCM_B, 0.86, 0.52),
-		},
-
-		// Tòa Alpha - Floor 2
-		{
-			id: "hcm-2-stair-w",
-			type: "STAIRS",
-			portalGroupId: "HCM_STAIR_W",
-			building: "Tòa Alpha",
-			floorOrder: 2,
-			coords: uvToCoord(HCM_B, 0.22, 0.5),
-		},
-		{
-			id: "hcm-2-stair-e",
-			type: "STAIRS",
-			portalGroupId: "HCM_STAIR_E",
-			building: "Tòa Alpha",
-			floorOrder: 2,
-			coords: uvToCoord(HCM_B, 0.86, 0.34),
-		},
-		{
-			id: "hcm-2-cor-sw",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 2,
-			coords: uvToCoord(HCM_B, 0.22, 0.72),
-		},
-		{
-			id: "hcm-2-cor-sm",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 2,
-			coords: uvToCoord(HCM_B, 0.44, 0.72),
-		},
-		{
-			id: "hcm-2-cor-se",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 2,
-			coords: uvToCoord(HCM_B, 0.79, 0.72),
-		},
-		{
-			id: "hcm-2-cor-ne",
-			type: "CORRIDOR",
-			building: "Tòa Alpha",
-			floorOrder: 2,
-			coords: uvToCoord(HCM_B, 0.86, 0.52),
-		},
-
-		// Tòa Epsilon - Floor 0 (L1)
-		{
-			id: "eps-0-ent",
-			type: "ENTRANCE",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			coords: uvToCoord(EPS_B, 0.468, 0.83),
-		},
-		{
-			id: "eps-0-lobby",
-			type: "CORRIDOR",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			coords: uvToCoord(EPS_B, 0.468, 0.695),
-		},
-		{
-			id: "eps-0-cor-sw",
-			type: "CORRIDOR",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			coords: uvToCoord(EPS_B, 0.308, 0.695),
-		},
-		{
-			id: "eps-0-cor-se",
-			type: "CORRIDOR",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			coords: uvToCoord(EPS_B, 0.618, 0.695),
-		},
-		{
-			id: "eps-0-cor-nw",
-			type: "CORRIDOR",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			coords: uvToCoord(EPS_B, 0.308, 0.245),
-		},
-		{
-			id: "eps-0-cor-ne",
-			type: "CORRIDOR",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			coords: uvToCoord(EPS_B, 0.618, 0.245),
-		},
-		{
-			id: "eps-0-stair-th1",
-			type: "STAIRS",
-			portalGroupId: "EPS_THANG_TH1",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			coords: uvToCoord(EPS_B, 0.585, 0.605),
-		},
-		{
-			id: "eps-0-stair-th2",
-			type: "STAIRS",
-			portalGroupId: "EPS_THANG_TH2",
-			building: "Tòa Epsilon",
-			floorOrder: 0,
-			coords: uvToCoord(EPS_B, 0.285, 0.3),
-		},
-
-		// Tòa Epsilon - Floor 1 (LV2)
-		{
-			id: "eps-1-stair-th1",
-			type: "STAIRS",
-			portalGroupId: "EPS_THANG_TH1",
-			building: "Tòa Epsilon",
-			floorOrder: 1,
-			coords: uvToCoord(EPS_B, 0.585, 0.605),
-		},
-		{
-			id: "eps-1-stair-th2",
-			type: "STAIRS",
-			portalGroupId: "EPS_THANG_TH2",
-			building: "Tòa Epsilon",
-			floorOrder: 1,
-			coords: uvToCoord(EPS_B, 0.285, 0.3),
-		},
-		{
-			id: "eps-1-cor-sw",
-			type: "CORRIDOR",
-			building: "Tòa Epsilon",
-			floorOrder: 1,
-			coords: uvToCoord(EPS_B, 0.315, 0.71),
-		},
-		{
-			id: "eps-1-cor-se",
-			type: "CORRIDOR",
-			building: "Tòa Epsilon",
-			floorOrder: 1,
-			coords: uvToCoord(EPS_B, 0.615, 0.71),
-		},
-		{
-			id: "eps-1-cor-nw",
-			type: "CORRIDOR",
-			building: "Tòa Epsilon",
-			floorOrder: 1,
-			coords: uvToCoord(EPS_B, 0.315, 0.22),
-		},
-	];
-
-	const navEdges = [
-		["out-gate", "out-mid"],
-		["out-mid", "hcm-0-ent-s"],
-		["out-mid", "out-link"],
-		["out-link", "hcm-0-ent-e"],
-		["out-link", "out-eps"],
-		["out-eps", "eps-0-ent"],
-
-		// HCM Floor 0 (user corridor loop + connections to entrances & stairs)
-		["node-1794307597801", "node-1794307602171"],
-		["node-1794307597801", "node-1794307629249"],
-		["node-1794307629249", "node-1794307634367"],
-		["node-1794307629249", "node-1794307643227"],
-		["node-1794307643227", "node-1794307645265"],
-		["node-1794307645265", "node-1794307652919"],
-		["node-1794307652919", "node-1794307656813"],
-		["node-1794307656813", "node-1794307661173"],
-		["node-1794307661173", "node-1794307662821"],
-		["node-1794307662821", "node-1794307666981"],
-		["node-1794307666981", "node-1794307696551"],
-		["node-1794307696551", "node-1794307597801"],
-		["hcm-0-stair-w", "node-1794307602171"],
-		["hcm-0-stair-e", "node-1794307652919"],
-		["hcm-0-ent-s", "node-1794307597801"],
-		["hcm-0-ent-e", "node-1794307666981"],
-
-		// HCM Floor 1
-		["hcm-1-stair-w", "hcm-1-cor-sw"],
-		["hcm-1-cor-sw", "hcm-1-cor-sm"],
-		["hcm-1-cor-sm", "hcm-1-cor-se"],
-		["hcm-1-cor-se", "hcm-1-cor-ne"],
-		["hcm-1-cor-ne", "hcm-1-stair-e"],
-
-		// HCM Floor 2
-		["hcm-2-stair-w", "hcm-2-cor-sw"],
-		["hcm-2-cor-sw", "hcm-2-cor-sm"],
-		["hcm-2-cor-sm", "hcm-2-cor-se"],
-		["hcm-2-cor-se", "hcm-2-cor-ne"],
-		["hcm-2-cor-ne", "hcm-2-stair-e"],
-
-		// Epsilon Floor 0
-		["eps-0-ent", "eps-0-lobby"],
-		["eps-0-lobby", "eps-0-cor-sw"],
-		["eps-0-lobby", "eps-0-cor-se"],
-		["eps-0-cor-sw", "eps-0-stair-th2"],
-		["eps-0-stair-th2", "eps-0-cor-nw"],
-		["eps-0-cor-se", "eps-0-stair-th1"],
-		["eps-0-stair-th1", "eps-0-cor-ne"],
-
-		// Epsilon Floor 1
-		["eps-1-cor-sw", "eps-1-cor-se"],
-		["eps-1-cor-sw", "eps-1-stair-th2"],
-		["eps-1-stair-th2", "eps-1-cor-nw"],
-		["eps-1-cor-se", "eps-1-stair-th1"],
-	];
-
-	const legacyV2 = {
-		version: 2,
-		floorCalibrations: {
-			"Tòa Alpha__0": { ...HCM_CALIBRATED_BOUNDS },
-			"Tòa Epsilon__0": { ...EPS_CALIBRATED_BOUNDS },
-		},
-		buildingBoundaries,
-		roomPolygons,
-		customWalls: [],
-		navNodes,
-		navEdges,
+	const cloned = structuredClone(DEFAULT_CAMPUS_GEOMETRY_V3);
+	return {
+		...cloned,
+		version: 3,
+		seedVersion: DEFAULT_GEOMETRY_SEED_VERSION,
+		navEdges: sanitizePortalNavEdges(cloned.navNodes, cloned.navEdges),
 	};
-
-	return migrateStoreToWallGraph(legacyV2);
 }
 
 export function loadGeometryStore() {
 	try {
-		const raw = localStorage.getItem(STORAGE_KEY_3D_GEOMETRY);
-		if (raw) {
-			const parsed = JSON.parse(raw);
-			if (
-				parsed &&
-				(Array.isArray(parsed.walls) || Array.isArray(parsed.roomPolygons))
-			) {
-				if (parsed.version >= 3) {
-					return {
-						...parsed,
-						navEdges: sanitizePortalNavEdges(parsed.navNodes, parsed.navEdges),
-					};
-				}
-				return migrateStoreToWallGraph(parsed);
-			}
-		}
-		for (const legacyKey of LEGACY_STORAGE_KEYS) {
-			const oldRaw = localStorage.getItem(legacyKey);
-			if (oldRaw) {
-				const oldParsed = JSON.parse(oldRaw);
-				if (oldParsed && Array.isArray(oldParsed.roomPolygons)) {
-					return migrateStoreToWallGraph(oldParsed);
+		if (typeof localStorage !== "undefined") {
+			const raw = localStorage.getItem(STORAGE_KEY_3D_GEOMETRY);
+			if (raw) {
+				const parsed = JSON.parse(raw);
+				if (
+					parsed &&
+					(Array.isArray(parsed.walls) || Array.isArray(parsed.roomPolygons))
+				) {
+					if (parsed.version >= 3) {
+						return {
+							...parsed,
+							navEdges: sanitizePortalNavEdges(parsed.navNodes, parsed.navEdges),
+						};
+					}
+					return migrateStoreToWallGraph(parsed);
 				}
 			}
 		}
@@ -956,7 +272,14 @@ export function loadGeometryStore() {
 
 export function saveGeometryStore(store) {
 	try {
-		localStorage.setItem(STORAGE_KEY_3D_GEOMETRY, JSON.stringify(store));
+		const payload =
+			store && typeof store === "object"
+				? {
+						...store,
+						seedVersion: store.seedVersion || DEFAULT_GEOMETRY_SEED_VERSION,
+					}
+				: store;
+		localStorage.setItem(STORAGE_KEY_3D_GEOMETRY, JSON.stringify(payload));
 		window.dispatchEvent(new CustomEvent("icss-3d-geometry-updated"));
 	} catch (e) {
 		console.error("[3D Store] Failed to save geometry:", e);
@@ -2248,6 +1571,7 @@ export function buildSliceWallSegment(faces = [], p1, p2) {
 }
 
 const wallGraphModelCache = new WeakMap();
+const routeBaseGraphCache = new WeakMap();
 
 /**
  * Derive all floor-level Wall Graph topological models & synchronized compatibility shapes cleanly.
@@ -4053,41 +3377,30 @@ function isSegmentOutdoorGeometry(boundaries, a, b, precomputedModels = null) {
 	);
 }
 
-/**
- * Multi-Building & Multi-Floor A* Pathfinding on digitized graph
- * Supports wall-mounted DOOR two-side connectivity (ROOM <-> CORRIDOR, CORRIDOR <-> OUTDOOR)
- * while maintaining identical `floorDiff * 18` cost for both STAIRS & ELEVATOR (Q3c).
- */
-export function computeDigitizedRoute({
-	store,
-	startCoords,
-	startBuilding = "OUTDOOR",
-	startFloorOrder = 0,
-	endCoords,
-	endBuilding = "Tòa Alpha",
-	endFloorOrder = 0,
-	diagnosticsOut = null,
-}) {
-	const setDiag = (reasonCode, message) => {
-		if (diagnosticsOut && typeof diagnosticsOut === "object") {
-			diagnosticsOut.reasonCode = reasonCode;
-			diagnosticsOut.message = message;
+function buildOrGetCachedRouteBase(rawStore) {
+	const cached = Array.isArray(rawStore?.walls)
+		? routeBaseGraphCache.get(rawStore.walls)
+		: null;
+	if (
+		cached &&
+		cached.faceAssignments === rawStore.faceAssignments &&
+		cached.doors === rawStore.doors &&
+		cached.buildingBoundaries === rawStore.buildingBoundaries &&
+		cached.navNodes === rawStore.navNodes &&
+		cached.navEdges === rawStore.navEdges &&
+		cached.version === rawStore.version
+	) {
+		const nodeMap = new Map(cached.nodeMap);
+		const adj = new Map();
+		for (const [k, list] of cached.adj.entries()) {
+			adj.set(k, list.slice());
 		}
-	};
+		return { ...cached, nodeMap, adj };
+	}
 
-	const rawStore = store || loadGeometryStore();
 	const data = migrateStoreToWallGraph(rawStore);
 	const nodes = data.navNodes || [];
 	const boundaries = data.buildingBoundaries || [];
-	if (!startCoords || !endCoords) {
-		setDiag("INVALID_COORDS", "Thiếu tọa độ điểm đi hoặc điểm đến.");
-		return null;
-	}
-	if (nodes.length === 0) {
-		setDiag("EMPTY_GRAPH", "Chưa có nút đồ thị đường đi [N] nào trên bản đồ.");
-		return null;
-	}
-
 	const floorModels = buildFloorWallGraphModels(data);
 	const allEdges = buildAllGraphEdges(data);
 	const nodeMap = new Map(nodes.map((n) => [n.id, { ...n }]));
@@ -4122,6 +3435,410 @@ export function computeDigitizedRoute({
 		);
 		return insideVoid ? cBldg : null;
 	};
+
+	const nodesByFloor = new Map();
+	const nodeMetaById = new Map();
+	const getNodeMeta = (n) => {
+		let meta = nodeMetaById.get(n.id);
+		if (!meta) {
+			const fl = Number(n.floorOrder) || 0;
+			meta = {
+				isOut: isNodeOutdoor(boundaries, n, floorModels),
+				bldg: resolveNodeBuilding(boundaries, n, floorModels),
+				voidBldg: undefined,
+				inFloor0Bound:
+					fl === 0 && floor0Bounds.length > 0
+						? Boolean(findBoundaryContainingPoint(floor0Bounds, n.coords, 0))
+						: false,
+			};
+			nodeMetaById.set(n.id, meta);
+		}
+		if (meta.voidBldg === undefined) {
+			meta.voidBldg =
+				(Number(n.floorOrder) || 0) === 0
+					? findVoidCourtyardBuilding(n.coords)
+					: null;
+		}
+		return meta;
+	};
+	for (const n of nodes) {
+		const fl = Number(n.floorOrder) || 0;
+		if (!nodesByFloor.has(fl)) nodesByFloor.set(fl, []);
+		nodesByFloor.get(fl).push(n);
+	}
+	const intraEdgesByFloor = new Map();
+	for (const edge of allEdges) {
+		const u = nodeMap.get(edge[0]);
+		const v = nodeMap.get(edge[1]);
+		if (!u || !v || u.floorOrder !== v.floorOrder) continue;
+		const fl = Number(u.floorOrder) || 0;
+		if (!intraEdgesByFloor.has(fl)) intraEdgesByFloor.set(fl, []);
+		intraEdgesByFloor.get(fl).push(edge);
+	}
+
+	const outerGatewayDoorIds = new Set();
+	const outerGatewayDoorsByBldg = new Map();
+	const courtyardGatewayDoorMap = new Map();
+	const doorRoomLinks = new Map();
+	const staticPoolCache = new Map();
+
+	const getStaticPool = (bldg, flOrder, coords, opts = {}) => {
+		const fl = Number(flOrder) || 0;
+		const exVirt = Boolean(opts.excludeVirtualDoors);
+		const zone = opts.outdoorZone || "";
+		const canCache =
+			bldg !== "OUTDOOR" || (exVirt && (zone === "EXTERIOR" || zone === "VOID"));
+		const cacheKey = canCache
+			? `${resolveCanonicalBuildingName(bldg) || bldg}|${fl}|${zone}|${exVirt}`
+			: null;
+		if (cacheKey && staticPoolCache.has(cacheKey)) {
+			return staticPoolCache.get(cacheKey);
+		}
+		const floorNodes = nodesByFloor.get(fl) || [];
+		let pool;
+		if (bldg === "OUTDOOR") {
+			if (fl !== 0) return { pool: [], poolIds: new Set() };
+			if (zone === "VOID") {
+				pool = floorNodes.filter((n) => Boolean(getNodeMeta(n).voidBldg));
+			} else {
+				pool = floorNodes.filter((n) => {
+					if (floor0Bounds.length === 0) {
+						return n.type === "OUTDOOR" || n.building === "OUTDOOR";
+					}
+					const m = getNodeMeta(n);
+					if (m.inFloor0Bound) return false;
+					return m.isOut;
+				});
+			}
+		} else if (bldg && bldg !== "ALL") {
+			pool = floorNodes.filter((n) => {
+				const m = getNodeMeta(n);
+				return !m.isOut && matchesBuilding(m.bldg, bldg);
+			});
+		} else {
+			pool = floorNodes.length > 0 ? floorNodes : nodes;
+		}
+		const res = { pool, poolIds: new Set(pool.map((n) => n.id)) };
+		if (cacheKey) staticPoolCache.set(cacheKey, res);
+		return res;
+	};
+
+	const connectDoorToStaticPool = (targetNodeId, coords, bldg, flOrder, poolOpts = {}) => {
+		const { pool, poolIds } = getStaticPool(bldg, flOrder, coords, poolOpts);
+		if (pool.length === 0) return { node: null };
+		const fl = Number(flOrder) || 0;
+		let bestNode = pool[0];
+		let bestNodeDist = Infinity;
+		for (const n of pool) {
+			const d = haversineMeters(coords, n.coords);
+			if (d < bestNodeDist) {
+				bestNodeDist = d;
+				bestNode = n;
+			}
+		}
+		const { toM } = toLocalMetersFactory(coords);
+		let bestEdgeAttach = null;
+		let bestProjDist = bestNodeDist * 0.95;
+		for (const [uId, vId] of intraEdgesByFloor.get(fl) || []) {
+			if (!poolIds.has(uId) || !poolIds.has(vId)) continue;
+			const u = nodeMap.get(uId);
+			const v = nodeMap.get(vId);
+			if (!u || !v) continue;
+			const aM = toM(u.coords);
+			const bM = toM(v.coords);
+			const dx = bM[0] - aM[0];
+			const dy = bM[1] - aM[1];
+			const lenSq = dx * dx + dy * dy;
+			if (lenSq < 1e-4) continue;
+			const t = Math.max(
+				0,
+				Math.min(1, ((0 - aM[0]) * dx + (0 - aM[1]) * dy) / lenSq),
+			);
+			if (t <= 0.02 || t >= 0.98) continue;
+			const projCoord = [
+				Number((u.coords[0] + t * (v.coords[0] - u.coords[0])).toFixed(7)),
+				Number((u.coords[1] + t * (v.coords[1] - u.coords[1])).toFixed(7)),
+			];
+			const dProj = haversineMeters(coords, projCoord);
+			if (dProj < bestProjDist) {
+				bestProjDist = dProj;
+				bestEdgeAttach = { u, v, projCoord, dProj };
+			}
+		}
+		if (bestEdgeAttach) {
+			const { u, v, projCoord } = bestEdgeAttach;
+			const vId = `__t_${targetNodeId}__`;
+			const vNode = {
+				id: vId,
+				type: "NODE",
+				building: bldg === "OUTDOOR" ? "OUTDOOR" : getNodeMeta(u).bldg,
+				floorOrder: Number(u.floorOrder) || 0,
+				coords: projCoord,
+				isVirtual: true,
+			};
+			nodeMap.set(vId, vNode);
+			adj.set(vId, []);
+			const du = haversineMeters(projCoord, u.coords);
+			const dv = haversineMeters(projCoord, v.coords);
+			adj.get(vId).push({ to: u.id, weight: du });
+			adj.get(u.id).push({ to: vId, weight: du });
+			adj.get(vId).push({ to: v.id, weight: dv });
+			adj.get(v.id).push({ to: vId, weight: dv });
+			return { node: vNode };
+		}
+		return { node: bestNode };
+	};
+
+	for (const model of floorModels.values()) {
+		const floorNodes = nodesByFloor.get(model.floorOrder) || [];
+		for (const door of model.doors || []) {
+			if (!Array.isArray(door.coords)) continue;
+			const { toM, toDeg } = toLocalMetersFactory(door.coords);
+			let bestSeg = null;
+			let bestSegDist = 0.65;
+			for (const seg of model.wallSegments) {
+				const aM = toM(seg.a);
+				const bM = toM(seg.b);
+				const dx = bM[0] - aM[0];
+				const dy = bM[1] - aM[1];
+				const l2 = dx * dx + dy * dy;
+				if (l2 < 1e-6) continue;
+				const t = Math.max(
+					0,
+					Math.min(1, ((0 - aM[0]) * dx + (0 - aM[1]) * dy) / l2),
+				);
+				const px = aM[0] + t * dx;
+				const py = aM[1] + t * dy;
+				const d = Math.hypot(px, py);
+				if (d < bestSegDist) {
+					bestSegDist = d;
+					bestSeg = seg;
+				}
+			}
+			if (!bestSeg) continue;
+
+			const dNodeId = `__door_${door.id}__`;
+			const dNode = {
+				id: dNodeId,
+				type: "DOOR",
+				building: model.building,
+				floorOrder: model.floorOrder,
+				coords: door.coords,
+				isDoorVirtual: true,
+			};
+			nodeMap.set(dNodeId, dNode);
+			adj.set(dNodeId, []);
+
+			for (const n of floorNodes) {
+				const dMid = haversineMeters(door.coords, n.coords);
+				if (dMid <= 0.45) {
+					adj.get(dNodeId).push({ to: n.id, weight: Math.max(0.05, dMid) });
+					adj.get(n.id).push({ to: dNodeId, weight: Math.max(0.05, dMid) });
+				}
+			}
+
+			const aM = toM(bestSeg.a);
+			const bM = toM(bestSeg.b);
+			const sdx = bM[0] - aM[0];
+			const sdy = bM[1] - aM[1];
+			const sLen = Math.hypot(sdx, sdy) || 1;
+			const perp = [(-sdy / sLen) * 0.65, (sdx / sLen) * 0.65];
+			const sideA = toDeg(perp);
+			const sideB = toDeg([-perp[0], -perp[1]]);
+
+			let linkedToCorridorOrOutdoor = false;
+			for (const sidePt of [sideA, sideB]) {
+				const sideFace = model.faces.find((f) =>
+					isPointInPolygonWithHoles(sidePt, f.ring, f.holes || []),
+				);
+				if (
+					(!sideFace || sideFace?.role === "VOID") &&
+					model.floorOrder === 0
+				) {
+					const sideInVoid =
+						sideFace?.role === "VOID" ||
+						Boolean(findVoidCourtyardBuilding(sidePt));
+					const sideStrictlyOutside =
+						!sideInVoid &&
+						(floor0Bounds.length === 0 ||
+							!findBoundaryContainingPoint(floor0Bounds, sidePt, 0));
+
+					if (sideStrictlyOutside) {
+						outerGatewayDoorIds.add(dNodeId);
+						const cDoorBldg =
+							resolveCanonicalBuildingName(model.building) || model.building;
+						if (!outerGatewayDoorsByBldg.has(cDoorBldg)) {
+							outerGatewayDoorsByBldg.set(cDoorBldg, new Set());
+						}
+						outerGatewayDoorsByBldg.get(cDoorBldg).add(dNodeId);
+						const att = connectDoorToStaticPool(
+							`${dNodeId}_out`,
+							door.coords,
+							"OUTDOOR",
+							0,
+							{ excludeVirtualDoors: true, outdoorZone: "EXTERIOR" },
+						);
+						if (att.node) {
+							const w = haversineMeters(door.coords, att.node.coords);
+							adj.get(dNodeId).push({ to: att.node.id, weight: w });
+							adj.get(att.node.id).push({ to: dNodeId, weight: w });
+							linkedToCorridorOrOutdoor = true;
+						}
+					} else if (sideInVoid) {
+						const cBldg =
+							resolveCanonicalBuildingName(model.building) || model.building;
+						if (!courtyardGatewayDoorMap.has(cBldg)) {
+							courtyardGatewayDoorMap.set(cBldg, new Set());
+						}
+						courtyardGatewayDoorMap.get(cBldg).add(dNodeId);
+						const att = connectDoorToStaticPool(
+							`${dNodeId}_void`,
+							sidePt,
+							"OUTDOOR",
+							0,
+							{ excludeVirtualDoors: true, outdoorZone: "VOID" },
+						);
+						if (att.node) {
+							const w = haversineMeters(door.coords, att.node.coords);
+							adj.get(dNodeId).push({ to: att.node.id, weight: w });
+							adj.get(att.node.id).push({ to: dNodeId, weight: w });
+							linkedToCorridorOrOutdoor = true;
+						}
+					}
+				} else if (sideFace?.role === "ROOM") {
+					if (!doorRoomLinks.has(sideFace.id)) {
+						doorRoomLinks.set(sideFace.id, []);
+					}
+					doorRoomLinks.get(sideFace.id).push(dNodeId);
+				} else if (sideFace?.role === "CORRIDOR") {
+					const att = connectDoorToStaticPool(
+						`${dNodeId}_cor`,
+						door.coords,
+						model.building,
+						model.floorOrder,
+					);
+					if (att.node) {
+						const w = haversineMeters(door.coords, att.node.coords);
+						adj.get(dNodeId).push({ to: att.node.id, weight: w });
+						adj.get(att.node.id).push({ to: dNodeId, weight: w });
+						linkedToCorridorOrOutdoor = true;
+					}
+				}
+			}
+
+			if (!linkedToCorridorOrOutdoor) {
+				const att = connectDoorToStaticPool(
+					`${dNodeId}_fallback`,
+					door.coords,
+					model.building,
+					model.floorOrder,
+				);
+				if (att.node) {
+					const w = haversineMeters(door.coords, att.node.coords);
+					adj.get(dNodeId).push({ to: att.node.id, weight: w });
+					adj.get(att.node.id).push({ to: dNodeId, weight: w });
+				}
+			}
+		}
+	}
+
+	for (const dIds of doorRoomLinks.values()) {
+		for (let i = 0; i < dIds.length; i++) {
+			for (let j = i + 1; j < dIds.length; j++) {
+				const da = nodeMap.get(dIds[i]);
+				const db = nodeMap.get(dIds[j]);
+				const w = haversineMeters(da.coords, db.coords);
+				adj.get(dIds[i]).push({ to: dIds[j], weight: w });
+				adj.get(dIds[j]).push({ to: dIds[i], weight: w });
+			}
+		}
+	}
+
+	const baseResult = {
+		data,
+		nodes,
+		boundaries,
+		floor0Bounds,
+		floorModels,
+		nodeMap,
+		adj,
+		nodesByFloor,
+		intraEdgesByFloor,
+		getNodeMeta,
+		findVoidCourtyardBuilding,
+		outerGatewayDoorIds,
+		outerGatewayDoorsByBldg,
+		courtyardGatewayDoorMap,
+		doorRoomLinks,
+	};
+
+	if (Array.isArray(rawStore?.walls)) {
+		const cachedAdj = new Map();
+		for (const [k, list] of adj.entries()) cachedAdj.set(k, list.slice());
+		routeBaseGraphCache.set(rawStore.walls, {
+			...baseResult,
+			nodeMap: new Map(nodeMap),
+			adj: cachedAdj,
+			faceAssignments: rawStore.faceAssignments,
+			doors: rawStore.doors,
+			buildingBoundaries: rawStore.buildingBoundaries,
+			navNodes: rawStore.navNodes,
+			navEdges: rawStore.navEdges,
+			version: rawStore.version,
+		});
+	}
+
+	return baseResult;
+}
+
+/**
+ * Multi-Building & Multi-Floor A* Pathfinding on digitized graph
+ * Supports wall-mounted DOOR two-side connectivity (ROOM <-> CORRIDOR, CORRIDOR <-> OUTDOOR)
+ * while maintaining identical `floorDiff * 18` cost for both STAIRS & ELEVATOR (Q3c).
+ */
+export function computeDigitizedRoute({
+	store,
+	startCoords,
+	startBuilding = "OUTDOOR",
+	startFloorOrder = 0,
+	endCoords,
+	endBuilding = "Tòa Alpha",
+	endFloorOrder = 0,
+	diagnosticsOut = null,
+}) {
+	const setDiag = (reasonCode, message) => {
+		if (diagnosticsOut && typeof diagnosticsOut === "object") {
+			diagnosticsOut.reasonCode = reasonCode;
+			diagnosticsOut.message = message;
+		}
+	};
+
+	const rawStore = store || loadGeometryStore();
+	if (!startCoords || !endCoords) {
+		setDiag("INVALID_COORDS", "Thiếu tọa độ điểm đi hoặc điểm đến.");
+		return null;
+	}
+	if (!rawStore?.navNodes || rawStore.navNodes.length === 0) {
+		setDiag("EMPTY_GRAPH", "Chưa có nút đồ thị đường đi [N] nào trên bản đồ.");
+		return null;
+	}
+
+	const {
+		nodes,
+		boundaries,
+		floor0Bounds,
+		floorModels,
+		nodeMap,
+		adj,
+		nodesByFloor,
+		intraEdgesByFloor,
+		getNodeMeta,
+		findVoidCourtyardBuilding,
+		outerGatewayDoorIds,
+		outerGatewayDoorsByBldg,
+		courtyardGatewayDoorMap,
+		doorRoomLinks,
+	} = buildOrGetCachedRouteBase(rawStore);
 
 	const findContainingRoom = (coords, bldg, flOrder) => {
 		if (!bldg || bldg === "OUTDOOR" || bldg === "ALL") return null;
@@ -4258,10 +3975,6 @@ export function computeDigitizedRoute({
 		};
 	}
 
-	const outerGatewayDoorIds = new Set();
-	const outerGatewayDoorsByBldg = new Map(); // canonicalBuilding -> Set(doorNodeId)
-	const courtyardGatewayDoorMap = new Map(); // canonicalBuilding -> Set(doorNodeId)
-
 	const getFloorPool = (
 		bldg,
 		flOrder,
@@ -4274,11 +3987,11 @@ export function computeDigitizedRoute({
 		} = {},
 	) => {
 		const fl = Number(flOrder) || 0;
-		const floorNodes = nodes.filter((n) => (Number(n.floorOrder) || 0) === fl);
+		const floorNodes = nodesByFloor.get(fl) || [];
 		if (bldg === "OUTDOOR") {
 			if (fl !== 0) return [];
 			const voidBldg =
-				outdoorZone === "VOID"
+				outdoorZone === "VOID" || outdoorZone === "EXTERIOR"
 					? null
 					: coords
 						? findVoidCourtyardBuilding(coords)
@@ -4286,7 +3999,7 @@ export function computeDigitizedRoute({
 			if (outdoorZone === "VOID" || voidBldg) {
 				const targetBldg = outdoorZone === "VOID" ? null : voidBldg;
 				const voidPool = floorNodes.filter((n) => {
-					const nVoid = findVoidCourtyardBuilding(n.coords);
+					const nVoid = getNodeMeta(n).voidBldg;
 					return targetBldg ? nVoid === targetBldg : Boolean(nVoid);
 				});
 				if (!excludeVirtualDoors && targetBldg) {
@@ -4303,10 +4016,11 @@ export function computeDigitizedRoute({
 				if (floor0Bounds.length === 0) {
 					return n.type === "OUTDOOR" || n.building === "OUTDOOR";
 				}
-				if (findBoundaryContainingPoint(floor0Bounds, n.coords, 0)) {
+				const meta = getNodeMeta(n);
+				if (meta.inFloor0Bound) {
 					return false;
 				}
-				return isNodeOutdoor(boundaries, n, floorModels);
+				return meta.isOut;
 			});
 			if (excludeVirtualDoors) return exteriorNodes;
 			if (exteriorNodes.length > 0 && !preferOuterGatewayDoors) {
@@ -4339,14 +4053,10 @@ export function computeDigitizedRoute({
 				: connectedOuterDoors;
 		}
 		if (bldg && bldg !== "ALL") {
-			return floorNodes.filter(
-				(n) =>
-					!isNodeOutdoor(boundaries, n, floorModels) &&
-					matchesBuilding(
-						resolveNodeBuilding(boundaries, n, floorModels),
-						bldg,
-					),
-			);
+			return floorNodes.filter((n) => {
+				const meta = getNodeMeta(n);
+				return !meta.isOut && matchesBuilding(meta.bldg, bldg);
+			});
 		}
 		return floorNodes.length > 0 ? floorNodes : nodes;
 	};
@@ -4360,6 +4070,7 @@ export function computeDigitizedRoute({
 	) => {
 		const pool = getFloorPool(bldg, flOrder, coords, poolOpts);
 		if (pool.length === 0) return { node: null, edgePair: null };
+		const fl = Number(flOrder) || 0;
 		const poolIds = new Set(pool.map((n) => n.id));
 		let bestNode = pool[0];
 		let bestNodeDist = Infinity;
@@ -4375,11 +4086,11 @@ export function computeDigitizedRoute({
 		const { toM } = toLocalMetersFactory(coords);
 		let bestEdgeAttach = null;
 		let bestProjDist = bestNodeDist * 0.95;
-		for (const [uId, vId] of allEdges) {
+		for (const [uId, vId] of intraEdgesByFloor.get(fl) || []) {
 			if (!poolIds.has(uId) || !poolIds.has(vId)) continue;
 			const u = nodeMap.get(uId);
 			const v = nodeMap.get(vId);
-			if (!u || !v || u.floorOrder !== v.floorOrder) continue;
+			if (!u || !v) continue;
 			const aM = toM(u.coords);
 			const bM = toM(v.coords);
 			const dx = bM[0] - aM[0];
@@ -4434,176 +4145,6 @@ export function computeDigitizedRoute({
 		return { node: bestNode, edgePair: null, dist: bestNodeDist };
 	};
 
-	// Wire every DOOR into graph across the two faces flanking its wall segment
-	const doorRoomLinks = new Map(); // faceId -> [doorGraphId...]
-	for (const model of floorModels.values()) {
-		for (const door of model.doors || []) {
-			if (!Array.isArray(door.coords)) continue;
-			const { toM, toDeg } = toLocalMetersFactory(door.coords);
-			let bestSeg = null;
-			let bestSegDist = 0.65;
-			for (const seg of model.wallSegments) {
-				const aM = toM(seg.a);
-				const bM = toM(seg.b);
-				const dx = bM[0] - aM[0];
-				const dy = bM[1] - aM[1];
-				const l2 = dx * dx + dy * dy;
-				if (l2 < 1e-6) continue;
-				const t = Math.max(
-					0,
-					Math.min(1, ((0 - aM[0]) * dx + (0 - aM[1]) * dy) / l2),
-				);
-				const px = aM[0] + t * dx;
-				const py = aM[1] + t * dy;
-				const d = Math.hypot(px, py);
-				if (d < bestSegDist) {
-					bestSegDist = d;
-					bestSeg = seg;
-				}
-			}
-			if (!bestSeg) continue;
-
-			const dNodeId = `__door_${door.id}__`;
-			const dNode = {
-				id: dNodeId,
-				type: "DOOR",
-				building: model.building,
-				floorOrder: model.floorOrder,
-				coords: door.coords,
-				isDoorVirtual: true,
-			};
-			nodeMap.set(dNodeId, dNode);
-			adj.set(dNodeId, []);
-
-			// If user explicitly placed a navNode at the Door's midpoint (< 0.45m), wire it with zero-friction link
-			for (const n of nodes) {
-				if ((Number(n.floorOrder) || 0) !== model.floorOrder) continue;
-				const dMid = haversineMeters(door.coords, n.coords);
-				if (dMid <= 0.45) {
-					adj.get(dNodeId).push({ to: n.id, weight: Math.max(0.05, dMid) });
-					adj.get(n.id).push({ to: dNodeId, weight: Math.max(0.05, dMid) });
-				}
-			}
-
-			const aM = toM(bestSeg.a);
-			const bM = toM(bestSeg.b);
-			const sdx = bM[0] - aM[0];
-			const sdy = bM[1] - aM[1];
-			const sLen = Math.hypot(sdx, sdy) || 1;
-			const perp = [(-sdy / sLen) * 0.65, (sdx / sLen) * 0.65];
-			const sideA = toDeg(perp);
-			const sideB = toDeg([-perp[0], -perp[1]]);
-
-			let linkedToCorridorOrOutdoor = false;
-			for (const sidePt of [sideA, sideB]) {
-				const sideFace = model.faces.find((f) =>
-					isPointInPolygonWithHoles(sidePt, f.ring, f.holes || []),
-				);
-				if (
-					(!sideFace || sideFace?.role === "VOID") &&
-					model.floorOrder === 0
-				) {
-					const sideInVoid =
-						sideFace?.role === "VOID" ||
-						Boolean(findVoidCourtyardBuilding(sidePt));
-					const sideStrictlyOutside =
-						!sideInVoid &&
-						(floor0Bounds.length === 0 ||
-							!findBoundaryContainingPoint(floor0Bounds, sidePt, 0));
-
-					if (sideStrictlyOutside) {
-						outerGatewayDoorIds.add(dNodeId);
-						const cDoorBldg =
-							resolveCanonicalBuildingName(model.building) || model.building;
-						if (!outerGatewayDoorsByBldg.has(cDoorBldg)) {
-							outerGatewayDoorsByBldg.set(cDoorBldg, new Set());
-						}
-						outerGatewayDoorsByBldg.get(cDoorBldg).add(dNodeId);
-						const att = connectCoordsToPool(
-							`${dNodeId}_out`,
-							door.coords,
-							"OUTDOOR",
-							0,
-							{ excludeVirtualDoors: true, outdoorZone: "EXTERIOR" },
-						);
-						if (att.node) {
-							const w = haversineMeters(door.coords, att.node.coords);
-							adj.get(dNodeId).push({ to: att.node.id, weight: w });
-							adj.get(att.node.id).push({ to: dNodeId, weight: w });
-							linkedToCorridorOrOutdoor = true;
-						}
-					} else if (sideInVoid) {
-						const cBldg =
-							resolveCanonicalBuildingName(model.building) || model.building;
-						if (!courtyardGatewayDoorMap.has(cBldg)) {
-							courtyardGatewayDoorMap.set(cBldg, new Set());
-						}
-						courtyardGatewayDoorMap.get(cBldg).add(dNodeId);
-						const att = connectCoordsToPool(
-							`${dNodeId}_void`,
-							sidePt,
-							"OUTDOOR",
-							0,
-							{ excludeVirtualDoors: true, outdoorZone: "VOID" },
-						);
-						if (att.node) {
-							const w = haversineMeters(door.coords, att.node.coords);
-							adj.get(dNodeId).push({ to: att.node.id, weight: w });
-							adj.get(att.node.id).push({ to: dNodeId, weight: w });
-							linkedToCorridorOrOutdoor = true;
-						}
-					}
-				} else if (sideFace?.role === "ROOM") {
-					if (!doorRoomLinks.has(sideFace.id)) {
-						doorRoomLinks.set(sideFace.id, []);
-					}
-					doorRoomLinks.get(sideFace.id).push(dNodeId);
-				} else if (sideFace?.role === "CORRIDOR") {
-					const att = connectCoordsToPool(
-						`${dNodeId}_cor`,
-						door.coords,
-						model.building,
-						model.floorOrder,
-					);
-					if (att.node) {
-						const w = haversineMeters(door.coords, att.node.coords);
-						adj.get(dNodeId).push({ to: att.node.id, weight: w });
-						adj.get(att.node.id).push({ to: dNodeId, weight: w });
-						linkedToCorridorOrOutdoor = true;
-					}
-				}
-			}
-
-			// Resilient fallback: if neither side was explicitly tagged CORRIDOR yet, still bridge door midpoint to floor pool
-			if (!linkedToCorridorOrOutdoor) {
-				const att = connectCoordsToPool(
-					`${dNodeId}_fallback`,
-					door.coords,
-					model.building,
-					model.floorOrder,
-				);
-				if (att.node) {
-					const w = haversineMeters(door.coords, att.node.coords);
-					adj.get(dNodeId).push({ to: att.node.id, weight: w });
-					adj.get(att.node.id).push({ to: dNodeId, weight: w });
-				}
-			}
-		}
-	}
-
-	// Pass-through intra-room links if a ROOM has multiple doors (room-to-room traversal)
-	for (const dIds of doorRoomLinks.values()) {
-		for (let i = 0; i < dIds.length; i++) {
-			for (let j = i + 1; j < dIds.length; j++) {
-				const da = nodeMap.get(dIds[i]);
-				const db = nodeMap.get(dIds[j]);
-				const w = haversineMeters(da.coords, db.coords);
-				adj.get(dIds[i]).push({ to: dIds[j], weight: w });
-				adj.get(dIds[j]).push({ to: dIds[i], weight: w });
-			}
-		}
-	}
-
 	const attachEndpoint = (tempId, coords, bldg, flOrder, poolOpts = {}) => {
 		if (bldg && bldg !== "OUTDOOR" && bldg !== "ALL") {
 			const cBldg = resolveCanonicalBuildingName(bldg) || bldg;
@@ -4652,29 +4193,33 @@ export function computeDigitizedRoute({
 			}
 		}
 
-		const gScore = new Map(Array.from(nodeMap.keys(), (id) => [id, Infinity]));
+		const gScore = new Map([[sNode.id, 0]]);
 		const prev = new Map();
 		const visited = new Set();
-		gScore.set(sNode.id, 0);
+		const open = new Set([sNode.id]);
 
-		while (visited.size < nodeMap.size) {
+		while (open.size > 0) {
 			let uId = null;
 			let best = Infinity;
-			for (const [id, s] of gScore.entries()) {
-				if (!visited.has(id) && s < best) {
+			for (const id of open) {
+				const s = gScore.get(id);
+				if (s < best) {
 					best = s;
 					uId = id;
 				}
 			}
 			if (!uId || uId === eNode.id) break;
+			open.delete(uId);
 			visited.add(uId);
 
 			for (const edge of adj.get(uId) || []) {
 				if (visited.has(edge.to)) continue;
 				const alt = best + edge.weight;
-				if (alt < gScore.get(edge.to)) {
+				const prevScore = gScore.get(edge.to);
+				if (prevScore === undefined || alt < prevScore) {
 					gScore.set(edge.to, alt);
 					prev.set(edge.to, uId);
+					open.add(edge.to);
 				}
 			}
 		}

@@ -402,26 +402,41 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 		it("Happy Path: classifies central VOID / courtyard hole (Hồ Sen) on Floor 0 as OUTDOOR rather than indoor", () => {
 			const store = createDefaultGeometryStore();
 			const voidFace = [
-				[106.8098, 10.8411],
-				[106.8099, 10.8411],
-				[106.8099, 10.8412],
-				[106.8098, 10.8412],
-				[106.8098, 10.8411],
+				[106.8101, 10.84125],
+				[106.81022, 10.84125],
+				[106.81022, 10.84135],
+				[106.8101, 10.84135],
+				[106.8101, 10.84125],
 			];
-			const customStore = {
-				...store,
+			const isolatedVoidStore = {
+				version: 3,
+				buildingBoundaries: store.buildingBoundaries,
+				roomPolygons: [],
+				doors: [],
+				navNodes: [],
+				navEdges: [],
 				faceAssignments: [
-					...(store.faceAssignments || []),
 					{
 						id: "fa-void-test",
 						building: "Tòa HCM",
 						floorOrder: 0,
-						seedCoord: [106.80985, 10.84115],
+						seedCoord: [106.81016, 10.8413],
 						role: "VOID",
 					},
 				],
 				walls: [
-					...(store.walls || []),
+					{
+						id: "w-outer-test",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						line: [
+							[106.81, 10.84115],
+							[106.81035, 10.84115],
+							[106.81035, 10.84145],
+							[106.81, 10.84145],
+							[106.81, 10.84115],
+						],
+					},
 					{
 						id: "w-void-test",
 						building: "Tòa HCM",
@@ -431,7 +446,16 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 				],
 			};
 			assert.equal(
-				isPointIndoorOnFloor(customStore, "Tòa HCM", 0, [106.80985, 10.84115]),
+				isPointIndoorOnFloor(isolatedVoidStore, "Tòa HCM", 0, [106.81016, 10.8413]),
+				false,
+			);
+			// Also verify the real finalized Hồ Sen VOID courtyard in epsilon (1) resolves as OUTDOOR
+			const hoSenFa = (store.faceAssignments || []).find(
+				(fa) => matchesBuilding(fa.building, "Tòa Alpha") && Number(fa.floorOrder) === 0 && fa.role === "VOID",
+			);
+			assert.ok(hoSenFa, "Expected real Hồ Sen VOID courtyard face in Tòa Alpha F0");
+			assert.equal(
+				isPointIndoorOnFloor(store, "Tòa Alpha", 0, hoSenFa.seedCoord),
 				false,
 			);
 		});
