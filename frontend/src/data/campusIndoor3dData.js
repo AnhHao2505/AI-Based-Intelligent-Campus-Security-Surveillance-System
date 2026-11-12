@@ -930,7 +930,13 @@ export function loadGeometryStore() {
 				parsed &&
 				(Array.isArray(parsed.walls) || Array.isArray(parsed.roomPolygons))
 			) {
-				return parsed.version >= 3 ? parsed : migrateStoreToWallGraph(parsed);
+				if (parsed.version >= 3) {
+					return {
+						...parsed,
+						navEdges: sanitizePortalNavEdges(parsed.navNodes, parsed.navEdges),
+					};
+				}
+				return migrateStoreToWallGraph(parsed);
 			}
 		}
 		for (const legacyKey of LEGACY_STORAGE_KEYS) {
@@ -995,6 +1001,33 @@ export function findBoundaryContainingPoint(
  */
 export function isPortalNode(node) {
 	return Boolean(node && (node.type === "STAIRS" || node.type === "ELEVATOR"));
+}
+
+/**
+ * Determine whether an explicit navEdge directly wires two portals that must never connect
+ * (STAIRS <-> ELEVATOR on any floor, or two portals on the same floor).
+ */
+export function isForbiddenPortalEdge(uNode, vNode) {
+	if (!uNode || !vNode) return false;
+	if (!isPortalNode(uNode) || !isPortalNode(vNode)) return false;
+	if (uNode.type !== vNode.type) return true;
+	return (Number(uNode.floorOrder) || 0) === (Number(vNode.floorOrder) || 0);
+}
+
+/**
+ * Strip forbidden direct portal-to-portal edges and self-loops from persisted/edited navEdges.
+ */
+export function sanitizePortalNavEdges(navNodes = [], navEdges = []) {
+	if (!Array.isArray(navEdges) || navEdges.length === 0) return [];
+	const nodeMap = new Map(
+		(Array.isArray(navNodes) ? navNodes : []).map((n) => [n.id, n]),
+	);
+	return navEdges.filter(([uId, vId]) => {
+		if (!uId || !vId || uId === vId) return false;
+		const u = nodeMap.get(uId);
+		const v = nodeMap.get(vId);
+		return !isForbiddenPortalEdge(u, v);
+	});
 }
 
 /**
@@ -2300,7 +2333,10 @@ export function migrateStoreToWallGraph(rawStore) {
 		return createDefaultGeometryStore();
 	}
 	if (Number(rawStore.version) >= 3 && Array.isArray(rawStore.walls)) {
-		return rawStore;
+		return {
+			...rawStore,
+			navEdges: sanitizePortalNavEdges(rawStore.navNodes, rawStore.navEdges),
+		};
 	}
 
 	const boundaries = rawStore.buildingBoundaries || [];
@@ -2510,7 +2546,7 @@ export function migrateStoreToWallGraph(rawStore) {
 		buildingBoundaries: boundaries,
 		roomPolygons: clippedRooms,
 		navNodes,
-		navEdges: oldEdges,
+		navEdges: sanitizePortalNavEdges(navNodes, oldEdges),
 	};
 
 	return synchronizeCompatibilityGeometry(nextStore);
@@ -5436,6 +5472,7 @@ export function mergeOrSplitNavNodeOnDrop({
 		let bestD = 0.25;
 		for (const n of navNodes) {
 			if (n.id === draggedNodeId) continue;
+			if (isPortalNode(draggedNode) && isPortalNode(n)) continue;
 			if (
 				(Number(n.floorOrder) || 0) !== (Number(draggedNode.floorOrder) || 0)
 			) {
@@ -5448,6 +5485,18 @@ export function mergeOrSplitNavNodeOnDrop({
 				resolvedTargetId = n.id;
 			}
 		}
+	}
+
+	const resolvedTargetNode = resolvedTargetId
+		? navNodes.find((n) => n.id === resolvedTargetId)
+		: null;
+	// Never merge two transition portals (STAIRS / ELEVATOR) together on drop
+	if (
+		resolvedTargetNode &&
+		isPortalNode(draggedNode) &&
+		isPortalNode(resolvedTargetNode)
+	) {
+		resolvedTargetId = null;
 	}
 
 	// Case A: Merge draggedNode into resolvedTargetId
@@ -5467,7 +5516,7 @@ export function mergeOrSplitNavNodeOnDrop({
 		}
 		return {
 			navNodes: nextNodes,
-			navEdges: nextEdges,
+			navEdges: sanitizePortalNavEdges(nextNodes, nextEdges),
 			mergedIntoId: resolvedTargetId,
 			splitEdge: false,
 		};
@@ -5497,12 +5546,24 @@ export function mergeOrSplitNavNodeOnDrop({
 	});
 
 	// Case B: Dropped onto an existing navEdge [eu, ev] -> split into [eu, dragged] + [dragged, ev]
-	if (
+	// Never split if dragging a portal onto an edge anchored to another STAIRS/ELEVATOR portal
+	const edgeNodeA = targetEdge?.[0]
+		? navNodes.find((n) => n.id === targetEdge[0])
+		: null;
+	const edgeNodeB = targetEdge?.[1]
+		? navNodes.find((n) => n.id === targetEdge[1])
+		: null;
+	const canSplitTargetEdge =
 		Array.isArray(targetEdge) &&
 		targetEdge.length === 2 &&
 		targetEdge[0] !== draggedNodeId &&
-		targetEdge[1] !== draggedNodeId
-	) {
+		targetEdge[1] !== draggedNodeId &&
+		!(
+			isPortalNode(draggedNode) &&
+			(isPortalNode(edgeNodeA) || isPortalNode(edgeNodeB))
+		);
+
+	if (canSplitTargetEdge) {
 		const [eu, ev] = targetEdge;
 		const filteredEdges = navEdges.filter(
 			([a, b]) => !((a === eu && b === ev) || (a === ev && b === eu)),
@@ -5518,7 +5579,7 @@ export function mergeOrSplitNavNodeOnDrop({
 		addEdgeIfMissing(filteredEdges, draggedNodeId, ev);
 		return {
 			navNodes: updatedNodes,
-			navEdges: filteredEdges,
+			navEdges: sanitizePortalNavEdges(updatedNodes, filteredEdges),
 			mergedIntoId: null,
 			splitEdge: true,
 		};
@@ -5770,12 +5831,16 @@ export function syncPortalAcrossBuildingFloors(
 			existingByFloor.set(fl, portalOnFloor);
 		}
 
-		// Ensure portalOnFloor has at least 1 intra-floor connection if floor has other nodes
+		// Ensure portalOnFloor has at least 1 valid intra-floor corridor/walkable link (never direct portal-to-portal)
 		const hasIntraFloorEdge = nextEdges.some(([u, v]) => {
 			if (u !== portalOnFloor.id && v !== portalOnFloor.id) return false;
 			const otherId = u === portalOnFloor.id ? v : u;
 			const other = nextNodes.find((n) => n.id === otherId);
-			return other && Number(other.floorOrder) === fl;
+			return (
+				other &&
+				!isForbiddenPortalEdge(portalOnFloor, other) &&
+				Number(other.floorOrder) === fl
+			);
 		});
 
 		if (!hasIntraFloorEdge) {
@@ -5783,6 +5848,7 @@ export function syncPortalAcrossBuildingFloors(
 			const candidates = nextNodes.filter(
 				(n) =>
 					n.id !== portalOnFloor.id &&
+					!isPortalNode(n) &&
 					Number(n.floorOrder) === fl &&
 					!isNodeOutdoor(store.buildingBoundaries || [], n, floorModels) &&
 					matchesBuilding(
@@ -5812,7 +5878,7 @@ export function syncPortalAcrossBuildingFloors(
 	return {
 		...store,
 		navNodes: nextNodes,
-		navEdges: nextEdges,
+		navEdges: sanitizePortalNavEdges(nextNodes, nextEdges),
 	};
 }
 
@@ -6191,11 +6257,35 @@ export function auditNavigationConnectivity({
 		if (!uId || !vId || uId === vId) continue;
 		const u = nodeMap.get(uId);
 		const v = nodeMap.get(vId);
-		if (!u || !v) continue;
+		if (!u || !v || isForbiddenPortalEdge(u, v)) continue;
 		if ((Number(u.floorOrder) || 0) === (Number(v.floorOrder) || 0)) {
 			sameFloorDegree.set(uId, (sameFloorDegree.get(uId) || 0) + 1);
 			sameFloorDegree.set(vId, (sameFloorDegree.get(vId) || 0) + 1);
 		}
+	}
+
+	// Flag any explicit forbidden direct portal-to-portal links (e.g. STAIRS <-> ELEVATOR)
+	for (const [uId, vId] of store.navEdges || []) {
+		if (!uId || !vId || uId === vId) continue;
+		const u = nodeMap.get(uId);
+		const v = nodeMap.get(vId);
+		if (!isForbiddenPortalEdge(u, v)) continue;
+		if (
+			!isNodeVisibleOnFloor(boundaries, u, building, floorOrder, models) &&
+			!isNodeVisibleOnFloor(boundaries, v, building, floorOrder, models)
+		) {
+			continue;
+		}
+		issues.push({
+			id: `forbidden-portal-edge-${u.id}-${v.id}`,
+			code: "PORTAL_DIRECT_PORTAL_EDGE",
+			level: "error",
+			type: "EDGE",
+			targetId: `${u.id}__${v.id}`,
+			coords: u.coords,
+			title: "Cạnh nối trực tiếp 2 thang (không hợp lệ)",
+			desc: "Thang bộ và thang máy hoặc hai cổng cùng tầng phải nối qua nút hành lang [N], không nối thẳng nhau.",
+		});
 	}
 
 	// 1. Check STAIRS & ELEVATOR nodes for missing same-floor horizontal corridor link

@@ -16,18 +16,21 @@ import {
 	findMatchingDbFloor,
 	generateNextPortalGroupId,
 	isDoorConnectedToGraph,
+	isForbiddenPortalEdge,
 	isNodeOutdoor,
 	isNodeVisibleOnFloor,
 	isPointIndoorOnFloor,
 	lerpBearingDeg,
 	matchesBuilding,
 	mergeOrSplitNavNodeOnDrop,
+	migrateStoreToWallGraph,
 	resolveBestSnapTarget,
 	resolveCanonicalBuildingName,
 	resolveFloorOrder,
 	resolveRoomBlockSelection,
 	resolveTestRouteClickContext,
 	samplePointAlongRoute,
+	sanitizePortalNavEdges,
 	syncPortalAcrossBuildingFloors,
 } from "../campusIndoor3dData.js";
 
@@ -1943,6 +1946,195 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 				matchedAreaIdsOnActiveFloor: ["matched-a1"],
 			});
 			assert.equal(onAllOverview.length, 4);
+		});
+	});
+
+	describe("12. Portal-to-Portal Edge Prevention & Sanitization (STAIRS vs ELEVATOR)", () => {
+		const epsilonRing = [
+			[106.811, 10.8404],
+			[106.8116, 10.8404],
+			[106.8116, 10.841],
+			[106.811, 10.841],
+			[106.811, 10.8404],
+		];
+
+		it("Happy Path: syncPortalAcrossBuildingFloors skips closer STAIRS/ELEVATOR portals and wires only to nearest non-portal node", () => {
+			const baseStore = {
+				version: 3,
+				buildingBoundaries: [
+					{ id: "eps-0", building: "Tòa Epsilon", floorOrder: 0, ring: epsilonRing },
+					{ id: "eps-1", building: "Tòa Epsilon", floorOrder: 1, ring: epsilonRing },
+				],
+				walls: [],
+				navNodes: [
+					{
+						id: "s-0",
+						type: "STAIRS",
+						portalGroupId: "EPS_STAIR_1",
+						building: "Tòa Epsilon",
+						floorOrder: 0,
+						coords: [106.8112, 10.8406],
+					},
+					{
+						id: "s-1",
+						type: "STAIRS",
+						portalGroupId: "EPS_STAIR_1",
+						building: "Tòa Epsilon",
+						floorOrder: 1,
+						coords: [106.8112, 10.8406],
+					},
+					{
+						id: "e-0",
+						type: "ELEVATOR",
+						portalGroupId: "EPS_ELEV_1",
+						building: "Tòa Epsilon",
+						floorOrder: 0,
+						coords: [106.81123, 10.8406], // ~3.3m from s-0
+					},
+					{
+						id: "cor-1",
+						type: "CORRIDOR",
+						building: "Tòa Epsilon",
+						floorOrder: 1,
+						coords: [106.81135, 10.8406], // ~13m from e-1 (farther than s-1!)
+					},
+				],
+				// Pre-existing corrupted edge between s-0 and e-0 should also be cleaned
+				navEdges: [["s-0", "e-0"]],
+			};
+
+			// Case 1: Sync elevator across Floor 0 -> 1 where BOTH STAIRS s-1 (~3.3m) and CORRIDOR cor-1 (~13m) exist
+			const syncedElev = syncPortalAcrossBuildingFloors(baseStore, {
+				sourceNodeId: "e-0",
+				targetFloorOrders: [0, 1],
+			});
+			const elevF1 = syncedElev.navNodes.find(
+				(n) => n.type === "ELEVATOR" && Number(n.floorOrder) === 1,
+			);
+			assert.ok(elevF1, "Expected synced ELEVATOR node on Floor 1");
+			const hasStairElevEdge = syncedElev.navEdges.some(([u, v]) => {
+				const nu = syncedElev.navNodes.find((n) => n.id === u);
+				const nv = syncedElev.navNodes.find((n) => n.id === v);
+				return isForbiddenPortalEdge(nu, nv);
+			});
+			assert.equal(hasStairElevEdge, false, "Synced ELEVATOR must NEVER connect directly to STAIRS");
+			assert.ok(
+				syncedElev.navEdges.some(
+					([u, v]) => (u === elevF1.id && v === "cor-1") || (u === "cor-1" && v === elevF1.id),
+				),
+				"Synced ELEVATOR must auto-wire to nearest CORRIDOR node even when STAIRS is closer",
+			);
+
+			// Case 2: Floor 1 has ZERO corridor nodes (only s-1 exists) -> ELEVATOR must NOT link to s-1
+			const noCorridorStore = {
+				...baseStore,
+				navNodes: baseStore.navNodes.filter((n) => n.id !== "cor-1"),
+				navEdges: [],
+			};
+			const syncedNoCorridor = syncPortalAcrossBuildingFloors(noCorridorStore, {
+				sourceNodeId: "e-0",
+				targetFloorOrders: [0, 1],
+			});
+			assert.equal(syncedNoCorridor.navEdges.length, 0, "Must leave 0 edges when only another portal exists nearby");
+		});
+
+		it("Boundary / Drag Guard: mergeOrSplitNavNodeOnDrop refuses portal-to-portal merge and refuses splitting edge next to a portal", () => {
+			const nodes = [
+				{ id: "s-0", type: "STAIRS", portalGroupId: "EPS_STAIR_1", building: "Tòa Epsilon", floorOrder: 0, coords: [106.8112, 10.8406] },
+				{ id: "e-0", type: "ELEVATOR", portalGroupId: "EPS_ELEV_1", building: "Tòa Epsilon", floorOrder: 0, coords: [106.81125, 10.8406] },
+				{ id: "cor-0", type: "CORRIDOR", building: "Tòa Epsilon", floorOrder: 0, coords: [106.8114, 10.8406] },
+			];
+
+			// 1. Splitting ["cor-0", "s-0"] by dropping ELEVATOR "e-0" onto it must NOT create ["e-0", "s-0"]
+			const splitAttempt = mergeOrSplitNavNodeOnDrop({
+				navNodes: nodes,
+				navEdges: [["cor-0", "s-0"]],
+				draggedNodeId: "e-0",
+				finalCoords: [106.8113, 10.8406],
+				targetEdge: ["cor-0", "s-0"],
+			});
+			assert.equal(
+				splitAttempt.navEdges.some(([u, v]) => (u === "e-0" && v === "s-0") || (u === "s-0" && v === "e-0")),
+				false,
+				"Dropping ELEVATOR onto [CORRIDOR, STAIRS] edge must never create [ELEVATOR, STAIRS]",
+			);
+			assert.deepEqual(splitAttempt.navEdges, [["cor-0", "s-0"]]);
+
+			// 2. Dragging STAIRS directly onto ELEVATOR (overlapping coords) must NOT merge/delete either portal
+			const overlapAttempt = mergeOrSplitNavNodeOnDrop({
+				navNodes: nodes,
+				navEdges: [],
+				draggedNodeId: "e-0",
+				finalCoords: [106.8112, 10.8406],
+			});
+			assert.equal(overlapAttempt.mergedIntoId, null);
+			assert.equal(overlapAttempt.navNodes.length, 3, "Both STAIRS and ELEVATOR must remain separate nodes");
+
+			// 3. Merging a CORRIDOR wired to STAIRS onto ELEVATOR must strip any resulting [e-0, s-0] edge
+			const indirectMerge = mergeOrSplitNavNodeOnDrop({
+				navNodes: nodes,
+				navEdges: [["cor-0", "s-0"]],
+				draggedNodeId: "cor-0",
+				finalCoords: [106.81125, 10.8406],
+				targetNodeId: "e-0",
+			});
+			assert.equal(
+				indirectMerge.navEdges.some(([u, v]) => (u === "e-0" && v === "s-0") || (u === "s-0" && v === "e-0")),
+				false,
+			);
+		});
+
+		it("Exception / Sanitization & Audit: sanitizePortalNavEdges & migrateStoreToWallGraph strip forbidden portal links and audit flags them", () => {
+			const dirtyNodes = [
+				{ id: "s-0", type: "STAIRS", portalGroupId: "EPS_STAIR_1", building: "Tòa Epsilon", floorOrder: 0, coords: [106.8112, 10.8406] },
+				{ id: "s-0b", type: "STAIRS", portalGroupId: "EPS_STAIR_2", building: "Tòa Epsilon", floorOrder: 0, coords: [106.8114, 10.8408] },
+				{ id: "e-0", type: "ELEVATOR", portalGroupId: "EPS_ELEV_1", building: "Tòa Epsilon", floorOrder: 0, coords: [106.81125, 10.8406] },
+				{ id: "e-1", type: "ELEVATOR", portalGroupId: "EPS_ELEV_1", building: "Tòa Epsilon", floorOrder: 1, coords: [106.81125, 10.8406] },
+				{ id: "cor-0", type: "CORRIDOR", building: "Tòa Epsilon", floorOrder: 0, coords: [106.8113, 10.8407] },
+			];
+			const dirtyEdges = [
+				["s-0", "e-0"], // same-floor cross-type -> FORBIDDEN
+				["s-0", "e-1"], // cross-floor cross-type -> FORBIDDEN
+				["s-0", "s-0b"], // same-floor same-type -> FORBIDDEN
+				["s-0", "cor-0"], // portal <-> corridor -> VALID
+				["cor-0", "e-0"], // corridor <-> portal -> VALID
+			];
+
+			const cleaned = sanitizePortalNavEdges(dirtyNodes, dirtyEdges);
+			assert.deepEqual(cleaned, [
+				["s-0", "cor-0"],
+				["cor-0", "e-0"],
+			]);
+			assert.deepEqual(sanitizePortalNavEdges(null, null), []);
+
+			const migratedV3 = migrateStoreToWallGraph({
+				version: 3,
+				walls: [],
+				buildingBoundaries: [],
+				navNodes: dirtyNodes,
+				navEdges: dirtyEdges,
+			});
+			assert.deepEqual(migratedV3.navEdges, [
+				["s-0", "cor-0"],
+				["cor-0", "e-0"],
+			]);
+
+			// Audit must flag direct STAIRS <-> ELEVATOR and NOT treat ["s-0", "e-0"] as valid corridor floor wiring
+			const auditRes = auditNavigationConnectivity({
+				store: {
+					version: 3,
+					buildingBoundaries: [
+						{ id: "eps-0", building: "Tòa Epsilon", floorOrder: 0, ring: epsilonRing },
+					],
+					navNodes: dirtyNodes,
+					navEdges: [["s-0", "e-0"]],
+				},
+				building: "Tòa Epsilon",
+				floorOrder: 0,
+			});
+			assert.equal(auditRes.portalHasFloorEdgeById.get("s-0"), false);
+			assert.equal(auditRes.portalHasFloorEdgeById.get("e-0"), false);
+			assert.ok(auditRes.issues.some((i) => i.code === "PORTAL_DIRECT_PORTAL_EDGE"));
 		});
 	});
 });

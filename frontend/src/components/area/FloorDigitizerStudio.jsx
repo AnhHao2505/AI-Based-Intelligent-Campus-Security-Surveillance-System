@@ -87,6 +87,7 @@ import {
 	resolveNodeBuilding,
 	resolveTestRouteClickContext,
 	samplePointAlongRoute,
+	sanitizePortalNavEdges,
 	syncPortalAcrossBuildingFloors,
 	approximatePolygonAreaMeters,
 	getPolygonInteriorPoint,
@@ -2717,13 +2718,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					const nextNodes = [...(prev.navNodes || []), newNode];
 					let nextEdges = [...(prev.navEdges || [])];
 
-					// Auto-split edge into clean T-junction when snapped directly onto an existing navEdge
+					// Auto-split edge into clean T-junction when snapped directly onto an existing navEdge.
+					// Never split an edge anchored to another STAIRS/ELEVATOR when placing a portal.
 					if (snappedNavEdge) {
 						const [eu, ev] = snappedNavEdge;
-						nextEdges = nextEdges.filter(
-							([a, b]) => !((a === eu && b === ev) || (a === ev && b === eu)),
-						);
-						nextEdges.push([eu, newNodeId], [newNodeId, ev]);
+						const euNode = nextNodes.find((n) => n.id === eu);
+						const evNode = nextNodes.find((n) => n.id === ev);
+						if (!(isPortal && (isPortalNode(euNode) || isPortalNode(evNode)))) {
+							nextEdges = nextEdges.filter(
+								([a, b]) => !((a === eu && b === ev) || (a === ev && b === eu)),
+							);
+							nextEdges.push([eu, newNodeId], [newNodeId, ev]);
+						}
 					}
 
 					// Never auto-wire horizontal chain edge between two STAIRS/ELEVATOR portals
@@ -6245,14 +6251,21 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											}
 											onChange={(e) => {
 												const nextType = e.target.value;
-												setStore((prev) => ({
-													...prev,
-													navNodes: (prev.navNodes || []).map((n) =>
+												setStore((prev) => {
+													const nextNodes = (prev.navNodes || []).map((n) =>
 														n.id === singleSelectedNavNode.id
 															? { ...n, type: nextType }
 															: n,
-													),
-												}));
+													);
+													return {
+														...prev,
+														navNodes: nextNodes,
+														navEdges: sanitizePortalNavEdges(
+															nextNodes,
+															prev.navEdges,
+														),
+													};
+												});
 											}}
 										>
 											{NODE_TYPES.map((nt) => (
