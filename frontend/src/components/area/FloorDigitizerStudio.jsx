@@ -4196,7 +4196,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			}
 		}
 
-		// 6. Door & Portal Edge Connectivity Audit (same-floor horizontal links for Stairs/Elevators + edge wiring for Doors)
+		// 6. Portal Edge Connectivity Audit (same-floor horizontal links & forbidden portal-to-portal edges)
 		const connAudit = auditNavigationConnectivity({
 			store,
 			building: activeBuilding,
@@ -4297,7 +4297,6 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								setChainLastNodeId(null);
 							}}
 						>
-							<option value="ALL">Tất cả tầng</option>
 							{buildingFloorOptions.map((fl) => (
 								<option key={fl.id} value={String(fl.floorOrder)}>
 									{fl.shortLabel}

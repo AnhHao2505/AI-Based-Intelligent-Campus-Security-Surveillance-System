@@ -1305,7 +1305,7 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 			],
 		});
 
-		it("Happy Path vs Unlinked Detection: marks wired Door true, unwired Door false, and flags PORTAL_NO_FLOOR_EDGE & DOOR_NO_GRAPH_LINK", () => {
+		it("Happy Path vs Unlinked Detection: marks wired Door true, unwired Door false, flags PORTAL_NO_FLOOR_EDGE, and omits DOOR_NO_GRAPH_LINK warnings", () => {
 			const store = buildConnectivityFixture();
 
 			const auditF0 = auditNavigationConnectivity({
@@ -1318,10 +1318,8 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 			assert.equal(auditF0.portalHasFloorEdgeById.get("stair-0"), true);
 			assert.equal(auditF0.portalHasFloorEdgeById.get("elev-0"), true);
 			assert.ok(
-				auditF0.issues.some(
-					(i) => i.code === "DOOR_NO_GRAPH_LINK" && i.targetId === "door-unwired",
-				),
-				"Must warn about door-unwired lacking connected graph edges",
+				!auditF0.issues.some((i) => i.code === "DOOR_NO_GRAPH_LINK"),
+				"Must NOT emit DOOR_NO_GRAPH_LINK warnings for unwired doors",
 			);
 			assert.ok(
 				!auditF0.issues.some((i) => i.targetId === "door-wired"),

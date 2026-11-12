@@ -6325,18 +6325,6 @@ export function auditNavigationConnectivity({
 
 		const connected = isDoorConnectedToGraph(d, navNodes, allEdges);
 		doorStatusById.set(d.id, connected);
-		if (!connected) {
-			issues.push({
-				id: `door-unwired-${d.id}`,
-				code: "DOOR_NO_GRAPH_LINK",
-				level: "warning",
-				type: "DOOR",
-				targetId: d.id,
-				coords: d.coords,
-				title: "Cửa chưa nối dây [N]",
-				desc: "Chưa có cạnh đồ thị [N] nối trực tiếp vào icon Cửa (tâm cửa).",
-			});
-		}
 	}
 
 	return { doorStatusById, portalHasFloorEdgeById, issues };
