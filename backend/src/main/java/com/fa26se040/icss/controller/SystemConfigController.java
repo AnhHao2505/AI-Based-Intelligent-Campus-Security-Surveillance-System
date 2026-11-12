@@ -1,10 +1,12 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.common.ApiResponse;
+import com.fa26se040.icss.dto.systemconfig.AfterHoursWindowResponse;
 import com.fa26se040.icss.dto.systemconfig.ReasonLimits;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigChangeLogResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigUpdateRequest;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.service.ReasonValidator;
 import com.fa26se040.icss.service.SystemConfigService;
 import jakarta.validation.Valid;
@@ -34,8 +36,9 @@ public class SystemConfigController {
     private final SystemConfigService systemConfigService;
     private final ReasonValidator reasonValidator;
 
+    /** LT-06 / BR-224: chỉ ADMIN đọc toàn bộ cấu hình. Role khác đọc qua endpoint hẹp (/reason-limits, /after-hours-window). */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<SystemConfigResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(systemConfigService.getAll(), "Lấy danh sách cấu hình hệ thống thành công"));
     }
@@ -48,6 +51,19 @@ public class SystemConfigController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ReasonLimits>> getReasonLimits() {
         return ResponseEntity.ok(ApiResponse.success(reasonValidator.limits(), "Lấy giới hạn độ dài lý do thành công"));
+    }
+
+    /**
+     * LT-06: FM cần khung ban đêm để hiện gợi ý ở form lịch sự kiện và form gán nhân sự chỉ định, trước đây đọc từ
+     * GET danh sách. Chỉ trả 2 giá trị này.
+     */
+    @GetMapping("/after-hours-window")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<AfterHoursWindowResponse>> getAfterHoursWindow() {
+        AfterHoursWindowResponse window = new AfterHoursWindowResponse(
+                systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_START),
+                systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_END));
+        return ResponseEntity.ok(ApiResponse.success(window, "Lấy khung giờ ban đêm thành công"));
     }
 
     @PatchMapping("/{configKey}")

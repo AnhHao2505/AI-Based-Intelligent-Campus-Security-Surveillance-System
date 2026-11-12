@@ -28,7 +28,9 @@ import {
   EVENT_TYPE_OPTIONS,
   SECURITY_SEVERITY_LEVELS,
   fetchDiskRecordings,
+  withRecordingStreamToken,
 } from "../../services/recordingService";
+import { toast } from "sonner";
 import "../../styles/RecordingPage.css";
 
 export default function RecordingPage() {
@@ -55,10 +57,32 @@ export default function RecordingPage() {
   const [videoError, setVideoError] = useState(false);
   const [measuredDurationText, setMeasuredDurationText] = useState(null);
 
-  const handleOpenVideo = (recording) => {
+  // BE-03: URL video cần token ngắn hạn (thẻ <video> không gửi header Authorization) -> xin token rồi mới phát
+  const handleOpenVideo = async (recording) => {
     setVideoError(false);
     setMeasuredDurationText(null);
-    setActiveVideo(recording);
+    try {
+      const signedVideoUrl = await withRecordingStreamToken(recording.videoUrl);
+      setActiveVideo({ ...recording, videoUrl: signedVideoUrl });
+    } catch (err) {
+      toast.error(err.message || "Không lấy được liên kết xem video");
+    }
+  };
+
+  // Mở tab trước (giữ thao tác người dùng để trình duyệt không chặn popup), có token rồi mới chuyển tab sang link tải
+  const handleDownload = async (recording) => {
+    const popup = window.open("", "_blank");
+    try {
+      const signedUrl = await withRecordingStreamToken(recording.downloadUrl || recording.videoUrl);
+      if (popup) {
+        popup.location.href = signedUrl;
+      } else {
+        window.location.assign(signedUrl);
+      }
+    } catch (err) {
+      popup?.close();
+      toast.error(err.message || "Không lấy được liên kết tải video");
+    }
   };
 
   // Tải danh sách video thực tế trên ổ đĩa từ backend
@@ -607,9 +631,7 @@ export default function RecordingPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        window.open(recording.downloadUrl || recording.videoUrl, "_blank");
-                      }}
+                      onClick={() => handleDownload(recording)}
                       title="Tải video xuống máy"
                     >
                       <Download size={13} />
@@ -698,7 +720,7 @@ export default function RecordingPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => window.open(recording.downloadUrl || recording.videoUrl, "_blank")}
+                          onClick={() => handleDownload(recording)}
                         >
                           <Download size={12} />
                         </Button>
@@ -767,7 +789,7 @@ export default function RecordingPage() {
                   <Button
                     variant="primary"
                     size="md"
-                    onClick={() => window.open(activeVideo.downloadUrl || activeVideo.videoUrl, "_blank")}
+                    onClick={() => handleDownload(activeVideo)}
                   >
                     <Download size={15} style={{ marginRight: "6px" }} /> Tải tệp MP4 về máy ({activeVideo.fileSize})
                   </Button>
@@ -816,7 +838,7 @@ export default function RecordingPage() {
               <Button
                 variant="primary"
                 size="md"
-                onClick={() => window.open(activeVideo.downloadUrl || activeVideo.videoUrl, "_blank")}
+                onClick={() => handleDownload(activeVideo)}
               >
                 <Download size={14} style={{ marginRight: "6px" }} /> Tải xuống file MP4
               </Button>

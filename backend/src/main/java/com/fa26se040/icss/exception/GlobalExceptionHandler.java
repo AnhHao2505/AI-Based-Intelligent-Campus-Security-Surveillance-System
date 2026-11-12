@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 
 import com.fa26se040.icss.dto.common.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -204,6 +207,32 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Object>> handleMissingRequestParameter(MissingServletRequestParameterException ex) {
         String message = String.format("Thiếu tham số bắt buộc '%s'", ex.getParameterName());
         return buildResponse(HttpStatus.BAD_REQUEST, message);
+    }
+
+    /**
+     * BE-02: Content-Type không khớp {@code consumes} (vd. gửi JSON vào endpoint multipart) -> 415, không rơi vào
+     * handleGeneral (500). Vai trò bị cấm đã bị chặn 403 ở SecurityConfig (RoleRestrictedEndpoints) trước bước này.
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        String message = ex.getSupportedMediaTypes() == null || ex.getSupportedMediaTypes().isEmpty()
+                ? "Định dạng dữ liệu gửi lên không được hỗ trợ"
+                : "Định dạng dữ liệu gửi lên không được hỗ trợ. Định dạng chấp nhận: "
+                        + MediaType.toString(ex.getSupportedMediaTypes());
+        return buildResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, message);
+    }
+
+    /** BE-02: thân multipart hỏng (thiếu boundary, cắt ngang…) -> 400. MaxUploadSizeExceededException vẫn đi nhánh 413 riêng. */
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMultipart(MultipartException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "Dữ liệu tải lên không đúng định dạng multipart/form-data");
+    }
+
+    /** BE-02: multipart thiếu phần bắt buộc (vd. không có trường file) -> 400. */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMissingRequestPart(MissingServletRequestPartException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST,
+                String.format("Thiếu phần bắt buộc '%s' trong dữ liệu tải lên", ex.getRequestPartName()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

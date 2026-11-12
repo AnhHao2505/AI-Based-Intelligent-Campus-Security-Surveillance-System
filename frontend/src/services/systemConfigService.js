@@ -5,7 +5,7 @@ import { apiGet, apiPatch } from '../api/apiClient';
  */
 
 /**
- * Lấy danh sách toàn bộ cấu hình hệ thống
+ * Lấy danh sách toàn bộ cấu hình hệ thống (chỉ ADMIN)
  * @returns {Promise<Array>} Danh sách cấu hình kèm metadata
  */
 export async function getSystemConfigs() {
@@ -19,6 +19,15 @@ export async function getSystemConfigs() {
  */
 export async function getReasonLimits() {
   return apiGet('/api/system-configurations/reason-limits');
+}
+
+/**
+ * Khung ban đêm đang hiệu lực (AI_AFTER_HOUR_START / AI_AFTER_HOUR_END, dạng HH:mm; start = end là không có ban đêm).
+ * ADMIN và FACILITY_MANAGER đọc được; chỉ trả 2 giá trị này (danh sách cấu hình đầy đủ chỉ dành cho ADMIN).
+ * @returns {Promise<{start: string, end: string}>}
+ */
+export async function getAfterHoursWindow() {
+  return apiGet('/api/system-configurations/after-hours-window');
 }
 
 /**
@@ -48,6 +57,7 @@ export async function getSystemConfigHistory(configKey, { page = 0, size = 10 } 
 export default {
   getSystemConfigs,
   getReasonLimits,
+  getAfterHoursWindow,
   updateSystemConfig,
   getSystemConfigHistory,
 };
