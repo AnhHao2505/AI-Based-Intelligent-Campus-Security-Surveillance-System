@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional, Dict, Any
+from datetime import datetime, timezone
 import time
 import uuid
 
@@ -154,7 +155,7 @@ class SecurityAlertEvent:
     duration_seconds: float = 0.0
     confidence: float = 1.0
     image_url: Optional[str] = None
-    detected_at: str = field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    detected_at: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z")
     details: str = ""
     location: Optional[Dict[str, Any]] = None
 

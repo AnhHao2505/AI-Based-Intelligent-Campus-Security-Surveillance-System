@@ -598,4 +598,87 @@ class SecurityIncidentServiceTest {
         assertEquals("AUTHORIZED_PERSON", SecurityIncidentService.normalizeEventType("AUTHORIZED_ACCESS"));
         assertEquals("CAMERA_TAMPERING", SecurityIncidentService.normalizeEventType("CAMERA_TAMPERING"));
     }
+
+    // ===== M5: Parse detected_at chính xác đến mili giây =====
+
+    @Test
+    @DisplayName("M5: parseDetectedAt parse đúng chuẩn ISO UTC có ms, không ms, offset +07:00")
+    void parseDetectedAt_validFormats() {
+        OffsetDateTime now = OffsetDateTime.parse("2026-11-11T12:00:00Z");
+
+        // 1. UTC có ms
+        OffsetDateTime r1 = incidentService.parseDetectedAt("2026-11-11T11:59:30.123Z", now);
+        assertEquals(OffsetDateTime.parse("2026-11-11T11:59:30.123Z"), r1);
+
+        // 2. UTC không ms
+        OffsetDateTime r2 = incidentService.parseDetectedAt("2026-11-11T11:59:30Z", now);
+        assertEquals(OffsetDateTime.parse("2026-11-11T11:59:30Z"), r2);
+
+        // 3. Offset +07:00 có ms (18:59:30.123+07:00 tương đương 11:59:30.123Z)
+        OffsetDateTime r3 = incidentService.parseDetectedAt("2026-11-11T18:59:30.123+07:00", now);
+        assertEquals(OffsetDateTime.parse("2026-11-11T18:59:30.123+07:00"), r3);
+        assertTrue(r3.isEqual(OffsetDateTime.parse("2026-11-11T11:59:30.123Z")));
+
+        // 4. Offset +07:00 không ms
+        OffsetDateTime r4 = incidentService.parseDetectedAt("2026-11-11T18:59:30+07:00", now);
+        assertEquals(OffsetDateTime.parse("2026-11-11T18:59:30+07:00"), r4);
+    }
+
+    @Test
+    @DisplayName("M5: parseDetectedAt fallback về now() khi rỗng, null, hoặc rác")
+    void parseDetectedAt_fallbackOnInvalid() {
+        OffsetDateTime now = OffsetDateTime.parse("2026-11-11T12:00:00Z");
+
+        assertEquals(now, incidentService.parseDetectedAt(null, now));
+        assertEquals(now, incidentService.parseDetectedAt("", now));
+        assertEquals(now, incidentService.parseDetectedAt("   ", now));
+        assertEquals(now, incidentService.parseDetectedAt("invalid-timestamp-string", now));
+        assertEquals(now, incidentService.parseDetectedAt("2026/11/11 12:00:00", now));
+    }
+
+    @Test
+    @DisplayName("M5: parseDetectedAt fallback về now() khi lệch quá xa (> 5 phút tương lai hoặc > 24 giờ quá khứ)")
+    void parseDetectedAt_fallbackOnDrift() {
+        OffsetDateTime now = OffsetDateTime.parse("2026-11-11T12:00:00Z");
+
+        // Tương lai > 5 phút (ví dụ 6 phút)
+        OffsetDateTime future = now.plusMinutes(6);
+        assertEquals(now, incidentService.parseDetectedAt(future.toString(), now));
+
+        // Tương lai <= 5 phút (hợp lệ)
+        OffsetDateTime futureValid = now.plusMinutes(3);
+        assertEquals(futureValid, incidentService.parseDetectedAt(futureValid.toString(), now));
+
+        // Quá khứ > 24 giờ (ví dụ 25 giờ trước)
+        OffsetDateTime old = now.minusHours(25);
+        assertEquals(now, incidentService.parseDetectedAt(old.toString(), now));
+
+        // Quá khứ trong vòng 24 giờ (hợp lệ - outbox gửi bù sau mất mạng)
+        OffsetDateTime oldValid = now.minusHours(12);
+        assertEquals(oldValid, incidentService.parseDetectedAt(oldValid.toString(), now));
+    }
+
+    @Test
+    @DisplayName("M5: Ingest sử dụng detected_at đã parse từ payload")
+    void ingestIncident_usesParsedDetectedAt() {
+        OffsetDateTime expectedTs = OffsetDateTime.now().minusHours(2).withNano(123_000_000);
+        String eventTs = expectedTs.toString();
+
+        IncidentEventDto eventDto = IncidentEventDto.builder()
+                .eventId("EVT-M5-001")
+                .cameraCode("CAM-001")
+                .eventType("UNAUTHORIZED_ENTRY")
+                .detectedAt(eventTs)
+                .imageUrl("http://minio:9000/security-evidence/snap.jpg")
+                .build();
+
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-001"))
+                .thenReturn(Optional.of(Camera.builder().cameraCode("CAM-001").area(area).build()));
+        when(incidentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        IncidentDetailResponse result = incidentService.ingestIncident(eventDto);
+
+        assertNotNull(result);
+        assertEquals(expectedTs, result.getDetectedAt());
+    }
 }
