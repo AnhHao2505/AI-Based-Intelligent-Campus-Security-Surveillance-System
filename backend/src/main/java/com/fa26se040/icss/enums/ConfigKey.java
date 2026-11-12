@@ -51,6 +51,9 @@ public enum ConfigKey {
     GUEST_CONSENT_NOTICE_VERSION("GUEST_CONSENT_NOTICE_VERSION", "v1"),
     // BR-GV-39 (V71): nhắc ADMIN gắn ảnh khách trước giờ bắt đầu lượt bao nhiêu phút
     GUEST_PHOTO_REMINDER_MINUTES_BEFORE("GUEST_PHOTO_REMINDER_MINUTES_BEFORE", "60"),
+    // N1 (V120): độ dài mục đích lượt khách (BR-GV-03), kiểm chéo min < max ≤ GuestRules.PURPOSE_STORAGE_MAX_LENGTH
+    GUEST_PURPOSE_MIN_LENGTH("GUEST_PURPOSE_MIN_LENGTH", "10"),
+    GUEST_PURPOSE_MAX_LENGTH("GUEST_PURPOSE_MAX_LENGTH", "500"),
     // UI-19 (V69): số dòng tối đa mỗi lần nạp tài khoản theo lô (cả luồng người dùng thường và cán bộ)
     USER_BULK_IMPORT_MAX_ROWS("USER_BULK_IMPORT_MAX_ROWS", "200"),
     // Nhật ký ra vào tại camera (V77): khoảng chống ghi trùng cùng người + cùng camera, và số ngày giữ log

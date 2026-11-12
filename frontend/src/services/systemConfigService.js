@@ -31,6 +31,15 @@ export async function getAfterHoursWindow() {
 }
 
 /**
+ * Giới hạn độ dài mục đích lượt khách đang hiệu lực (GUEST_PURPOSE_MIN_LENGTH / GUEST_PURPOSE_MAX_LENGTH, V120).
+ * Chỉ NORMAL_USER và FACILITY_MANAGER (người mời khách) đọc được. Dùng qua hook useGuestPurposeLimits().
+ * @returns {Promise<{minLength: number, maxLength: number}>}
+ */
+export async function getGuestPurposeLimits() {
+  return apiGet('/api/system-configurations/guest-purpose-limits');
+}
+
+/**
  * Cập nhật giá trị của một cấu hình hệ thống (Yêu cầu quyền ADMIN)
  * @param {string} configKey - Mã khóa cấu hình
  * @param {string} configValue - Giá trị mới dạng chuỗi
@@ -58,6 +67,7 @@ export default {
   getSystemConfigs,
   getReasonLimits,
   getAfterHoursWindow,
+  getGuestPurposeLimits,
   updateSystemConfig,
   getSystemConfigHistory,
 };

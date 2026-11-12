@@ -33,6 +33,7 @@ import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
 import useRevealMessage from "../../hooks/useRevealMessage";
+import useGuestPurposeLimits from "../../hooks/useGuestPurposeLimits";
 
 const PAGE_SIZE = 10;
 const EMPTY_GUEST = { fullName: "", organization: "" };
@@ -60,6 +61,8 @@ function ReasonBlock({ label, value }) {
 
 export default function GuestVisitPage() {
 	const reasonLimits = useReasonLimits();
+	// N1 (V120): độ dài mục đích lượt khách đọc từ cấu hình (GUEST_PURPOSE_MIN_LENGTH / GUEST_PURPOSE_MAX_LENGTH)
+	const purposeLimits = useGuestPurposeLimits();
 	// Danh sách
 	const [visits, setVisits] = useState([]);
 	const [page, setPage] = useState(0);
@@ -234,8 +237,8 @@ export default function GuestVisitPage() {
 	const purposeLength = purpose.trim().length;
 	// UX-03: lý do nút "Gửi duyệt" đang khoá — cùng điều kiện với canSubmitCreate
 	const createBlockers = [];
-	if (purposeLength < 10 || purposeLength > 500) {
-		createBlockers.push(`mục đích 10–500 ký tự (hiện có ${purposeLength})`);
+	if (!purposeLimits.isValid(purpose)) {
+		createBlockers.push(`mục đích ${purposeLimits.min}–${purposeLimits.max} ký tự (hiện có ${purposeLength})`);
 	}
 	if (!startTime || !endTime) createBlockers.push("chọn thời gian bắt đầu và kết thúc");
 	if (areaIds.length === 0) createBlockers.push("chọn ít nhất một khu vực");
@@ -496,8 +499,8 @@ export default function GuestVisitPage() {
 							onChange={(e) => setPurpose(e.target.value)}
 							placeholder="Ví dụ: Đối tác doanh nghiệp tham quan phòng lab AI để bàn hợp tác đào tạo"
 						/>
-						<span className={`guest-visit__hint ${purposeLength > 0 && (purposeLength < 10 || purposeLength > 500) ? "guest-visit__hint--error" : ""}`}>
-							{purposeLength}/500 ký tự (tối thiểu 10)
+						<span className={`guest-visit__hint ${purposeLength > 0 && !purposeLimits.isValid(purpose) ? "guest-visit__hint--error" : ""}`}>
+							{purposeLength}/{purposeLimits.max} ký tự (tối thiểu {purposeLimits.min})
 						</span>
 					</label>
 

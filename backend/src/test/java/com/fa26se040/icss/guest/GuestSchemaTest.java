@@ -77,6 +77,15 @@ public class GuestSchemaTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("N1 (V120): CHECK độ dài mục đích (10–500 viết cứng) đã bỏ — độ dài do GUEST_PURPOSE_MIN/MAX_LENGTH quyết định")
+    void purposeLengthCheckDropped() {
+        Integer count = jdbc.queryForObject(
+                "SELECT count(*) FROM pg_constraint WHERE conname = 'chk_guest_visits_purpose'"
+                        + " AND connamespace = current_schema()::regnamespace", Integer.class);
+        assertEquals(0, count);
+    }
+
+    @Test
     @DisplayName("P1: CHECK trạng thái sinh trắc của khách từ chối giá trị lạ")
     void guestBiometricStatusCheck() {
         String msg = violation("INSERT INTO guests (id, visit_id, full_name, biometric_status, created_at, updated_at) "
@@ -129,21 +138,23 @@ public class GuestSchemaTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("P1: seed 9 config khách (8 của V60 + GUEST_PHOTO_REMINDER_MINUTES_BEFORE của V71) + hằng trong ConfigKey khớp mặc định")
+    @DisplayName("P1: seed 11 config khách (8 của V60 + GUEST_PHOTO_REMINDER_MINUTES_BEFORE của V71 + 2 độ dài mục đích của V120) + hằng trong ConfigKey khớp mặc định")
     void configsSeeded() {
         Map<String, String> rows = jdbc.queryForList(
                         "SELECT config_key, data_type || ':' || config_value AS v FROM system_configurations WHERE config_group = 'GUEST'")
                 .stream().collect(Collectors.toMap(r -> (String) r.get("config_key"), r -> (String) r.get("v")));
-        Map<String, String> expected = Map.of(
-                "GUEST_HOST_MIN_LEVEL", "INTEGER:2",
-                "GUEST_MAX_PER_VISIT", "INTEGER:10",
-                "GUEST_VISIT_MAX_HOURS", "INTEGER:8",
-                "GUEST_MAX_ADVANCE_DAYS", "INTEGER:14",
-                "GUEST_FACE_RETENTION_HOURS", "INTEGER:24",
-                "GUEST_RECORD_RETENTION_DAYS", "INTEGER:90",
-                "GUEST_PHOTO_URL_TTL_SECONDS", "INTEGER:60",
-                "GUEST_CONSENT_NOTICE_VERSION", "STRING:v1",
-                "GUEST_PHOTO_REMINDER_MINUTES_BEFORE", "INTEGER:60"); // BR-GV-39 (V71)
+        Map<String, String> expected = Map.ofEntries(
+                Map.entry("GUEST_HOST_MIN_LEVEL", "INTEGER:2"),
+                Map.entry("GUEST_MAX_PER_VISIT", "INTEGER:10"),
+                Map.entry("GUEST_VISIT_MAX_HOURS", "INTEGER:8"),
+                Map.entry("GUEST_MAX_ADVANCE_DAYS", "INTEGER:14"),
+                Map.entry("GUEST_FACE_RETENTION_HOURS", "INTEGER:24"),
+                Map.entry("GUEST_RECORD_RETENTION_DAYS", "INTEGER:90"),
+                Map.entry("GUEST_PHOTO_URL_TTL_SECONDS", "INTEGER:60"),
+                Map.entry("GUEST_CONSENT_NOTICE_VERSION", "STRING:v1"),
+                Map.entry("GUEST_PHOTO_REMINDER_MINUTES_BEFORE", "INTEGER:60"), // BR-GV-39 (V71)
+                Map.entry("GUEST_PURPOSE_MIN_LENGTH", "INTEGER:10"), // BR-GV-03 (V120)
+                Map.entry("GUEST_PURPOSE_MAX_LENGTH", "INTEGER:500")); // BR-GV-03 (V120)
         assertEquals(expected, rows);
         for (Map.Entry<String, String> e : expected.entrySet()) {
             ConfigKey key = ConfigKey.valueOf(e.getKey());
