@@ -17,7 +17,16 @@ export const STORAGE_KEY_3D_GEOMETRY = "icss_campus_3d_geometry_v3";
 const LEGACY_STORAGE_KEYS = ["icss_campus_3d_geometry_v2"];
 
 export const FLOOR_ELEVATION_STEP = 3.5;
+export const EXPLODED_FLOOR_STEP_OPTIONS = [
+	{ id: "compact", label: "Khép", step: FLOOR_ELEVATION_STEP },
+	{ id: "medium", label: "Vừa", step: 7.5 },
+	{ id: "wide", label: "Giãn", step: 10.5 },
+];
 export const FLOOR_SLAB_HEIGHT = 0.16;
+export const OVERVIEW_WALL_HEIGHT = Number(
+	(FLOOR_ELEVATION_STEP - FLOOR_SLAB_HEIGHT).toFixed(2),
+);
+export const BUILDING_ALL_FLOORS_WALL_HEIGHT = 2.45;
 export const ROOM_EXTRUSION_HEIGHT = 0.52;
 export const ROOM_SELECTED_EXTRUSION_HEIGHT = 1.0;
 export const BOUNDARY_WALL_HEIGHT = 2.85;
@@ -1136,6 +1145,83 @@ export function buildOrientedBoxRing(
 }
 
 /**
+ * Collect dragged wallId + all welded sibling wallIds sharing the origin vertex coordinate
+ * so magnetic snapping excludes self-origin corners/edges unless Alt-detaching.
+ */
+export function collectWeldedDragExclusion({
+	walls = [],
+	wallId = null,
+	vertexIndex = -1,
+	detachSingle = false,
+	snapTolMeters = 0.04,
+} = {}) {
+	const excludeOwnerIds = new Set();
+	if (wallId) excludeOwnerIds.add(wallId);
+	const targetWall = (walls || []).find((w) => w && w.id === wallId);
+	const line = Array.isArray(targetWall?.line) ? targetWall.line : null;
+	const origCoord =
+		line && vertexIndex >= 0 && vertexIndex < line.length && Array.isArray(line[vertexIndex])
+			? line[vertexIndex]
+			: null;
+	if (!origCoord || detachSingle) {
+		return { origCoord, excludeOwnerIds, excludeCoord: null };
+	}
+	const targetFloor = Number(targetWall.floorOrder) || 0;
+	for (const w of walls || []) {
+		if (!w?.id || !Array.isArray(w.line)) continue;
+		if (
+			!matchesBuilding(w.building, targetWall.building) ||
+			(Number(w.floorOrder) || 0) !== targetFloor
+		) {
+			continue;
+		}
+		if (
+			w.line.some(
+				(pt) => Array.isArray(pt) && haversineMeters(pt, origCoord) <= snapTolMeters,
+			)
+		) {
+			excludeOwnerIds.add(w.id);
+		}
+	}
+	return { origCoord, excludeOwnerIds, excludeCoord: origCoord };
+}
+
+function shouldSkipSnapEntry(
+	entry,
+	excludeOwnerId,
+	excludeOwnerIds,
+	excludeCoord,
+	excludeCoordRadiusMeters,
+) {
+	if (excludeOwnerId && entry.ownerId === excludeOwnerId) return true;
+	if (excludeOwnerIds) {
+		if (excludeOwnerIds instanceof Set && excludeOwnerIds.has(entry.ownerId)) {
+			return true;
+		}
+		if (Array.isArray(excludeOwnerIds) && excludeOwnerIds.includes(entry.ownerId)) {
+			return true;
+		}
+	}
+	if (excludeCoord && excludeCoordRadiusMeters > 0) {
+		if (
+			Array.isArray(entry.coord) &&
+			haversineMeters(entry.coord, excludeCoord) <= excludeCoordRadiusMeters
+		) {
+			return true;
+		}
+		if (
+			Array.isArray(entry.seg?.[0]) &&
+			Array.isArray(entry.seg?.[1]) &&
+			(haversineMeters(entry.seg[0], excludeCoord) <= excludeCoordRadiusMeters ||
+				haversineMeters(entry.seg[1], excludeCoord) <= excludeCoordRadiusMeters)
+		) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
  * Screen-pixel CAD snap resolver following strict priority: VERTEX -> MIDPOINT -> EDGE.
  * Uses `projectFn([lng, lat]) => { x, y }` so trigger radii stay uniform in screen pixels across zooms.
  */
@@ -1145,6 +1231,9 @@ export function resolveBestSnapTarget({
 	vertices = [],
 	segments = [],
 	excludeOwnerId = null,
+	excludeOwnerIds = null,
+	excludeCoord = null,
+	excludeCoordRadiusMeters = 0.04,
 	altKeyDown = false,
 	vertexRadiusPx = 12,
 	midpointRadiusPx = 10.5,
@@ -1166,7 +1255,17 @@ export function resolveBestSnapTarget({
 	let bestVertex = null;
 	let minVertexPx = Infinity;
 	for (const entry of vertices) {
-		if (excludeOwnerId && entry.ownerId === excludeOwnerId) continue;
+		if (
+			shouldSkipSnapEntry(
+				entry,
+				excludeOwnerId,
+				excludeOwnerIds,
+				excludeCoord,
+				excludeCoordRadiusMeters,
+			)
+		) {
+			continue;
+		}
 		const vPx = projectFn(entry.coord);
 		if (!vPx || !Number.isFinite(vPx.x) || !Number.isFinite(vPx.y)) continue;
 		const threshold = entry.isDoorMidpoint
@@ -1191,7 +1290,17 @@ export function resolveBestSnapTarget({
 	let bestMid = null;
 	let minMidPx = midpointRadiusPx;
 	for (const entry of segments) {
-		if (excludeOwnerId && entry.ownerId === excludeOwnerId) continue;
+		if (
+			shouldSkipSnapEntry(
+				entry,
+				excludeOwnerId,
+				excludeOwnerIds,
+				excludeCoord,
+				excludeCoordRadiusMeters,
+			)
+		) {
+			continue;
+		}
 		const [a, b] = entry.seg || [];
 		if (!a || !b || Math.hypot(b[0] - a[0], b[1] - a[1]) < 1e-8) continue;
 		const mid = [
@@ -1226,7 +1335,17 @@ export function resolveBestSnapTarget({
 	let bestEdge = null;
 	let minEdgePx = edgeRadiusPx;
 	for (const entry of segments) {
-		if (excludeOwnerId && entry.ownerId === excludeOwnerId) continue;
+		if (
+			shouldSkipSnapEntry(
+				entry,
+				excludeOwnerId,
+				excludeOwnerIds,
+				excludeCoord,
+				excludeCoordRadiusMeters,
+			)
+		) {
+			continue;
+		}
 		const [a, b] = entry.seg || [];
 		if (!a || !b) continue;
 		const aPx = projectFn(a);
@@ -3129,10 +3248,61 @@ export function filterDisplayedMapPins({
 	});
 }
 
+function resolveFloorBandColor(floorOrder, isGhost, isOverviewAll, isAllFloorsInFocused) {
+	if (isGhost) return "#cbd5e1";
+	if (isOverviewAll) return "#e2e8f0";
+	if (isAllFloorsInFocused) {
+		const palette = ["#cbd5e1", "#dbeafe", "#e0e7ff", "#e2e8f0", "#f1f5f9"];
+		return palette[Math.abs(Number(floorOrder) || 0) % palette.length];
+	}
+	return "#f8fafc";
+}
+
+function emitDoorFrameSegment(list, { id, wallKind, isPerimeter, building, floorOrder, isGhost, isContextBuilding, color, baseHeight, extrudeHeight, coordinates }) {
+	list.push({
+		type: "Feature",
+		id,
+		properties: {
+			id,
+			wallKind,
+			isPerimeter,
+			building,
+			floorOrder,
+			isGhost,
+			isContextBuilding,
+			color,
+			baseHeight,
+			extrudeHeight,
+		},
+		geometry: {
+			type: "Polygon",
+			coordinates,
+		},
+	});
+}
+
+function buildVerticalShaftPolygon(coord, halfWidthMeters = 0.09) {
+	if (!Array.isArray(coord) || coord.length < 2) return null;
+	const [lng, lat] = coord;
+	if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+	const { toDeg } = toLocalMetersFactory(coord);
+	const r = Math.max(0.04, Number(halfWidthMeters) || 0.09);
+	const ring = [
+		toDeg([-r, -r]),
+		toDeg([r, -r]),
+		toDeg([r, r]),
+		toDeg([-r, r]),
+	];
+	ring.push([...ring[0]]);
+	return [ring];
+}
+
 /**
  * Build clean 3D Vector GeoJSON layers from Unified Wall Graph + Planar Faces + Doors:
- * - Slabs with inner VOID holes (FloorSlab 0.16m)
- * - Exterior perimeter walls (2.85m) vs interior partition walls (1.35m), carved cleanly at every DOOR
+ * - BIM-Lite 3-mode rendering (Overview ALL 3.34m facade or cutaway when exploded,
+ *   Building-All 2.45m open cutaway floors, Single-Floor 2.85m/1.35m cutaway + faint exterior ghosts)
+ * - Configurable floorElevationStep (3.5m / 7.5m / 10.5m) with Type B minimal vertical portal shafts
+ * - Exterior perimeter walls vs interior partition walls, carved cleanly at every DOOR with 3D sill/jamb/lintel
  * - Room extrusions (0.52m, 1.0m selected) with hole-aware Area PIP matching
  * - Elevated symbol layers for PORTALs & Area names + selectable 2D Face/Door layers
  */
@@ -3145,10 +3315,18 @@ export function buildVector3dLayers({
 	creatingPreview = null,
 	viewRole = "ADMIN", // "ADMIN" | "FACILITY_MANAGER" | "STUDIO"
 	showOtherBuildingsInFocus = true,
+	floorElevationStep = FLOOR_ELEVATION_STEP,
 }) {
 	const rawStore = store || loadGeometryStore();
 	const data = migrateStoreToWallGraph(rawStore);
 	const floorModels = buildFloorWallGraphModels(data);
+
+	const parsedStep = Number(floorElevationStep);
+	const effectiveElevationStep =
+		Number.isFinite(parsedStep) && parsedStep > 0
+			? parsedStep
+			: FLOOR_ELEVATION_STEP;
+	const isExploded = effectiveElevationStep > FLOOR_ELEVATION_STEP + 0.05;
 
 	const floorSlabs = [];
 	const boundaryWalls = [];
@@ -3157,10 +3335,12 @@ export function buildVector3dLayers({
 	const doorFeatures = [];
 	const roomLabelFeatures = [];
 	const portalSymbolFeatures = [];
+	const portalShaftFeatures = [];
 	const matchedAreaIdsOnActiveFloor = new Set();
 
 	const isOverviewAll = !selectedBuilding || selectedBuilding === "ALL";
 	const isAllFloorsInFocused = !isOverviewAll && activeFloorOrder === "ALL";
+	const isStudio = viewRole === "STUDIO";
 
 	const classifyFeature = (bName, flOrder) => {
 		const isTargetBuilding =
@@ -3193,7 +3373,7 @@ export function buildVector3dLayers({
 		HIGHLY_CONFIDENTIAL: "#ef4444",
 	};
 
-	// 1. Unified Wall Graph -> Slabs (with VOID holes), Walls (2.85m outer / 1.35m inner + Door cutouts), Rooms & Doors
+	// 1. Unified Wall Graph -> Slabs (with VOID holes), Walls (with Door cutouts), Rooms & Doors
 	for (const model of floorModels.values()) {
 		const { include, isGhost, isContextBuilding } = classifyFeature(
 			model.building,
@@ -3201,8 +3381,16 @@ export function buildVector3dLayers({
 		);
 		if (!include) continue;
 
-		const floorBase = (Number(model.floorOrder) || 0) * FLOOR_ELEVATION_STEP;
+		const flNum = Number(model.floorOrder) || 0;
+		const floorBase = flNum * effectiveElevationStep;
 		const floorDoors = model.doors || [];
+
+		const slabColor = resolveFloorBandColor(
+			flNum,
+			isGhost,
+			isOverviewAll,
+			isAllFloorsInFocused,
+		);
 
 		// 1a. Extracted Planar Faces -> Slabs, 3D Room Pads & Selectable Face Overlays
 		for (const face of model.faces) {
@@ -3242,7 +3430,7 @@ export function buildVector3dLayers({
 					floorOrder: model.floorOrder,
 					isGhost,
 					isContextBuilding,
-					color: isGhost ? "#cbd5e1" : "#e2e8f0",
+					color: slabColor,
 					baseHeight: floorBase,
 					extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT,
 				},
@@ -3253,6 +3441,7 @@ export function buildVector3dLayers({
 			});
 
 			if (face.role !== "ROOM") continue;
+			if (isOverviewAll && !isStudio && !isExploded) continue;
 
 			// Auto-match Area using Hole-aware Point-in-Polygon
 			const matchedArea = areas.find((a) => {
@@ -3283,7 +3472,7 @@ export function buildVector3dLayers({
 			let fillColor = "#94a3b8";
 			if (isGhost) {
 				fillColor = "#cbd5e1";
-			} else if (viewRole === "STUDIO") {
+			} else if (isStudio) {
 				fillColor = "#38bdf8";
 			} else if (viewRole === "FACILITY_MANAGER") {
 				fillColor = isSelected
@@ -3381,15 +3570,26 @@ export function buildVector3dLayers({
 			}
 		}
 
-		// 1b. Carved Wall Segments (Perimeter = 2.85m, Interior Partition = 1.35m)
+		// 1b. Carved Wall Segments (Mode-aware Perimeter & Interior heights + Door cutouts)
+		const suppressInteriorWalls =
+			!isStudio && (isOverviewAll || isAllFloorsInFocused || isGhost);
+		const perimeterWallHeight = isOverviewAll
+			? isExploded
+				? BUILDING_ALL_FLOORS_WALL_HEIGHT
+				: OVERVIEW_WALL_HEIGHT
+			: isAllFloorsInFocused
+				? BUILDING_ALL_FLOORS_WALL_HEIGHT
+				: BOUNDARY_WALL_HEIGHT;
+
 		const carvedSegments = buildWallsWithDoorCutouts(
 			model.wallSegments,
 			floorDoors,
 		);
 		carvedSegments.forEach((seg, idx) => {
+			if (!seg.isPerimeter && suppressInteriorWalls) return;
 			const halfW = seg.isPerimeter ? 0.16 : 0.1;
 			const wallHeight = seg.isPerimeter
-				? BOUNDARY_WALL_HEIGHT
+				? perimeterWallHeight
 				: INTERIOR_WALL_HEIGHT;
 			const capStart = seg.startIsDoorJamb ? 0.015 : halfW;
 			const capEnd = seg.endIsDoorJamb ? 0.015 : halfW;
@@ -3401,6 +3601,13 @@ export function buildVector3dLayers({
 				capEnd,
 			);
 			if (!poly) return;
+			const wallColor = isGhost
+				? "#cbd5e1"
+				: seg.isPerimeter
+					? isOverviewAll && flNum % 2 === 1
+						? "#526277"
+						: "#64748b"
+					: "#94a3b8";
 			boundaryWalls.push({
 				type: "Feature",
 				id: `uwall-${model.building}-${model.floorOrder}-${idx}`,
@@ -3412,7 +3619,7 @@ export function buildVector3dLayers({
 					floorOrder: model.floorOrder,
 					isGhost,
 					isContextBuilding,
-					color: isGhost ? "#cbd5e1" : seg.isPerimeter ? "#64748b" : "#94a3b8",
+					color: wallColor,
 					baseHeight: floorBase + FLOOR_SLAB_HEIGHT,
 					extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT + wallHeight,
 				},
@@ -3423,7 +3630,7 @@ export function buildVector3dLayers({
 			});
 		});
 
-		// 1c. Architectural Door 3D Threshold & Header Lintels + 2D Oriented Door Box Features
+		// 1c. Architectural Door 3D Threshold, Jambs & Header Lintels + 2D Oriented Door Box Features
 		floorDoors.forEach((d, dIdx) => {
 			if (!Array.isArray(d.coords)) return;
 			const geom = buildOrientedDoorGeometry(d, model.wallSegments);
@@ -3455,74 +3662,128 @@ export function buildVector3dLayers({
 				},
 			});
 
-			const doorFrameColor = isGhost ? "#e2e8f0" : "#f59e0b";
+			if (isGhost || (!isStudio && (isOverviewAll || isAllFloorsInFocused))) {
+				return;
+			}
 
-			// 3D Low Threshold Sill (0.06m high warm architectural threshold across doorway opening)
-			boundaryWalls.push({
-				type: "Feature",
+			const doorFrameColor = "#f59e0b";
+			const doorTopHeight = geom.isPerimeter
+				? perimeterWallHeight
+				: INTERIOR_WALL_HEIGHT;
+			const lintelBaseRel = geom.isPerimeter ? 2.1 : 1.02;
+
+			// 3D Threshold Sill raised cleanly above slab (0.14m)
+			emitDoorFrameSegment(boundaryWalls, {
 				id: `udoor-sill-${model.building}-${model.floorOrder}-${dIdx}`,
-				properties: {
-					id: `udoor-sill-${d.id}`,
-					wallKind: "DOOR_THRESHOLD",
+				wallKind: "DOOR_THRESHOLD",
+				isPerimeter: geom.isPerimeter,
+				building: model.building,
+				floorOrder: model.floorOrder,
+				isGhost: false,
+				isContextBuilding,
+				color: doorFrameColor,
+				baseHeight: floorBase + FLOOR_SLAB_HEIGHT,
+				extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT + 0.14,
+				coordinates: [geom.boxPolygon],
+			});
+
+			// 3D Vertical Door Jamb Posts (left/right frames) so doorways read clearly above adjacent room pads
+			const jambFrac = Math.min(0.14, 0.08 / Math.max(geom.widthMeters, 0.5));
+			const jambInnerA = [
+				geom.jambA[0] + (geom.jambB[0] - geom.jambA[0]) * jambFrac,
+				geom.jambA[1] + (geom.jambB[1] - geom.jambA[1]) * jambFrac,
+			];
+			const jambInnerB = [
+				geom.jambB[0] + (geom.jambA[0] - geom.jambB[0]) * jambFrac,
+				geom.jambB[1] + (geom.jambA[1] - geom.jambB[1]) * jambFrac,
+			];
+			const jambHalfW = geom.isPerimeter ? 0.18 : 0.13;
+			for (const [jSuffix, ja, jb] of [
+				["ja", geom.jambA, jambInnerA],
+				["jb", jambInnerB, geom.jambB],
+			]) {
+				const jPoly = buildWallSegmentPolygon(ja, jb, jambHalfW, 0.015, 0.015);
+				if (jPoly) {
+					emitDoorFrameSegment(boundaryWalls, {
+						id: `udoor-${jSuffix}-${model.building}-${model.floorOrder}-${dIdx}`,
+						wallKind: "DOOR_JAMB",
+						isPerimeter: geom.isPerimeter,
+						building: model.building,
+						floorOrder: model.floorOrder,
+						isGhost: false,
+						isContextBuilding,
+						color: doorFrameColor,
+						baseHeight: floorBase + FLOOR_SLAB_HEIGHT,
+						extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT + doorTopHeight,
+						coordinates: jPoly,
+					});
+				}
+			}
+
+			// 3D Upper Door Header / Lintel on BOTH perimeter and interior doorways
+			const lintelHalfW = geom.isPerimeter ? 0.16 : 0.11;
+			const lintelPoly = buildWallSegmentPolygon(
+				geom.jambA,
+				geom.jambB,
+				lintelHalfW,
+				0.015,
+				0.015,
+			);
+			if (lintelPoly) {
+				emitDoorFrameSegment(boundaryWalls, {
+					id: `udoor-lintel-${model.building}-${model.floorOrder}-${dIdx}`,
+					wallKind: "DOOR_LINTEL",
 					isPerimeter: geom.isPerimeter,
 					building: model.building,
 					floorOrder: model.floorOrder,
-					isGhost,
+					isGhost: false,
 					isContextBuilding,
 					color: doorFrameColor,
-					baseHeight: floorBase + FLOOR_SLAB_HEIGHT,
-					extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT + 0.055,
-				},
-				geometry: {
-					type: "Polygon",
-					coordinates: [geom.boxPolygon],
-				},
-			});
-
-			// 3D Upper Door Header / Lintel on 2.85m Perimeter Walls (from 2.10m to 2.85m), matching threshold color
-			if (geom.isPerimeter) {
-				const lintelPoly = buildWallSegmentPolygon(
-					geom.jambA,
-					geom.jambB,
-					0.16,
-					0.015,
-					0.015,
-				);
-				if (lintelPoly) {
-					boundaryWalls.push({
-						type: "Feature",
-						id: `udoor-lintel-${model.building}-${model.floorOrder}-${dIdx}`,
-						properties: {
-							id: `udoor-lintel-${d.id}`,
-							wallKind: "DOOR_LINTEL",
-							isPerimeter: true,
-							building: model.building,
-							floorOrder: model.floorOrder,
-							isGhost,
-							isContextBuilding,
-							color: doorFrameColor,
-							baseHeight: floorBase + FLOOR_SLAB_HEIGHT + 2.1,
-							extrudeHeight:
-								floorBase + FLOOR_SLAB_HEIGHT + BOUNDARY_WALL_HEIGHT,
-						},
-						geometry: {
-							type: "Polygon",
-							coordinates: lintelPoly,
-						},
-					});
-				}
+					baseHeight: floorBase + FLOOR_SLAB_HEIGHT + lintelBaseRel,
+					extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT + doorTopHeight,
+					coordinates: lintelPoly,
+				});
 			}
 		});
 	}
 
 	// 2b. Vertical Portal Nodes (STAIRS / ELEVATOR) rendered via WebGL symbol layers at exact floor elevation
+	// Keep tracking stacked multi-floor groups for Type B minimal vertical shaft guides.
+	const shaftGroups = new Map();
 	for (const n of data.navNodes || []) {
 		if (!isPortalNode(n) || !Array.isArray(n.coords)) continue;
+		const floorOrder = Number(n.floorOrder) || 0;
 		const { include, isGhost, isContextBuilding } = classifyFeature(
 			n.building,
-			Number(n.floorOrder) || 0,
+			floorOrder,
 		);
 		if (!include) continue;
+
+		const bCanonical = resolveCanonicalBuildingName(n.building) || n.building || "";
+		const portalGroupId = String(n.portalGroupId || "").trim();
+		if (
+			!isStudio &&
+			isExploded &&
+			(isOverviewAll || isAllFloorsInFocused) &&
+			!isContextBuilding &&
+			bCanonical &&
+			portalGroupId
+		) {
+			const groupKey = `${bCanonical}::${portalGroupId}`;
+			let grp = shaftGroups.get(groupKey);
+			if (!grp) {
+				grp = {
+					building: bCanonical,
+					portalGroupId,
+					hasElevator: false,
+					nodes: [],
+				};
+				shaftGroups.set(groupKey, grp);
+			}
+			if (n.type === "ELEVATOR") grp.hasElevator = true;
+			grp.nodes.push({ floorOrder, coords: n.coords });
+		}
+
 		if (
 			!isOverviewAll &&
 			!isAllFloorsInFocused &&
@@ -3530,11 +3791,10 @@ export function buildVector3dLayers({
 		) {
 			continue;
 		}
-		if (isOverviewAll && (Number(n.floorOrder) || 0) !== 0) {
+		if (isOverviewAll && !isExploded && floorOrder !== 0) {
 			continue;
 		}
-		const floorOrder = Number(n.floorOrder) || 0;
-		const floorBase = floorOrder * FLOOR_ELEVATION_STEP;
+		const floorBase = floorOrder * effectiveElevationStep;
 		portalSymbolFeatures.push({
 			type: "Feature",
 			id: `portal-${n.id}`,
@@ -3542,8 +3802,8 @@ export function buildVector3dLayers({
 				id: n.id,
 				nodeType: n.type,
 				iconImage: n.type === "ELEVATOR" ? "portal-elevator" : "portal-stairs",
-				portalGroupId: n.portalGroupId || "",
-				building: resolveCanonicalBuildingName(n.building) || n.building || "",
+				portalGroupId,
+				building: bCanonical,
 				floorOrder,
 				isGhost,
 				heightOffset: Number((floorBase + FLOOR_SLAB_HEIGHT + 0.35).toFixed(2)),
@@ -3553,6 +3813,51 @@ export function buildVector3dLayers({
 				coordinates: n.coords,
 			},
 		});
+	}
+
+	// 2c. Type B Minimal Vertical Portal Shafts (only when exploded multi-floor view separates floors > 3.5m)
+	if (!isStudio && isExploded && (isOverviewAll || isAllFloorsInFocused)) {
+		for (const grp of shaftGroups.values()) {
+			const distinctFloors = [...new Set(grp.nodes.map((item) => item.floorOrder))].sort(
+				(a, b) => a - b,
+			);
+			if (distinctFloors.length < 2) continue;
+			const minFloor = distinctFloors[0];
+			const maxFloor = distinctFloors[distinctFloors.length - 1];
+			if (maxFloor <= minFloor) continue;
+
+			const avgLng =
+				grp.nodes.reduce((sum, item) => sum + item.coords[0], 0) / grp.nodes.length;
+			const avgLat =
+				grp.nodes.reduce((sum, item) => sum + item.coords[1], 0) / grp.nodes.length;
+			const beamPoly = buildVerticalShaftPolygon([avgLng, avgLat], 0.09);
+			if (!beamPoly) continue;
+
+			const nodeType = grp.hasElevator ? "ELEVATOR" : "STAIRS";
+			portalShaftFeatures.push({
+				type: "Feature",
+				id: `shaft-${grp.building}-${grp.portalGroupId}`,
+				properties: {
+					id: `shaft-${grp.building}-${grp.portalGroupId}`,
+					building: grp.building,
+					portalGroupId: grp.portalGroupId,
+					nodeType,
+					color: nodeType === "ELEVATOR" ? "#06b6d4" : "#a855f7",
+					minFloor,
+					maxFloor,
+					baseHeight: Number(
+						(minFloor * effectiveElevationStep + FLOOR_SLAB_HEIGHT).toFixed(2),
+					),
+					extrudeHeight: Number(
+						(maxFloor * effectiveElevationStep + FLOOR_SLAB_HEIGHT).toFixed(2),
+					),
+				},
+				geometry: {
+					type: "Polygon",
+					coordinates: beamPoly,
+				},
+			});
+		}
 	}
 
 	// 3. Building overview label anchors (for clickable building tags / overview)
@@ -3607,6 +3912,10 @@ export function buildVector3dLayers({
 		portalSymbolsGeoJSON: {
 			type: "FeatureCollection",
 			features: portalSymbolFeatures,
+		},
+		portalShaftsGeoJSON: {
+			type: "FeatureCollection",
+			features: portalShaftFeatures,
 		},
 		buildingLabelsGeoJSON: {
 			type: "FeatureCollection",

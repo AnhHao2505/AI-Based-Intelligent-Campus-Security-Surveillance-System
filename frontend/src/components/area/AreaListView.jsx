@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-	Building2,
 	Cctv,
 	VideoOff,
 	Users,
@@ -14,7 +13,7 @@ import {
 	RotateCcw,
 	AlertCircle,
 } from "lucide-react";
-import { LoadingState, EmptyState, ErrorState, Select } from "../ui";
+import { LoadingState, EmptyState, ErrorState } from "../ui";
 import { getLevelConfig } from "../../utils/areaHelpers";
 import { formatLocation } from "../../utils/formatLocation";
 
@@ -71,12 +70,6 @@ const LEVEL_SECTIONS = [
 
 export default function AreaListView({
 	floorAreas = [],
-	selectedFloor = "ALL",
-	selectedBuilding = "ALL",
-	availableBuildings = [],
-	availableFloors = [],
-	onSelectBuilding,
-	onSelectFloor,
 	selectedAreaId,
 	cameraCounts = {},
 	isAdmin = false,
@@ -348,49 +341,15 @@ export default function AreaListView({
 					</div>
 				) : (
 					<div className="zone-sidebar-title-simple">
-						<Layers size={14} className="zone-sidebar-title-icon" />
-						<span className="zone-sidebar-title-text">Khu vực hoạt động</span>
+						<div className="zone-sidebar-title-group">
+							<Layers size={14} className="zone-sidebar-title-icon" />
+							<span className="zone-sidebar-title-text">Khu vực hoạt động</span>
+						</div>
 						<span className="zone-sidebar-tab__badge">
 							{floorAreas.length}
 						</span>
 					</div>
 				)}
-			</div>
-
-			{/* 2. Bộ lọc Tòa nhà & Tầng ngay trong Danh sách khu vực */}
-			<div className="zone-sidebar-filters">
-				<div className="zone-sidebar-filter-item">
-					<Building2 size={13} className="zone-sidebar-filter-icon" />
-					<Select
-						className="ui-select-group--sidebar"
-						aria-label="Lọc theo tòa nhà"
-						value={selectedBuilding}
-						onChange={(e) => onSelectBuilding?.(e.target.value)}
-						options={[
-							{ value: "ALL", label: "Tất cả tòa nhà" },
-							...availableBuildings.map((b) => ({
-								value: b.name,
-								label: b.name,
-							})),
-						]}
-					/>
-				</div>
-				<div className="zone-sidebar-filter-item">
-					<Layers size={13} className="zone-sidebar-filter-icon" />
-					<Select
-						className="ui-select-group--sidebar"
-						aria-label="Lọc theo tầng"
-						value={selectedFloor}
-						onChange={(e) => onSelectFloor?.(e.target.value)}
-						options={[
-							{ value: "ALL", label: "Tất cả tầng" },
-							...availableFloors.map((fl) => ({
-								value: fl.name,
-								label: fl.name,
-							})),
-						]}
-					/>
-				</div>
 			</div>
 
 			{/* 3. Search / Quick Filter Bar */}

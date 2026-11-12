@@ -296,12 +296,12 @@ export default function Sidebar({ user, onLogout }) {
 										}
 										title={
 											sidebarCollapsed
-												? "Quản lý khu vực"
+												? "Quản lý khuôn viên"
 												: undefined
 										}
 									>
 										<MapPin size={18} />
-										<span>Quản lý khu vực</span>
+										<span>Quản lý khuôn viên</span>
 									</NavLink>
 
 									<NavLink

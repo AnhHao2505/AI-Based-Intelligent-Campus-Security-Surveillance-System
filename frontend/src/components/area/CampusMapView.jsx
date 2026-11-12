@@ -40,12 +40,12 @@ import {
 import { createArea, updateArea } from "../../services/areaService";
 import {
 	DEFAULT_BUILDINGS_META,
+	EXPLODED_FLOOR_STEP_OPTIONS,
+	FLOOR_ELEVATION_STEP,
 	loadGeometryStore,
 	buildVector3dLayers,
 	extractAreaLevelCode,
 	resolveRoomBlockSelection,
-	buildRoute3dLayers,
-	computeDigitizedRoute,
 	matchesBuilding,
 	resolveFloorOrder,
 	splitGhostActiveGeoJSON,
@@ -227,17 +227,9 @@ export default function CampusMapView({
 	const [geometryStore, setGeometryStore] = useState(() => loadGeometryStore());
 	const [activeBuilding3d, setActiveBuilding3d] = useState("ALL");
 	const [activeFloorOrder3d, setActiveFloorOrder3d] = useState("ALL");
-	const [activeRoute3d, setActiveRoute3d] = useState(null);
-
-	const activeRouteEndpoints = useMemo(() => {
-		const feats = activeRoute3d?.geojson?.features;
-		if (!Array.isArray(feats) || feats.length === 0) return null;
-		const start = feats[0]?.geometry?.coordinates?.[0];
-		const lastCoords = feats[feats.length - 1]?.geometry?.coordinates;
-		const end = lastCoords ? lastCoords[lastCoords.length - 1] : null;
-		if (!start || !end) return null;
-		return { start, end };
-	}, [activeRoute3d]);
+	const [floorGapStep, setFloorGapStep] = useState(FLOOR_ELEVATION_STEP);
+	const isMultiFloorView =
+		activeBuilding3d === "ALL" || activeFloorOrder3d === "ALL";
 
 	useEffect(() => {
 		const refreshGeometry = () => setGeometryStore(loadGeometryStore());
@@ -320,6 +312,7 @@ export default function CampusMapView({
 		roomsGeoJSON,
 		roomLabelsGeoJSON,
 		portalSymbolsGeoJSON,
+		portalShaftsGeoJSON,
 		buildingLabelsGeoJSON,
 	} = useMemo(() => {
 		return buildVector3dLayers({
@@ -331,6 +324,7 @@ export default function CampusMapView({
 			creatingPreview: activeCreatingPreview,
 			viewRole: isAdmin ? "ADMIN" : "FACILITY_MANAGER",
 			showOtherBuildingsInFocus: true,
+			floorElevationStep: floorGapStep,
 		});
 	}, [
 		geometryStore,
@@ -340,7 +334,28 @@ export default function CampusMapView({
 		selectedAreaId,
 		activeCreatingPreview,
 		isAdmin,
+		floorGapStep,
 	]);
+
+	const handleChangeFloorGapStep = useCallback(
+		(nextStep) => {
+			setFloorGapStep(nextStep);
+			const map = mapRef.current?.getMap?.() || mapRef.current;
+			if (!map?.easeTo) return;
+			const curPitch = map.getPitch?.() ?? CAMPUS_CENTER.pitch;
+			const curZoom = map.getZoom?.() ?? CAMPUS_CENTER.zoom;
+			const isExpanded = nextStep > FLOOR_ELEVATION_STEP + 0.05;
+			map.easeTo({
+				pitch: isExpanded ? Math.max(curPitch, 58) : 52,
+				zoom:
+					activeBuilding3d === "ALL" && isExpanded
+						? Math.min(curZoom, 17.15)
+						: curZoom,
+				duration: 450,
+			});
+		},
+		[activeBuilding3d],
+	);
 
 	// Mục 1B: đồng bộ ảnh Canvas Sprite nhãn phòng ngay khi roomLabelsGeoJSON thay đổi
 	useEffect(() => {
@@ -350,20 +365,9 @@ export default function CampusMapView({
 		}
 	}, [roomLabelsGeoJSON]);
 
-	const route3dLayers = useMemo(() => {
-		return buildRoute3dLayers(activeRoute3d, {
-			selectedBuilding: activeBuilding3d,
-			activeFloorOrder: activeFloorOrder3d,
-		});
-	}, [activeRoute3d, activeBuilding3d, activeFloorOrder3d]);
-
 	const slabsSplit = useMemo(() => splitGhostActiveGeoJSON(slabsGeoJSON), [slabsGeoJSON]);
 	const wallsSplit = useMemo(() => splitGhostActiveGeoJSON(wallsGeoJSON), [wallsGeoJSON]);
 	const roomsSplit = useMemo(() => splitGhostActiveGeoJSON(roomsGeoJSON), [roomsGeoJSON]);
-	const routeRibbonsSplit = useMemo(
-		() => splitGhostActiveGeoJSON(route3dLayers.ribbonsGeoJSON),
-		[route3dLayers.ribbonsGeoJSON],
-	);
 
 	// Refs tránh feedback-loop khi đồng bộ 2 chiều giữa Sidebar và Slicer 3D
 	const slicerStateRef = useRef({ building: "ALL", floorOrder: "ALL" });
@@ -403,16 +407,8 @@ export default function CampusMapView({
 	);
 
 	const handleSelect3dBuilding = useCallback(
-		(
-			bName,
-			targetFloorOrder = "ALL",
-			keepRoute = false,
-			{ syncParent = true } = {},
-		) => {
+		(bName, targetFloorOrder = "ALL", { syncParent = true } = {}) => {
 			setActiveBuilding3d(bName);
-			if (!keepRoute) {
-				setActiveRoute3d(null);
-			}
 			if (bName === "ALL") {
 				setActiveFloorOrder3d("ALL");
 				if (syncParent) {
@@ -486,7 +482,7 @@ export default function CampusMapView({
 		const sameFloor = next3d.floorOrder === cur.floorOrder;
 		if (sameBuilding && sameFloor) return;
 
-		handleSelect3dBuilding(next3d.building, next3d.floorOrder, true, {
+		handleSelect3dBuilding(next3d.building, next3d.floorOrder, {
 			syncParent: false,
 		});
 	}, [
@@ -840,33 +836,64 @@ export default function CampusMapView({
 			const roomFeat = features.find(
 				(f) => f.layer?.id === "campus-3d-rooms-layer" && !f.properties?.isGhost,
 			);
-			if (!roomFeat?.properties || !e?.point) {
-				setHoveredRoom(null);
+			if (roomFeat?.properties && e?.point) {
+				const p = roomFeat.properties;
+				if (String(p.role || "ROOM").toUpperCase() === "CORRIDOR") {
+					setHoveredRoom(null);
+					return;
+				}
+				const areaLevelCode = p.areaLevelCode || "";
+				const levelCfg = areaLevelCode ? getLevelConfig(areaLevelCode) : null;
+				const emptySub = isEditingCoords
+					? "Nhấp để chuyển khu vực tới block này"
+					: isAdmin
+						? "Nhấp để tạo Khu vực"
+						: "Chưa gán khu vực";
+				setHoveredRoom({
+					x: e.point.x,
+					y: e.point.y,
+					isOccupied: Boolean(p.matchedAreaId),
+					title: p.matchedAreaName || "Phòng trống",
+					subtitle: p.matchedAreaId
+						? levelCfg?.badgeLabel || levelCfg?.name || "Đã gán Khu vực"
+						: emptySub,
+				});
 				return;
 			}
-			const p = roomFeat.properties;
-			if (String(p.role || "ROOM").toUpperCase() === "CORRIDOR") {
-				setHoveredRoom(null);
-				return;
+			// Khi xem "Toàn tòa", hover sàn/vách tầng sẽ gợi ý nhấp cắt vào tầng đó
+			if (
+				activeBuilding3d !== "ALL" &&
+				activeFloorOrder3d === "ALL" &&
+				e?.point
+			) {
+				const floorFeat = features.find(
+					(f) =>
+						(f.layer?.id === "campus-3d-slabs-layer" ||
+							f.layer?.id === "campus-3d-walls-layer") &&
+						!f.properties?.isGhost &&
+						f.properties?.floorOrder != null,
+				);
+				if (floorFeat?.properties) {
+					const flOrder = Number(floorFeat.properties.floorOrder);
+					const bldMeta = DEFAULT_BUILDINGS_META.find((b) =>
+						matchesBuilding(floorFeat.properties.building, b.name),
+					);
+					const flLabel =
+						bldMeta?.floors?.find((fl) => fl.floorOrder === flOrder)?.label ||
+						`Tầng ${flOrder}`;
+					setHoveredRoom({
+						x: e.point.x,
+						y: e.point.y,
+						isOccupied: false,
+						title: `${bldMeta?.name || floorFeat.properties.building} · ${flLabel}`,
+						subtitle: "Nhấp để cắt vào tầng này",
+					});
+					return;
+				}
 			}
-			const areaLevelCode = p.areaLevelCode || "";
-			const levelCfg = areaLevelCode ? getLevelConfig(areaLevelCode) : null;
-			const emptySub = isEditingCoords
-				? "Nhấp để chuyển khu vực tới block này"
-				: isAdmin
-					? "Nhấp để tạo Khu vực"
-					: "Chưa gán khu vực";
-			setHoveredRoom({
-				x: e.point.x,
-				y: e.point.y,
-				isOccupied: Boolean(p.matchedAreaId),
-				title: p.matchedAreaName || "Phòng trống",
-				subtitle: p.matchedAreaId
-					? levelCfg?.badgeLabel || levelCfg?.name || "Đã gán Khu vực"
-					: emptySub,
-			});
+			setHoveredRoom(null);
 		},
-		[isAdmin, isEditingCoords],
+		[isAdmin, isEditingCoords, activeBuilding3d, activeFloorOrder3d],
 	);
 
 	// Interactive 3D Map Click: Create/Rebind chỉ nhận block ROOM trống; Click block ROOM trống ở chế độ xem (ADMIN) tự mở Tạo khu vực
@@ -976,7 +1003,6 @@ export default function CampusMapView({
 					pendingRoomSeedRef.current = selection;
 					setActiveBuilding3d(selection.building);
 					setActiveFloorOrder3d(selection.floorOrder);
-					setActiveRoute3d(null);
 					onStartCreateFromRoom();
 					return;
 				}
@@ -994,34 +1020,22 @@ export default function CampusMapView({
 			if (isDifferentBuilding) {
 				const hasSpecificAreaRoom =
 					clickedRoomFeature && Boolean(roomProps?.matchedAreaId);
+				// Từ ALL click vào tòa nhà mở chế độ Toàn tòa để bóc tách từng tầng (trừ khi click thẳng 1 phòng Area cụ thể)
 				const targetFloor = hasSpecificAreaRoom
 					? Number(roomProps.floorOrder ?? 0)
-					: hitProps.floorOrder != null
-						? Number(hitProps.floorOrder)
-						: "ALL";
-				handleSelect3dBuilding(clickedBuilding, targetFloor, hasSpecificAreaRoom);
+					: activeBuilding3d === "ALL"
+						? "ALL"
+						: hitProps.floorOrder != null
+							? Number(hitProps.floorOrder)
+							: "ALL";
+				handleSelect3dBuilding(clickedBuilding, targetFloor);
 				if (hasSpecificAreaRoom) {
 					onSelectArea?.(roomProps.matchedAreaId);
-					if (roomProps.centerLng != null && roomProps.centerLat != null) {
-						const route = computeDigitizedRoute({
-							store: geometryStore,
-							startCoords: [106.80915, 10.84072],
-							startBuilding: "OUTDOOR",
-							startFloorOrder: 0,
-							endCoords: [
-								Number(roomProps.centerLng),
-								Number(roomProps.centerLat),
-							],
-							endBuilding: clickedBuilding,
-							endFloorOrder: Number(targetFloor) || 0,
-						});
-						setActiveRoute3d(route);
-					}
 				}
 				return;
 			}
 
-			// Đang ở trong cùng tòa nhà: click vào phòng -> cắt đúng tầng (nếu đang Toàn tòa), chọn Area & dẫn đường 3D A*
+			// Đang ở trong cùng tòa nhà: click vào phòng -> cắt đúng tầng (nếu đang Toàn tòa) & chọn Area tương ứng ở sidebar
 			if (clickedRoomFeature && roomProps) {
 				const roomFloor = Number(roomProps.floorOrder ?? 0);
 				if (activeFloorOrder3d === "ALL") {
@@ -1034,21 +1048,6 @@ export default function CampusMapView({
 				if (roomProps.matchedAreaId) {
 					onSelectArea?.(roomProps.matchedAreaId);
 				}
-				if (roomProps.centerLng != null && roomProps.centerLat != null) {
-					const route = computeDigitizedRoute({
-						store: geometryStore,
-						startCoords: [106.80915, 10.84072],
-						startBuilding: "OUTDOOR",
-						startFloorOrder: 0,
-						endCoords: [
-							Number(roomProps.centerLng),
-							Number(roomProps.centerLat),
-						],
-						endBuilding: roomProps.building,
-						endFloorOrder: roomFloor,
-					});
-					setActiveRoute3d(route);
-				}
 				return;
 			}
 
@@ -1060,7 +1059,6 @@ export default function CampusMapView({
 			) {
 				const nextFl = Number(hitProps.floorOrder);
 				setActiveFloorOrder3d(nextFl);
-				setActiveRoute3d(null);
 				notifyParentMapFilter(
 					hitProps.building || activeBuilding3d,
 					nextFl,
@@ -1079,7 +1077,6 @@ export default function CampusMapView({
 			notifyParentMapFilter,
 			onStartCreateFromRoom,
 			onSelectArea,
-			geometryStore,
 		],
 	);
 
@@ -1155,6 +1152,31 @@ export default function CampusMapView({
 								))}
 							</select>
 							<ChevronDown size={13} className="campus-3d-slicer-select-arrow" />
+						</div>
+					)}
+
+					{isMultiFloorView && (
+						<div
+							className="campus-3d-gap-control"
+							role="group"
+							aria-label="Giãn cách tầng 3D"
+							title="Giãn cách chiều cao giữa các tầng"
+						>
+							{EXPLODED_FLOOR_STEP_OPTIONS.map((opt) => {
+								const isOptActive = Math.abs(floorGapStep - opt.step) < 0.05;
+								return (
+									<button
+										key={opt.id}
+										type="button"
+										className={`campus-3d-gap-btn ${isOptActive ? "campus-3d-gap-btn--active" : ""}`}
+										aria-pressed={isOptActive}
+										onClick={() => handleChangeFloorGapStep(opt.step)}
+										title={`${opt.label} (${opt.step}m/tầng)`}
+									>
+										{opt.label}
+									</button>
+								);
+							})}
 						</div>
 					)}
 
@@ -1305,6 +1327,7 @@ export default function CampusMapView({
 						style={{ width: "100%", height: "100%" }}
 						minZoom={1}
 						maxZoom={22}
+						maxPitch={72}
 						boxZoom={false}
 					>
 						{/* Native Map Controls */}
@@ -1324,7 +1347,7 @@ export default function CampusMapView({
 									"fill-extrusion-color": ["get", "color"],
 									"fill-extrusion-base": ["get", "baseHeight"],
 									"fill-extrusion-height": ["get", "extrudeHeight"],
-									"fill-extrusion-opacity": 0.16,
+									"fill-extrusion-opacity": 0.14,
 									"fill-extrusion-vertical-gradient": true,
 								}}
 							/>
@@ -1337,7 +1360,7 @@ export default function CampusMapView({
 									"fill-extrusion-color": ["get", "color"],
 									"fill-extrusion-base": ["get", "baseHeight"],
 									"fill-extrusion-height": ["get", "extrudeHeight"],
-									"fill-extrusion-opacity": 0.2,
+									"fill-extrusion-opacity": 0.16,
 									"fill-extrusion-vertical-gradient": true,
 								}}
 							/>
@@ -1350,13 +1373,13 @@ export default function CampusMapView({
 									"fill-extrusion-color": ["get", "color"],
 									"fill-extrusion-base": ["get", "baseHeight"],
 									"fill-extrusion-height": ["get", "extrudeHeight"],
-									"fill-extrusion-opacity": 0.18,
+									"fill-extrusion-opacity": 0.12,
 									"fill-extrusion-vertical-gradient": true,
 								}}
 							/>
 						</Source>
 
-						{/* Lớp Đế Sàn, Tường & Khối Phòng 3D Tầng Active */}
+						{/* Lớp Đế Sàn, Tường, Mái Tổng Quan & Khối Phòng 3D Tầng Active */}
 						<Source id="campus-3d-slabs-src" type="geojson" data={slabsSplit.active}>
 							<Layer
 								id="campus-3d-slabs-layer"
@@ -1366,7 +1389,7 @@ export default function CampusMapView({
 									"fill-extrusion-base": ["get", "baseHeight"],
 									"fill-extrusion-height": ["get", "extrudeHeight"],
 									"fill-extrusion-opacity":
-										activeBuilding3d === "ALL" ? 0.8 : 0.92,
+										activeBuilding3d === "ALL" ? 0.98 : 0.96,
 									"fill-extrusion-vertical-gradient": true,
 								}}
 							/>
@@ -1398,147 +1421,24 @@ export default function CampusMapView({
 							/>
 						</Source>
 
-						{/* 4. Lớp Tuyến Đường Dẫn Đường 3D Nổi Trên Sàn Tầng (Elevated fill-extrusion ribbons) */}
-						{activeRoute3d?.geojson && (
-							<>
-								<Source
-									id="campus-3d-route-ghost-src"
-									type="geojson"
-									data={routeRibbonsSplit.ghost}
-								>
-									<Layer
-										id="campus-3d-route-ghost-layer"
-										type="fill-extrusion"
-										paint={{
-											"fill-extrusion-color": ["get", "color"],
-											"fill-extrusion-base": ["get", "baseHeight"],
-											"fill-extrusion-height": ["get", "extrudeHeight"],
-											"fill-extrusion-opacity": 0.35,
-										}}
-									/>
-								</Source>
-								<Source
-									id="campus-3d-route-glow-src"
-									type="geojson"
-									data={route3dLayers.glowGeoJSON}
-								>
-									<Layer
-										id="campus-3d-route-glow-layer"
-										type="fill-extrusion"
-										paint={{
-											"fill-extrusion-color": ["get", "color"],
-											"fill-extrusion-base": ["get", "baseHeight"],
-											"fill-extrusion-height": ["get", "extrudeHeight"],
-											"fill-extrusion-opacity": 0.42,
-										}}
-									/>
-								</Source>
-								<Source
-									id="campus-3d-route-ribbon-src"
-									type="geojson"
-									data={routeRibbonsSplit.active}
-								>
-									<Layer
-										id="campus-3d-route-layer"
-										type="fill-extrusion"
-										paint={{
-											"fill-extrusion-color": ["get", "color"],
-											"fill-extrusion-base": ["get", "baseHeight"],
-											"fill-extrusion-height": ["get", "extrudeHeight"],
-											"fill-extrusion-opacity": 0.96,
-										}}
-									/>
-								</Source>
-								<Source
-									id="campus-3d-route-stairs-src"
-									type="geojson"
-									data={route3dLayers.stairBeaconsGeoJSON}
-								>
-									<Layer
-										id="campus-3d-route-stairs-ghost-layer"
-										type="fill-extrusion"
-										filter={["==", ["get", "isGhost"], true]}
-										paint={{
-											"fill-extrusion-color": ["get", "color"],
-											"fill-extrusion-base": ["get", "baseHeight"],
-											"fill-extrusion-height": ["get", "extrudeHeight"],
-											"fill-extrusion-opacity": 0.25,
-										}}
-									/>
-									<Layer
-										id="campus-3d-route-stairs-layer"
-										type="fill-extrusion"
-										filter={["!=", ["get", "isGhost"], true]}
-										paint={{
-											"fill-extrusion-color": ["get", "color"],
-											"fill-extrusion-base": ["get", "baseHeight"],
-											"fill-extrusion-height": ["get", "extrudeHeight"],
-											"fill-extrusion-opacity": 0.9,
-										}}
-									/>
-								</Source>
-								{activeRouteEndpoints && (
-									<>
-										<Marker
-											longitude={activeRouteEndpoints.start[0]}
-											latitude={activeRouteEndpoints.start[1]}
-											anchor="center"
-										>
-											<div
-												className="campus-route-pedestrian-marker"
-												title="Xuất phát"
-											>
-												<div className="campus-route-pedestrian-pulse" />
-												<div className="campus-route-pedestrian-badge">
-													<svg
-														width="14"
-														height="14"
-														viewBox="0 0 24 24"
-														fill="none"
-														stroke="currentColor"
-														strokeWidth="2.5"
-														strokeLinecap="round"
-														strokeLinejoin="round"
-													>
-														<circle cx="12" cy="4" r="2" />
-														<path d="m9 20 3-6 3 2 2 4" />
-														<path d="m6 12 3-3 4 2 4-3" />
-														<path d="m10 14-2 7" />
-													</svg>
-												</div>
-											</div>
-										</Marker>
-										<Marker
-											longitude={activeRouteEndpoints.end[0]}
-											latitude={activeRouteEndpoints.end[1]}
-											anchor="bottom"
-										>
-											<div
-												className="campus-route-dest-pin"
-												title="Điểm đến"
-											>
-												<svg
-													className="campus-route-dest-pin__svg"
-													width="26"
-													height="34"
-													viewBox="0 0 24 32"
-													fill="none"
-												>
-													<path
-														d="M12 0C5.37 0 0 5.37 0 12c0 8.5 12 20 12 20s12-11.5 12-20c0-6.63-5.37-12-12-12z"
-														fill="#ef4444"
-														stroke="#ffffff"
-														strokeWidth="1.5"
-													/>
-													<circle cx="12" cy="11" r="4.5" fill="#ffffff" />
-												</svg>
-												<div className="campus-route-dest-pin__shadow" />
-											</div>
-										</Marker>
-									</>
-								)}
-							</>
-						)}
+						{/* 4. Trục thang máy / thang bộ Kiểu B (đường tâm đứng mảnh khi Giãn tầng > 3.5m) */}
+						<Source
+							id="campus-3d-portal-shafts-src"
+							type="geojson"
+							data={portalShaftsGeoJSON}
+						>
+							<Layer
+								id="campus-3d-portal-shafts-layer"
+								type="fill-extrusion"
+								paint={{
+									"fill-extrusion-color": ["get", "color"],
+									"fill-extrusion-base": ["get", "baseHeight"],
+									"fill-extrusion-height": ["get", "extrudeHeight"],
+									"fill-extrusion-opacity": 0.78,
+									"fill-extrusion-vertical-gradient": false,
+								}}
+							/>
+						</Source>
 
 						{/* 5. Lớp Nhãn Tên Khu Vực & Biểu Tượng Cầu Thang / Thang Máy (Nâng theo cao độ tầng 3D) */}
 						<Source
@@ -1681,26 +1581,6 @@ export default function CampusMapView({
 						</div>
 					)}
 				</div>
-
-				{/* Floating Route Summary Pill */}
-				{activeRoute3d && (
-					<div className="campus-3d-slicer-dock">
-						<div className="campus-3d-route-pill">
-							<span>
-								Lộ trình A*: <strong>{activeRoute3d.totalDistanceMeters}m</strong> (~
-								{activeRoute3d.estimatedSeconds}s)
-							</span>
-							<button
-								type="button"
-								className="campus-3d-route-clear"
-								onClick={() => setActiveRoute3d(null)}
-								title="Đóng lộ trình"
-							>
-								<X size={12} />
-							</button>
-						</div>
-					</div>
-				)}
 
 				{/* Floating Colour Legend */}
 				<div className="campus-map-legend">

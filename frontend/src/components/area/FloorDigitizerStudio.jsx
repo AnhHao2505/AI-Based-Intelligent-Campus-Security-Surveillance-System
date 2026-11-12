@@ -70,6 +70,7 @@ import {
 	buildOrientedBoxRing,
 	buildOrientedDoorGeometry,
 	buildSliceWallSegment,
+	collectWeldedDragExclusion,
 	deduplicateFloorVertices,
 	dragWeldedWallVertices,
 	findBoundaryContainingPoint,
@@ -100,6 +101,10 @@ import {
 	registerPortalMapImages,
 	ensurePortalMapImage,
 } from "../../utils/mapPortalIcons";
+import {
+	resolveToolSwitchDraftAction,
+	resolveStudioSelectEntity,
+} from "../../utils/studioToolDraftHelper";
 import "../../styles/FloorDigitizerStudio.css";
 
 const STUDIO_LIGHT = {
@@ -223,6 +228,58 @@ function isClosedRing(ring) {
 	);
 }
 
+/**
+ * Memoized draggable MapLibre handle whose lng/lat props remain fixed to store coords during drag,
+ * preventing react-map-gl Marker.setLngLat() from fighting native pointer drag on every frame.
+ */
+const StaticDragMarker = React.memo(
+	function StaticDragMarker({
+		longitude,
+		latitude,
+		className,
+		title,
+		onDragStart,
+		onDrag,
+		onDragEnd,
+	}) {
+		const handlersRef = useRef({ onDragStart, onDrag, onDragEnd });
+		handlersRef.current = { onDragStart, onDrag, onDragEnd };
+
+		const handleClick = useCallback((e) => {
+			e?.originalEvent?.stopPropagation?.();
+		}, []);
+		const handleDragStart = useCallback((e) => {
+			handlersRef.current.onDragStart?.(e);
+		}, []);
+		const handleDrag = useCallback((e) => {
+			handlersRef.current.onDrag?.(e);
+		}, []);
+		const handleDragEnd = useCallback((e) => {
+			handlersRef.current.onDragEnd?.(e);
+		}, []);
+
+		return (
+			<Marker
+				longitude={longitude}
+				latitude={latitude}
+				anchor="center"
+				draggable
+				onClick={handleClick}
+				onDragStart={handleDragStart}
+				onDrag={handleDrag}
+				onDragEnd={handleDragEnd}
+			>
+				<div className={className} title={title} />
+			</Marker>
+		);
+	},
+	(prev, next) =>
+		prev.longitude === next.longitude &&
+		prev.latitude === next.latitude &&
+		prev.className === next.className &&
+		prev.title === next.title,
+);
+
 export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	const mapRef = useRef(null);
 	const fileInputRef = useRef(null);
@@ -337,7 +394,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	const [isDraggingNavNode, setIsDraggingNavNode] = useState(false);
 	const draggingNavNodeRef = useRef(null);
 	const lastNavDragEndAtRef = useRef(0);
-	const [liveVertexDrag, setLiveVertexDrag] = useState(null); // { kind: "WALL", id, index, coords }
+	const [liveVertexDrag, setLiveVertexDrag] = useState(null); // { kind: "WALL" | "DOOR_MOVE" | "DOOR_WIDTH", id, index, coords, detachSingle, widthMeters }
+	const [isDraggingVertex, setIsDraggingVertex] = useState(false);
+	const draggingVertexRef = useRef(null);
+	const dragRafRef = useRef(null);
+	const pendingDragFrameRef = useRef(null);
 	const [studioCursor, setStudioCursor] = useState("grab");
 
 	// Draft points for multi-click tools
@@ -639,50 +700,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		return { start: firstCoord, end: endCoord };
 	}, [testRouteResult]);
 
-	// Effective store with 60fps live drag preview (avoids polluting Undo history mid-drag)
+	// Effective store only patches real-time NavNode drag; Wall/Door handle drags render lightweight 2D overlays without triggering DCEL rebuilds per frame
 	const effectiveStore = useMemo(() => {
-		if (!liveNavNodeDrag && !liveVertexDrag) return store;
-		let next = store;
-		if (liveNavNodeDrag) {
-			next = {
-				...next,
-				navNodes: (next.navNodes || []).map((n) =>
-					n.id === liveNavNodeDrag.id
-						? { ...n, coords: liveNavNodeDrag.coords }
-						: n,
-				),
-			};
-		}
-		if (liveVertexDrag?.kind === "WALL") {
-			const { id, index, coords, detachSingle } = liveVertexDrag;
-			next = {
-				...next,
-				walls: dragWeldedWallVertices(next.walls || [], {
-					wallId: id,
-					vertexIndex: index,
-					newCoord: coords,
-					detachSingle: Boolean(detachSingle),
-				}),
-			};
-		} else if (liveVertexDrag?.kind === "DOOR_MOVE") {
-			const { id, coords } = liveVertexDrag;
-			next = {
-				...next,
-				doors: (next.doors || []).map((d) =>
-					d.id === id ? { ...d, coords } : d,
-				),
-			};
-		} else if (liveVertexDrag?.kind === "DOOR_WIDTH") {
-			const { id, widthMeters } = liveVertexDrag;
-			next = {
-				...next,
-				doors: (next.doors || []).map((d) =>
-					d.id === id ? { ...d, widthMeters } : d,
-				),
-			};
-		}
-		return next;
-	}, [store, liveNavNodeDrag, liveVertexDrag]);
+		if (!liveNavNodeDrag) return store;
+		return {
+			...store,
+			navNodes: (store.navNodes || []).map((n) =>
+				n.id === liveNavNodeDrag.id
+					? { ...n, coords: liveNavNodeDrag.coords }
+					: n,
+			),
+		};
+	}, [store, liveNavNodeDrag]);
 
 	const matchesScope = useCallback(
 		(bldg, flOrder) =>
@@ -823,7 +852,47 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		});
 	}, [activeBuilding, isAllBuildings, isOpen, currentBuildingMeta]);
 
-	// Clear stale floor/building selections whenever switching building or floor (keep testRouteStart in TEST_ROUTE for multi-floor clicks)
+	const previewWalls = useMemo(() => {
+		if (liveVertexDrag?.kind === "WALL") {
+			return dragWeldedWallVertices(currentFloorWalls, {
+				wallId: liveVertexDrag.id,
+				vertexIndex: liveVertexDrag.index,
+				newCoord: liveVertexDrag.coords,
+				detachSingle: Boolean(liveVertexDrag.detachSingle),
+			});
+		}
+		return currentFloorWalls;
+	}, [currentFloorWalls, liveVertexDrag]);
+
+	const previewDoors = useMemo(() => {
+		if (liveVertexDrag?.kind === "DOOR_MOVE") {
+			return currentFloorDoors.map((d) =>
+				d.id === liveVertexDrag.id ? { ...d, coords: liveVertexDrag.coords } : d,
+			);
+		}
+		if (liveVertexDrag?.kind === "DOOR_WIDTH") {
+			return currentFloorDoors.map((d) =>
+				d.id === liveVertexDrag.id
+					? { ...d, widthMeters: liveVertexDrag.widthMeters }
+					: d,
+			);
+		}
+		return currentFloorDoors;
+	}, [currentFloorDoors, liveVertexDrag]);
+
+	// Cancel pending drag rAF on unmount
+	useEffect(() => {
+		return () => {
+			if (dragRafRef.current != null) {
+				cancelAnimationFrame(dragRafRef.current);
+				dragRafRef.current = null;
+			}
+		};
+	}, []);
+
+	// Clear stale floor/building selections ONLY when switching building or floor (keep auto-committed drafts intact across tool switches)
+	const activeToolRef = useRef(activeTool);
+	activeToolRef.current = activeTool;
 	useEffect(() => {
 		setDraftPoints([]);
 		setChainLastNodeId(null);
@@ -831,10 +900,23 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		setLiveNavNodeDrag(null);
 		liveNavNodeDragRef.current = null;
 		setLiveVertexDrag(null);
+		draggingVertexRef.current = null;
+		setIsDraggingVertex(false);
+		if (activeToolRef.current !== "TEST_ROUTE") {
+			setTestRouteStart(null);
+		}
+	}, [activeBuilding, activeFloorOrder, selectEntity]);
+
+	// Tool switch transient cleanup without discarding committed walls or in-flight auto-commit selection
+	useEffect(() => {
+		setChainLastNodeId(null);
+		setLiveVertexDrag(null);
+		draggingVertexRef.current = null;
+		setIsDraggingVertex(false);
 		if (activeTool !== "TEST_ROUTE") {
 			setTestRouteStart(null);
 		}
-	}, [activeBuilding, activeFloorOrder, activeTool, selectEntity]);
+	}, [activeTool]);
 
 	const playbackSample = useMemo(() => {
 		if (!testRouteResult?.geojson) return null;
@@ -1132,8 +1214,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 	// Resolve snapped coordinate using screen-pixel radius (VERTEX -> MIDPOINT -> EDGE).
 	// Suppressed during CALIBRATE_PNG, TEST_ROUTE, or while holding Alt; DOOR snaps strictly to wall segments.
+	// Accepts legacy string excludeOwnerId OR { excludeOwnerId, excludeOwnerIds, excludeCoord, excludeCoordRadiusMeters }.
 	const resolveSnappedCoord = useCallback(
-		(rawLngLat, excludeOwnerId = null) => {
+		(rawLngLat, excludeOpts = null) => {
 			if (
 				altKeyDown ||
 				activeTool === "CALIBRATE_PNG" ||
@@ -1141,6 +1224,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			) {
 				return null;
 			}
+			const normalizedExclude =
+				excludeOpts && typeof excludeOpts === "object"
+					? excludeOpts
+					: { excludeOwnerId: excludeOpts };
 			const mapInst = mapRef.current?.getMap?.();
 			const projectFn = mapInst?.project
 				? (c) => mapInst.project(c)
@@ -1161,7 +1248,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				projectFn,
 				vertices: existingGeometryForSnapping.vertices,
 				segments: existingGeometryForSnapping.segments,
-				excludeOwnerId,
+				excludeOwnerId: normalizedExclude.excludeOwnerId || null,
+				excludeOwnerIds: normalizedExclude.excludeOwnerIds || null,
+				excludeCoord: normalizedExclude.excludeCoord || null,
+				excludeCoordRadiusMeters:
+					normalizedExclude.excludeCoordRadiusMeters ?? 0.04,
 				altKeyDown,
 			});
 		},
@@ -1292,6 +1383,25 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			setStore,
 			showToast,
 		],
+	);
+
+	// Switch CAD tool safely: auto-commits multi-point WALL_DRAW (>=2 pts) / ROOM_POLY (>=3 pts) instead of wiping draft
+	const switchTool = useCallback(
+		(nextTool) => {
+			const decision = resolveToolSwitchDraftAction(
+				activeTool,
+				draftPoints,
+				nextTool,
+			);
+			if (decision.action === "NOOP") return;
+			if (decision.shouldCommit) {
+				finishPolygonDraft(decision.closeOverride);
+			} else if (decision.clearDraft) {
+				setDraftPoints([]);
+			}
+			setActiveTool(nextTool);
+		},
+		[activeTool, draftPoints, finishPolygonDraft],
 	);
 
 	// Demote selected ROOM/VOID face back to CORRIDOR without deleting surrounding walls
@@ -1707,32 +1817,23 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			const k = e.key.toLowerCase();
 			if (!e.ctrlKey && !e.metaKey && !e.altKey) {
 				if (k === "v") {
-					setActiveTool("SELECT");
-					setDraftPoints([]);
+					switchTool("SELECT");
 				} else if (k === "b") {
-					setActiveTool("ROOM_BOX");
-					setDraftPoints([]);
+					switchTool("ROOM_BOX");
 				} else if (k === "p") {
-					setActiveTool("ROOM_POLY");
-					setDraftPoints([]);
+					switchTool("ROOM_POLY");
 				} else if (k === "s") {
-					setActiveTool("ROOM_SLICE");
-					setDraftPoints([]);
+					switchTool("ROOM_SLICE");
 				} else if (k === "w" || k === "o") {
-					setActiveTool("WALL_DRAW");
-					setDraftPoints([]);
+					switchTool("WALL_DRAW");
 				} else if (k === "d") {
-					setActiveTool("DOOR");
-					setDraftPoints([]);
+					switchTool("DOOR");
 				} else if (k === "n") {
-					setActiveTool("NAV_GRAPH");
-					setDraftPoints([]);
+					switchTool("NAV_GRAPH");
 				} else if (k === "t") {
-					setActiveTool("TEST_ROUTE");
-					setTestRouteStart(null);
+					switchTool("TEST_ROUTE");
 				} else if (k === "c") {
-					setActiveTool("CALIBRATE_PNG");
-					setDraftPoints([]);
+					switchTool("CALIBRATE_PNG");
 				}
 			}
 		};
@@ -1766,6 +1867,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		showShortcutsModal,
 		confirmModal.isOpen,
 		finishPolygonDraft,
+		switchTool,
 		handleUndo,
 		handleRedo,
 		handleSaveStudio,
@@ -2046,6 +2148,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				return;
 			}
 
+			// Do not let Map mousemove clobber snap state while dragging a Marker (pointerEvents="none" bubbles through MapLibre Marker)
+			if (draggingVertexRef.current) {
+				return;
+			}
+
 			if (marqueeStartRef.current) {
 				marqueeCurrentRef.current = raw;
 				setMarqueeCurrent(raw);
@@ -2105,6 +2212,20 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		finishMarqueeSelection();
 	}, [finishNavNodeDrag, finishMarqueeSelection]);
 
+	// Double-click completes WALL_DRAW (>=2 pts) or closes ROOM_POLY (>=3 pts) without zooming the viewport
+	const handleMapDblClick = useCallback(
+		(e) => {
+			if (
+				(activeTool === "WALL_DRAW" && draftPoints.length >= 2) ||
+				(activeTool === "ROOM_POLY" && draftPoints.length >= 3)
+			) {
+				e?.preventDefault?.();
+				finishPolygonDraft(activeTool === "ROOM_POLY");
+			}
+		},
+		[activeTool, draftPoints.length, finishPolygonDraft],
+	);
+
 	// Map Click Handler for All Tools
 	const handleMapClick = useCallback(
 		(e) => {
@@ -2117,8 +2238,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				return;
 			}
 			const raw = [
-				Number(e.lngLat.lng.toFixed(6)),
-				Number(e.lngLat.lat.toFixed(6)),
+				Number(e.lngLat.lng.toFixed(7)),
+				Number(e.lngLat.lat.toFixed(7)),
 			];
 			const snapResult = resolveSnappedCoord(raw);
 			const pt = snapResult ? snapResult.coord : raw;
@@ -2130,129 +2251,48 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					e.originalEvent?.ctrlKey ||
 					e.originalEvent?.metaKey,
 				);
-				const features = e.features || [];
+				const mapInst = mapRef.current?.getMap?.();
+				const projectFn = mapInst?.project ? (c) => mapInst.project(c) : null;
+				const picked = resolveStudioSelectEntity({
+					rawLngLat: raw,
+					ptLngLat: pt,
+					features: e.features || [],
+					isMulti,
+					layerVisibility,
+					layerLocks,
+					walls: currentFloorWalls,
+					doors: currentFloorDoors,
+					faces: currentFloorFaces,
+					projectFn,
+				});
 
-				const nodeFeat =
-					layerVisibility.navGraph && !layerLocks.navGraph
-						? features.find(
-								(f) =>
-									f?.layer?.id === "studio-nav-nodes-layer" ||
-									f?.layer?.id === "studio-nav-portals-layer",
-							)
-						: null;
-				const doorFeat =
-					layerVisibility.doors && !layerLocks.doors
-						? features.find(
-								(f) =>
-									f?.layer?.id === "studio-doors-fill-layer" ||
-									f?.layer?.id === "studio-doors-outline-layer" ||
-									f?.layer?.id === "studio-doors-layer",
-							)
-						: null;
-				const wallFeat =
-					layerVisibility.walls && !layerLocks.walls
-						? features.find(
-								(f) =>
-									f?.layer?.id === "studio-walls-hit-layer" ||
-									f?.layer?.id === "studio-walls-line-layer",
-							)
-						: null;
-				const faceFeat =
-					layerVisibility.faces && !layerLocks.faces
-						? features.find(
-								(f) =>
-									f?.layer?.id === "studio-faces-fill" ||
-									f?.layer?.id === "studio-faces-outline" ||
-									f?.layer?.id === "studio-rooms-extrusion",
-							)
-						: null;
-
-				// Priority 1: Nav Node
-				if (nodeFeat && !isMulti) {
-					const nId = nodeFeat.properties?.id;
-					if (nId) {
-						selectEntity("NODE", nId);
-						setActiveInspectorTab("inspector");
-						return;
-					}
+				if (picked?.type === "NODE") {
+					selectEntity("NODE", picked.id);
+					setActiveInspectorTab("inspector");
+					return;
 				}
-
-				// Priority 2: Wall-mounted Door (hit feature or < 0.9m proximity)
-				if (!isMulti && layerVisibility.doors && !layerLocks.doors) {
-					let dId = doorFeat?.properties?.id || null;
-					if (!dId) {
-						let bestDoor = null;
-						let bestDoorDist = 0.9;
-						for (const d of currentFloorDoors) {
-							if (!Array.isArray(d.coords)) continue;
-							const dm = approximateDistanceMeters(raw, d.coords);
-							if (dm < bestDoorDist) {
-								bestDoorDist = dm;
-								bestDoor = d;
-							}
-						}
-						dId = bestDoor?.id || null;
-					}
-					if (dId) {
-						selectEntity("DOOR", dId);
-						setActiveInspectorTab("inspector");
-						return;
-					}
+				if (picked?.type === "DOOR") {
+					selectEntity("DOOR", picked.id);
+					setActiveInspectorTab("inspector");
+					return;
 				}
-
-				// Priority 3: Wall segment / polyline
-				if (!isMulti && layerVisibility.walls && !layerLocks.walls) {
-					let wId = wallFeat?.properties?.id || null;
-					if (!wId) {
-						let bestWall = null;
-						let bestWallDist = 1.2;
-						for (const w of currentFloorWalls) {
-							for (let i = 0; i < (w.line?.length || 0) - 1; i++) {
-								const dm = distancePointToSegmentMeters(
-									raw,
-									w.line[i],
-									w.line[i + 1],
-								);
-								if (dm < bestWallDist) {
-									bestWallDist = dm;
-									bestWall = w;
-								}
-							}
-						}
-						wId = bestWall?.id || null;
-					}
-					if (wId) {
-						selectEntity("WALL", wId);
-						setActiveInspectorTab("inspector");
-						return;
-					}
+				if (picked?.type === "WALL") {
+					selectEntity("WALL", picked.id);
+					setActiveInspectorTab("inspector");
+					return;
 				}
-
-				// Priority 4: Extracted Planar Face (ROOM / CORRIDOR / VOID)
-				let fId = faceFeat?.properties?.id || null;
-				if (!fId && layerVisibility.faces && !layerLocks.faces) {
-					const matchingFaces = currentFloorFaces
-						.filter(
-							(f) =>
-								isPointInPolygonWithHoles(raw, f.ring, f.holes || []) ||
-								isPointInPolygonWithHoles(pt, f.ring, f.holes || []),
-						)
-						.sort((a, b) => (a.areaSqm || 0) - (b.areaSqm || 0));
-					if (matchingFaces[0]) fId = matchingFaces[0].id;
-				}
-
-				if (fId && !layerLocks.faces) {
+				if (picked?.type === "FACE") {
 					if (isMulti) {
 						setSelectedRoomIds((prev) =>
-							prev.includes(fId)
-								? prev.filter((id) => id !== fId)
-								: [...prev, fId],
+							prev.includes(picked.id)
+								? prev.filter((id) => id !== picked.id)
+								: [...prev, picked.id],
 						);
 						setSelectedWallId(null);
 						setSelectedDoorId(null);
 						setSelectedNavNodeId(null);
 					} else {
-						selectEntity("FACE", fId);
+						selectEntity("FACE", picked.id);
 					}
 					setActiveInspectorTab("inspector");
 					return;
@@ -2996,40 +3036,131 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		],
 	);
 
-	// Live 60fps vertex/endpoint dragging with magnetic welded junction snap & single Undo commit on dragEnd
+	const setDragPanEnabled = useCallback(
+		(enabled) => {
+			const mapInst = mapRef.current?.getMap?.();
+			if (!mapInst?.dragPan) return;
+			if (enabled) {
+				if (!(activeTool === "SELECT" && shiftKeyDown)) {
+					mapInst.dragPan.enable?.();
+				}
+			} else {
+				mapInst.dragPan.disable?.();
+			}
+		},
+		[activeTool, shiftKeyDown],
+	);
+
+	const scheduleVertexDragFrame = useCallback((nextDrag, nextSnap) => {
+		pendingDragFrameRef.current = { nextDrag, nextSnap };
+		if (dragRafRef.current != null) return;
+		dragRafRef.current = requestAnimationFrame(() => {
+			dragRafRef.current = null;
+			const frame = pendingDragFrameRef.current;
+			pendingDragFrameRef.current = null;
+			if (!frame || !draggingVertexRef.current) return;
+			setLiveVertexDrag(frame.nextDrag);
+			if (frame.nextSnap) {
+				setSnappedCoord(frame.nextSnap.coord);
+				setSnapType(frame.nextSnap.type);
+				setHoverCoord(frame.nextSnap.coord);
+			} else {
+				setSnappedCoord(null);
+				setSnapType(null);
+				setHoverCoord(frame.nextDrag?.coords || null);
+			}
+		});
+	}, []);
+
+	const handleVertexDragStart = useCallback(
+		(kind, id, index, _lngLat, origEvt = null) => {
+			if (!id) return;
+			const detachSingle = Boolean(origEvt?.altKey || altKeyDown);
+			const exclusion =
+				kind === "WALL"
+					? collectWeldedDragExclusion({
+							walls: storeRef.current?.walls || [],
+							wallId: id,
+							vertexIndex: index,
+							detachSingle,
+						})
+					: { origCoord: null, excludeOwnerIds: new Set([id]), excludeCoord: null };
+			draggingVertexRef.current = { kind, id, index, detachSingle, exclusion };
+			setIsDraggingVertex(true);
+			setDragPanEnabled(false);
+		},
+		[altKeyDown, setDragPanEnabled],
+	);
+
+	// Live 60fps rAF vertex/endpoint dragging with welded exclusion & single Undo commit on dragEnd
 	const handleVertexDragLive = useCallback(
 		(kind, id, index, lngLat, origEvt = null) => {
 			if (!id || !lngLat) return;
 			const detachSingle = Boolean(origEvt?.altKey || altKeyDown);
-			const raw = [
-				Number(lngLat.lng.toFixed(6)),
-				Number(lngLat.lat.toFixed(6)),
-			];
-			const snapResult = resolveSnappedCoord(raw, id);
-			const pt = snapResult ? snapResult.coord : raw;
-			setLiveVertexDrag({ kind, id, index, coords: pt, detachSingle });
-			if (snapResult) {
-				setSnappedCoord(snapResult.coord);
-				setSnapType(snapResult.type);
-				setHoverCoord(snapResult.coord);
-			} else {
-				setSnappedCoord(null);
-				setSnapType(null);
-				setHoverCoord(raw);
+			let activeDrag = draggingVertexRef.current;
+			if (
+				!activeDrag ||
+				activeDrag.id !== id ||
+				activeDrag.index !== index ||
+				activeDrag.detachSingle !== detachSingle
+			) {
+				const exclusion =
+					kind === "WALL"
+						? collectWeldedDragExclusion({
+								walls: storeRef.current?.walls || [],
+								wallId: id,
+								vertexIndex: index,
+								detachSingle,
+							})
+						: { origCoord: null, excludeOwnerIds: new Set([id]), excludeCoord: null };
+				activeDrag = { kind, id, index, detachSingle, exclusion };
+				draggingVertexRef.current = activeDrag;
+				setIsDraggingVertex(true);
+				setDragPanEnabled(false);
 			}
+			const raw = [lngLat.lng, lngLat.lat];
+			const snapResult = resolveSnappedCoord(raw, activeDrag.exclusion);
+			const pt = snapResult ? snapResult.coord : raw;
+			scheduleVertexDragFrame(
+				{ kind, id, index, coords: pt, detachSingle },
+				snapResult,
+			);
 		},
-		[resolveSnappedCoord, altKeyDown],
+		[resolveSnappedCoord, altKeyDown, scheduleVertexDragFrame, setDragPanEnabled],
 	);
 
 	const handleVertexDragEnd = useCallback(
 		(kind, id, index, lngLat, origEvt = null) => {
-			if (!id || !lngLat) return;
+			if (dragRafRef.current != null) {
+				cancelAnimationFrame(dragRafRef.current);
+				dragRafRef.current = null;
+			}
+			pendingDragFrameRef.current = null;
+			draggingVertexRef.current = null;
+			setIsDraggingVertex(false);
+			setDragPanEnabled(true);
+
+			if (!id || !lngLat) {
+				setLiveVertexDrag(null);
+				setSnappedCoord(null);
+				setSnapType(null);
+				return;
+			}
 			const detachSingle = Boolean(origEvt?.altKey || altKeyDown);
+			const exclusion =
+				kind === "WALL"
+					? collectWeldedDragExclusion({
+							walls: storeRef.current?.walls || [],
+							wallId: id,
+							vertexIndex: index,
+							detachSingle,
+						})
+					: { excludeOwnerId: id };
 			const raw = [
-				Number(lngLat.lng.toFixed(6)),
-				Number(lngLat.lat.toFixed(6)),
+				Number(lngLat.lng.toFixed(7)),
+				Number(lngLat.lat.toFixed(7)),
 			];
-			const snapResult = resolveSnappedCoord(raw, id);
+			const snapResult = resolveSnappedCoord(raw, exclusion);
 			const newPt = snapResult ? snapResult.coord : raw;
 			setLiveVertexDrag(null);
 			setSnappedCoord(null);
@@ -3051,17 +3182,28 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				return prev;
 			});
 		},
-		[resolveSnappedCoord, altKeyDown, setStore],
+		[resolveSnappedCoord, altKeyDown, setStore, setDragPanEnabled],
 	);
 
 	// Live 60fps Door Midpoint Slide & Jamb Width Resize along host wall segment
+	const handleDoorDragStart = useCallback(
+		(kind, doorId) => {
+			draggingVertexRef.current = { kind, id: doorId };
+			setIsDraggingVertex(true);
+			setDragPanEnabled(false);
+		},
+		[setDragPanEnabled],
+	);
+
 	const handleDoorMoveDragLive = useCallback(
 		(doorId, lngLat) => {
 			if (!doorId || !lngLat) return;
-			const raw = [
-				Number(lngLat.lng.toFixed(6)),
-				Number(lngLat.lat.toFixed(6)),
-			];
+			if (!draggingVertexRef.current) {
+				draggingVertexRef.current = { kind: "DOOR_MOVE", id: doorId };
+				setIsDraggingVertex(true);
+				setDragPanEnabled(false);
+			}
+			const raw = [lngLat.lng, lngLat.lat];
 			const snap = resolveBestSnapTarget({
 				rawLngLat: raw,
 				projectFn: mapRef.current?.getMap?.()?.project
@@ -3074,17 +3216,33 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				edgeRadiusPx: 26,
 			});
 			const nextCoord = snap ? snap.coord : raw;
-			setLiveVertexDrag({ kind: "DOOR_MOVE", id: doorId, coords: nextCoord });
+			scheduleVertexDragFrame(
+				{ kind: "DOOR_MOVE", id: doorId, coords: nextCoord },
+				snap,
+			);
 		},
-		[existingGeometryForSnapping.wallSegments],
+		[existingGeometryForSnapping.wallSegments, scheduleVertexDragFrame, setDragPanEnabled],
 	);
 
 	const handleDoorMoveDragEnd = useCallback(
 		(doorId, lngLat) => {
-			if (!doorId || !lngLat) return;
+			if (dragRafRef.current != null) {
+				cancelAnimationFrame(dragRafRef.current);
+				dragRafRef.current = null;
+			}
+			pendingDragFrameRef.current = null;
+			draggingVertexRef.current = null;
+			setIsDraggingVertex(false);
+			setDragPanEnabled(true);
+			setSnappedCoord(null);
+			setSnapType(null);
+			if (!doorId || !lngLat) {
+				setLiveVertexDrag(null);
+				return;
+			}
 			const raw = [
-				Number(lngLat.lng.toFixed(6)),
-				Number(lngLat.lat.toFixed(6)),
+				Number(lngLat.lng.toFixed(7)),
+				Number(lngLat.lat.toFixed(7)),
 			];
 			const snap = resolveBestSnapTarget({
 				rawLngLat: raw,
@@ -3110,35 +3268,47 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			);
 			showToast("Đã trượt vị trí Cửa dọc theo tường.");
 		},
-		[existingGeometryForSnapping.wallSegments, setStore, showToast],
+		[existingGeometryForSnapping.wallSegments, setStore, showToast, setDragPanEnabled],
 	);
 
 	const handleDoorJambDragLive = useCallback(
 		(door, lngLat) => {
 			if (!door || !lngLat) return;
-			const raw = [
-				Number(lngLat.lng.toFixed(6)),
-				Number(lngLat.lat.toFixed(6)),
-			];
+			if (!draggingVertexRef.current) {
+				draggingVertexRef.current = { kind: "DOOR_WIDTH", id: door.id };
+				setIsDraggingVertex(true);
+				setDragPanEnabled(false);
+			}
+			const raw = [lngLat.lng, lngLat.lat];
 			const halfDist = approximateDistanceMeters(door.coords, raw);
 			const nextW = Number(
 				Math.max(0.5, Math.min(10.0, halfDist * 2)).toFixed(2),
 			);
-			setLiveVertexDrag({
-				kind: "DOOR_WIDTH",
-				id: door.id,
-				widthMeters: nextW,
-			});
+			scheduleVertexDragFrame(
+				{ kind: "DOOR_WIDTH", id: door.id, widthMeters: nextW },
+				null,
+			);
 		},
-		[],
+		[scheduleVertexDragFrame, setDragPanEnabled],
 	);
 
 	const handleDoorJambDragEnd = useCallback(
 		(door, lngLat) => {
-			if (!door || !lngLat) return;
+			if (dragRafRef.current != null) {
+				cancelAnimationFrame(dragRafRef.current);
+				dragRafRef.current = null;
+			}
+			pendingDragFrameRef.current = null;
+			draggingVertexRef.current = null;
+			setIsDraggingVertex(false);
+			setDragPanEnabled(true);
+			if (!door || !lngLat) {
+				setLiveVertexDrag(null);
+				return;
+			}
 			const raw = [
-				Number(lngLat.lng.toFixed(6)),
-				Number(lngLat.lat.toFixed(6)),
+				Number(lngLat.lng.toFixed(7)),
+				Number(lngLat.lat.toFixed(7)),
 			];
 			const halfDist = approximateDistanceMeters(door.coords, raw);
 			const nextW = Number(
@@ -3156,7 +3326,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			);
 			showToast(`Đã chỉnh bề rộng Cửa thành ${nextW}m.`);
 		},
-		[setStore, showToast],
+		[setStore, showToast, setDragPanEnabled],
 	);
 
 	// Insert a new bend/joint vertex at edge midpoint on selected wall polyline
@@ -3205,11 +3375,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		[vector3d],
 	);
 
-	// 2D Unified Wall Polylines for crisp selection & dragging
+	// 2D Unified Wall Polylines for crisp selection & 60fps drag preview (uses previewWalls)
 	const studioWallLinesGeoJSON = useMemo(() => {
 		const features = [];
 		if (layerVisibility.walls) {
-			for (const w of currentFloorWalls) {
+			for (const w of previewWalls) {
 				if (!Array.isArray(w.line) || w.line.length < 2) continue;
 				const closed = isClosedRing(w.line);
 				features.push({
@@ -3228,7 +3398,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			}
 		}
 		return { type: "FeatureCollection", features };
-	}, [layerVisibility.walls, currentFloorWalls, selectedWallId]);
+	}, [layerVisibility.walls, previewWalls, selectedWallId]);
 
 	// 2D Extracted Planar Faces GeoJSON (ROOM / CORRIDOR / VOID) on active scope
 	const studioFacesGeoJSON = useMemo(() => {
@@ -3281,7 +3451,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		}
 		const features = [];
 
-		for (const d of currentFloorDoors) {
+		for (const d of previewDoors) {
 			if (!Array.isArray(d.coords)) continue;
 			const doorBldg = resolveCanonicalBuildingName(d.building) || d.building;
 			const flOrder = Number(d.floorOrder) || 0;
@@ -3391,7 +3561,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		return { type: "FeatureCollection", features };
 	}, [
 		layerVisibility.doors,
-		currentFloorDoors,
+		previewDoors,
 		floorWallModels,
 		currentFloorModel,
 		selectedDoorId,
@@ -3401,11 +3571,59 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		isAllScope,
 	]);
 
+	// 3D Hover Preview box while attaching Door [D] in Studio 3D mode
+	const studioDoor3dPreviewGeoJSON = useMemo(() => {
+		if (
+			!is3dPreview ||
+			!layerVisibility.doors ||
+			activeTool !== "DOOR" ||
+			!snappedCoord ||
+			isAllScope
+		) {
+			return { type: "FeatureCollection", features: [] };
+		}
+		const wallSegs = currentFloorModel?.wallSegments || [];
+		const ghostGeom = buildOrientedDoorGeometry(
+			{ id: "door-3d-preview", coords: snappedCoord, widthMeters: 1.2 },
+			wallSegs,
+		);
+		if (!ghostGeom) return { type: "FeatureCollection", features: [] };
+		const floorBase = (Number(scopeFloorNum) || 0) * FLOOR_ELEVATION_STEP;
+		return {
+			type: "FeatureCollection",
+			features: [
+				{
+					type: "Feature",
+					id: "door-3d-preview-feat",
+					properties: {
+						baseHeight: floorBase + FLOOR_SLAB_HEIGHT,
+						extrudeHeight:
+							floorBase +
+							FLOOR_SLAB_HEIGHT +
+							(ghostGeom.isPerimeter ? 2.2 : 1.35),
+					},
+					geometry: {
+						type: "Polygon",
+						coordinates: [ghostGeom.boxPolygon],
+					},
+				},
+			],
+		};
+	}, [
+		is3dPreview,
+		layerVisibility.doors,
+		activeTool,
+		snappedCoord,
+		isAllScope,
+		currentFloorModel,
+		scopeFloorNum,
+	]);
+
 	// 2D Deduplicated Corner/Junction Dots & Open Dead-end Dots across active walls (renders at zoom >= 16.5 for Mappedin snap clarity)
 	const studioVerticesGeoJSON = useMemo(() => {
 		const features = [];
 		if (layerVisibility.walls) {
-			const uniqueVerts = deduplicateFloorVertices(currentFloorWalls, {
+			const uniqueVerts = deduplicateFloorVertices(previewWalls, {
 				selectedWallId,
 			});
 			for (const uv of uniqueVerts) {
@@ -3435,7 +3653,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			}
 		}
 		return { type: "FeatureCollection", features };
-	}, [layerVisibility.walls, currentFloorWalls, currentFloorModel, selectedWallId]);
+	}, [layerVisibility.walls, previewWalls, currentFloorModel, selectedWallId]);
 
 	// 3D Test Route Ribbons for Studio 3D Preview
 	const studioRoute3dLayers = useMemo(
@@ -4227,10 +4445,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					<button
 						type="button"
 						className={`digitizer-rail-btn ${activeTool === "SELECT" ? "is-active" : ""}`}
-						onClick={() => {
-							setActiveTool("SELECT");
-							setDraftPoints([]);
-						}}
+						onClick={() => switchTool("SELECT")}
 						title="Chọn [V]"
 						aria-label="Chọn [V]"
 					>
@@ -4243,10 +4458,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					<button
 						type="button"
 						className={`digitizer-rail-btn ${activeTool === "ROOM_BOX" ? "is-active" : ""}`}
-						onClick={() => {
-							setActiveTool("ROOM_BOX");
-							setDraftPoints([]);
-						}}
+						onClick={() => switchTool("ROOM_BOX")}
 						title="Tạo phòng [B]"
 						aria-label="Tạo phòng [B]"
 					>
@@ -4257,10 +4469,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					<button
 						type="button"
 						className={`digitizer-rail-btn ${activeTool === "ROOM_POLY" ? "is-active" : ""}`}
-						onClick={() => {
-							setActiveTool("ROOM_POLY");
-							setDraftPoints([]);
-						}}
+						onClick={() => switchTool("ROOM_POLY")}
 						title="Đa giác [P]"
 						aria-label="Đa giác [P]"
 					>
@@ -4271,10 +4480,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					<button
 						type="button"
 						className={`digitizer-rail-btn ${activeTool === "ROOM_SLICE" ? "is-active" : ""}`}
-						onClick={() => {
-							setActiveTool("ROOM_SLICE");
-							setDraftPoints([]);
-						}}
+						onClick={() => switchTool("ROOM_SLICE")}
 						title="Cắt phòng [S]"
 						aria-label="Cắt phòng [S]"
 					>
@@ -4287,10 +4493,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					<button
 						type="button"
 						className={`digitizer-rail-btn ${activeTool === "WALL_DRAW" ? "is-active" : ""}`}
-						onClick={() => {
-							setActiveTool("WALL_DRAW");
-							setDraftPoints([]);
-						}}
+						onClick={() => switchTool("WALL_DRAW")}
 						title="Vẽ tường (khép kín / vách ngăn) [W]"
 						aria-label="Vẽ tường [W]"
 					>
@@ -4301,10 +4504,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					<button
 						type="button"
 						className={`digitizer-rail-btn ${activeTool === "DOOR" ? "is-active" : ""}`}
-						onClick={() => {
-							setActiveTool("DOOR");
-							setDraftPoints([]);
-						}}
+						onClick={() => switchTool("DOOR")}
 						title="Gắn cửa lên tường [D]"
 						aria-label="Gắn cửa [D]"
 					>
@@ -4317,10 +4517,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					<button
 						type="button"
 						className={`digitizer-rail-btn ${activeTool === "NAV_GRAPH" ? "is-active" : ""}`}
-						onClick={() => {
-							setActiveTool("NAV_GRAPH");
-							setDraftPoints([]);
-						}}
+						onClick={() => switchTool("NAV_GRAPH")}
 						title="Đồ thị [N]"
 						aria-label="Đồ thị [N]"
 					>
@@ -4331,10 +4528,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					<button
 						type="button"
 						className={`digitizer-rail-btn ${activeTool === "TEST_ROUTE" ? "is-active" : ""}`}
-						onClick={() => {
-							setActiveTool("TEST_ROUTE");
-							setTestRouteStart(null);
-						}}
+						onClick={() => switchTool("TEST_ROUTE")}
 						title="Tìm đường [T]"
 						aria-label="Tìm đường [T]"
 					>
@@ -4347,10 +4541,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					<button
 						type="button"
 						className={`digitizer-rail-btn ${activeTool === "CALIBRATE_PNG" ? "is-active" : ""}`}
-						onClick={() => {
-							setActiveTool("CALIBRATE_PNG");
-							setDraftPoints([]);
-						}}
+						onClick={() => switchTool("CALIBRATE_PNG")}
 						title="Căn chỉnh ảnh [C]"
 						aria-label="Căn chỉnh ảnh [C]"
 					>
@@ -4665,6 +4856,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							map.setLight?.(STUDIO_LIGHT);
 						}}
 						onClick={handleMapClick}
+						onDblClick={handleMapDblClick}
 						onMouseMove={handleMapMouseMove}
 						onMouseDown={handleMapMouseDown}
 						onMouseUp={handleMapMouseUp}
@@ -4691,8 +4883,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						minZoom={14}
 						maxZoom={22}
 						boxZoom={false}
+						doubleClickZoom={
+							activeTool !== "WALL_DRAW" && activeTool !== "ROOM_POLY"
+						}
 						dragPan={
-							!isDraggingNavNode && !(activeTool === "SELECT" && shiftKeyDown)
+							!isDraggingNavNode &&
+							!isDraggingVertex &&
+							!(activeTool === "SELECT" && shiftKeyDown)
 						}
 					>
 						<NavigationControl
@@ -4875,7 +5072,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 												0.24,
 												"VOID",
 												0.2,
-												0.09,
+												0.16,
 											],
 										],
 									}}
@@ -4898,8 +5095,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 												"#34d399",
 											],
 										],
-										"line-width": ["case", ["get", "isSelected"], 2.4, 1.2],
-										"line-opacity": 0.78,
+										"line-width": ["case", ["get", "isSelected"], 2.4, 1.5],
+										"line-opacity": 0.85,
 									}}
 								/>
 							</Source>
@@ -4918,7 +5115,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									layout={{ "line-cap": "round", "line-join": "round" }}
 									paint={{
 										"line-color": "#000000",
-										"line-width": 14,
+										"line-width": 8,
 										"line-opacity": 0.01,
 									}}
 								/>
@@ -5146,6 +5343,26 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										],
 										"circle-stroke-width": 1.6,
 										"circle-stroke-color": "#ffffff",
+									}}
+								/>
+							</Source>
+						)}
+
+						{/* 5b-bis. Live 3D Door Hover Preview when attaching doors in 3D view */}
+						{is3dPreview && layerVisibility.doors && (
+							<Source
+								id="studio-door-3d-preview-src"
+								type="geojson"
+								data={studioDoor3dPreviewGeoJSON}
+							>
+								<Layer
+									id="studio-door-3d-preview-layer"
+									type="fill-extrusion"
+									paint={{
+										"fill-extrusion-color": "#fb7185",
+										"fill-extrusion-base": ["get", "baseHeight"],
+										"fill-extrusion-height": ["get", "extrudeHeight"],
+										"fill-extrusion-opacity": 0.72,
 									}}
 								/>
 							</Source>
@@ -5619,13 +5836,21 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								? singleSelectedWall.line.slice(0, -1)
 								: singleSelectedWall.line || []
 							).map((pt, idx) => (
-								<Marker
+								<StaticDragMarker
 									key={`wv-${singleSelectedWall.id}-${idx}`}
 									longitude={pt[0]}
 									latitude={pt[1]}
-									anchor="center"
-									draggable
-									onClick={(e) => e?.originalEvent?.stopPropagation?.()}
+									className="digitizer-vertex-handle digitizer-vertex-handle--wall"
+									title="Kéo để di chuyển góc tường (Giữ Alt: tách rời 1 đầu tường riêng)"
+									onDragStart={(e) =>
+										handleVertexDragStart(
+											"WALL",
+											singleSelectedWall.id,
+											idx,
+											e.lngLat,
+											e.originalEvent,
+										)
+									}
 									onDrag={(e) =>
 										handleVertexDragLive(
 											"WALL",
@@ -5644,12 +5869,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											e.originalEvent,
 										)
 									}
-								>
-									<div
-										className="digitizer-vertex-handle digitizer-vertex-handle--wall"
-										title="Kéo để di chuyển góc tường (Giữ Alt: tách rời 1 đầu tường riêng)"
-									/>
-								</Marker>
+								/>
 							))}
 
 						{/* 9b. Interactive Door Handles (Midpoint Slide + Left/Right Jamb Width Resize) */}
@@ -5658,49 +5878,43 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							activeTool === "SELECT" &&
 							!layerLocks.doors && (
 								<>
-									<Marker
+									<StaticDragMarker
 										key={`door-mid-${singleSelectedDoor.id}`}
 										longitude={singleSelectedDoorGeom.midpoint[0]}
 										latitude={singleSelectedDoorGeom.midpoint[1]}
-										anchor="center"
-										draggable
-										onClick={(e) => e?.originalEvent?.stopPropagation?.()}
+										className="digitizer-door-handle digitizer-door-handle--mid"
+										title="Kéo tâm để trượt Cửa dọc theo tường (Node trung điểm A*)"
+										onDragStart={() =>
+											handleDoorDragStart("DOOR_MOVE", singleSelectedDoor.id)
+										}
 										onDrag={(e) =>
 											handleDoorMoveDragLive(singleSelectedDoor.id, e.lngLat)
 										}
 										onDragEnd={(e) =>
 											handleDoorMoveDragEnd(singleSelectedDoor.id, e.lngLat)
 										}
-									>
-										<div
-											className="digitizer-door-handle digitizer-door-handle--mid"
-											title="Kéo tâm để trượt Cửa dọc theo tường (Node trung điểm A*)"
-										/>
-									</Marker>
+									/>
 
 									{[
 										{ key: "jambA", pt: singleSelectedDoorGeom.jambA },
 										{ key: "jambB", pt: singleSelectedDoorGeom.jambB },
 									].map((jb) => (
-										<Marker
+										<StaticDragMarker
 											key={`door-${jb.key}-${singleSelectedDoor.id}`}
 											longitude={jb.pt[0]}
 											latitude={jb.pt[1]}
-											anchor="center"
-											draggable
-											onClick={(e) => e?.originalEvent?.stopPropagation?.()}
+											className="digitizer-door-handle digitizer-door-handle--jamb"
+											title={`Kéo mép cửa để chỉnh độ rộng (${singleSelectedDoorGeom.widthMeters}m)`}
+											onDragStart={() =>
+												handleDoorDragStart("DOOR_WIDTH", singleSelectedDoor.id)
+											}
 											onDrag={(e) =>
 												handleDoorJambDragLive(singleSelectedDoor, e.lngLat)
 											}
 											onDragEnd={(e) =>
 												handleDoorJambDragEnd(singleSelectedDoor, e.lngLat)
 											}
-										>
-											<div
-												className="digitizer-door-handle digitizer-door-handle--jamb"
-												title={`Kéo mép cửa để chỉnh độ rộng (${singleSelectedDoorGeom.widthMeters}m)`}
-											/>
-										</Marker>
+										/>
 									))}
 								</>
 							)}

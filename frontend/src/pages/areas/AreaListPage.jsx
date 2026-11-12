@@ -25,12 +25,7 @@ import CampusMapView from "../../components/area/CampusMapView";
 import FloorDigitizerStudio from "../../components/area/FloorDigitizerStudio";
 import ErrorBoundary from "../../components/common/ErrorBoundary";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
-import PageHeader from "../../components/ui/PageHeader";
-import {
-	LoadingState,
-	ErrorState,
-	DialogPanel,
-} from "../../components/ui";
+import { LoadingState, ErrorState, DialogPanel } from "../../components/ui";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
 import {
@@ -457,18 +452,6 @@ export default function AreaListPage() {
 		};
 	}, [areas, cameraCounts]);
 
-	// Handle switching building or floor
-	const handleSelectBuilding = (b) => {
-		setSelectedBuilding(b);
-		setSelectedFloor("ALL");
-		setSelectedAreaId(null);
-	};
-
-	const handleSelectFloor = (fl) => {
-		setSelectedFloor(fl);
-		setSelectedAreaId(null);
-	};
-
 	const handleSyncMapFilter = useCallback((nextBuilding, nextFloor) => {
 		setSelectedBuilding(nextBuilding || "ALL");
 		setSelectedFloor(nextFloor || "ALL");
@@ -773,16 +756,6 @@ export default function AreaListPage() {
 
 	return (
 		<div className="zone-page">
-			<PageHeader
-				title="Quản lý khu vực"
-				description={
-					isAdmin
-						? "Quản lý danh sách và bản đồ 3D các khu vực."
-						: "Tra cứu khu vực và nhân sự trực thuộc."
-				}
-				actions={null}
-			/>
-
 			{/* ============================================================ */}
 			{/* 1. TOOLBAR: Action buttons (ADMIN ONLY)                      */}
 			{/* ============================================================ */}
@@ -792,12 +765,7 @@ export default function AreaListPage() {
 					<div className="zone-toolbar__actions">
 						<button
 							type="button"
-							className="zone-toolbar__add-btn"
-							style={{
-								background: "rgba(30, 41, 59, 0.9)",
-								border: "1px solid rgba(56, 189, 248, 0.45)",
-								color: "#e0f2fe",
-							}}
+							className="zone-toolbar__studio-btn"
 							onClick={() => setDigitizerStudioOpen(true)}
 							title="Mở Studio 3D"
 						>
@@ -843,12 +811,6 @@ export default function AreaListPage() {
 					{!loading && !pageError && (
 						<AreaListView
 							floorAreas={floorAreas}
-							selectedFloor={selectedFloor}
-							selectedBuilding={selectedBuilding}
-							availableBuildings={availableBuildings}
-							availableFloors={availableFloors}
-							onSelectBuilding={handleSelectBuilding}
-							onSelectFloor={handleSelectFloor}
 							selectedAreaId={selectedAreaId}
 							cameraCounts={cameraCounts}
 							isAdmin={isAdmin}
@@ -1247,9 +1209,7 @@ export default function AreaListPage() {
 								onClick={handleDeactivateSubmit}
 								disabled={modalLoading || deactivateBlocked}
 							>
-								{modalLoading && dependencies
-									? "Đang xử lý..."
-									: "Vô hiệu hóa"}
+								{modalLoading && dependencies ? "Đang xử lý..." : "Vô hiệu hóa"}
 							</button>
 						</div>
 					</DialogPanel>
