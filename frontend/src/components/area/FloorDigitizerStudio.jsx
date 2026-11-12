@@ -272,7 +272,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	}, [store, lastSavedJson]);
 
 	// Active Building & Floor
-	const [activeBuilding, setActiveBuilding] = useState("Tòa HCM");
+	const [activeBuilding, setActiveBuilding] = useState("Tòa Alpha");
 	const [activeFloorOrder, setActiveFloorOrder] = useState(0);
 
 	// 2D Top-down (0 deg) vs 3D Preview (52 deg)
@@ -458,8 +458,13 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	// Helper: resolve 4-corner calibrated PNG bounds for any (buildingName, floorOrder)
 	const resolveFloorPngCorners = useCallback(
 		(bldgName, flOrder, flMeta) => {
-			const key = `${bldgName}__${flOrder}`;
-			const cal = store.floorCalibrations?.[key];
+			const cBldg = resolveCanonicalBuildingName(bldgName) || bldgName;
+			const key = `${cBldg}__${flOrder}`;
+			const meta = DEFAULT_BUILDINGS_META.find((b) => matchesBuilding(b.name, cBldg));
+			const aliasKey = meta?.aliases
+				?.map((a) => `${a}__${flOrder}`)
+				?.find((k) => store.floorCalibrations?.[k]);
+			const cal = store.floorCalibrations?.[key] || (aliasKey ? store.floorCalibrations?.[aliasKey] : null);
 			if (cal?.corners && cal.corners.length === 4) {
 				return cal.corners;
 			}

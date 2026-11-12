@@ -30,8 +30,27 @@ import java.util.Collections;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper UNAUTHORIZED_OBJECT_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final InternalServiceKeyFilter internalServiceKeyFilter;
+
+    static void writeUnauthorizedResponse(
+            HttpServletResponse response,
+            org.springframework.security.core.AuthenticationException authException
+    ) throws java.io.IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8.name());
+        response.setContentType("application/json;charset=UTF-8");
+        String message = authException != null && authException.getMessage() != null
+                ? authException.getMessage()
+                : "";
+        java.util.Map<String, String> payload = new java.util.LinkedHashMap<>();
+        payload.put("error", "Unauthorized");
+        payload.put("message", message);
+        response.getWriter().write(UNAUTHORIZED_OBJECT_MAPPER.writeValueAsString(payload));
+    }
 
     @Value("${app.cors.allowed-origins}")
     private String[] allowedOrigins;
@@ -48,11 +67,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                            response.setContentType("application/json");
-                            response.getWriter().write("{\"error\": \"Unauthorized\", \"message\": \"" + authException.getMessage() + "\"}");
-                        })
+                        .authenticationEntryPoint((request, response, authException) ->
+                                writeUnauthorizedResponse(response, authException))
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

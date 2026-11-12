@@ -38,7 +38,7 @@ function cornerAngleDeg(a, b, c) {
 }
 
 describe("CAD Phase 1 - Oriented 2-Click Box (Q2)", () => {
-	const hcmCorners = createDefaultGeometryStore().floorCalibrations["Tòa HCM__0"].corners;
+	const hcmCorners = createDefaultGeometryStore().floorCalibrations["Tòa Alpha__0"].corners;
 
 	it("Happy Path: aligns 2-Click Box strictly with ~45 deg calibrated PNG orientation and 90 deg corners", () => {
 		const p0 = [106.80985, 10.84145];
@@ -200,8 +200,8 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 			startCoords: [106.80915, 10.84072],
 			startBuilding: "OUTDOOR",
 			startFloorOrder: 0,
-			endCoords: baseStore.roomPolygons.find((r) => r.building === "Tòa HCM" && r.floorOrder === 2).ring[0],
-			endBuilding: "Tòa HCM",
+			endCoords: baseStore.roomPolygons.find((r) => r.building === "Tòa Alpha" && r.floorOrder === 2).ring[0],
+			endBuilding: "Tòa Alpha",
 			endFloorOrder: 2,
 		});
 
@@ -220,8 +220,8 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 			startCoords: [106.80915, 10.84072],
 			startBuilding: "OUTDOOR",
 			startFloorOrder: 0,
-			endCoords: baseStore.roomPolygons.find((r) => r.building === "Tòa HCM" && r.floorOrder === 2).ring[0],
-			endBuilding: "Tòa HCM",
+			endCoords: baseStore.roomPolygons.find((r) => r.building === "Tòa Alpha" && r.floorOrder === 2).ring[0],
+			endBuilding: "Tòa Alpha",
 			endFloorOrder: 2,
 		});
 
@@ -232,7 +232,7 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 		);
 
 		const layers3d = buildRoute3dLayers(unifiedRoute, {
-			selectedBuilding: "Tòa HCM",
+			selectedBuilding: "Tòa Alpha",
 			activeFloorOrder: 0,
 		});
 		const outdoorSegs = layers3d.ribbonsGeoJSON.features.filter(
@@ -254,7 +254,7 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 		assert.equal(isNodeOutdoor(boundaries, indoorSouth), false);
 
 		// Pick outdoor coordinate just 2m outside southern HCM wall (closer to indoor corridor than out-gate!)
-		const hcm0Room004 = store.roomPolygons.find((r) => r.building === "Tòa HCM" && r.floorOrder === 0);
+		const hcm0Room004 = store.roomPolygons.find((r) => r.building === "Tòa Alpha" && r.floorOrder === 0);
 		const wallStart = hcm0Room004.ring[2];
 		const slightlyOutside = [wallStart[0], wallStart[1] - 0.00004];
 
@@ -286,7 +286,7 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 				{
 					id: "a-0",
 					type: "STAIRS",
-					building: "Tòa HCM",
+					building: "Tòa Alpha",
 					floorOrder: 0,
 					portalGroupId: "STAIR_SHARED",
 					coords: [106.8095, 10.8415],
@@ -294,7 +294,7 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 				{
 					id: "a-1",
 					type: "STAIRS",
-					building: "Tòa HCM",
+					building: "Tòa Alpha",
 					floorOrder: 1,
 					portalGroupId: "STAIR_SHARED",
 					coords: [106.8095, 10.8415],
@@ -320,13 +320,13 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 		const store = createDefaultGeometryStore();
 		const targetFloor = 2;
 		const hcmRoom2 = store.roomPolygons.find(
-			(r) => r.building === "Tòa HCM" && r.floorOrder === targetFloor,
+			(r) => r.building === "Tòa Alpha" && r.floorOrder === targetFloor,
 		);
 		const centroid = hcmRoom2.ring[0];
 		const mockArea = {
 			id: 901,
 			name: "Phòng 201",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floor: "Tầng 2",
 			centerLongitude: (hcmRoom2.ring[0][0] + hcmRoom2.ring[2][0]) / 2,
 			centerLatitude: (hcmRoom2.ring[0][1] + hcmRoom2.ring[2][1]) / 2,
@@ -335,13 +335,13 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 
 		const vec = buildVector3dLayers({
 			store,
-			selectedBuilding: "Tòa HCM",
+			selectedBuilding: "Tòa Alpha",
 			activeFloorOrder: targetFloor,
 			areas: [mockArea],
 		});
 
 		assert.ok(Array.isArray(vec.portalSymbolsGeoJSON?.features));
-		assert.ok(vec.portalSymbolsGeoJSON.features.length > 0, "Expected STAIRS portal features on Tòa HCM Floor 2");
+		assert.ok(vec.portalSymbolsGeoJSON.features.length > 0, "Expected STAIRS portal features on Tòa Alpha Floor 2");
 		const expectedFloorTop = targetFloor * FLOOR_ELEVATION_STEP + FLOOR_SLAB_HEIGHT;
 		for (const pf of vec.portalSymbolsGeoJSON.features) {
 			if (!pf.properties.isGhost) {
@@ -376,7 +376,7 @@ describe("CAD Phase 1 - Unified NODE + PORTAL Graph, Cross-Building Isolation & 
 				endFloorOrder: 1,
 			});
 			buildRoute3dLayers(r, { selectedBuilding: "ALL", activeFloorOrder: "ALL" });
-			buildVector3dLayers({ store, selectedBuilding: "Tòa HCM", activeFloorOrder: 1 });
+			buildVector3dLayers({ store, selectedBuilding: "Tòa Alpha", activeFloorOrder: 1 });
 		}
 		const elapsedAvg = (performance.now() - t0) / 5;
 		assert.ok(

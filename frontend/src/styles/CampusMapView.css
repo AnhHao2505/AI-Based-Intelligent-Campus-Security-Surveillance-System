@@ -359,9 +359,10 @@
 }
 
 .campus-map-legend__dot--public { background: #10b981; }
-.campus-map-legend__dot--internal { background: #3b82f6; }
+.campus-map-legend__dot--internal { background: #f59e0b; }
 .campus-map-legend__dot--contact { background: #f59e0b; }
 .campus-map-legend__dot--private { background: #ef4444; }
+.campus-map-legend__dot--empty-room { background: #94a3b8; }
 
 /* --------------------------------------------------------------------------
    RIGHT RAIL (AREAS LIST & DETAILS)
@@ -1915,8 +1916,77 @@
 @media (prefers-reduced-motion: reduce) {
   .campus-bldg-pill,
   .campus-3d-slicer-floors,
-  .campus-route-pedestrian-pulse {
+  .campus-route-pedestrian-pulse,
+  .campus-room-hover-tooltip {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Hover tooltip cho block phòng 3D */
+.campus-room-hover-tooltip {
+  position: absolute;
+  z-index: 45;
+  pointer-events: none;
+  transform: translate(12px, -110%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 240px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.28);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.campus-room-hover-tooltip--empty {
+  border-color: rgba(148, 163, 184, 0.55);
+}
+
+.campus-room-hover-tooltip--occupied {
+  border-color: rgba(243, 112, 33, 0.55);
+}
+
+.campus-room-hover-tooltip__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campus-room-hover-tooltip__sub {
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+/* Cảnh báo khi tầng mô phỏng 3D chưa có bản ghi floors trong CSDL */
+.campus-create-floor-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(217, 119, 6, 0.38);
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.campus-create-floor-warning svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #d97706;
+}
+
+[data-theme="dark"] .campus-create-floor-warning {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(251, 191, 36, 0.35);
+  color: #fde68a;
 }

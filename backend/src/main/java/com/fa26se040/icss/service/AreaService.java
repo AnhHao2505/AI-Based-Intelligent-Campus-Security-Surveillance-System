@@ -703,6 +703,43 @@ public class AreaService {
         }
     }
 
+    private com.fa26se040.icss.entity.Floor resolveAndValidateTargetFloor(
+            com.fa26se040.icss.entity.Floor currentFloor,
+            UUID floorId,
+            String building,
+            String floor) {
+        com.fa26se040.icss.entity.Floor targetFloor = currentFloor;
+        if (floorId != null) {
+            targetFloor = floorRepository.findById(floorId).orElse(null);
+        } else if (building != null && !building.trim().isEmpty() && floor != null && !floor.trim().isEmpty()) {
+            targetFloor = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase(
+                    building.trim(), floor.trim()).orElse(null);
+        }
+
+        if (targetFloor == null || !Boolean.TRUE.equals(targetFloor.getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_021);
+        }
+        if (targetFloor.getBuilding() != null && !Boolean.TRUE.equals(targetFloor.getBuilding().getIsActive())) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_021);
+        }
+
+        if (floorId != null) {
+            if (building != null && !building.trim().isEmpty()) {
+                String canonicalBuilding = targetFloor.getBuilding() != null ? targetFloor.getBuilding().getName() : null;
+                if (canonicalBuilding == null || !canonicalBuilding.trim().equalsIgnoreCase(building.trim())) {
+                    throw new AreaException(AreaErrorCode.ERR_AREA_021);
+                }
+            }
+            if (floor != null && !floor.trim().isEmpty()) {
+                String canonicalFloor = targetFloor.getName();
+                if (canonicalFloor == null || !canonicalFloor.trim().equalsIgnoreCase(floor.trim())) {
+                    throw new AreaException(AreaErrorCode.ERR_AREA_021);
+                }
+            }
+        }
+        return targetFloor;
+    }
+
     @Transactional
     public AreaResponse create(AreaCreateRequest req, String actorEmail) {
         String name = areaValidator.validateAndNormalizeName(req.getName());
@@ -717,17 +754,8 @@ public class AreaService {
         // V83 (BR-PR-23): cấp = cấp của loại (Công khai 1, Bảo mật 2, Tuyệt mật 3); cờ chỉ định đích danh luôn false
         int areaAccessLevel = req.getAreaLevel().level();
 
-        com.fa26se040.icss.entity.Floor targetFloor = null;
-        if (req.getFloorId() != null) {
-            targetFloor = floorRepository.findById(req.getFloorId()).orElse(null);
-        } else if (req.getBuilding() != null && !req.getBuilding().trim().isEmpty() && req.getFloor() != null && !req.getFloor().trim().isEmpty()) {
-            targetFloor = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase(
-                    req.getBuilding().trim(), req.getFloor().trim()).orElse(null);
-        }
-
-        if (targetFloor == null) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_021);
-        }
+        com.fa26se040.icss.entity.Floor targetFloor = resolveAndValidateTargetFloor(
+                null, req.getFloorId(), req.getBuilding(), req.getFloor());
 
         if (areaRepository.existsByFloorIdAndNameIgnoreCase(targetFloor.getId(), name)) {
             throw new AreaException(AreaErrorCode.ERR_AREA_020);
@@ -819,17 +847,8 @@ public class AreaService {
 
         resolveActorId(actorEmail);
 
-        com.fa26se040.icss.entity.Floor targetFloor = area.getFloorEntity();
-        if (req.getFloorId() != null) {
-            targetFloor = floorRepository.findById(req.getFloorId()).orElse(null);
-        } else if (req.getBuilding() != null && !req.getBuilding().trim().isEmpty() && req.getFloor() != null && !req.getFloor().trim().isEmpty()) {
-            targetFloor = floorRepository.findByBuildingNameIgnoreCaseAndNameIgnoreCase(
-                    req.getBuilding().trim(), req.getFloor().trim()).orElse(null);
-        }
-
-        if (targetFloor == null) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_021);
-        }
+        com.fa26se040.icss.entity.Floor targetFloor = resolveAndValidateTargetFloor(
+                area.getFloorEntity(), req.getFloorId(), req.getBuilding(), req.getFloor());
 
         if (areaRepository.existsByFloorIdAndNameIgnoreCaseExcludingId(id, targetFloor.getId(), name)) {
             throw new AreaException(AreaErrorCode.ERR_AREA_020);

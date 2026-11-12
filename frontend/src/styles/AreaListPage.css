@@ -3898,5 +3898,57 @@
   min-height: 100%;
 }
 
+/* Khối hiển thị vị trí cố định theo block 3D trong Modal Sửa */
+.area-readonly-location-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: rgba(243, 112, 33, 0.06);
+  border: 1px dashed rgba(243, 112, 33, 0.35);
+  font-size: 12px;
+  color: var(--theme-text-secondary, #475569);
+}
+
+[data-theme="dark"] .area-readonly-location-bar {
+  background: rgba(243, 112, 33, 0.1);
+  border-color: rgba(243, 112, 33, 0.32);
+  color: #cbd5e1;
+}
+
+.area-rebind-3d-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px 11px;
+  border-radius: 7px;
+  border: 1px solid rgba(243, 112, 33, 0.45);
+  background: #ffffff;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.area-rebind-3d-btn:hover {
+  background: #fff7ed;
+  border-color: #f37021;
+}
+
+[data-theme="dark"] .area-rebind-3d-btn {
+  background: rgba(15, 23, 42, 0.85);
+  color: #fdba74;
+  border-color: rgba(251, 146, 60, 0.45);
+}
+
+[data-theme="dark"] .area-rebind-3d-btn:hover {
+  background: rgba(243, 112, 33, 0.18);
+}
+
 
 

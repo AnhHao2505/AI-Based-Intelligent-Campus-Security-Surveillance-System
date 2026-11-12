@@ -368,7 +368,7 @@ describe("Wall Graph Phase 2 (Q3) - DOOR Wall Cutout, Two-Side Routing & Shared 
 			buildingBoundaries: [
 				{
 					id: "b0",
-					building: "Tòa HCM",
+					building: "Tòa Alpha",
 					floorOrder: 0,
 					ring: createDefaultGeometryStore().buildingBoundaries[0].ring,
 				},
@@ -376,7 +376,7 @@ describe("Wall Graph Phase 2 (Q3) - DOOR Wall Cutout, Two-Side Routing & Shared 
 			roomPolygons: createDefaultGeometryStore().roomPolygons.slice(0, 3),
 			customWalls: [],
 			navNodes: [
-				{ id: "ent-1", type: "ENTRANCE", building: "Tòa HCM", floorOrder: 0, coords: [106.810473, 10.84148] },
+				{ id: "ent-1", type: "ENTRANCE", building: "Tòa Alpha", floorOrder: 0, coords: [106.810473, 10.84148] },
 			],
 			navEdges: [],
 		};

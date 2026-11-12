@@ -16,6 +16,7 @@ import {
 	Info,
 	ExternalLink,
 	RotateCcw,
+	Crosshair,
 } from "lucide-react";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaListView from "../../components/area/AreaListView";
@@ -120,6 +121,7 @@ export default function AreaListPage() {
 	// Split-View: Danh sách bên trái + Bản đồ khuôn viên bên phải
 	const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
 	const [isCreatingOnMap, setIsCreatingOnMap] = useState(false);
+	const [rebindingAreaId, setRebindingAreaId] = useState(null);
 	const [digitizerStudioOpen, setDigitizerStudioOpen] = useState(false);
 
 	const handleStartCreateOnMap = () => {
@@ -137,6 +139,7 @@ export default function AreaListPage() {
 							version: updated.version ?? a.version,
 							building: updated.building ?? a.building,
 							floor: updated.floor ?? a.floor,
+							floorId: updated.floorId ?? a.floorId,
 						}
 					: a,
 			),
@@ -284,7 +287,7 @@ export default function AreaListPage() {
 		fetchData();
 	}, [fetchData]);
 
-	// Derived available buildings (bao gồm cả 2 tòa nhà 3D: Tòa HCM 3 tầng & Tòa Epsilon 2 tầng)
+	// Derived available buildings (bao gồm cả 2 tòa nhà 3D: Tòa Alpha 3 tầng & Tòa Epsilon 5 tầng)
 	const availableBuildings = useMemo(() => {
 		const mapByName = new Map();
 		if (buildingsList.length > 0) {
@@ -317,7 +320,7 @@ export default function AreaListPage() {
 		});
 
 		if (mapByName.size === 0) {
-			return ["Tòa Alpha", "Tòa Beta"].map((name) => ({
+			return ["Tòa Alpha", "Tòa Epsilon"].map((name) => ({
 				id: null,
 				name,
 				floors: [],
@@ -433,10 +436,17 @@ export default function AreaListPage() {
 		const bObj = availableBuildings.find(
 			(b) =>
 				(b.name || "").toUpperCase() ===
-				(formData.building || "").toUpperCase(),
+					(formData.building || "").toUpperCase() ||
+				matchesBuilding(b.name, formData.building),
 		);
 		if (bObj && bObj.floors && bObj.floors.length > 0) {
 			return bObj.floors;
+		}
+		const metaBld = DEFAULT_BUILDINGS_META.find((b) =>
+			matchesBuilding(b.name, formData.building),
+		);
+		if (metaBld?.floors?.length > 0) {
+			return metaBld.floors.map((fl) => ({ id: null, name: fl.name }));
 		}
 		return [
 			{ id: null, name: "Tầng Trệt" },
@@ -935,7 +945,12 @@ export default function AreaListPage() {
 							selectedBuilding={selectedBuilding}
 							selectedFloor={selectedFloor}
 							isCreatingArea={isAdmin ? isCreatingOnMap : false}
+							onStartCreateFromRoom={
+								isAdmin ? () => setIsCreatingOnMap(true) : undefined
+							}
 							onCancelCreateArea={() => setIsCreatingOnMap(false)}
+							rebindAreaRequestId={rebindingAreaId}
+							onRebindAreaDone={() => setRebindingAreaId(null)}
 							onAreaCreated={async (newArea) => {
 								setIsCreatingOnMap(false);
 								await fetchData(newArea.id);
@@ -1122,24 +1137,33 @@ export default function AreaListPage() {
 										</label>
 										<Select
 											id="edit-building"
+											disabled
 											value={formData.building}
-											onChange={(e) => {
-												const newB = e.target.value;
-												const bObj = availableBuildings.find(
-													(b) => b.name === newB,
-												);
-												const firstFloor = bObj?.floors?.[0];
-												setFormData({
-													...formData,
-													building: newB,
-													floor: firstFloor ? firstFloor.name : "Tầng Trệt",
-													floorId: firstFloor ? firstFloor.id : null,
-												});
-											}}
-											options={availableBuildings.map((b) => ({
-												value: b.name,
-												label: b.name,
-											}))}
+											onChange={() => {}}
+											options={
+												availableBuildings.some(
+													(b) => b.name === formData.building,
+												)
+													? availableBuildings.map((b) => ({
+															value: b.name,
+															label: b.name,
+														}))
+													: [
+															...(formData.building
+																? [
+																		{
+																			value: formData.building,
+																			label: formData.building,
+																		},
+																	]
+																: []),
+															...availableBuildings.map((b) => ({
+																value: b.name,
+																label: b.name,
+															})),
+														]
+											}
+											hint="Cố định theo block phòng 3D"
 										/>
 									</div>
 
@@ -1152,20 +1176,31 @@ export default function AreaListPage() {
 										</label>
 										<Select
 											id="edit-floor"
+											disabled
 											value={formData.floor}
-											onChange={(e) => {
-												const newF = e.target.value;
-												const flObj = modalFloors.find((f) => f.name === newF);
-												setFormData({
-													...formData,
-													floor: newF,
-													floorId: flObj ? flObj.id : null,
-												});
-											}}
-											options={modalFloors.map((fl) => ({
-												value: fl.name,
-												label: fl.name,
-											}))}
+											onChange={() => {}}
+											options={
+												modalFloors.some((fl) => fl.name === formData.floor)
+													? modalFloors.map((fl) => ({
+															value: fl.name,
+															label: fl.name,
+														}))
+													: [
+															...(formData.floor
+																? [
+																		{
+																			value: formData.floor,
+																			label: formData.floor,
+																		},
+																	]
+																: []),
+															...modalFloors.map((fl) => ({
+																value: fl.name,
+																label: fl.name,
+															})),
+														]
+											}
+											hint="Tự động đồng bộ khi đổi block 3D"
 										/>
 									</div>
 								</div>
@@ -1183,16 +1218,12 @@ export default function AreaListPage() {
 											step="any"
 											min="-90"
 											max="90"
+											readOnly
+											disabled
 											className={`area-form-input ${latitudeError ? "area-form-input--error" : ""}`}
 											aria-invalid={Boolean(latitudeError)}
 											placeholder="Ví dụ: 10.8411"
 											value={formData.centerLatitude}
-											onChange={(e) =>
-												setFormData({
-													...formData,
-													centerLatitude: e.target.value,
-												})
-											}
 										/>
 										{latitudeError && (
 											<div className="area-form-error">{latitudeError}</div>
@@ -1211,22 +1242,39 @@ export default function AreaListPage() {
 											step="any"
 											min="-180"
 											max="180"
+											readOnly
+											disabled
 											className={`area-form-input ${longitudeError ? "area-form-input--error" : ""}`}
 											aria-invalid={Boolean(longitudeError)}
 											placeholder="Ví dụ: 106.8090"
 											value={formData.centerLongitude}
-											onChange={(e) =>
-												setFormData({
-													...formData,
-													centerLongitude: e.target.value,
-												})
-											}
 										/>
 										{longitudeError && (
 											<div className="area-form-error">{longitudeError}</div>
 										)}
 									</div>
 								</div>
+
+								{isAdmin && formData.id && (
+									<div className="area-readonly-location-bar">
+										<span>
+											Tòa nhà, tầng và tọa độ gắn trực tiếp với block phòng 3D trên bản đồ.
+										</span>
+										<button
+											type="button"
+											className="area-rebind-3d-btn"
+											onClick={() => {
+												const targetId = formData.id;
+												setEditModalOpen(false);
+												setSelectedAreaId(targetId);
+												setRebindingAreaId(targetId);
+											}}
+										>
+											<Crosshair size={13} />
+											Đổi block phòng 3D
+										</button>
+									</div>
+								)}
 							</div>
 
 							<div className="area-modal__footer">

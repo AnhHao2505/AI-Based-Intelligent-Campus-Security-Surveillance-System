@@ -25,6 +25,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AreaController {
 
+    private static final java.util.Set<String> ALLOWED_SORT_FIELDS = java.util.Set.of(
+            "name",
+            "building",
+            "floor",
+            "areaLevel",
+            "areaAccessLevel",
+            "createdAt",
+            "updatedAt"
+    );
+
     private final AreaService areaService;
 
     @GetMapping("/available-for-request")
@@ -59,13 +69,14 @@ public class AreaController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "name,asc") String sort
     ) {
+        int safePage = Math.max(0, page);
         int cappedSize = Math.min(Math.max(1, size), 100);
         String sortProperty = "name";
         Sort.Direction direction = Sort.Direction.ASC;
         if (sort != null && sort.contains(",")) {
             String[] parts = sort.split(",");
             String prop = parts[0].trim();
-            if (!prop.equalsIgnoreCase("code") && !prop.isEmpty()) {
+            if (ALLOWED_SORT_FIELDS.contains(prop)) {
                 sortProperty = prop;
             }
             if (parts.length > 1 && parts[1].equalsIgnoreCase("desc")) {
@@ -73,7 +84,7 @@ public class AreaController {
             }
         }
         Sort sortOrder = Sort.by(direction, sortProperty);
-        Pageable pageable = PageRequest.of(page, cappedSize, sortOrder);
+        Pageable pageable = PageRequest.of(safePage, cappedSize, sortOrder);
         Page<AreaListItemResponse> result = areaService.getAreas(keyword, areaLevel, building, isActive, pageable);
         return ResponseEntity.ok(ApiResponse.success(result, "Lấy danh sách khu vực thành công"));
     }

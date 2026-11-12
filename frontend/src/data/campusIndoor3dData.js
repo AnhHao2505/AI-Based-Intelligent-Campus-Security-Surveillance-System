@@ -50,8 +50,8 @@ const EPS_CALIBRATED_BOUNDS = {
 export const DEFAULT_BUILDINGS_META = [
 	{
 		id: "bldg-hcm",
-		name: "Tòa HCM",
-		aliases: ["Tòa HCM", "Tòa Alpha", "Tòa FPT HCM"],
+		name: "Tòa Alpha",
+		aliases: ["Tòa Alpha", "Tòa HCM", "Tòa FPT HCM"],
 		center: [106.809977, 10.841429],
 		floors: [
 			{
@@ -89,13 +89,13 @@ export const DEFAULT_BUILDINGS_META = [
 	{
 		id: "bldg-epsilon",
 		name: "Tòa Epsilon",
-		aliases: ["Tòa Epsilon", "Tòa Beta", "Tòa Tân Uyên"],
+		aliases: ["Tòa Epsilon", "Tòa Espilon", "Tòa Beta", "Tòa Tân Uyên"],
 		center: [106.811441, 10.8405],
 		floors: [
 			{
 				id: "eps-l1",
 				name: "Tầng Trệt",
-				shortLabel: "L1 (Trệt)",
+				shortLabel: "Trệt",
 				floorOrder: 0,
 				baseElevation: 0,
 				ceilingElevation: 3.5,
@@ -105,7 +105,7 @@ export const DEFAULT_BUILDINGS_META = [
 			{
 				id: "eps-lv2",
 				name: "Tầng 1",
-				shortLabel: "LV2 (Tầng 1)",
+				shortLabel: "Tầng 1",
 				floorOrder: 1,
 				baseElevation: 3.5,
 				ceilingElevation: 7.0,
@@ -115,7 +115,7 @@ export const DEFAULT_BUILDINGS_META = [
 			{
 				id: "eps-lv3",
 				name: "Tầng 2",
-				shortLabel: "LV3 (Tầng 2)",
+				shortLabel: "Tầng 2",
 				floorOrder: 2,
 				baseElevation: 7.0,
 				ceilingElevation: 10.5,
@@ -125,7 +125,7 @@ export const DEFAULT_BUILDINGS_META = [
 			{
 				id: "eps-lv4",
 				name: "Tầng 3",
-				shortLabel: "LV4 (Tầng 3)",
+				shortLabel: "Tầng 3",
 				floorOrder: 3,
 				baseElevation: 10.5,
 				ceilingElevation: 14.0,
@@ -135,7 +135,7 @@ export const DEFAULT_BUILDINGS_META = [
 			{
 				id: "eps-lv5",
 				name: "Tầng 4",
-				shortLabel: "LV5 (Tầng 4)",
+				shortLabel: "Tầng 4",
 				floorOrder: 4,
 				baseElevation: 14.0,
 				ceilingElevation: 17.5,
@@ -192,7 +192,7 @@ export function resolveFloorOrder(buildingName, floorName) {
 		fn.includes("floor 3") ||
 		fn.includes("lầu 3") ||
 		fn === "3" ||
-		(fn.includes("tầng 3") && !matchesBuilding(buildingName, "Tòa HCM"))
+		(fn.includes("tầng 3") && !matchesBuilding(buildingName, "Tòa Alpha"))
 	) {
 		return 3;
 	}
@@ -276,10 +276,10 @@ export function createDefaultGeometryStore() {
 	];
 
 	const buildingBoundaries = [
-		// Tòa HCM outer boundary (all 3 floors aligned to moved Floor G footprint)
+		// Tòa Alpha outer boundary (all 3 floors aligned to moved Floor G footprint)
 		...[0, 1, 2].map((floorOrder) => ({
 			id: `bound-hcm-${floorOrder}`,
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder,
 			ring: hcmGroundRing.map((pt) => [...pt]),
 		})),
@@ -294,10 +294,10 @@ export function createDefaultGeometryStore() {
 
 	// Pure geometric room polygons (no Area business fields attached)
 	const roomPolygons = [
-		// Tòa HCM - Floor 0 (Tầng G - exact user-digitized rooms)
+		// Tòa Alpha - Floor 0 (Tầng Trệt - exact user-digitized rooms)
 		{
 			id: "room-1794307089747",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			ring: [
 				[106.810388, 10.841053],
@@ -309,7 +309,7 @@ export function createDefaultGeometryStore() {
 		},
 		{
 			id: "room-1794307097719",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			ring: [
 				[106.810448, 10.841111],
@@ -321,7 +321,7 @@ export function createDefaultGeometryStore() {
 		},
 		{
 			id: "room-1794307111205",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			ring: [
 				[106.81052, 10.841038],
@@ -333,7 +333,7 @@ export function createDefaultGeometryStore() {
 		},
 		{
 			id: "room-1794307197893",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			ring: [
 				[106.809747, 10.841289],
@@ -345,7 +345,7 @@ export function createDefaultGeometryStore() {
 		},
 		{
 			id: "room-1794307211587",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			ring: [
 				[106.809263, 10.841755],
@@ -357,7 +357,7 @@ export function createDefaultGeometryStore() {
 		},
 		{
 			id: "room-1794307259741",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			ring: [
 				[106.809519, 10.842023],
@@ -369,7 +369,7 @@ export function createDefaultGeometryStore() {
 		},
 		{
 			id: "room-1794307313261",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			ring: [
 				[106.809911, 10.841922],
@@ -379,53 +379,53 @@ export function createDefaultGeometryStore() {
 				[106.809911, 10.841922],
 			],
 		},
-		// Tòa HCM - Floor 1 (Tầng 1)
+		// Tòa Alpha - Floor 1 (Tầng 1)
 		{
 			id: "room-hcm-1-1",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 1,
 			ring: uvRectRing(HCM_B, 0.082, 0.33, 0.225, 0.715),
 		},
 		{
 			id: "room-hcm-1-2",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 1,
 			ring: uvRectRing(HCM_B, 0.186, 0.748, 0.588, 0.822),
 		},
 		{
 			id: "room-hcm-1-3",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 1,
 			ring: uvRectRing(HCM_B, 0.808, 0.325, 0.855, 0.635),
 		},
 		{
 			id: "room-hcm-1-4",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 1,
 			ring: uvRectRing(HCM_B, 0.868, 0.325, 0.914, 0.482),
 		},
-		// Tòa HCM - Floor 2 (Tầng 2)
+		// Tòa Alpha - Floor 2 (Tầng 2)
 		{
 			id: "room-hcm-2-1",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 2,
 			ring: uvRectRing(HCM_B, 0.082, 0.33, 0.225, 0.715),
 		},
 		{
 			id: "room-hcm-2-2",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 2,
 			ring: uvRectRing(HCM_B, 0.185, 0.752, 0.495, 0.828),
 		},
 		{
 			id: "room-hcm-2-3",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 2,
 			ring: uvRectRing(HCM_B, 0.676, 0.752, 0.914, 0.828),
 		},
 		{
 			id: "room-hcm-2-4",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 2,
 			ring: uvRectRing(HCM_B, 0.808, 0.34, 0.914, 0.642),
 		},
@@ -530,102 +530,102 @@ export function createDefaultGeometryStore() {
 			coords: [106.81115, 10.84024],
 		},
 
-		// Tòa HCM - Floor 0 (user-digitized corridor loop + aligned entrances & stairs)
+		// Tòa Alpha - Floor 0 (user-digitized corridor loop + aligned entrances & stairs)
 		{
 			id: "node-1794307597801",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.809473, 10.841577],
 		},
 		{
 			id: "node-1794307602171",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.80931, 10.841707],
 		},
 		{
 			id: "node-1794307629249",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.809772, 10.841895],
 		},
 		{
 			id: "node-1794307634367",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.809617, 10.842019],
 		},
 		{
 			id: "node-1794307643227",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.80989, 10.841825],
 		},
 		{
 			id: "node-1794307645265",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.809944, 10.841759],
 		},
 		{
 			id: "node-1794307652919",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.810436, 10.841383],
 		},
 		{
 			id: "node-1794307656813",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.810572, 10.841105],
 		},
 		{
 			id: "node-1794307661173",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.810474, 10.84102],
 		},
 		{
 			id: "node-1794307662821",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.810404, 10.840929],
 		},
 		{
 			id: "node-1794307666981",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.810215, 10.840748],
 		},
 		{
 			id: "node-1794307696551",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: [106.810175, 10.840903],
 		},
 		{
 			id: "hcm-0-ent-s",
 			type: "ENTRANCE",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: uvToCoord(HCM_B, 0.44, 0.82),
 		},
 		{
 			id: "hcm-0-ent-e",
 			type: "ENTRANCE",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: uvToCoord(HCM_B, 0.79, 0.72),
 		},
@@ -633,7 +633,7 @@ export function createDefaultGeometryStore() {
 			id: "hcm-0-stair-w",
 			type: "STAIRS",
 			portalGroupId: "HCM_STAIR_W",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: uvToCoord(HCM_B, 0.22, 0.5),
 		},
@@ -641,17 +641,17 @@ export function createDefaultGeometryStore() {
 			id: "hcm-0-stair-e",
 			type: "STAIRS",
 			portalGroupId: "HCM_STAIR_E",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 0,
 			coords: uvToCoord(HCM_B, 0.86, 0.34),
 		},
 
-		// Tòa HCM - Floor 1
+		// Tòa Alpha - Floor 1
 		{
 			id: "hcm-1-stair-w",
 			type: "STAIRS",
 			portalGroupId: "HCM_STAIR_W",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 1,
 			coords: uvToCoord(HCM_B, 0.22, 0.5),
 		},
@@ -659,45 +659,45 @@ export function createDefaultGeometryStore() {
 			id: "hcm-1-stair-e",
 			type: "STAIRS",
 			portalGroupId: "HCM_STAIR_E",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 1,
 			coords: uvToCoord(HCM_B, 0.86, 0.34),
 		},
 		{
 			id: "hcm-1-cor-sw",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 1,
 			coords: uvToCoord(HCM_B, 0.22, 0.72),
 		},
 		{
 			id: "hcm-1-cor-sm",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 1,
 			coords: uvToCoord(HCM_B, 0.44, 0.72),
 		},
 		{
 			id: "hcm-1-cor-se",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 1,
 			coords: uvToCoord(HCM_B, 0.79, 0.72),
 		},
 		{
 			id: "hcm-1-cor-ne",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 1,
 			coords: uvToCoord(HCM_B, 0.86, 0.52),
 		},
 
-		// Tòa HCM - Floor 2
+		// Tòa Alpha - Floor 2
 		{
 			id: "hcm-2-stair-w",
 			type: "STAIRS",
 			portalGroupId: "HCM_STAIR_W",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 2,
 			coords: uvToCoord(HCM_B, 0.22, 0.5),
 		},
@@ -705,35 +705,35 @@ export function createDefaultGeometryStore() {
 			id: "hcm-2-stair-e",
 			type: "STAIRS",
 			portalGroupId: "HCM_STAIR_E",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 2,
 			coords: uvToCoord(HCM_B, 0.86, 0.34),
 		},
 		{
 			id: "hcm-2-cor-sw",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 2,
 			coords: uvToCoord(HCM_B, 0.22, 0.72),
 		},
 		{
 			id: "hcm-2-cor-sm",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 2,
 			coords: uvToCoord(HCM_B, 0.44, 0.72),
 		},
 		{
 			id: "hcm-2-cor-se",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 2,
 			coords: uvToCoord(HCM_B, 0.79, 0.72),
 		},
 		{
 			id: "hcm-2-cor-ne",
 			type: "CORRIDOR",
-			building: "Tòa HCM",
+			building: "Tòa Alpha",
 			floorOrder: 2,
 			coords: uvToCoord(HCM_B, 0.86, 0.52),
 		},
@@ -897,7 +897,7 @@ export function createDefaultGeometryStore() {
 	const legacyV2 = {
 		version: 2,
 		floorCalibrations: {
-			"Tòa HCM__0": { ...HCM_CALIBRATED_BOUNDS },
+			"Tòa Alpha__0": { ...HCM_CALIBRATED_BOUNDS },
 			"Tòa Epsilon__0": { ...EPS_CALIBRATED_BOUNDS },
 		},
 		buildingBoundaries,
@@ -2980,6 +2980,154 @@ function buildWallSegmentPolygon(
 }
 
 /**
+ * Extract normalized AreaLevel code ("PUBLIC" | "CONFIDENTIAL" | "HIGHLY_CONFIDENTIAL")
+ * from varying backend DTO shapes (`areaLevel` enum string/object, `level`, `areaLevelCode`).
+ */
+export function extractAreaLevelCode(area) {
+	if (!area || typeof area !== "object") return "";
+	const raw =
+		area.areaLevel?.code ||
+		area.areaLevel ||
+		area.level?.code ||
+		area.level ||
+		area.areaLevelCode ||
+		"";
+	return typeof raw === "string" ? raw.trim().toUpperCase() : "";
+}
+
+/**
+ * Find the corresponding DB floor entity for `(buildingName, floorOrder)`.
+ */
+export function findMatchingDbFloor(floors = [], buildingName, floorOrder) {
+	if (!Array.isArray(floors) || !buildingName) return null;
+	const targetOrder = Number(floorOrder);
+	if (!Number.isFinite(targetOrder)) return null;
+	for (const fl of floors) {
+		if (!fl) continue;
+		const flBldg = fl.buildingName || fl.building?.name || fl.building || "";
+		if (!matchesBuilding(flBldg, buildingName)) continue;
+		const flOrd =
+			fl.floorOrder != null && Number.isFinite(Number(fl.floorOrder))
+				? Number(fl.floorOrder)
+				: resolveFloorOrder(flBldg || buildingName, fl.name);
+		if (flOrd === targetOrder) {
+			return fl;
+		}
+	}
+	return null;
+}
+
+/**
+ * Validate and resolve a 3D ROOM block click for creating or rebinding an Area.
+ * Rejects empty/outdoor/corridor clicks and rooms already assigned to another Area.
+ * Never falls back to a previous `floorId` when the target floor does not exist in DB.
+ */
+export function resolveRoomBlockSelection({
+	roomProps,
+	floors = [],
+	assignedAreaByRoomId = null,
+	excludeAreaId = null,
+} = {}) {
+	if (
+		!roomProps ||
+		String(roomProps.role || "ROOM").trim().toUpperCase() !== "ROOM"
+	) {
+		return {
+			ok: false,
+			reasonCode: "NOT_A_ROOM",
+			message: "Vui lòng chọn trực tiếp trên một block phòng 3D trống.",
+		};
+	}
+
+	const faceId = roomProps.faceId || roomProps.id || null;
+	const assignedEntry =
+		assignedAreaByRoomId && faceId ? assignedAreaByRoomId.get(faceId) : null;
+	const matchedAreaId = roomProps.matchedAreaId || assignedEntry?.id || null;
+	const matchedAreaName =
+		roomProps.matchedAreaName || assignedEntry?.name || "khu vực khác";
+
+	if (
+		matchedAreaId &&
+		(!excludeAreaId || String(matchedAreaId) !== String(excludeAreaId))
+	) {
+		return {
+			ok: false,
+			reasonCode: "ROOM_OCCUPIED",
+			matchedAreaId,
+			matchedAreaName,
+			message: `Phòng này đã được gán cho khu vực "${matchedAreaName}". Vui lòng chọn phòng trống khác.`,
+		};
+	}
+
+	const centerLng = Number(roomProps.centerLng);
+	const centerLat = Number(roomProps.centerLat);
+	if (!Number.isFinite(centerLng) || !Number.isFinite(centerLat)) {
+		return {
+			ok: false,
+			reasonCode: "INVALID_COORDS",
+			message: "Block phòng 3D chưa có tọa độ tâm hợp lệ.",
+		};
+	}
+
+	const rawBuilding = String(roomProps.building || "").trim();
+	const building =
+		resolveCanonicalBuildingName(rawBuilding) || rawBuilding || "Tòa Alpha";
+	const floorOrder = Number(roomProps.floorOrder) || 0;
+	const matchedFl = findMatchingDbFloor(floors, building, floorOrder);
+	const fallbackFloorName =
+		floorOrder === 0 ? "Tầng Trệt" : `Tầng ${floorOrder}`;
+
+	return {
+		ok: true,
+		faceId,
+		roomLabel: roomProps.roomLabel || "",
+		building,
+		floor: matchedFl?.name || fallbackFloorName,
+		floorOrder,
+		floorId: matchedFl?.id ?? null,
+		hasDbFloor: Boolean(matchedFl?.id),
+		warning: matchedFl?.id
+			? ""
+			: "Tầng này hiện chỉ phục vụ mô phỏng 3D — chưa có dữ liệu tầng trong CSDL để lưu Khu vực mới.",
+		centerLongitude: Number(centerLng.toFixed(6)),
+		centerLatitude: Number(centerLat.toFixed(6)),
+	};
+}
+
+/**
+ * Filter map pin markers on 3D canvas:
+ * - In ALL view: keep all positioned Areas.
+ * - In specific Building + Floor view: suppress pins for Areas already matched
+ *   to a rendered 3D room block on the active floor, leaving only unmatched fallback pins
+ *   so Admins can spot and rebind them.
+ */
+export function filterDisplayedMapPins({
+	areas = [],
+	activeBuilding3d = "ALL",
+	activeFloorOrder3d = 0,
+	matchedAreaIdsOnActiveFloor = [],
+} = {}) {
+	if (!Array.isArray(areas)) return [];
+	if (!activeBuilding3d || activeBuilding3d === "ALL") {
+		return areas;
+	}
+	const targetFloorOrder = Number(activeFloorOrder3d) || 0;
+	const matchedSet = new Set(
+		(matchedAreaIdsOnActiveFloor || [])
+			.filter((id) => id != null)
+			.map((id) => String(id)),
+	);
+	return areas.filter((area) => {
+		if (!area) return false;
+		if (!matchesBuilding(area.building, activeBuilding3d)) return false;
+		const areaFloorOrder = resolveFloorOrder(area.building, area.floor);
+		if (areaFloorOrder !== targetFloorOrder) return false;
+		if (area.id != null && matchedSet.has(String(area.id))) return false;
+		return true;
+	});
+}
+
+/**
  * Build clean 3D Vector GeoJSON layers from Unified Wall Graph + Planar Faces + Doors:
  * - Slabs with inner VOID holes (FloorSlab 0.16m)
  * - Exterior perimeter walls (2.85m) vs interior partition walls (1.35m), carved cleanly at every DOOR
@@ -2992,6 +3140,7 @@ export function buildVector3dLayers({
 	activeFloorOrder = 0,
 	areas = [],
 	selectedAreaId = null,
+	creatingPreview = null,
 	viewRole = "ADMIN", // "ADMIN" | "FACILITY_MANAGER" | "STUDIO"
 	showOtherBuildingsInFocus = true,
 }) {
@@ -3006,6 +3155,7 @@ export function buildVector3dLayers({
 	const doorFeatures = [];
 	const roomLabelFeatures = [];
 	const portalSymbolFeatures = [];
+	const matchedAreaIdsOnActiveFloor = new Set();
 
 	const isOverviewAll = !selectedBuilding || selectedBuilding === "ALL";
 	const isAllFloorsInFocused = !isOverviewAll && activeFloorOrder === "ALL";
@@ -3115,10 +3265,18 @@ export function buildVector3dLayers({
 			});
 
 			const isSelected = matchedArea && matchedArea.id === selectedAreaId;
-			const areaLevelCode =
-				typeof matchedArea?.areaLevel === "string"
-					? matchedArea.areaLevel
-					: matchedArea?.areaLevel?.code || null;
+			if (!isGhost && matchedArea?.id != null) {
+				matchedAreaIdsOnActiveFloor.add(String(matchedArea.id));
+			}
+			const areaLevelCode = extractAreaLevelCode(matchedArea) || null;
+			const isPreviewRoom = Boolean(
+				creatingPreview?.faceId &&
+					String(creatingPreview.faceId) === String(face.id) &&
+					!matchedArea,
+			);
+			const previewLevelCode = isPreviewRoom
+				? extractAreaLevelCode({ areaLevel: creatingPreview.areaLevel }) || "PUBLIC"
+				: "";
 
 			let fillColor = "#94a3b8";
 			if (isGhost) {
@@ -3128,33 +3286,44 @@ export function buildVector3dLayers({
 			} else if (viewRole === "FACILITY_MANAGER") {
 				fillColor = isSelected
 					? "#f97316"
-					: matchedArea
+					: isPreviewRoom || matchedArea
 						? "#475569"
 						: "#94a3b8";
 			} else if (isSelected) {
 				fillColor = "#2563eb";
+			} else if (isPreviewRoom) {
+				fillColor = levelColors[previewLevelCode] || "#10b981";
 			} else if (areaLevelCode && levelColors[areaLevelCode]) {
 				fillColor = levelColors[areaLevelCode];
 			}
 
 			const centroid =
 				face.seedCoord || getPolygonInteriorPoint(face.ring, face.holes);
-			const roomHeight = isSelected
-				? ROOM_SELECTED_EXTRUSION_HEIGHT
-				: ROOM_EXTRUSION_HEIGHT;
+			const roomHeight =
+				isSelected || isPreviewRoom
+					? ROOM_SELECTED_EXTRUSION_HEIGHT
+					: ROOM_EXTRUSION_HEIGHT;
 
 			roomFeatures.push({
 				type: "Feature",
 				id: face.id,
 				properties: {
 					id: face.id,
+					faceId: face.id,
+					role: face.role,
 					building: model.building,
 					floorOrder: model.floorOrder,
 					matchedAreaId: matchedArea?.id || "",
 					matchedAreaName: matchedArea?.name || "",
+					areaLevelCode: isPreviewRoom
+						? previewLevelCode
+						: areaLevelCode || "",
+					isCreatingPreview: isPreviewRoom,
 					isGhost,
 					isContextBuilding,
 					color: fillColor,
+					fillColor,
+					height: roomHeight,
 					baseHeight: floorBase + FLOOR_SLAB_HEIGHT,
 					extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT + roomHeight,
 					centerLng: centroid[0],
@@ -3166,8 +3335,12 @@ export function buildVector3dLayers({
 				},
 			});
 
+			const roomLabelText =
+				matchedArea?.name ||
+				(isPreviewRoom ? String(creatingPreview?.name || "").trim() : "");
+
 			if (
-				matchedArea?.name &&
+				roomLabelText &&
 				!isGhost &&
 				!isOverviewAll &&
 				!isAllFloorsInFocused
@@ -3177,11 +3350,14 @@ export function buildVector3dLayers({
 					id: `label-${face.id}`,
 					properties: {
 						id: face.id,
-						areaId: matchedArea.id,
-						name: matchedArea.name,
+						faceId: face.id,
+						areaId: matchedArea?.id || "creating-preview",
+						name: roomLabelText,
+						label: roomLabelText,
 						building: model.building,
 						floorOrder: model.floorOrder,
-						isSelected: Boolean(isSelected),
+						isPreview: isPreviewRoom,
+						isSelected: Boolean(isSelected || isPreviewRoom),
 						heightOffset: Number(
 							(floorBase + FLOOR_SLAB_HEIGHT + roomHeight + 0.16).toFixed(2),
 						),
@@ -3417,6 +3593,7 @@ export function buildVector3dLayers({
 			type: "FeatureCollection",
 			features: buildingAnchors,
 		},
+		matchedAreaIdsOnActiveFloor: Array.from(matchedAreaIdsOnActiveFloor),
 	};
 }
 
@@ -3523,7 +3700,7 @@ export function computeDigitizedRoute({
 	startBuilding = "OUTDOOR",
 	startFloorOrder = 0,
 	endCoords,
-	endBuilding = "Tòa HCM",
+	endBuilding = "Tòa Alpha",
 	endFloorOrder = 0,
 	diagnosticsOut = null,
 }) {
@@ -5138,10 +5315,10 @@ export function buildOrientedDoorGeometry(
 export function generateNextPortalGroupId(
 	navNodes = [],
 	boundaries = [],
-	building = "Tòa HCM",
+	building = "Tòa Alpha",
 	nodeType = "STAIRS",
 ) {
-	const cBldg = resolveCanonicalBuildingName(building) || building || "Tòa HCM";
+	const cBldg = resolveCanonicalBuildingName(building) || building || "Tòa Alpha";
 	const bPrefix = cBldg.includes("Epsilon")
 		? "EPS"
 		: cBldg.includes("HCM") || cBldg.includes("Alpha")
@@ -5190,7 +5367,7 @@ export function syncPortalAcrossBuildingFloors(
 		resolveNodeBuilding(store.buildingBoundaries || [], sourceNode) ||
 		resolveCanonicalBuildingName(sourceNode.building) ||
 		sourceNode.building ||
-		"Tòa HCM";
+		"Tòa Alpha";
 	const groupKey =
 		(sourceNode.portalGroupId || "").trim().toUpperCase() ||
 		`${bldg.includes("Epsilon") ? "EPS" : "HCM"}_${sourceNode.type}_${sourceNode.id.slice(-4).toUpperCase()}`;
@@ -5360,7 +5537,7 @@ export function resolveTestRouteClickContext({
 	hitBuilding = null,
 	hitFloor = null,
 	scopeFloorNum = null,
-	activeBuilding = "Tòa HCM",
+	activeBuilding = "Tòa Alpha",
 	isAllBuildings = false,
 	precomputedModels = null,
 }) {

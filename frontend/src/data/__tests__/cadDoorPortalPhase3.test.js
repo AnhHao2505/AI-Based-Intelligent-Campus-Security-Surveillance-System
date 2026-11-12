@@ -11,15 +11,21 @@ import {
 	createDefaultGeometryStore,
 	deduplicateFloorVertices,
 	dragWeldedWallVertices,
+	extractAreaLevelCode,
+	filterDisplayedMapPins,
+	findMatchingDbFloor,
 	generateNextPortalGroupId,
 	isDoorConnectedToGraph,
 	isNodeOutdoor,
 	isNodeVisibleOnFloor,
 	isPointIndoorOnFloor,
 	lerpBearingDeg,
+	matchesBuilding,
 	mergeOrSplitNavNodeOnDrop,
 	resolveBestSnapTarget,
+	resolveCanonicalBuildingName,
 	resolveFloorOrder,
+	resolveRoomBlockSelection,
 	resolveTestRouteClickContext,
 	samplePointAlongRoute,
 	syncPortalAcrossBuildingFloors,
@@ -1601,11 +1607,11 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 			assert.deepEqual(
 				eps.floors.map((f) => [f.floorOrder, f.pngUrl]),
 				[
-					[0, "/demo_floor_plans/L1.png"],
-					[1, "/demo_floor_plans/LV2.png"],
-					[2, "/demo_floor_plans/LV3.png"],
-					[3, "/demo_floor_plans/LV4.png"],
-					[4, "/demo_floor_plans/LV5.png"],
+					[0, "/demo_floor_plans/Espilon/L1.png"],
+					[1, "/demo_floor_plans/Espilon/LV2.png"],
+					[2, "/demo_floor_plans/Espilon/LV3.png"],
+					[3, "/demo_floor_plans/Espilon/LV4.png"],
+					[4, "/demo_floor_plans/Espilon/LV5.png"],
 				],
 			);
 			eps.floors.forEach((fl, idx) => {
@@ -1727,6 +1733,216 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 			};
 			const s0 = samplePointAlongRoute(startStairRoute, 0.05);
 			assert.ok(Math.abs(s0.bearing - 270) < 2, `Initial vertical stair should peek ahead to West (~270°), got ${s0.bearing}`);
+		});
+	});
+
+	describe("10. Mục 3: 3D-Block-Only Area Creation, Canonical Alpha/Epsilon Metadata, Live Preview & Pin Suppression", () => {
+		it("Happy Path: Canonical building metadata uses Tòa Alpha (3 floors) and Tòa Epsilon (5 floors) with legacy alias compatibility", () => {
+			const alpha = DEFAULT_BUILDINGS_META.find((b) => b.id === "bldg-hcm");
+			const epsilon = DEFAULT_BUILDINGS_META.find((b) => b.id === "bldg-epsilon");
+			assert.ok(alpha, "Tòa Alpha meta should exist");
+			assert.ok(epsilon, "Tòa Epsilon meta should exist");
+			assert.equal(alpha.name, "Tòa Alpha");
+			assert.equal(alpha.floors.length, 3);
+			assert.equal(epsilon.name, "Tòa Epsilon");
+			assert.equal(epsilon.floors.length, 5);
+
+			assert.equal(resolveCanonicalBuildingName("Tòa HCM"), "Tòa Alpha");
+			assert.equal(resolveCanonicalBuildingName("Tòa Alpha"), "Tòa Alpha");
+			assert.equal(resolveCanonicalBuildingName("Tòa Beta"), "Tòa Epsilon");
+			assert.equal(resolveCanonicalBuildingName("Tòa Espilon"), "Tòa Epsilon");
+			assert.equal(resolveCanonicalBuildingName("Tòa Epsilon"), "Tòa Epsilon");
+			assert.equal(matchesBuilding("Tòa Alpha", "Tòa HCM"), true);
+			assert.equal(matchesBuilding("Tòa Epsilon", "Tòa Beta"), true);
+			assert.equal(matchesBuilding("Tòa Epsilon", "Tòa Espilon"), true);
+		});
+
+		it("Happy Path & Boundary: extractAreaLevelCode reads nested/flat level formats and buildVector3dLayers renders creatingPreview color, 1.0m height, and matchedAreaIdsOnActiveFloor", () => {
+			assert.equal(extractAreaLevelCode({ areaLevel: "CONFIDENTIAL" }), "CONFIDENTIAL");
+			assert.equal(extractAreaLevelCode({ areaLevel: { code: "HIGHLY_CONFIDENTIAL" } }), "HIGHLY_CONFIDENTIAL");
+			assert.equal(extractAreaLevelCode({ level: { code: "PUBLIC" } }), "PUBLIC");
+			assert.equal(extractAreaLevelCode({ level: "CONFIDENTIAL" }), "CONFIDENTIAL");
+			assert.equal(extractAreaLevelCode({ areaLevelCode: "HIGHLY_CONFIDENTIAL" }), "HIGHLY_CONFIDENTIAL");
+			assert.equal(extractAreaLevelCode(null), "");
+
+			const store = createDefaultGeometryStore();
+			const baseVec = buildVector3dLayers({
+				store,
+				selectedBuilding: "Tòa Alpha",
+				activeFloorOrder: 0,
+				areas: [],
+			});
+			assert.ok(baseVec.roomsGeoJSON.features.length >= 2, "Need at least 2 rendered rooms on Tòa Alpha Floor 0");
+			const assignedRoom = baseVec.roomsGeoJSON.features[0].properties;
+			const previewRoom = baseVec.roomsGeoJSON.features[1].properties;
+
+			const vec = buildVector3dLayers({
+				store,
+				selectedBuilding: "Tòa Alpha",
+				activeFloorOrder: 0,
+				areas: [
+					{
+						id: "area-nested-level",
+						name: "Phòng Hội Thảo",
+						level: { code: "HIGHLY_CONFIDENTIAL" },
+						building: "Tòa Alpha",
+						floor: "Tầng Trệt",
+						centerLongitude: assignedRoom.centerLng,
+						centerLatitude: assignedRoom.centerLat,
+					},
+				],
+				creatingPreview: {
+					faceId: previewRoom.faceId,
+					name: "Phòng Đang Tạo",
+					areaLevel: "CONFIDENTIAL",
+				},
+			});
+
+			const assignedFeat = vec.roomsGeoJSON.features.find(
+				(f) => f.properties.faceId === assignedRoom.faceId,
+			);
+			const previewFeat = vec.roomsGeoJSON.features.find(
+				(f) => f.properties.faceId === previewRoom.faceId,
+			);
+			assert.equal(assignedFeat.properties.matchedAreaId, "area-nested-level");
+			assert.equal(assignedFeat.properties.areaLevelCode, "HIGHLY_CONFIDENTIAL");
+			assert.equal(assignedFeat.properties.fillColor, "#ef4444");
+
+			assert.equal(previewFeat.properties.isCreatingPreview, true);
+			assert.equal(previewFeat.properties.fillColor, "#f59e0b");
+			assert.equal(previewFeat.properties.height, 1.0);
+
+			const previewLabel = vec.roomLabelsGeoJSON.features.find(
+				(f) => f.properties.faceId === previewRoom.faceId,
+			);
+			assert.ok(previewLabel, "Creating preview room should render live label on 3D block");
+			assert.equal(previewLabel.properties.label, "Phòng Đang Tạo");
+			assert.ok(vec.matchedAreaIdsOnActiveFloor.includes("area-nested-level"));
+		});
+
+		it("Validation / Bug Fix / Exception: resolveRoomBlockSelection accepts only empty ROOM blocks, clears stale floorId when DB floor is missing, and rejects occupied or non-room clicks", () => {
+			const dbFloors = [
+				{ id: "fl-a0", name: "Tầng Trệt", buildingName: "Tòa Alpha", floorOrder: 0 },
+				{ id: "fl-a1", name: "Tầng 1", buildingName: "Tòa Alpha", floorOrder: 1 },
+			];
+
+			assert.equal(findMatchingDbFloor(dbFloors, "Tòa Alpha", 1)?.id, "fl-a1");
+			assert.equal(findMatchingDbFloor(dbFloors, "Tòa Alpha", 2), null);
+
+			// Happy Path: empty ROOM on matched DB floor
+			const okSelection = resolveRoomBlockSelection({
+				roomProps: {
+					faceId: "room-a1-101",
+					role: "ROOM",
+					building: "Tòa Alpha",
+					floorOrder: 1,
+					centerLng: 106.8095,
+					centerLat: 10.8412,
+					roomLabel: "101",
+					matchedAreaId: null,
+				},
+				floors: dbFloors,
+			});
+			assert.equal(okSelection.ok, true);
+			assert.equal(okSelection.hasDbFloor, true);
+			assert.equal(okSelection.floorId, "fl-a1");
+			assert.equal(okSelection.building, "Tòa Alpha");
+			assert.equal(okSelection.floor, "Tầng 1");
+			assert.equal(okSelection.centerLongitude, 106.8095);
+			assert.equal(okSelection.centerLatitude, 10.8412);
+
+			// Critical Bug Regression (prev.floorId leak): Floor 2 has NO DB floor -> must return floorId: null + warning
+			const missingFloorSelection = resolveRoomBlockSelection({
+				roomProps: {
+					faceId: "room-a2-201",
+					role: "ROOM",
+					building: "Tòa Alpha",
+					floorOrder: 2,
+					centerLng: 106.8096,
+					centerLat: 10.8413,
+				},
+				floors: dbFloors,
+			});
+			assert.equal(missingFloorSelection.ok, true);
+			assert.equal(missingFloorSelection.hasDbFloor, false);
+			assert.equal(missingFloorSelection.floorId, null);
+			assert.ok(missingFloorSelection.warning.includes("chưa có dữ liệu tầng"));
+
+			// Exception / Occupied Room Rejected on Create
+			const occupiedSelection = resolveRoomBlockSelection({
+				roomProps: {
+					faceId: "room-a1-102",
+					role: "ROOM",
+					building: "Tòa Alpha",
+					floorOrder: 1,
+					centerLng: 106.8097,
+					centerLat: 10.8414,
+					matchedAreaId: "area-1",
+					matchedAreaName: "Phòng Lab AI",
+				},
+				floors: dbFloors,
+			});
+			assert.equal(occupiedSelection.ok, false);
+			assert.equal(occupiedSelection.reasonCode, "ROOM_OCCUPIED");
+			assert.ok(occupiedSelection.message.includes("Phòng Lab AI"));
+
+			// Rebind Exception vs Allowed Self-Room
+			const rebindOtherOccupied = resolveRoomBlockSelection({
+				roomProps: {
+					faceId: "room-a1-102",
+					role: "ROOM",
+					building: "Tòa Alpha",
+					floorOrder: 1,
+					centerLng: 106.8097,
+					centerLat: 10.8414,
+					matchedAreaId: "area-1",
+					matchedAreaName: "Phòng Lab AI",
+				},
+				floors: dbFloors,
+				excludeAreaId: "area-2",
+			});
+			assert.equal(rebindOtherOccupied.ok, false);
+			assert.equal(rebindOtherOccupied.reasonCode, "ROOM_OCCUPIED");
+
+			// Exception: Outside / CORRIDOR / null click never returns fallback outdoor coords
+			const outsideClick = resolveRoomBlockSelection({ roomProps: null, floors: dbFloors });
+			assert.equal(outsideClick.ok, false);
+			assert.equal(outsideClick.reasonCode, "NOT_A_ROOM");
+
+			const corridorClick = resolveRoomBlockSelection({
+				roomProps: { faceId: "cor-1", role: "CORRIDOR", centerLng: 106.8, centerLat: 10.8 },
+				floors: dbFloors,
+			});
+			assert.equal(corridorClick.ok, false);
+			assert.equal(corridorClick.reasonCode, "NOT_A_ROOM");
+		});
+
+		it("Pin Suppression Boundary: hides Pins for matched active-floor 3D rooms while keeping unmatched fallback Pins and ALL overview Pins", () => {
+			const sampleAreas = [
+				{ id: "matched-a1", name: "Phòng 101", building: "Tòa Alpha", floor: "Tầng 1" },
+				{ id: "unmatched-a1", name: "Phòng Lệch Tọa Độ", building: "Tòa Alpha", floor: "Tầng 1" },
+				{ id: "other-floor", name: "Sảnh Trệt", building: "Tòa Alpha", floor: "Tầng Trệt" },
+				{ id: "outdoor-seed", name: "Cổng chính", building: "OUTDOOR", floor: "Ngoại vi" },
+			];
+
+			const onFloor1 = filterDisplayedMapPins({
+				areas: sampleAreas,
+				activeBuilding3d: "Tòa Alpha",
+				activeFloorOrder3d: 1,
+				matchedAreaIdsOnActiveFloor: ["matched-a1"],
+			});
+			assert.deepEqual(
+				onFloor1.map((a) => a.id),
+				["unmatched-a1"],
+			);
+
+			const onAllOverview = filterDisplayedMapPins({
+				areas: sampleAreas,
+				activeBuilding3d: "ALL",
+				activeFloorOrder3d: 1,
+				matchedAreaIdsOnActiveFloor: ["matched-a1"],
+			});
+			assert.equal(onAllOverview.length, 4);
 		});
 	});
 });

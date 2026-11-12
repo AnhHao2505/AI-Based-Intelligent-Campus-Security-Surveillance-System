@@ -1,5 +1,5 @@
 /**
- * Định dạng vị trí toà nhà / tầng dùng chung — tránh lặp tiền tố ("Tầng Tầng Trệt", "Tòa Tòa Beta").
+ * Định dạng vị trí toà nhà / tầng dùng chung — tránh lặp tiền tố ("Tầng Tầng Trệt", "Tòa Tòa Epsilon").
  *
  * Tên toà nhà / tầng trong dữ liệu thường đã có tiền tố ("Tòa Alpha", "Tầng Trệt", "Tầng 1"),
  * nhưng vài nơi chỉ có mã ("G", "1", "Alpha"). Chỉ thêm tiền tố khi giá trị chưa có
@@ -7,9 +7,9 @@
  *
  * Các ca thử (frontend chưa có test runner — kiểm bằng node khi sửa file này):
  *   formatBuilding("Tòa Alpha")        -> "Tòa Alpha"
- *   formatBuilding("Toà Beta")         -> "Toà Beta"
+ *   formatBuilding("Toà Epsilon")      -> "Toà Epsilon"
  *   formatBuilding("toa gamma")        -> "toa gamma"
- *   formatBuilding("Beta")             -> "Tòa Beta"
+ *   formatBuilding("Epsilon")          -> "Tòa Epsilon"
  *   formatBuilding("Toan")             -> "Tòa Toan"        (không nhầm "Toan" là có tiền tố)
  *   formatBuilding(null) / ("  ")      -> ""
  *   formatFloor("Tầng Trệt")           -> "Tầng Trệt"
@@ -21,7 +21,7 @@
  *   formatLocation("Tòa Alpha", "Tầng Trệt")      -> "Tòa Alpha · Tầng Trệt"
  *   formatLocation("Alpha", "G", " - ")            -> "Tòa Alpha - Tầng Trệt"
  *   formatLocation(null, "Tầng 1")                 -> "Tầng 1"
- *   formatLocation("Tòa Beta", null)               -> "Tòa Beta"
+ *   formatLocation("Tòa Epsilon", null)            -> "Tòa Epsilon"
  *   formatLocation(null, null)                     -> ""
  */
 

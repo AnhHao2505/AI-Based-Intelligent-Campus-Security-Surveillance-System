@@ -28,7 +28,6 @@ import {
 	Crosshair,
 	Save,
 	Loader2,
-	LocateFixed,
 	Menu,
 	Check,
 } from "lucide-react";
@@ -43,6 +42,9 @@ import {
 	DEFAULT_BUILDINGS_META,
 	loadGeometryStore,
 	buildVector3dLayers,
+	extractAreaLevelCode,
+	filterDisplayedMapPins,
+	resolveRoomBlockSelection,
 	buildRoute3dLayers,
 	computeDigitizedRoute,
 	matchesBuilding,
@@ -56,7 +58,7 @@ import {
 import { Select } from "../ui";
 import "../../styles/CampusMapView.css";
 
-// FPT University HCMC Campus default center framing both moved Tòa HCM & Tòa Epsilon
+// FPT University HCMC Campus default center framing both Tòa Alpha & Tòa Epsilon
 const CAMPUS_CENTER = {
 	longitude: 106.81068,
 	latitude: 10.84098,
@@ -199,8 +201,11 @@ export default function CampusMapView({
 	selectedBuilding = "ALL",
 	selectedFloor = "ALL",
 	isCreatingArea = false,
+	onStartCreateFromRoom,
 	onCancelCreateArea,
 	onAreaCreated,
+	rebindAreaRequestId = null,
+	onRebindAreaDone,
 	hideRail = false,
 	isLeftSidebarCollapsed = false,
 	onToggleLeftSidebar,
@@ -210,6 +215,8 @@ export default function CampusMapView({
 	const [mapZoom, setMapZoom] = useState(CAMPUS_CENTER.zoom);
 	const compactLabels = mapZoom < LABEL_MIN_ZOOM;
 	const [hoverCursor, setHoverCursor] = useState("grab");
+	const [hoveredRoom, setHoveredRoom] = useState(null);
+	const pendingRoomSeedRef = useRef(null);
 
 	// ===== 3D Vector Geometry Store & Floor Slicing (NO PNG OVERLAY IN PRODUCTION) =====
 	const [geometryStore, setGeometryStore] = useState(() => loadGeometryStore());
@@ -241,6 +248,67 @@ export default function CampusMapView({
 		[activeBuilding3d],
 	);
 
+	const allDbFloors = useMemo(
+		() =>
+			buildingsList.flatMap((b) =>
+				(b.floors || []).map((fl) => ({
+					...fl,
+					buildingName: fl.buildingName || fl.building?.name || b.name,
+				})),
+			),
+		[buildingsList],
+	);
+
+	// Chế độ tạo khu vực trên bản đồ (Map-First Creation from 3D room block)
+	const [createDraftCoords, setCreateDraftCoords] = useState(null); // [lng, lat]
+	const [createDraftRoomFaceId, setCreateDraftRoomFaceId] = useState(null);
+	const [createFormData, setCreateFormData] = useState({
+		name: "",
+		areaLevel: "PUBLIC",
+		building: "",
+		floor: "",
+		floorId: null,
+	});
+	const [creatingAreaLoading, setCreatingAreaLoading] = useState(false);
+	const [createFormError, setCreateFormError] = useState(null);
+
+	// Chế độ đổi block phòng 3D (chỉ ADMIN)
+	const [editingAreaId, setEditingAreaId] = useState(null);
+	const [draftCoords, setDraftCoords] = useState(null); // [lng, lat]
+	const [draftRoomMeta, setDraftRoomMeta] = useState(null);
+	const [savingCoords, setSavingCoords] = useState(false);
+	const [coordError, setCoordError] = useState(null);
+	const [coordSuccess, setCoordSuccess] = useState(null);
+	const isEditingCoords = Boolean(editingAreaId);
+
+	const activeCreatingPreview = useMemo(() => {
+		if (isCreatingArea && createDraftRoomFaceId) {
+			return {
+				faceId: createDraftRoomFaceId,
+				name: createFormData.name,
+				areaLevel: createFormData.areaLevel,
+			};
+		}
+		if (isEditingCoords && draftRoomMeta?.faceId) {
+			const targetEditing = areas.find((a) => a.id === editingAreaId);
+			return {
+				faceId: draftRoomMeta.faceId,
+				name: targetEditing?.name || "Vị trí mới",
+				areaLevel: extractAreaLevelCode(targetEditing) || "CONFIDENTIAL",
+			};
+		}
+		return null;
+	}, [
+		isCreatingArea,
+		createDraftRoomFaceId,
+		createFormData.name,
+		createFormData.areaLevel,
+		isEditingCoords,
+		draftRoomMeta,
+		areas,
+		editingAreaId,
+	]);
+
 	const {
 		slabsGeoJSON,
 		wallsGeoJSON,
@@ -248,6 +316,7 @@ export default function CampusMapView({
 		roomLabelsGeoJSON,
 		portalSymbolsGeoJSON,
 		buildingLabelsGeoJSON,
+		matchedAreaIdsOnActiveFloor,
 	} = useMemo(() => {
 		return buildVector3dLayers({
 			store: geometryStore,
@@ -255,6 +324,7 @@ export default function CampusMapView({
 			activeFloorOrder: activeFloorOrder3d,
 			areas,
 			selectedAreaId,
+			creatingPreview: activeCreatingPreview,
 			viewRole: isAdmin ? "ADMIN" : "FACILITY_MANAGER",
 			showOtherBuildingsInFocus: true,
 		});
@@ -264,6 +334,7 @@ export default function CampusMapView({
 		activeFloorOrder3d,
 		areas,
 		selectedAreaId,
+		activeCreatingPreview,
 		isAdmin,
 	]);
 
@@ -336,57 +407,109 @@ export default function CampusMapView({
 		return () => clearTimeout(timer);
 	}, [isLeftSidebarCollapsed]);
 
-	// Chế độ tạo khu vực trên bản đồ (Map-First Creation)
-	const [createDraftCoords, setCreateDraftCoords] = useState(null); // [lng, lat]
-	const [createFormData, setCreateFormData] = useState({
-		name: "",
-		areaLevel: "PUBLIC",
-		building: "",
-		floor: "",
-		floorId: null,
-	});
-	const [creatingAreaLoading, setCreatingAreaLoading] = useState(false);
-	const [createFormError, setCreateFormError] = useState(null);
-
-	// Chế độ đặt tọa độ trực tiếp trên bản đồ (chỉ ADMIN)
-	const [editingAreaId, setEditingAreaId] = useState(null);
-	const [draftCoords, setDraftCoords] = useState(null); // [lng, lat]
-	const [savingCoords, setSavingCoords] = useState(false);
-	const [locating, setLocating] = useState(false);
-	const [coordError, setCoordError] = useState(null);
-	const [coordSuccess, setCoordSuccess] = useState(null);
-	const isEditingCoords = Boolean(editingAreaId);
-
-	// Tự động điền dữ liệu tòa nhà / tầng ban đầu khi bật chế độ tạo (đồng bộ filter)
+	// Tự động điền dữ liệu tòa nhà / tầng ban đầu khi mở chế độ tạo (chỉ chạy khi chuyển false -> true, tránh ghi đè khi đổi tầng/phòng)
+	const prevIsCreatingRef = useRef(false);
 	useEffect(() => {
-		if (isCreatingArea) {
-			const initialBuilding =
-				selectedBuilding && selectedBuilding !== "ALL"
-					? selectedBuilding
-					: buildingsList[0]?.name || "Tòa Alpha";
-			const bObj = buildingsList.find((b) => b.name === initialBuilding);
-			const firstFloors = bObj?.floors || [];
-			const initialFloor =
-				selectedFloor && selectedFloor !== "ALL"
-					? selectedFloor
-					: firstFloors[0]?.name || "Tầng Trệt";
-			const initialFloorId =
-				firstFloors.find((f) => f.name === initialFloor)?.id ||
-				firstFloors[0]?.id ||
-				null;
-
+		if (!isCreatingArea) {
+			prevIsCreatingRef.current = false;
+			setCreateDraftRoomFaceId(null);
+			return;
+		}
+		const seeded = pendingRoomSeedRef.current;
+		if (seeded) {
+			pendingRoomSeedRef.current = null;
+			prevIsCreatingRef.current = true;
+			setActiveBuilding3d(seeded.building);
+			setActiveFloorOrder3d(seeded.floorOrder);
+			setCreateDraftRoomFaceId(seeded.faceId);
+			setCreateDraftCoords([seeded.centerLongitude, seeded.centerLatitude]);
 			setCreateFormData({
 				name: "",
 				areaLevel: "PUBLIC",
-				building: initialBuilding,
-				floor: initialFloor,
-				floorId: initialFloorId,
+				building: seeded.building,
+				floor: seeded.floor,
+				floorId: seeded.floorId ?? null,
 			});
-			setCreateDraftCoords(null);
 			setCreateFormError(null);
 			setRailCollapsed(false);
+			return;
 		}
-	}, [isCreatingArea, buildingsList, selectedBuilding, selectedFloor]);
+		if (prevIsCreatingRef.current) {
+			return;
+		}
+		prevIsCreatingRef.current = true;
+		const initialBuilding =
+			activeBuilding3d && activeBuilding3d !== "ALL"
+				? activeBuilding3d
+				: selectedBuilding && selectedBuilding !== "ALL"
+					? selectedBuilding
+					: buildingsList[0]?.name || "Tòa Alpha";
+		const bObj = buildingsList.find((b) => matchesBuilding(b.name, initialBuilding));
+		const firstFloors = bObj?.floors || [];
+		const matchedActiveFloor =
+			activeFloorOrder3d !== "ALL"
+				? firstFloors.find(
+						(f) =>
+							(f.floorOrder != null
+								? Number(f.floorOrder)
+								: resolveFloorOrder(bObj?.name || initialBuilding, f.name)) ===
+							Number(activeFloorOrder3d),
+					)
+				: null;
+		const initialFloor =
+			matchedActiveFloor?.name ||
+			(selectedFloor && selectedFloor !== "ALL"
+				? selectedFloor
+				: firstFloors[0]?.name || "Tầng Trệt");
+		const initialFloorId =
+			matchedActiveFloor?.id ||
+			firstFloors.find((f) => f.name === initialFloor)?.id ||
+			firstFloors[0]?.id ||
+			null;
+
+		setCreateFormData({
+			name: "",
+			areaLevel: "PUBLIC",
+			building: bObj?.name || initialBuilding,
+			floor: initialFloor,
+			floorId: initialFloorId,
+		});
+		setCreateDraftCoords(null);
+		setCreateDraftRoomFaceId(null);
+		setCreateFormError(null);
+		setRailCollapsed(false);
+	}, [
+		isCreatingArea,
+		buildingsList,
+		selectedBuilding,
+		selectedFloor,
+		activeBuilding3d,
+		activeFloorOrder3d,
+	]);
+
+	// Hỗ trợ mở nhanh chế độ "Đổi block phòng 3D" từ nút trong Modal Sửa của AreaListPage
+	useEffect(() => {
+		if (!isAdmin || !rebindAreaRequestId) return;
+		if (editingAreaId === rebindAreaRequestId) return;
+		const target = areas.find((a) => a.id === rebindAreaRequestId);
+		if (!target) return;
+		const matchedBld = DEFAULT_BUILDINGS_META.find((b) =>
+			matchesBuilding(target.building, b.name),
+		);
+		if (matchedBld) {
+			setActiveBuilding3d(matchedBld.name);
+			setActiveFloorOrder3d(resolveFloorOrder(matchedBld.name, target.floor));
+		}
+		setEditingAreaId(target.id);
+		setDraftCoords(getValidCoordinates(target));
+		setDraftRoomMeta(null);
+		setCoordError(null);
+		setCoordSuccess(null);
+		const cur = getValidCoordinates(target);
+		if (cur && mapRef.current) {
+			mapRef.current.flyTo({ center: cur, zoom: 18.7, pitch: 55, duration: 600 });
+		}
+	}, [isAdmin, rebindAreaRequestId, editingAreaId, areas]);
 
 	// Khi chọn 1 Area từ danh sách bên trái, tự động mở đúng tòa nhà và cắt đúng tầng của Area đó
 	const prevSyncedAreaIdRef = useRef(selectedAreaId);
@@ -424,11 +547,51 @@ export default function CampusMapView({
 		if (bObj?.floors?.length > 0) {
 			return bObj.floors;
 		}
+		const metaBld = DEFAULT_BUILDINGS_META.find((b) =>
+			matchesBuilding(b.name, createFormData.building),
+		);
+		if (metaBld?.floors?.length > 0) {
+			return metaBld.floors.map((fl) => ({ id: null, name: fl.name }));
+		}
 		return [
 			{ id: null, name: "Tầng Trệt" },
 			{ id: null, name: "Tầng 1" },
 		];
 	}, [buildingsList, createFormData.building]);
+
+	const createBuildingOptions = useMemo(() => {
+		const opts = buildingsList.map((b) => ({
+			value: b.name,
+			label: b.name,
+		}));
+		if (
+			createFormData.building &&
+			!opts.some((o) => o.value === createFormData.building)
+		) {
+			opts.unshift({
+				value: createFormData.building,
+				label: createFormData.building,
+			});
+		}
+		return opts;
+	}, [buildingsList, createFormData.building]);
+
+	const createFloorOptions = useMemo(() => {
+		const opts = availableCreateFloors.map((fl) => ({
+			value: fl.name,
+			label: fl.name,
+		}));
+		if (
+			createFormData.floor &&
+			!opts.some((o) => o.value === createFormData.floor)
+		) {
+			opts.unshift({
+				value: createFormData.floor,
+				label: createFormData.floor,
+			});
+		}
+		return opts;
+	}, [availableCreateFloors, createFormData.floor]);
 
 	const handleCreateBuildingChange = (bName) => {
 		const bObj = buildingsList.find((b) => b.name === bName);
@@ -452,12 +615,19 @@ export default function CampusMapView({
 		}));
 	};
 
-	const isCreateFormIncomplete = !createDraftCoords || !createFormData.name.trim();
+	const isCreateFormIncomplete =
+		!createDraftCoords || !createFormData.name.trim() || !createFormData.floorId;
 
 	const handleCreateAreaSubmit = async (e) => {
 		e?.preventDefault?.();
-		if (!createDraftCoords) {
-			setCreateFormError("Vui lòng nhấp vào bản đồ để chọn tọa độ.");
+		if (!createDraftCoords || !createDraftRoomFaceId) {
+			setCreateFormError("Vui lòng chọn trực tiếp một block phòng 3D trống.");
+			return;
+		}
+		if (!createFormData.floorId) {
+			setCreateFormError(
+				"Tầng này hiện chỉ phục vụ mô phỏng 3D — chưa có dữ liệu tầng trong CSDL để lưu Khu vực mới.",
+			);
 			return;
 		}
 		const nameTrimmed = createFormData.name.trim();
@@ -485,6 +655,7 @@ export default function CampusMapView({
 			const res = await createArea(payload);
 			setCoordSuccess(`Đã tạo khu vực "${nameTrimmed}" thành công.`);
 			setCreateDraftCoords(null);
+			setCreateDraftRoomFaceId(null);
 			onAreaCreated?.(res);
 		} catch (err) {
 			console.error("Create area failed:", err);
@@ -502,13 +673,15 @@ export default function CampusMapView({
 		return areas.find((a) => a.id === editingAreaId) || null;
 	}, [areas, editingAreaId]);
 
-	// Thoát chế độ chỉnh tọa độ nếu khu vực đang sửa bị lọc khỏi danh sách
+	// Thoát chế độ đổi block phòng 3D nếu khu vực đang sửa bị lọc khỏi danh sách
 	useEffect(() => {
 		if (editingAreaId && !editingArea) {
 			setEditingAreaId(null);
 			setDraftCoords(null);
+			setDraftRoomMeta(null);
+			onRebindAreaDone?.();
 		}
-	}, [editingAreaId, editingArea]);
+	}, [editingAreaId, editingArea, onRebindAreaDone]);
 
 	// Tự ẩn thông báo thành công
 	useEffect(() => {
@@ -654,21 +827,17 @@ export default function CampusMapView({
 		if (activeBuilding3d === "ALL" || activeFloorOrder3d === "ALL") {
 			return positionedAreas;
 		}
-		return positionedAreas.filter((item) => {
-			if (editingAreaId === item.id || selectedAreaId === item.id) return true;
-			if (!item.building) return true;
-			if (!matchesBuilding(item.building, activeBuilding3d)) return false;
-			return (
-				resolveFloorOrder(item.building, item.floor) ===
-				Number(activeFloorOrder3d)
-			);
+		return filterDisplayedMapPins({
+			areas: positionedAreas,
+			activeBuilding3d,
+			activeFloorOrder3d,
+			matchedAreaIdsOnActiveFloor,
 		});
 	}, [
 		positionedAreas,
 		activeBuilding3d,
 		activeFloorOrder3d,
-		editingAreaId,
-		selectedAreaId,
+		matchedAreaIdsOnActiveFloor,
 	]);
 
 	// Di chuyển khung nhìn bản đồ về tọa độ
@@ -700,59 +869,48 @@ export default function CampusMapView({
 		handleSelect3dBuilding("ALL");
 	}, [handleSelect3dBuilding]);
 
-	// ===== Đặt tọa độ trên bản đồ (ADMIN) =====
+	// ===== Đổi block phòng 3D (ADMIN) =====
 	const handleStartEditCoords = useCallback(() => {
 		if (!isAdmin || !selectedArea) return;
-		const current = getValidCoordinates(selectedArea);
-		let initial = current;
-		if (!initial && mapRef.current) {
-			const c = mapRef.current.getCenter();
-			initial = [c.lng, c.lat];
-		}
-		setEditingAreaId(selectedArea.id);
-		setDraftCoords(
-			initial || [CAMPUS_CENTER.longitude, CAMPUS_CENTER.latitude],
+		const matchedBld = DEFAULT_BUILDINGS_META.find((b) =>
+			matchesBuilding(selectedArea.building, b.name),
 		);
+		if (matchedBld) {
+			setActiveBuilding3d(matchedBld.name);
+			setActiveFloorOrder3d(resolveFloorOrder(matchedBld.name, selectedArea.floor));
+		}
+		const current = getValidCoordinates(selectedArea);
+		setEditingAreaId(selectedArea.id);
+		setDraftCoords(current);
+		setDraftRoomMeta(null);
 		setCoordError(null);
 		setCoordSuccess(null);
-		if (current) handleFlyToCoords(current, 18);
+		if (current) handleFlyToCoords(current, 18.7);
 	}, [isAdmin, selectedArea, handleFlyToCoords]);
 
 	const handleCancelEditCoords = useCallback(() => {
 		setEditingAreaId(null);
 		setDraftCoords(null);
+		setDraftRoomMeta(null);
 		setCoordError(null);
-	}, []);
-
-	const handleUseCurrentLocation = useCallback(() => {
-		if (!navigator.geolocation) {
-			setCoordError("Trình duyệt không hỗ trợ định vị GPS.");
-			return;
-		}
-		setLocating(true);
-		setCoordError(null);
-		navigator.geolocation.getCurrentPosition(
-			(pos) => {
-				const coords = [pos.coords.longitude, pos.coords.latitude];
-				setDraftCoords(coords);
-				handleFlyToCoords(coords, 18);
-				setLocating(false);
-			},
-			(err) => {
-				setLocating(false);
-				setCoordError(
-					err?.code === 1
-						? "Bạn đã từ chối quyền truy cập vị trí."
-						: "Không lấy được vị trí hiện tại. Vui lòng thử lại.",
-				);
-			},
-			{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-		);
-	}, [handleFlyToCoords]);
+		onRebindAreaDone?.();
+	}, [onRebindAreaDone]);
 
 	const handleSaveCoords = useCallback(async () => {
-		if (!editingArea || !isValidLngLat(draftCoords)) {
-			setCoordError("Tọa độ không hợp lệ (vĩ độ -90..90, kinh độ -180..180).");
+		if (!editingArea) return;
+		if (!draftRoomMeta) {
+			setCoordError("Vui lòng nhấp trực tiếp vào một block phòng 3D trống.");
+			return;
+		}
+		if (!draftRoomMeta.floorId) {
+			setCoordError(
+				draftRoomMeta.warning ||
+					"Tầng này hiện chỉ phục vụ mô phỏng 3D — chưa có dữ liệu tầng trong CSDL.",
+			);
+			return;
+		}
+		if (!isValidLngLat(draftCoords)) {
+			setCoordError("Tọa độ block phòng 3D không hợp lệ.");
 			return;
 		}
 		if (editingArea.version == null) {
@@ -763,16 +921,16 @@ export default function CampusMapView({
 		setSavingCoords(true);
 		setCoordError(null);
 		try {
-			// Giữ nguyên tên, loại, tầng hiện tại — chỉ đổi tọa độ (BR-TC-13: gửi kèm version)
+			// Đồng bộ building/floor/floorId theo block phòng 3D vừa chọn (BR-TC-13: gửi kèm version)
 			const res = await updateArea(editingArea.id, {
 				name: editingArea.name,
 				areaLevel:
 					typeof editingArea.areaLevel === "string"
 						? editingArea.areaLevel
 						: editingArea.areaLevel?.code,
-				building: null,
-				floor: null,
-				floorId: null,
+				building: draftRoomMeta.building,
+				floor: draftRoomMeta.floor,
+				floorId: draftRoomMeta.floorId,
 				centerLatitude: Number(lat.toFixed(7)),
 				centerLongitude: Number(lng.toFixed(7)),
 				version: editingArea.version,
@@ -780,14 +938,55 @@ export default function CampusMapView({
 			onAreaUpdated?.(editingArea.id, res);
 			setEditingAreaId(null);
 			setDraftCoords(null);
-			setCoordSuccess("Đã cập nhật tọa độ khu vực.");
+			setDraftRoomMeta(null);
+			setCoordSuccess(
+				`Đã gắn "${editingArea.name}" sang block ${draftRoomMeta.building} · ${draftRoomMeta.floor}.`,
+			);
+			onRebindAreaDone?.();
 		} catch (err) {
 			setCoordError(getErrorMessage(err));
 		} finally {
 			setSavingCoords(false);
 		}
-	}, [editingArea, draftCoords, onAreaUpdated]);
+	}, [editingArea, draftRoomMeta, draftCoords, onAreaUpdated, onRebindAreaDone]);
 
+	const handleMapMouseMove = useCallback(
+		(e) => {
+			const features = e?.features || [];
+			setHoverCursor(features.length > 0 ? "pointer" : "grab");
+			const roomFeat = features.find(
+				(f) => f.layer?.id === "campus-3d-rooms-layer" && !f.properties?.isGhost,
+			);
+			if (!roomFeat?.properties || !e?.point) {
+				setHoveredRoom(null);
+				return;
+			}
+			const p = roomFeat.properties;
+			if (String(p.role || "ROOM").toUpperCase() === "CORRIDOR") {
+				setHoveredRoom(null);
+				return;
+			}
+			const areaLevelCode = p.areaLevelCode || "";
+			const levelCfg = areaLevelCode ? getLevelConfig(areaLevelCode) : null;
+			const emptySub = isEditingCoords
+				? "Nhấp để chuyển khu vực tới block này"
+				: isAdmin
+					? "Nhấp để tạo Khu vực"
+					: "Chưa gán khu vực";
+			setHoveredRoom({
+				x: e.point.x,
+				y: e.point.y,
+				isOccupied: Boolean(p.matchedAreaId),
+				title: p.matchedAreaName || "Phòng trống",
+				subtitle: p.matchedAreaId
+					? levelCfg?.badgeLabel || levelCfg?.name || "Đã gán Khu vực"
+					: emptySub,
+			});
+		},
+		[isAdmin, isEditingCoords],
+	);
+
+	// Interactive 3D Map Click: Create/Rebind chỉ nhận block ROOM trống; Click block ROOM trống ở chế độ xem (ADMIN) tự mở Tạo khu vực
 	const handleMapClick = useCallback(
 		(e) => {
 			const features = e?.features || [];
@@ -809,51 +1008,95 @@ export default function CampusMapView({
 			);
 			const roomProps = clickedRoomFeature?.properties;
 
-			if (isCreatingArea && e?.lngLat) {
-				const targetLng =
-					roomProps?.centerLng != null
-						? Number(Number(roomProps.centerLng).toFixed(6))
-						: Number(e.lngLat.lng.toFixed(6));
-				const targetLat =
-					roomProps?.centerLat != null
-						? Number(Number(roomProps.centerLat).toFixed(6))
-						: Number(e.lngLat.lat.toFixed(6));
-				setCreateDraftCoords([targetLng, targetLat]);
-				if (roomProps?.building) {
-					const matchedOpt = buildingsList.find((b) =>
-						matchesBuilding(b.name, roomProps.building),
+			if (isCreatingArea) {
+				if (!clickedRoomFeature || !roomProps) {
+					setCreateFormError(
+						"Chỉ có thể chọn trực tiếp một block phòng 3D trống trên bản đồ.",
 					);
-					if (matchedOpt) {
-						const fls = matchedOpt.floors || [];
-						const matchedFl = fls.find(
-							(fl) =>
-								resolveFloorOrder(matchedOpt.name, fl.name) ===
-								Number(roomProps.floorOrder),
-						);
-						setCreateFormData((prev) => ({
-							...prev,
-							building: matchedOpt.name,
-							floor: matchedFl?.name || prev.floor,
-							floorId: matchedFl?.id || prev.floorId,
-						}));
-					}
+					setRailCollapsed(false);
+					return;
 				}
+				const selection = resolveRoomBlockSelection({
+					roomProps,
+					floors: allDbFloors,
+				});
+				if (!selection.ok) {
+					setCreateFormError(selection.message);
+					setRailCollapsed(false);
+					return;
+				}
+				setActiveBuilding3d(selection.building);
+				setActiveFloorOrder3d(selection.floorOrder);
+				setCreateDraftRoomFaceId(selection.faceId);
+				setCreateDraftCoords([
+					selection.centerLongitude,
+					selection.centerLatitude,
+				]);
+				setCreateFormData((prev) => ({
+					...prev,
+					building: selection.building,
+					floor: selection.floor,
+					floorId: selection.floorId ?? null,
+				}));
 				setCreateFormError(null);
 				setRailCollapsed(false);
 				return;
 			}
-			if (isEditingCoords && e?.lngLat) {
-				const targetLng =
-					roomProps?.centerLng != null
-						? Number(roomProps.centerLng)
-						: e.lngLat.lng;
-				const targetLat =
-					roomProps?.centerLat != null
-						? Number(roomProps.centerLat)
-						: e.lngLat.lat;
-				setDraftCoords([targetLng, targetLat]);
-				setCoordError(null);
+			if (isEditingCoords) {
+				if (
+					!clickedRoomFeature &&
+					clickedGhostFeature?.properties?.floorOrder != null &&
+					!clickedGhostFeature.properties?.isContextBuilding &&
+					activeBuilding3d !== "ALL" &&
+					matchesBuilding(clickedGhostFeature.properties?.building, activeBuilding3d)
+				) {
+					setActiveFloorOrder3d(Number(clickedGhostFeature.properties.floorOrder));
+					setCoordError(null);
+					return;
+				}
+				if (!clickedRoomFeature || !roomProps) {
+					setCoordError(
+						"Chỉ có thể chọn trực tiếp một block phòng 3D trống trên bản đồ.",
+					);
+					return;
+				}
+				const selection = resolveRoomBlockSelection({
+					roomProps,
+					floors: allDbFloors,
+					excludeAreaId: editingAreaId,
+				});
+				if (!selection.ok) {
+					setCoordError(selection.message);
+					return;
+				}
+				setDraftCoords([selection.centerLongitude, selection.centerLatitude]);
+				setDraftRoomMeta(selection);
+				setCoordError(selection.hasDbFloor ? null : selection.warning);
 				return;
+			}
+
+			// Zero-friction Create: Admin nhấp thẳng block ROOM trống trên tầng đang mở -> mở panel Tạo khu vực với tọa độ/tòa/tầng đã điền sẵn
+			if (
+				isAdmin &&
+				typeof onStartCreateFromRoom === "function" &&
+				clickedRoomFeature &&
+				roomProps &&
+				!roomProps.isGhost &&
+				!roomProps.matchedAreaId &&
+				String(roomProps.role || "ROOM").toUpperCase() === "ROOM"
+			) {
+				const selection = resolveRoomBlockSelection({
+					roomProps,
+					floors: allDbFloors,
+				});
+				if (selection.ok) {
+					pendingRoomSeedRef.current = selection;
+					setActiveBuilding3d(selection.building);
+					setActiveFloorOrder3d(selection.floorOrder);
+					setActiveRoute3d(null);
+					onStartCreateFromRoom();
+					return;
+				}
 			}
 
 			const hitFeature = clickedActiveBuildingFeature || clickedGhostFeature;
@@ -935,10 +1178,13 @@ export default function CampusMapView({
 		[
 			isCreatingArea,
 			isEditingCoords,
-			buildingsList,
+			isAdmin,
+			editingAreaId,
+			allDbFloors,
 			activeBuilding3d,
 			activeFloorOrder3d,
 			handleSelect3dBuilding,
+			onStartCreateFromRoom,
 			onSelectArea,
 			geometryStore,
 		],
@@ -1066,32 +1312,40 @@ export default function CampusMapView({
 						</span>
 						<span className="campus-create-guide-pill__text">
 							{createDraftCoords
-								? "Đã chọn vị trí · Kéo ghim để chỉnh lại"
-								: "Nhấp vào bản đồ"}
+								? "Đã gắn block phòng 3D · Có thể click block trống khác để đổi"
+								: "Nhấp vào block phòng 3D trống để gắn Khu vực"}
 						</span>
 					</div>
 				)}
 
-				{/* Thanh công cụ đặt tọa độ (ADMIN) */}
+				{/* Thanh công cụ đổi block phòng 3D (ADMIN) */}
 				{isEditingCoords && editingArea && (
 					<div className="campus-coord-editor">
 						<div className="campus-coord-editor__head">
 							<Crosshair size={14} />
 							<span>
-								Đặt vị trí: <strong>{editingArea.name}</strong>
+								Đổi block phòng 3D: <strong>{editingArea.name}</strong>
 							</span>
 						</div>
 						<p className="campus-coord-editor__hint">
-							Nhấn lên bản đồ hoặc kéo ghim để chọn vị trí.
+							Nhấp trực tiếp vào một block phòng 3D trống để chuyển vị trí khu vực.
 						</p>
 						<div className="campus-coord-editor__values">
 							<span>
-								Vĩ độ{" "}
-								<code>{draftCoords ? draftCoords[1].toFixed(6) : "—"}</code>
+								Block mới{" "}
+								<code>
+									{draftRoomMeta
+										? `${draftRoomMeta.building} · ${draftRoomMeta.floor}`
+										: "Chưa chọn block"}
+								</code>
 							</span>
 							<span>
-								Kinh độ{" "}
-								<code>{draftCoords ? draftCoords[0].toFixed(6) : "—"}</code>
+								Toạ độ{" "}
+								<code>
+									{draftCoords
+										? `${draftCoords[1].toFixed(5)}, ${draftCoords[0].toFixed(5)}`
+										: "—"}
+								</code>
 							</span>
 						</div>
 						{coordError && (
@@ -1101,24 +1355,6 @@ export default function CampusMapView({
 							</div>
 						)}
 						<div className="campus-coord-editor__actions">
-							<button
-								type="button"
-								id="campus-coord-locate-btn"
-								className="campus-coord-btn campus-coord-btn--ghost"
-								onClick={handleUseCurrentLocation}
-								disabled={locating || savingCoords}
-								title="Dùng vị trí GPS hiện tại của thiết bị"
-							>
-								{locating ? (
-									<Loader2
-										size={13}
-										className="animate-spin"
-									/>
-								) : (
-									<LocateFixed size={13} />
-								)}
-								Vị trí của tôi
-							</button>
 							<button
 								type="button"
 								id="campus-coord-cancel-btn"
@@ -1133,7 +1369,7 @@ export default function CampusMapView({
 								id="campus-coord-save-btn"
 								className="campus-coord-btn campus-coord-btn--primary"
 								onClick={handleSaveCoords}
-								disabled={savingCoords || !isValidLngLat(draftCoords)}
+								disabled={savingCoords || !draftRoomMeta?.floorId || !isValidLngLat(draftCoords)}
 							>
 								{savingCoords ? (
 									<Loader2
@@ -1143,7 +1379,7 @@ export default function CampusMapView({
 								) : (
 									<Save size={13} />
 								)}
-								Lưu tọa độ
+								Lưu vị trí 3D
 							</button>
 						</div>
 					</div>
@@ -1171,10 +1407,11 @@ export default function CampusMapView({
 						}}
 						onZoomEnd={(e) => setMapZoom(e.viewState.zoom)}
 						onClick={handleMapClick}
-						onMouseMove={(e) =>
-							setHoverCursor(e?.features?.length > 0 ? "pointer" : "grab")
-						}
-						onMouseLeave={() => setHoverCursor("grab")}
+						onMouseMove={handleMapMouseMove}
+						onMouseLeave={() => {
+							setHoverCursor("grab");
+							setHoveredRoom(null);
+						}}
 						cursor={hoverCursor}
 						interactiveLayerIds={INTERACTIVE_3D_LAYERS}
 						light={MAP_LIGHT}
@@ -1536,92 +1773,42 @@ export default function CampusMapView({
 							);
 						})}
 
-						{/* Ghim nháp khi đang đặt tọa độ (kéo thả được) */}
-						{isEditingCoords && isValidLngLat(draftCoords) && (
-							<Marker
-								longitude={draftCoords[0]}
-								latitude={draftCoords[1]}
-								anchor="bottom"
-								draggable
-								onDragEnd={(e) => {
-									if (e?.lngLat) {
-										setDraftCoords([e.lngLat.lng, e.lngLat.lat]);
-									}
-								}}
-								style={{ zIndex: 50 }}
-							>
-								<div
-									className="campus-draft-pin"
-									title="Kéo để điều chỉnh vị trí"
+						{/* Ghim tham chiếu vị trí hiện tại trước khi admin chọn block 3D mới */}
+						{isEditingCoords &&
+							!draftRoomMeta?.faceId &&
+							isValidLngLat(draftCoords) && (
+								<Marker
+									longitude={draftCoords[0]}
+									latitude={draftCoords[1]}
+									anchor="bottom"
+									style={{ zIndex: 50 }}
 								>
-									<svg
-										width="34"
-										height="44"
-										viewBox="0 0 24 32"
-										aria-hidden="true"
+									<div
+										className="campus-draft-pin"
+										title="Vị trí hiện tại của khu vực · Hãy nhấp vào block phòng 3D trống mới"
 									>
-										<path
-											d="M12 0C5.4 0 0 5.3 0 11.9 0 20.8 12 32 12 32s12-11.2 12-20.1C24 5.3 18.6 0 12 0z"
-											fill="#ea4335"
-											stroke="#b31412"
-											strokeWidth="1"
-										/>
-										<circle
-											cx="12"
-											cy="11.5"
-											r="4.2"
-											fill="#7a0c0c"
-										/>
-									</svg>
-								</div>
-							</Marker>
-						)}
-
-						{/* Marker tọa độ nháp cho tạo khu vực mới (Map-First Creation) */}
-						{isCreatingArea && createDraftCoords && (
-							<Marker
-								longitude={createDraftCoords[0]}
-								latitude={createDraftCoords[1]}
-								anchor="bottom"
-								draggable
-								onDragEnd={(e) =>
-									setCreateDraftCoords([
-										Number(e.lngLat.lng.toFixed(6)),
-										Number(e.lngLat.lat.toFixed(6)),
-									])
-								}
-								style={{ zIndex: 100 }}
-							>
-								<div
-									className="campus-pin-marker campus-pin-marker--draft"
-									title="Vị trí vùng mới (Kéo để chỉnh vị trí)"
-								>
-									<span className="campus-pin-marker__label">Vùng mới</span>
-									<div className="campus-pin-marker__icon-wrap">
 										<svg
-											className="campus-pin-marker__svg"
-											width="26"
-											height="34"
+											width="34"
+											height="44"
 											viewBox="0 0 24 32"
 											aria-hidden="true"
 										>
 											<path
-												d="M12 0C5.373 0 0 5.373 0 12c0 8.5 12 20 12 20s12-11.5 12-20c0-6.627-5.373-12-12-12z"
-												fill="#f37021"
-												stroke="#ffffff"
-												strokeWidth="1.8"
+												d="M12 0C5.4 0 0 5.3 0 11.9 0 20.8 12 32 12 32s12-11.2 12-20.1C24 5.3 18.6 0 12 0z"
+												fill="#ea4335"
+												stroke="#b31412"
+												strokeWidth="1"
 											/>
 											<circle
 												cx="12"
-												cy="11"
-												r="4"
-												fill="#ffffff"
+												cy="11.5"
+												r="4.2"
+												fill="#7a0c0c"
 											/>
 										</svg>
 									</div>
-								</div>
-							</Marker>
-						)}
+								</Marker>
+							)}
 
 						{/* Google-Style Real Coordinate Markers with Auto-Shift for Overlaps */}
 						{displayedPositionedAreas.map((item) => {
@@ -1675,6 +1862,28 @@ export default function CampusMapView({
 							);
 						})}
 					</MapGL>
+
+					{hoveredRoom && (
+						<div
+							className={`campus-room-hover-tooltip ${
+								hoveredRoom.isOccupied
+									? "campus-room-hover-tooltip--occupied"
+									: "campus-room-hover-tooltip--empty"
+							}`}
+							style={{
+								left: `${Math.round(hoveredRoom.x)}px`,
+								top: `${Math.round(hoveredRoom.y)}px`,
+							}}
+							role="status"
+						>
+							<strong className="campus-room-hover-tooltip__title">
+								{hoveredRoom.title}
+							</strong>
+							<span className="campus-room-hover-tooltip__sub">
+								{hoveredRoom.subtitle}
+							</span>
+						</div>
+					)}
 				</div>
 
 				{/* Floating Route Summary Pill */}
@@ -1706,12 +1915,16 @@ export default function CampusMapView({
 								<span>{AREA_LEVEL_CONFIG.PUBLIC.badgeLabel}</span>
 							</div>
 							<div className="campus-map-legend__item">
-								<span className="campus-map-legend__dot campus-map-legend__dot--internal" />
+								<span className="campus-map-legend__dot campus-map-legend__dot--contact" />
 								<span>{AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel}</span>
 							</div>
 							<div className="campus-map-legend__item">
 								<span className="campus-map-legend__dot campus-map-legend__dot--private" />
 								<span>{AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}</span>
+							</div>
+							<div className="campus-map-legend__item">
+								<span className="campus-map-legend__dot campus-map-legend__dot--empty-room" />
+								<span>Phòng trống</span>
 							</div>
 						</>
 					) : (
@@ -1747,6 +1960,7 @@ export default function CampusMapView({
 									className="campus-rail-close-btn"
 									onClick={() => {
 										setCreateDraftCoords(null);
+										setCreateDraftRoomFaceId(null);
 										setCreateFormError(null);
 										onCancelCreateArea?.();
 									}}
@@ -1772,12 +1986,22 @@ export default function CampusMapView({
 									<MapPin size={14} />
 									{createDraftCoords ? (
 										<span>
-											Tọa độ: {createDraftCoords[1]}, {createDraftCoords[0]}
+											Block {createFormData.building} · {createFormData.floor} (
+											{createDraftCoords[1]}, {createDraftCoords[0]})
 										</span>
 									) : (
-										<span>Chưa chọn tọa độ (nhấp lên bản đồ)</span>
+										<span>Click trực tiếp lên block phòng 3D trống</span>
 									)}
 								</div>
+
+								{createDraftCoords && !createFormData.floorId && (
+									<div className="campus-create-floor-warning" role="alert">
+										<AlertCircle size={15} />
+										<span>
+											Tầng này hiện chỉ phục vụ mô phỏng 3D — chưa có dữ liệu tầng trong CSDL để lưu Khu vực mới.
+										</span>
+									</div>
+								)}
 
 								<div className="area-form-group">
 									<label className="area-form-label">Tên khu vực *</label>
@@ -1832,12 +2056,11 @@ export default function CampusMapView({
 									<label className="area-form-label">Tòa nhà *</label>
 									<Select
 										className="ui-select-group--filter"
+										disabled
 										value={createFormData.building}
 										onChange={(e) => handleCreateBuildingChange(e.target.value)}
-										options={buildingsList.map((b) => ({
-											value: b.name,
-											label: b.name,
-										}))}
+										options={createBuildingOptions}
+										hint="Tự động khóa theo block phòng 3D đang chọn"
 									/>
 								</div>
 
@@ -1845,12 +2068,11 @@ export default function CampusMapView({
 									<label className="area-form-label">Tầng *</label>
 									<Select
 										className="ui-select-group--filter"
+										disabled
 										value={createFormData.floor}
 										onChange={(e) => handleCreateFloorChange(e.target.value)}
-										options={availableCreateFloors.map((fl) => ({
-											value: fl.name,
-											label: fl.name,
-										}))}
+										options={createFloorOptions}
+										hint="Tự động khóa theo tầng của block phòng 3D"
 									/>
 								</div>
 							</div>
@@ -1862,13 +2084,15 @@ export default function CampusMapView({
 										isCreateFormIncomplete ? "area-btn-modal--submit-blurred" : ""
 									}`}
 									onClick={handleCreateAreaSubmit}
-									disabled={creatingAreaLoading}
+									disabled={creatingAreaLoading || isCreateFormIncomplete}
 									title={
 										!createDraftCoords
-											? "Vui lòng chọn tọa độ trên bản đồ"
-											: !createFormData.name.trim()
-												? "Vui lòng nhập tên khu vực"
-												: "Xác nhận tạo khu vực mới"
+											? "Vui lòng click lên block phòng 3D trống trên bản đồ"
+											: !createFormData.floorId
+												? "Tầng chưa có dữ liệu trong CSDL để tạo Khu vực"
+												: !createFormData.name.trim()
+													? "Vui lòng nhập tên khu vực"
+													: "Xác nhận tạo khu vực mới"
 									}
 								>
 									{creatingAreaLoading ? (
@@ -2037,9 +2261,7 @@ export default function CampusMapView({
 												onClick={handleStartEditCoords}
 											>
 												<Crosshair size={13} />
-												{getValidCoordinates(selectedArea)
-													? "Chỉnh vị trí trên bản đồ"
-													: "Đặt vị trí trên bản đồ"}
+												Đổi block phòng 3D
 											</button>
 										)}
 									</div>
