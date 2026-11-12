@@ -695,12 +695,60 @@ public class AreaService {
         return dependencyChecker.toResponse(area, dependencyChecker.evaluate(area, OffsetDateTime.now()));
     }
 
-    // Bắt buộc tọa độ
-    private static void requireCoordinatePair(Double centerLatitude, Double centerLongitude) {
-        if (centerLatitude == null || centerLongitude == null) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_006,
-                    "Phải nhập đủ cả vĩ độ và kinh độ");
+    private static final String COORDINATE_PAIR_MESSAGE = "Phải nhập đủ cả vĩ độ và kinh độ";
+    private static final double BLOCK_COLLISION_RADIUS_METERS = 3.0;
+    private static final double EARTH_RADIUS_METERS = 6_371_000.0;
+
+    // Kiểm tra trước khi khoá: chặn nửa cặp (có vĩ độ thiếu kinh độ hoặc ngược lại) và giá trị không hữu hạn
+    private static void validateUpdateCoordinatePairBeforeLock(Double centerLatitude, Double centerLongitude) {
+        boolean hasLat = centerLatitude != null;
+        boolean hasLng = centerLongitude != null;
+        if (hasLat != hasLng) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_006, COORDINATE_PAIR_MESSAGE);
         }
+        if (hasLat && (!Double.isFinite(centerLatitude) || !Double.isFinite(centerLongitude))) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_006, COORDINATE_PAIR_MESSAGE);
+        }
+    }
+
+    // Phương án U1 sau khi khoá: chỉ cho phép giữ null/null khi bản thân khu vực đang chưa gắn block 3D
+    private static void validateUpdateCoordinateClearAfterLock(Area lockedArea, Double centerLatitude, Double centerLongitude) {
+        if (centerLatitude == null && centerLongitude == null
+                && (lockedArea.getCenterLatitude() != null || lockedArea.getCenterLongitude() != null)) {
+            throw new AreaException(AreaErrorCode.ERR_AREA_006, COORDINATE_PAIR_MESSAGE);
+        }
+    }
+
+    private boolean shouldDetachRestoredBlock(Area area, UUID floorId) {
+        Double lat = area.getCenterLatitude();
+        Double lng = area.getCenterLongitude();
+        if (lat == null || lng == null || floorId == null) {
+            return false;
+        }
+        List<Area> sameFloorAreas = areaRepository.findActivePositionedByFloorIdExcludingId(floorId, area.getId());
+        for (Area activeArea : sameFloorAreas) {
+            Double otherLat = activeArea.getCenterLatitude();
+            Double otherLng = activeArea.getCenterLongitude();
+            if (otherLat == null || otherLng == null) {
+                continue;
+            }
+            if (distanceMeters(lat, lng, otherLat, otherLng) <= BLOCK_COLLISION_RADIUS_METERS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static double distanceMeters(double lat1, double lng1, double lat2, double lng2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double rLat1 = Math.toRadians(lat1);
+        double rLat2 = Math.toRadians(lat2);
+        double sinDLat = Math.sin(dLat / 2.0);
+        double sinDLng = Math.sin(dLng / 2.0);
+        double a = sinDLat * sinDLat + Math.cos(rLat1) * Math.cos(rLat2) * sinDLng * sinDLng;
+        double c = 2.0 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0.0, 1.0 - a)));
+        return EARTH_RADIUS_METERS * c;
     }
 
     private com.fa26se040.icss.entity.Floor resolveAndValidateTargetFloor(
@@ -743,7 +791,6 @@ public class AreaService {
     @Transactional
     public AreaResponse create(AreaCreateRequest req, String actorEmail) {
         String name = areaValidator.validateAndNormalizeName(req.getName());
-        requireCoordinatePair(req.getCenterLatitude(), req.getCenterLongitude());
 
         if (req.getAreaLevel() == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_003);
@@ -811,7 +858,7 @@ public class AreaService {
         if (req.getAreaLevel() == null) {
             throw new AreaException(AreaErrorCode.ERR_AREA_003);
         }
-        requireCoordinatePair(req.getCenterLatitude(), req.getCenterLongitude());
+        validateUpdateCoordinatePairBeforeLock(req.getCenterLatitude(), req.getCenterLongitude());
         requireVersion(req.getVersion());
         String reason = normalizeReason(req.getReason(), false);
         // Đổi loại bắt buộc lý do (TC-02): đọc loại hiện tại không khoá, không nạp entity; kiểm lại sau khi khoá
@@ -825,6 +872,7 @@ public class AreaService {
                 .filter(a -> a.getDeletedAt() == null)
                 .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
         checkVersion(area, req.getVersion());
+        validateUpdateCoordinateClearAfterLock(area, req.getCenterLatitude(), req.getCenterLongitude());
         AreaRowState before = AreaRowState.of(area);
         OffsetDateTime now = OffsetDateTime.now();
         boolean typeChange = area.getAreaLevel() != req.getAreaLevel();
@@ -977,6 +1025,9 @@ public class AreaService {
             AreaRowState before = AreaRowState.of(area);
             area.setIsActive(false);
             area.setDeletedAt(now);
+            // Mục 2A: giải phóng block 3D khi vô hiệu hóa; tọa độ gốc đã được giữ trong beforeSnapshot (audit_logs)
+            area.setCenterLatitude(null);
+            area.setCenterLongitude(null);
             bumpVersionIfChanged(area, before);
             Area savedArea = areaRepository.save(area);
 
@@ -1030,6 +1081,11 @@ public class AreaService {
 
         AreaSnapshot beforeSnapshot = AreaSnapshot.from(area);
         AreaRowState before = AreaRowState.of(area);
+        // Mục 2A: tránh đè block 3D nếu dữ liệu cũ còn tọa độ trùng với khu vực đang hoạt động cùng tầng
+        if (shouldDetachRestoredBlock(area, floorEntity.getId())) {
+            area.setCenterLatitude(null);
+            area.setCenterLongitude(null);
+        }
         area.setIsActive(true);
         area.setDeletedAt(null);
         bumpVersionIfChanged(area, before);

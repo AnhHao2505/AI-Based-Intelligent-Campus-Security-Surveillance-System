@@ -11,6 +11,8 @@
  * - CampusMapView & GuardMapScreen NEVER render the raw PNG images; they only render clean 3D Vector layers.
  */
 
+import { buildRoomLabelSpriteId } from "../utils/mapRoomLabelSprites.js";
+
 export const STORAGE_KEY_3D_GEOMETRY = "icss_campus_3d_geometry_v3";
 const LEGACY_STORAGE_KEYS = ["icss_campus_3d_geometry_v2"];
 
@@ -3338,6 +3340,9 @@ export function buildVector3dLayers({
 			const roomLabelText =
 				matchedArea?.name ||
 				(isPreviewRoom ? String(creatingPreview?.name || "").trim() : "");
+			const effectiveLabelLevelCode =
+				(isPreviewRoom ? previewLevelCode : areaLevelCode) || "PUBLIC";
+			const labelSelected = Boolean(isSelected || isPreviewRoom);
 
 			if (
 				roomLabelText &&
@@ -3354,10 +3359,16 @@ export function buildVector3dLayers({
 						areaId: matchedArea?.id || "creating-preview",
 						name: roomLabelText,
 						label: roomLabelText,
+						areaLevelCode: effectiveLabelLevelCode,
+						spriteId: buildRoomLabelSpriteId({
+							name: roomLabelText,
+							isSelected: labelSelected,
+							levelCode: effectiveLabelLevelCode,
+						}),
 						building: model.building,
 						floorOrder: model.floorOrder,
 						isPreview: isPreviewRoom,
-						isSelected: Boolean(isSelected || isPreviewRoom),
+						isSelected: labelSelected,
 						heightOffset: Number(
 							(floorBase + FLOOR_SLAB_HEIGHT + roomHeight + 0.16).toFixed(2),
 						),
@@ -3549,6 +3560,13 @@ export function buildVector3dLayers({
 		const bBounds = (data.buildingBoundaries || []).filter((b) =>
 			matchesBuilding(b.building, bMeta.name),
 		);
+		const areaCount = (areas || []).filter(
+			(a) =>
+				a &&
+				a.isActive !== false &&
+				!a.deletedAt &&
+				matchesBuilding(a.building, bMeta.name),
+		).length;
 		let northLat = bMeta.center[1];
 		let centerLng = bMeta.center[0];
 		if (bBounds.length > 0 && Array.isArray(bBounds[0].ring)) {
@@ -3565,6 +3583,7 @@ export function buildVector3dLayers({
 				building: bMeta.name,
 				name: bMeta.name,
 				floorCount: bMeta.floors.length,
+				areaCount,
 				isFocused:
 					!isOverviewAll && matchesBuilding(selectedBuilding, bMeta.name),
 			},
@@ -5923,3 +5942,76 @@ export function auditNavigationConnectivity({
 
 	return { doorStatusById, portalHasFloorEdgeById, issues };
 }
+
+/**
+ * Maps Sidebar (AreaListPage) building/floor filter values to canonical 3D slicer values.
+ */
+export function mapSidebarSelectionTo3d({
+	selectedBuilding = "ALL",
+	selectedFloor = "ALL",
+} = {}) {
+	if (!selectedBuilding || selectedBuilding === "ALL") {
+		return { building: "ALL", floorOrder: "ALL" };
+	}
+	const building =
+		resolveCanonicalBuildingName(selectedBuilding) || selectedBuilding;
+	if (!selectedFloor || selectedFloor === "ALL") {
+		return { building, floorOrder: "ALL" };
+	}
+	return {
+		building,
+		floorOrder: resolveFloorOrder(building, selectedFloor),
+	};
+}
+
+/**
+ * Maps 3D building/floor slicer state back to Sidebar filter values without losing DB names.
+ */
+export function map3dSelectionToSidebar({
+	buildingName = "ALL",
+	floorOrder = "ALL",
+	buildings = [],
+} = {}) {
+	if (!buildingName || buildingName === "ALL") {
+		return { building: "ALL", floor: "ALL" };
+	}
+	const dbBldg = (buildings || []).find((b) =>
+		matchesBuilding(b?.name, buildingName),
+	);
+	const resolvedBuilding =
+		dbBldg?.name ||
+		resolveCanonicalBuildingName(buildingName) ||
+		buildingName;
+
+	if (
+		floorOrder === "ALL" ||
+		floorOrder === null ||
+		floorOrder === undefined
+	) {
+		return { building: resolvedBuilding, floor: "ALL" };
+	}
+
+	const flNum = Number(floorOrder);
+	const dbFloor = (dbBldg?.floors || []).find(
+		(f) => Number(f?.floorOrder) === flNum,
+	);
+	if (dbFloor?.name) {
+		return { building: resolvedBuilding, floor: dbFloor.name };
+	}
+
+	const metaBldg = DEFAULT_BUILDINGS_META.find((b) =>
+		matchesBuilding(b.name, resolvedBuilding),
+	);
+	const metaFloor = (metaBldg?.floors || []).find(
+		(f) => Number(f.floorOrder) === flNum,
+	);
+	if (metaFloor?.name) {
+		return { building: resolvedBuilding, floor: metaFloor.name };
+	}
+
+	return {
+		building: resolvedBuilding,
+		floor: flNum === 0 ? "Tầng Trệt" : `Tầng ${flNum}`,
+	};
+}
+

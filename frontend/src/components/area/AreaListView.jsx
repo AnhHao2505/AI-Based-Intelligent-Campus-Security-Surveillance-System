@@ -87,6 +87,7 @@ export default function AreaListView({
 	onOpenAssignedPersonnelModal,
 	onOpenEditModal,
 	onOpenDeactivateModal,
+	onStartRebind3d,
 	showDeactivated = false,
 	onToggleShowDeactivated,
 	deactivatedAreas = [],
@@ -147,6 +148,8 @@ export default function AreaListView({
 		const levelConfig = getLevelConfig(levelKey);
 		const camCount = cameraCounts[area.id] ?? area.cameraCount ?? 0;
 		const locationStr = formatLocation(area.building, area.floor);
+		const isUnpositioned =
+			area.centerLatitude == null || area.centerLongitude == null;
 
 		return (
 			<div
@@ -169,6 +172,24 @@ export default function AreaListView({
 						<span className="zone-item-row__title" title={area.name}>
 							{area.name}
 						</span>
+						{isUnpositioned &&
+							(isAdmin && onStartRebind3d ? (
+								<button
+									type="button"
+									className="zone-card__pill-unpositioned"
+									title="Chọn block 3D cho khu vực này"
+									onClick={(e) => {
+										e.stopPropagation();
+										onStartRebind3d(area);
+									}}
+								>
+									Chưa gắn block 3D
+								</button>
+							) : (
+								<span className="zone-card__pill-unpositioned zone-card__pill-unpositioned--static">
+									Chưa gắn block 3D
+								</span>
+							))}
 						{area.eventActive && area.openUntil && (
 							<span
 								className="zone-card__pill-event"

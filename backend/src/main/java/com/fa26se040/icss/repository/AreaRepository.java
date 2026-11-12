@@ -124,6 +124,18 @@ public interface AreaRepository extends JpaRepository<Area, UUID> {
     """)
     java.util.List<Area> findAreaMapPins(@Param("building") String building);
 
+    @Query("""
+        SELECT a FROM Area a
+        WHERE a.deletedAt IS NULL
+          AND a.isActive = true
+          AND a.floorEntity.id = :floorId
+          AND a.id <> :excludeId
+          AND a.centerLatitude IS NOT NULL
+          AND a.centerLongitude IS NOT NULL
+    """)
+    java.util.List<Area> findActivePositionedByFloorIdExcludingId(@Param("floorId") UUID floorId,
+                                                                  @Param("excludeId") UUID excludeId);
+
     /**
      * Step 6 (BR-AD-02): số sự cố của khu vực theo trạng thái (sự cố mở = NEW, CLAIMED).
      * Đặt ở đây để luồng khu vực không phụ thuộc SecurityIncidentService.
