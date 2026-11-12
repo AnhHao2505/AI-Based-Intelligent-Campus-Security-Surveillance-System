@@ -135,6 +135,20 @@ export async function sendResetLink(email) {
 }
 
 /**
+ * KT-01: chính sách mật khẩu mới (PASSWORD_MIN_LENGTH + bắt buộc có chữ và số) cho form đặt lại mật khẩu.
+ * Gọi khi chưa đăng nhập nên dùng fetch trực tiếp. Lỗi thì ném Error để form bỏ qua bước kiểm trước (backend vẫn kiểm).
+ * @returns {Promise<{minLength: number, requireLetterAndDigit: boolean}>}
+ */
+export async function getPasswordPolicy() {
+  const response = await fetch(`${API_BASE_URL}/api/auth/password-policy`);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const json = await response.json();
+  return json && json.data ? json.data : json;
+}
+
+/**
  * Khôi phục mật khẩu mới bằng token xác nhận
  * Giữ nguyên fetch trực tiếp do gọi khi chưa đăng nhập
  */

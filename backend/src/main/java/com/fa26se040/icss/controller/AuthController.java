@@ -4,6 +4,7 @@ import com.fa26se040.icss.dto.AuthResponse;
 import com.fa26se040.icss.dto.ForgotPasswordRequest;
 import com.fa26se040.icss.dto.GoogleLoginRequest;
 import com.fa26se040.icss.dto.LoginRequest;
+import com.fa26se040.icss.dto.PasswordPolicyResponse;
 import com.fa26se040.icss.dto.ResetPasswordRequest;
 import com.fa26se040.icss.dto.UserInfo;
 import com.fa26se040.icss.dto.common.ApiResponse;
@@ -39,6 +40,15 @@ public class AuthController {
         authService.sendResetLink(request);
         // S2: cùng status và cùng câu dù e-mail có tồn tại hay không
         return ResponseEntity.ok(ApiResponse.success(FORGOT_PASSWORD_MESSAGE));
+    }
+
+    /**
+     * KT-01: chính sách mật khẩu mới (độ dài tối thiểu PASSWORD_MIN_LENGTH + bắt buộc có chữ và số) cho form đặt lại
+     * mật khẩu, gọi khi chưa đăng nhập (permitAll ở SecurityConfig). Chỉ trả 2 giá trị này, không lộ cấu hình khác.
+     */
+    @GetMapping("/password-policy")
+    public ResponseEntity<ApiResponse<PasswordPolicyResponse>> getPasswordPolicy() {
+        return ResponseEntity.ok(ApiResponse.success(authService.passwordPolicy(), "Lấy chính sách mật khẩu thành công"));
     }
 
     @PutMapping("/reset-password")
