@@ -72,11 +72,13 @@ public class V91ShiftBuildingMigrationIntegrationTest extends AbstractIntegratio
     @Test
     @DisplayName("V91: Kiểm tra logic điền sẵn dữ liệu đội cũ và ca cũ (rollback)")
     void testBackfillLogicScenarios() {
-        // Lấy tòa Alpha và Beta từ DB test
+        // Lấy tòa Alpha và tòa thứ 2 (Tòa Epsilon sau V95_1, trước đó là Tòa Beta) từ DB test
         UUID alphaId = jdbc.queryForObject("SELECT id FROM buildings WHERE name = 'Tòa Alpha'", UUID.class);
-        UUID betaId = jdbc.queryForObject("SELECT id FROM buildings WHERE name = 'Tòa Beta'", UUID.class);
+        UUID secondBuildingId = jdbc.queryForObject(
+                "SELECT id FROM buildings WHERE name IN ('Tòa Epsilon', 'Tòa Beta') ORDER BY created_at ASC LIMIT 1",
+                UUID.class);
         assertNotNull(alphaId);
-        assertNotNull(betaId);
+        assertNotNull(secondBuildingId);
 
         // Tạo đội tạm thời có description = 'Tòa Alpha'
         UUID testTeamId = UUID.randomUUID();
