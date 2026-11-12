@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+	DEFAULT_BUILDINGS_META,
 	auditNavigationConnectivity,
+	buildAllGraphEdges,
 	buildFloorWallGraphModels,
 	buildOrientedDoorGeometry,
 	buildVector3dLayers,
@@ -9,11 +11,15 @@ import {
 	createDefaultGeometryStore,
 	deduplicateFloorVertices,
 	dragWeldedWallVertices,
+	generateNextPortalGroupId,
 	isDoorConnectedToGraph,
 	isNodeOutdoor,
 	isNodeVisibleOnFloor,
 	isPointIndoorOnFloor,
+	lerpBearingDeg,
 	mergeOrSplitNavNodeOnDrop,
+	resolveBestSnapTarget,
+	resolveFloorOrder,
 	resolveTestRouteClickContext,
 	samplePointAlongRoute,
 	syncPortalAcrossBuildingFloors,
@@ -1372,6 +1378,355 @@ describe("Phase 3: Vertex Welding, Oriented Door Geometry, Portal Sync & Route D
 			assert.deepEqual(emptyAudit.issues, []);
 			assert.equal(emptyAudit.doorStatusById.size, 0);
 			assert.equal(isDoorConnectedToGraph(null, [], []), false);
+		});
+	});
+
+	describe("8. Portal Auto-Connect Isolation, Unique Axis Generation & Door Snap Precision", () => {
+		it("Bug 2a: buildAllGraphEdges never auto-connects portals on the same floor or across STAIRS vs ELEVATOR even with matching portalGroupId", () => {
+			const store = {
+				version: 3,
+				buildingBoundaries: [
+					{
+						id: "bnd-0",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						ring: [
+							[106.809, 10.841],
+							[106.81, 10.841],
+							[106.81, 10.842],
+							[106.809, 10.842],
+							[106.809, 10.841],
+						],
+					},
+				],
+				navNodes: [
+					{
+						id: "s-0-a",
+						type: "STAIRS",
+						portalGroupId: "HCM_STAIR_W",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8092, 10.8412],
+					},
+					{
+						id: "s-0-b",
+						type: "STAIRS",
+						portalGroupId: "HCM_STAIR_W",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8098, 10.8418],
+					},
+					{
+						id: "s-1-a",
+						type: "STAIRS",
+						portalGroupId: "HCM_STAIR_W",
+						building: "Tòa HCM",
+						floorOrder: 1,
+						coords: [106.8092, 10.8412],
+					},
+					{
+						id: "e-1-x",
+						type: "ELEVATOR",
+						portalGroupId: "HCM_STAIR_W", // accidental same groupId on different portal type!
+						building: "Tòa HCM",
+						floorOrder: 1,
+						coords: [106.8095, 10.8415],
+					},
+					{
+						id: "e-2-x",
+						type: "ELEVATOR",
+						portalGroupId: "HCM_STAIR_W",
+						building: "Tòa HCM",
+						floorOrder: 2,
+						coords: [106.8095, 10.8415],
+					},
+				],
+				navEdges: [],
+			};
+
+			const edges = buildAllGraphEdges(store);
+			const hasEdge = (a, b) =>
+				edges.some(([u, v]) => (u === a && v === b) || (u === b && v === a));
+
+			assert.equal(hasEdge("s-0-a", "s-0-b"), false, "Two STAIRS on the same floor must NEVER auto-connect");
+			assert.equal(hasEdge("s-0-a", "e-1-x"), false, "STAIRS and ELEVATOR must NEVER auto-connect");
+			assert.equal(hasEdge("s-0-b", "e-1-x"), false, "STAIRS and ELEVATOR must NEVER auto-connect");
+			assert.equal(hasEdge("e-1-x", "e-2-x"), true, "ELEVATOR Floor 1 <-> Floor 2 should connect vertically");
+			assert.equal(hasEdge("s-0-a", "s-1-a"), true, "STAIRS Floor 0 <-> Floor 1 should connect vertically");
+		});
+
+		it("Bug 2b: generateNextPortalGroupId returns collision-free sequential IDs scoped per building and portal type", () => {
+			const nodes = [
+				{ id: "n1", type: "STAIRS", portalGroupId: "HCM_STAIR_1", building: "Tòa HCM", floorOrder: 0, coords: [106.8095, 10.8415] },
+				{ id: "n2", type: "STAIRS", portalGroupId: "HCM_STAIR_2", building: "Tòa HCM", floorOrder: 0, coords: [106.8096, 10.8415] },
+				{ id: "n3", type: "ELEVATOR", portalGroupId: "HCM_ELEV_1", building: "Tòa HCM", floorOrder: 0, coords: [106.8097, 10.8415] },
+			];
+			assert.equal(generateNextPortalGroupId(nodes, [], "Tòa HCM", "STAIRS"), "HCM_STAIR_3");
+			assert.equal(generateNextPortalGroupId(nodes, [], "Tòa HCM", "ELEVATOR"), "HCM_ELEV_2");
+			assert.equal(generateNextPortalGroupId(nodes, [], "Tòa Epsilon", "STAIRS"), "EPS_STAIR_1");
+			assert.equal(generateNextPortalGroupId([], [], "Tòa Epsilon", "ELEVATOR"), "EPS_ELEV_1");
+		});
+
+		it("Bug 2c: syncPortalAcrossBuildingFloors preserves same-group ELEVATOR and distant unrelated portals on the same floor", () => {
+			const store = {
+				version: 3,
+				buildingBoundaries: [],
+				navNodes: [
+					{
+						id: "s-0",
+						type: "STAIRS",
+						portalGroupId: "HCM_STAIR_1",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8092, 10.8412],
+					},
+					{
+						id: "e-0",
+						type: "ELEVATOR",
+						portalGroupId: "HCM_STAIR_1",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8092, 10.8412],
+					},
+					{
+						id: "s-0-far",
+						type: "STAIRS",
+						portalGroupId: "HCM_STAIR_1",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						coords: [106.8099, 10.8419], // distant shaft mistakenly given same ID
+					},
+				],
+				navEdges: [],
+			};
+			const synced = syncPortalAcrossBuildingFloors(store, {
+				sourceNodeId: "s-0",
+				targetFloorOrders: [0, 1],
+			});
+			assert.ok(synced.navNodes.some((n) => n.id === "e-0"), "Must NEVER delete an ELEVATOR node");
+			assert.ok(synced.navNodes.some((n) => n.id === "s-0-far"), "Must NEVER delete a separate distant STAIRS on Floor 0");
+		});
+
+		it("Bug 1 Regression: prioritizes isDoorMidpoint VERTEX snap (up to 18px) over wall EDGE snap and treats VOID wall border nodes as INDOOR", () => {
+			const projectFn = ([lng, lat]) => ({ x: lng * 1e6, y: lat * 1e6 });
+			const doorMid = [0.0001, 0.0001]; // (100, 100)
+			const clickPt = [0.000115, 0.0001]; // 15px from doorMid (within 18px door snap, > 12px default vertex), directly on horizontal wall!
+			const snap = resolveBestSnapTarget({
+				rawLngLat: clickPt,
+				projectFn,
+				vertices: [{ coord: doorMid, ownerId: "door-1", isDoorMidpoint: true }],
+				segments: [{ seg: [[0.00005, 0.0001], [0.0002, 0.0001]], ownerId: "wall-1" }],
+			});
+			assert.ok(snap);
+			assert.equal(snap.type, "VERTEX");
+			assert.deepEqual(snap.coord, doorMid);
+
+			// Node resting on shared wall between CORRIDOR and VOID courtyard must stay INDOOR (false)
+			const courtyardStore = {
+				version: 3,
+				buildingBoundaries: [
+					{
+						id: "bnd-hcm-0",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						ring: [
+							[106.809, 10.841],
+							[106.81, 10.841],
+							[106.81, 10.842],
+							[106.809, 10.842],
+							[106.809, 10.841],
+						],
+					},
+				],
+				walls: [
+					{
+						id: "w-outer",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						line: [
+							[106.809, 10.841],
+							[106.81, 10.841],
+							[106.81, 10.842],
+							[106.809, 10.842],
+							[106.809, 10.841],
+						],
+					},
+					{
+						id: "w-void",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						line: [
+							[106.8094, 10.8414],
+							[106.8096, 10.8414],
+							[106.8096, 10.8416],
+							[106.8094, 10.8416],
+							[106.8094, 10.8414],
+						],
+					},
+				],
+				faceAssignments: [
+					{
+						id: "fa-void",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						seedCoord: [106.8095, 10.8415],
+						role: "VOID",
+					},
+					{
+						id: "fa-cor",
+						building: "Tòa HCM",
+						floorOrder: 0,
+						seedCoord: [106.8092, 10.8412],
+						role: "CORRIDOR",
+					},
+				],
+			};
+			const models = buildFloorWallGraphModels(courtyardStore);
+			const wallBorderNode = {
+				id: "n-wall-void",
+				type: "NODE",
+				building: "Tòa HCM",
+				floorOrder: 0,
+				coords: [106.8095, 10.8414], // sits squarely on SOUTH edge of VOID courtyard wall!
+			};
+			assert.equal(isNodeOutdoor(courtyardStore.buildingBoundaries, wallBorderNode, models), false);
+		});
+	});
+
+	describe("9. Multi-Floor Building Meta (Epsilon LV1-LV5) & Heading-Aligned Route Simulation", () => {
+		it("Happy Path: Tòa Epsilon exposes 5 floors (LV1-LV5) with valid bounds/elevations and resolveFloorOrder maps LV1-LV5 accurately", () => {
+			const eps = DEFAULT_BUILDINGS_META.find((b) => b.id === "bldg-epsilon");
+			assert.ok(eps, "Tòa Epsilon meta should exist");
+			assert.equal(eps.floors.length, 5);
+			assert.deepEqual(
+				eps.floors.map((f) => [f.floorOrder, f.pngUrl]),
+				[
+					[0, "/demo_floor_plans/L1.png"],
+					[1, "/demo_floor_plans/LV2.png"],
+					[2, "/demo_floor_plans/LV3.png"],
+					[3, "/demo_floor_plans/LV4.png"],
+					[4, "/demo_floor_plans/LV5.png"],
+				],
+			);
+			eps.floors.forEach((fl, idx) => {
+				assert.equal(fl.baseElevation, idx * 3.5);
+				assert.equal(fl.defaultBounds?.corners?.length, 4);
+			});
+
+			assert.equal(resolveFloorOrder("Tòa Epsilon", "L1 (Trệt)"), 0);
+			assert.equal(resolveFloorOrder("Tòa Epsilon", "LV2 (Tầng 1)"), 1);
+			assert.equal(resolveFloorOrder("Tòa Epsilon", "LV3 (Tầng 2)"), 2);
+			assert.equal(resolveFloorOrder("Tòa Epsilon", "LV4 (Tầng 3)"), 3);
+			assert.equal(resolveFloorOrder("Tòa Epsilon", "LV5 (Tầng 4)"), 4);
+			assert.equal(resolveFloorOrder("Tòa Epsilon", "Tầng 3"), 3);
+			assert.equal(resolveFloorOrder("Tòa Epsilon", "Tầng 4"), 4);
+			assert.equal(resolveFloorOrder("Tòa HCM", "Tầng 2"), 2);
+		});
+
+		it("Boundary / Shortest-Arc Heading: lerpBearingDeg wraps across 0/360 cleanly and samplePointAlongRoute preserves bearing across vertical stair shafts", () => {
+			assert.equal(lerpBearingDeg(350, 10, 0.5), 0);
+			assert.equal(lerpBearingDeg(10, 350, 0.5), 0);
+			assert.equal(lerpBearingDeg(45, 45, 0.5), 45);
+			const halfTurn = lerpBearingDeg(90, 270, 0.5);
+			assert.ok(halfTurn === 180 || halfTurn === 0);
+
+			// Route walks East (~90°), climbs vertical zero-XY stair from floor 0 -> 1, then walks South (~180°)
+			const mockRoute = {
+				totalDistanceMeters: 40,
+				geojson: {
+					type: "FeatureCollection",
+					features: [
+						{
+							type: "Feature",
+							properties: { building: "Tòa Epsilon", floorOrder: 0, isOutdoor: false, isStair: false },
+							geometry: {
+								type: "LineString",
+								coordinates: [
+									[106.8112, 10.8405],
+									[106.8114, 10.8405],
+								],
+							},
+						},
+						{
+							type: "Feature",
+							properties: {
+								building: "Tòa Epsilon",
+								floorOrder: 0,
+								toFloorOrder: 1,
+								isOutdoor: false,
+								isStair: true,
+							},
+							geometry: {
+								type: "LineString",
+								coordinates: [
+									[106.8114, 10.8405],
+									[106.8114, 10.8405],
+								],
+							},
+						},
+						{
+							type: "Feature",
+							properties: { building: "Tòa Epsilon", floorOrder: 1, isOutdoor: false, isStair: false },
+							geometry: {
+								type: "LineString",
+								coordinates: [
+									[106.8114, 10.8405],
+									[106.8114, 10.8403],
+								],
+							},
+						},
+					],
+				},
+			};
+
+			const sStart = samplePointAlongRoute(mockRoute, 0.1);
+			const sStair = samplePointAlongRoute(mockRoute, 0.5);
+			const sEnd = samplePointAlongRoute(mockRoute, 0.9);
+			assert.ok(Math.abs(sStart.bearing - 90) < 2, `Expected East (~90°), got ${sStart.bearing}`);
+			assert.equal(sStair.isStair, true);
+			assert.ok(
+				Math.abs(sStair.bearing - 90) < 2,
+				`Vertical stair segment should keep incoming heading (~90°), got ${sStair.bearing}`,
+			);
+			assert.ok(Math.abs(sEnd.bearing - 180) < 2, `Expected South (~180°), got ${sEnd.bearing}`);
+		});
+
+		it("Exception / Fallback Guard: route starting on vertical stair peeks ahead to outgoing heading and invalid inputs return safe finite values", () => {
+			assert.equal(lerpBearingDeg(undefined, 90, 0.5), 90);
+			assert.equal(lerpBearingDeg(90, undefined, 0.5), 90);
+			assert.equal(samplePointAlongRoute(null, 0.5), null);
+
+			const startStairRoute = {
+				geojson: {
+					type: "FeatureCollection",
+					features: [
+						{
+							type: "Feature",
+							properties: { building: "Tòa Epsilon", floorOrder: 0, toFloorOrder: 2, isStair: true },
+							geometry: {
+								type: "LineString",
+								coordinates: [
+									[106.8114, 10.8405],
+									[106.8114, 10.8405],
+								],
+							},
+						},
+						{
+							type: "Feature",
+							properties: { building: "Tòa Epsilon", floorOrder: 2, isStair: false },
+							geometry: {
+								type: "LineString",
+								coordinates: [
+									[106.8114, 10.8405],
+									[106.8111, 10.8405],
+								],
+							},
+						},
+					],
+				},
+			};
+			const s0 = samplePointAlongRoute(startStairRoute, 0.05);
+			assert.ok(Math.abs(s0.bearing - 270) < 2, `Initial vertical stair should peek ahead to West (~270°), got ${s0.bearing}`);
 		});
 	});
 });

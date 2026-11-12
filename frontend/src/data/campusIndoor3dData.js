@@ -61,7 +61,7 @@ export const DEFAULT_BUILDINGS_META = [
 				floorOrder: 0,
 				baseElevation: 0,
 				ceilingElevation: 3.5,
-				pngUrl: "/demo_floor_plans/tang%20G.png",
+				pngUrl: "/demo_floor_plans/HCM/tang%20G.png",
 				defaultBounds: HCM_CALIBRATED_BOUNDS,
 			},
 			{
@@ -71,7 +71,7 @@ export const DEFAULT_BUILDINGS_META = [
 				floorOrder: 1,
 				baseElevation: 3.5,
 				ceilingElevation: 7.0,
-				pngUrl: "/demo_floor_plans/tang_1.png",
+				pngUrl: "/demo_floor_plans/HCM/tang_1.png",
 				defaultBounds: HCM_CALIBRATED_BOUNDS,
 			},
 			{
@@ -81,7 +81,7 @@ export const DEFAULT_BUILDINGS_META = [
 				floorOrder: 2,
 				baseElevation: 7.0,
 				ceilingElevation: 10.5,
-				pngUrl: "/demo_floor_plans/tang_3.png",
+				pngUrl: "/demo_floor_plans/HCM/tang_2.png",
 				defaultBounds: HCM_CALIBRATED_BOUNDS,
 			},
 		],
@@ -99,7 +99,7 @@ export const DEFAULT_BUILDINGS_META = [
 				floorOrder: 0,
 				baseElevation: 0,
 				ceilingElevation: 3.5,
-				pngUrl: "/demo_floor_plans/L1.png",
+				pngUrl: "/demo_floor_plans/Espilon/L1.png",
 				defaultBounds: EPS_CALIBRATED_BOUNDS,
 			},
 			{
@@ -109,7 +109,37 @@ export const DEFAULT_BUILDINGS_META = [
 				floorOrder: 1,
 				baseElevation: 3.5,
 				ceilingElevation: 7.0,
-				pngUrl: "/demo_floor_plans/LV2.png",
+				pngUrl: "/demo_floor_plans/Espilon/LV2.png",
+				defaultBounds: EPS_CALIBRATED_BOUNDS,
+			},
+			{
+				id: "eps-lv3",
+				name: "Tầng 2",
+				shortLabel: "LV3 (Tầng 2)",
+				floorOrder: 2,
+				baseElevation: 7.0,
+				ceilingElevation: 10.5,
+				pngUrl: "/demo_floor_plans/Espilon/LV3.png",
+				defaultBounds: EPS_CALIBRATED_BOUNDS,
+			},
+			{
+				id: "eps-lv4",
+				name: "Tầng 3",
+				shortLabel: "LV4 (Tầng 3)",
+				floorOrder: 3,
+				baseElevation: 10.5,
+				ceilingElevation: 14.0,
+				pngUrl: "/demo_floor_plans/Espilon/LV4.png",
+				defaultBounds: EPS_CALIBRATED_BOUNDS,
+			},
+			{
+				id: "eps-lv5",
+				name: "Tầng 4",
+				shortLabel: "LV5 (Tầng 4)",
+				floorOrder: 4,
+				baseElevation: 14.0,
+				ceilingElevation: 17.5,
+				pngUrl: "/demo_floor_plans/Espilon/LV5.png",
 				defaultBounds: EPS_CALIBRATED_BOUNDS,
 			},
 		],
@@ -147,6 +177,24 @@ export function resolveFloorOrder(buildingName, floorName) {
 		fn.includes("l1")
 	) {
 		return 0;
+	}
+	if (
+		fn.includes("lv5") ||
+		fn.includes("tầng 4") ||
+		fn.includes("floor 4") ||
+		fn.includes("lầu 4") ||
+		fn === "4"
+	) {
+		return 4;
+	}
+	if (
+		fn.includes("lv4") ||
+		fn.includes("floor 3") ||
+		fn.includes("lầu 3") ||
+		fn === "3" ||
+		(fn.includes("tầng 3") && !matchesBuilding(buildingName, "Tòa HCM"))
+	) {
+		return 3;
 	}
 	if (
 		fn.includes("lv3") ||
@@ -867,7 +915,10 @@ export function loadGeometryStore() {
 		const raw = localStorage.getItem(STORAGE_KEY_3D_GEOMETRY);
 		if (raw) {
 			const parsed = JSON.parse(raw);
-			if (parsed && (Array.isArray(parsed.walls) || Array.isArray(parsed.roomPolygons))) {
+			if (
+				parsed &&
+				(Array.isArray(parsed.walls) || Array.isArray(parsed.roomPolygons))
+			) {
 				return parsed.version >= 3 ? parsed : migrateStoreToWallGraph(parsed);
 			}
 		}
@@ -914,7 +965,11 @@ function isPointOnSegment(px, py, ax, ay, bx, by, eps = 1e-6) {
 /**
  * Find the building boundary containing `coords` on `floorOrder`, or null if outside all boundaries.
  */
-export function findBoundaryContainingPoint(boundaries, coords, floorOrder = 0) {
+export function findBoundaryContainingPoint(
+	boundaries,
+	coords,
+	floorOrder = 0,
+) {
 	if (!Array.isArray(boundaries) || !coords) return null;
 	const targetOrder = Number(floorOrder) || 0;
 	for (const b of boundaries) {
@@ -960,7 +1015,8 @@ export function isNodeOutdoor(boundaries, node, precomputedModels = null) {
 				model?.faces?.some(
 					(f) =>
 						f.role === "VOID" &&
-						isPointInPolygonWithHoles(node.coords, f.ring, f.holes || []),
+						isPointInRingStrict(node.coords, f.ring) &&
+						!(f.holes || []).some((h) => isPointInRing(node.coords, h)),
 				)
 			) {
 				return true;
@@ -980,7 +1036,11 @@ export function isNodeOutdoor(boundaries, node, precomputedModels = null) {
 /**
  * Infer effective building ownership ("OUTDOOR" vs canonical building name) from Floor-0 boundaries.
  */
-export function resolveNodeBuilding(boundaries, node, precomputedModels = null) {
+export function resolveNodeBuilding(
+	boundaries,
+	node,
+	precomputedModels = null,
+) {
 	if (!node) return "";
 	if (isNodeOutdoor(boundaries, node, precomputedModels)) return "OUTDOOR";
 	if ((Number(node.floorOrder) || 0) === 0) {
@@ -1039,8 +1099,8 @@ export function buildOrientedBoxRing(
 		const c1 = toM(corners[1]);
 		const c2 = toM(corners[2]);
 		const c3 = toM(corners[3]);
-		const vx = ((c1[0] - c0[0]) + (c2[0] - c3[0])) / 2;
-		const vy = ((c1[1] - c0[1]) + (c2[1] - c3[1])) / 2;
+		const vx = (c1[0] - c0[0] + (c2[0] - c3[0])) / 2;
+		const vy = (c1[1] - c0[1] + (c2[1] - c3[1])) / 2;
 		const len = Math.hypot(vx, vy);
 		if (len > 1e-4) {
 			uAxis = [vx / len, vy / len];
@@ -1088,7 +1148,11 @@ export function resolveBestSnapTarget({
 	midpointRadiusPx = 10.5,
 	edgeRadiusPx = 10,
 }) {
-	if (altKeyDown || !Array.isArray(rawLngLat) || typeof projectFn !== "function") {
+	if (
+		altKeyDown ||
+		!Array.isArray(rawLngLat) ||
+		typeof projectFn !== "function"
+	) {
 		return null;
 	}
 	const rawPx = projectFn(rawLngLat);
@@ -1096,15 +1160,18 @@ export function resolveBestSnapTarget({
 		return null;
 	}
 
-	// 1. VERTEX priority
+	// 1. VERTEX priority (expanded 18px grab target around Door midpoints so wall EDGE snap never steals)
 	let bestVertex = null;
-	let minVertexPx = vertexRadiusPx;
+	let minVertexPx = Infinity;
 	for (const entry of vertices) {
 		if (excludeOwnerId && entry.ownerId === excludeOwnerId) continue;
 		const vPx = projectFn(entry.coord);
 		if (!vPx || !Number.isFinite(vPx.x) || !Number.isFinite(vPx.y)) continue;
+		const threshold = entry.isDoorMidpoint
+			? Math.max(vertexRadiusPx, 18)
+			: vertexRadiusPx;
 		const dPx = Math.hypot(vPx.x - rawPx.x, vPx.y - rawPx.y);
-		if (dPx <= minVertexPx) {
+		if (dPx <= threshold && dPx < minVertexPx) {
 			minVertexPx = dPx;
 			bestVertex = entry;
 		}
@@ -1136,7 +1203,11 @@ export function resolveBestSnapTarget({
 		const dPx = Math.hypot(midPx.x - rawPx.x, midPx.y - rawPx.y);
 		if (dPx <= minMidPx) {
 			minMidPx = dPx;
-			bestMid = { coord: mid, ownerId: entry.ownerId || null, edge: entry.edge || null };
+			bestMid = {
+				coord: mid,
+				ownerId: entry.ownerId || null,
+				edge: entry.edge || null,
+			};
 		}
 	}
 	if (bestMid) {
@@ -1158,12 +1229,7 @@ export function resolveBestSnapTarget({
 		if (!a || !b) continue;
 		const aPx = projectFn(a);
 		const bPx = projectFn(b);
-		if (
-			!aPx ||
-			!bPx ||
-			!Number.isFinite(aPx.x) ||
-			!Number.isFinite(bPx.x)
-		) {
+		if (!aPx || !bPx || !Number.isFinite(aPx.x) || !Number.isFinite(bPx.x)) {
 			continue;
 		}
 		const dx = bPx.x - aPx.x;
@@ -1283,7 +1349,7 @@ export function getPolygonInteriorPoint(outerRing, holes = []) {
 			for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
 				const yi = ring[i][1];
 				const yj = ring[j][1];
-				if ((yi > y) !== (yj > y)) {
+				if (yi > y !== yj > y) {
 					const xi = ring[i][0];
 					const xj = ring[j][0];
 					xs.push(xi + ((y - yi) * (xj - xi)) / (yj - yi));
@@ -1372,7 +1438,7 @@ function findInteriorPoint2D(outerRing, holes = []) {
 			for (let a = 0, b = ring.length - 1; a < ring.length; b = a++) {
 				const ya = ring[a][1];
 				const yb = ring[b][1];
-				if ((ya > y) !== (yb > y)) {
+				if (ya > y !== yb > y) {
 					xs.push(
 						ring[a][0] + ((y - ya) * (ring[b][0] - ring[a][0])) / (yb - ya),
 					);
@@ -1706,7 +1772,10 @@ export function clipPolygonToBoundary(
 			const dy = b[1] - a[1];
 			const l2 = dx * dx + dy * dy;
 			if (l2 < 1e-8) continue;
-			const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
+			const t = Math.max(
+				0,
+				Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2),
+			);
 			const proj = [a[0] + t * dx, a[1] + t * dy];
 			const d = Math.hypot(p[0] - proj[0], p[1] - proj[1]);
 			if (d <= bestD) {
@@ -1791,7 +1860,10 @@ export function extractPlanarFacesFromWalls(
 		}
 	}
 
-	const { verts, edges } = nodeSegmentsInMeters(rawSegmentsM, snapToleranceMeters);
+	const { verts, edges } = nodeSegmentsInMeters(
+		rawSegmentsM,
+		snapToleranceMeters,
+	);
 	const { ccwFaces, perimeterEdgeIndices, deadEndVerts, exteriorLoopsM } =
 		extractPlanarCyclesInMeters(verts, edges);
 
@@ -1808,7 +1880,9 @@ export function extractPlanarFacesFromWalls(
 		return deg;
 	};
 
-	const exteriorRings = (exteriorLoopsM || []).map((rm) => toClosedDeg(rm, false));
+	const exteriorRings = (exteriorLoopsM || []).map((rm) =>
+		toClosedDeg(rm, false),
+	);
 
 	const faces = ccwFaces.map((f, idx) => {
 		const ring = toClosedDeg(f.ringM, false);
@@ -1924,7 +1998,10 @@ export function buildWallsWithDoorCutouts(wallSegments = [], doors = []) {
 				const subB = toDeg([cStart * pB[0], cStart * pB[1]]);
 				result.push({
 					...seg,
-					a: cursor === 0 ? seg.a : [Number(subA[0].toFixed(6)), Number(subA[1].toFixed(6))],
+					a:
+						cursor === 0
+							? seg.a
+							: [Number(subA[0].toFixed(6)), Number(subA[1].toFixed(6))],
 					b: [Number(subB[0].toFixed(6)), Number(subB[1].toFixed(6))],
 					startIsDoorJamb: cursor > 0,
 					endIsDoorJamb: true,
@@ -1961,9 +2038,8 @@ export function buildSliceWallSegment(faces = [], p1, p2) {
 	if (len < 0.2) return null;
 
 	for (const face of faces) {
-		const ringM = (isClosedRingLocal(face.ring)
-			? face.ring.slice(0, -1)
-			: face.ring
+		const ringM = (
+			isClosedRingLocal(face.ring) ? face.ring.slice(0, -1) : face.ring
 		).map(toM);
 		if (ringM.length < 3) continue;
 
@@ -1997,8 +2073,14 @@ export function buildSliceWallSegment(faces = [], p1, p2) {
 			const g1 = toDeg(hits[1].pt);
 			const pStart = [Number(g0[0].toFixed(6)), Number(g0[1].toFixed(6))];
 			const pEnd = [Number(g1[0].toFixed(6)), Number(g1[1].toFixed(6))];
-			const half1 = toDeg([(hits[0].pt[0] + mid[0]) / 2, (hits[0].pt[1] + mid[1]) / 2]);
-			const half2 = toDeg([(hits[1].pt[0] + mid[0]) / 2, (hits[1].pt[1] + mid[1]) / 2]);
+			const half1 = toDeg([
+				(hits[0].pt[0] + mid[0]) / 2,
+				(hits[0].pt[1] + mid[1]) / 2,
+			]);
+			const half2 = toDeg([
+				(hits[1].pt[0] + mid[0]) / 2,
+				(hits[1].pt[1] + mid[1]) / 2,
+			]);
 			return {
 				line: [pStart, pEnd],
 				targetRole: face.role || "ROOM",
@@ -2036,7 +2118,13 @@ export function buildFloorWallGraphModels(store) {
 		const fl = Number(w.floorOrder) || 0;
 		const key = `${bldg}__${fl}`;
 		if (!floorMap.has(key)) {
-			floorMap.set(key, { building: bldg, floorOrder: fl, walls: [], faceAssignments: [], doors: [] });
+			floorMap.set(key, {
+				building: bldg,
+				floorOrder: fl,
+				walls: [],
+				faceAssignments: [],
+				doors: [],
+			});
 		}
 		floorMap.get(key).walls.push(w);
 	}
@@ -2057,7 +2145,10 @@ export function buildFloorWallGraphModels(store) {
 
 	const result = new Map();
 	for (const [key, entry] of floorMap.entries()) {
-		const extracted = extractPlanarFacesFromWalls(entry.walls, entry.faceAssignments);
+		const extracted = extractPlanarFacesFromWalls(
+			entry.walls,
+			entry.faceAssignments,
+		);
 		result.set(key, {
 			building: entry.building,
 			floorOrder: entry.floorOrder,
@@ -2103,7 +2194,8 @@ export function migrateStoreToWallGraph(rawStore) {
 
 	// Group floors across boundaries + rooms + customWalls
 	const floorKeys = new Set();
-	const keyFor = (b, fl) => `${resolveCanonicalBuildingName(b) || b}__${Number(fl) || 0}`;
+	const keyFor = (b, fl) =>
+		`${resolveCanonicalBuildingName(b) || b}__${Number(fl) || 0}`;
 	boundaries.forEach((b) => floorKeys.add(keyFor(b.building, b.floorOrder)));
 	oldRooms.forEach((r) => floorKeys.add(keyFor(r.building, r.floorOrder)));
 	oldWalls.forEach((w) => floorKeys.add(keyFor(w.building, w.floorOrder)));
@@ -2130,10 +2222,17 @@ export function migrateStoreToWallGraph(rawStore) {
 		);
 		for (const rm of floorRooms) {
 			const cleanRmRing = floorBound
-				? clipPolygonToBoundary(rm.ring, floorBound.ring, { snapToBoundaryMeters: 0.22 }) || rm.ring
+				? clipPolygonToBoundary(rm.ring, floorBound.ring, {
+						snapToBoundaryMeters: 0.22,
+					}) || rm.ring
 				: rm.ring;
 			if (!cleanRmRing || cleanRmRing.length < 4) continue;
-			clippedRooms.push({ ...rm, building: bldg, floorOrder: fl, ring: cleanRmRing });
+			clippedRooms.push({
+				...rm,
+				building: bldg,
+				floorOrder: fl,
+				ring: cleanRmRing,
+			});
 			const pts = isClosedRingLocal(cleanRmRing)
 				? cleanRmRing.slice(0, -1)
 				: cleanRmRing;
@@ -2206,7 +2305,10 @@ export function migrateStoreToWallGraph(rawStore) {
 				const otherId = uId === ent.id ? vId : vId === ent.id ? uId : null;
 				if (!otherId) continue;
 				const other = nodeMap.get(otherId);
-				if (other && (other.type === "OUTDOOR" || other.building === "OUTDOOR")) {
+				if (
+					other &&
+					(other.type === "OUTDOOR" || other.building === "OUTDOOR")
+				) {
 					const { toM, toDeg } = toLocalMetersFactory(other.coords);
 					const aM = [0, 0];
 					const bM = toM(ent.coords);
@@ -2224,7 +2326,10 @@ export function migrateStoreToWallGraph(rawStore) {
 						const u = (c[0] * rY - c[1] * rX) / denom;
 						if (t >= 0 && t <= 1.25 && u >= 0 && u <= 1) {
 							const deg = toDeg([t * rX, t * rY]);
-							doorCoord = [Number(deg[0].toFixed(6)), Number(deg[1].toFixed(6))];
+							doorCoord = [
+								Number(deg[0].toFixed(6)),
+								Number(deg[1].toFixed(6)),
+							];
 							break;
 						}
 					}
@@ -2242,12 +2347,24 @@ export function migrateStoreToWallGraph(rawStore) {
 					const dy = b[1] - a[1];
 					const l2 = dx * dx + dy * dy;
 					if (l2 < 1e-14) continue;
-					const t = Math.max(0, Math.min(1, ((ent.coords[0] - a[0]) * dx + (ent.coords[1] - a[1]) * dy) / l2));
+					const t = Math.max(
+						0,
+						Math.min(
+							1,
+							((ent.coords[0] - a[0]) * dx + (ent.coords[1] - a[1]) * dy) / l2,
+						),
+					);
 					const proj = [a[0] + t * dx, a[1] + t * dy];
-					const d = Math.hypot(ent.coords[0] - proj[0], ent.coords[1] - proj[1]);
+					const d = Math.hypot(
+						ent.coords[0] - proj[0],
+						ent.coords[1] - proj[1],
+					);
 					if (d < bestD) {
 						bestD = d;
-						doorCoord = [Number(proj[0].toFixed(6)), Number(proj[1].toFixed(6))];
+						doorCoord = [
+							Number(proj[0].toFixed(6)),
+							Number(proj[1].toFixed(6)),
+						];
 					}
 				}
 			}
@@ -3009,14 +3126,19 @@ export function buildVector3dLayers({
 			} else if (viewRole === "STUDIO") {
 				fillColor = "#38bdf8";
 			} else if (viewRole === "FACILITY_MANAGER") {
-				fillColor = isSelected ? "#f97316" : matchedArea ? "#475569" : "#94a3b8";
+				fillColor = isSelected
+					? "#f97316"
+					: matchedArea
+						? "#475569"
+						: "#94a3b8";
 			} else if (isSelected) {
 				fillColor = "#2563eb";
 			} else if (areaLevelCode && levelColors[areaLevelCode]) {
 				fillColor = levelColors[areaLevelCode];
 			}
 
-			const centroid = face.seedCoord || getPolygonInteriorPoint(face.ring, face.holes);
+			const centroid =
+				face.seedCoord || getPolygonInteriorPoint(face.ring, face.holes);
 			const roomHeight = isSelected
 				? ROOM_SELECTED_EXTRUSION_HEIGHT
 				: ROOM_EXTRUSION_HEIGHT;
@@ -3103,11 +3225,7 @@ export function buildVector3dLayers({
 					floorOrder: model.floorOrder,
 					isGhost,
 					isContextBuilding,
-					color: isGhost
-						? "#cbd5e1"
-						: seg.isPerimeter
-							? "#64748b"
-							: "#94a3b8",
+					color: isGhost ? "#cbd5e1" : seg.isPerimeter ? "#64748b" : "#94a3b8",
 					baseHeight: floorBase + FLOOR_SLAB_HEIGHT,
 					extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT + wallHeight,
 				},
@@ -3140,7 +3258,9 @@ export function buildVector3dLayers({
 					jambBLng: geom.jambB[0],
 					jambBLat: geom.jambB[1],
 					isGhost,
-					heightOffset: Number((floorBase + FLOOR_SLAB_HEIGHT + 0.12).toFixed(2)),
+					heightOffset: Number(
+						(floorBase + FLOOR_SLAB_HEIGHT + 0.12).toFixed(2),
+					),
 				},
 				geometry: {
 					type: "Polygon",
@@ -3195,7 +3315,8 @@ export function buildVector3dLayers({
 							isContextBuilding,
 							color: doorFrameColor,
 							baseHeight: floorBase + FLOOR_SLAB_HEIGHT + 2.1,
-							extrudeHeight: floorBase + FLOOR_SLAB_HEIGHT + BOUNDARY_WALL_HEIGHT,
+							extrudeHeight:
+								floorBase + FLOOR_SLAB_HEIGHT + BOUNDARY_WALL_HEIGHT,
 						},
 						geometry: {
 							type: "Polygon",
@@ -3215,7 +3336,11 @@ export function buildVector3dLayers({
 			Number(n.floorOrder) || 0,
 		);
 		if (!include) continue;
-		if (!isOverviewAll && !isAllFloorsInFocused && (isGhost || isContextBuilding)) {
+		if (
+			!isOverviewAll &&
+			!isAllFloorsInFocused &&
+			(isGhost || isContextBuilding)
+		) {
 			continue;
 		}
 		if (isOverviewAll && (Number(n.floorOrder) || 0) !== 0) {
@@ -3229,8 +3354,7 @@ export function buildVector3dLayers({
 			properties: {
 				id: n.id,
 				nodeType: n.type,
-				iconImage:
-					n.type === "ELEVATOR" ? "portal-elevator" : "portal-stairs",
+				iconImage: n.type === "ELEVATOR" ? "portal-elevator" : "portal-stairs",
 				portalGroupId: n.portalGroupId || "",
 				building: resolveCanonicalBuildingName(n.building) || n.building || "",
 				floorOrder,
@@ -3316,7 +3440,8 @@ export function buildAllGraphEdges(store) {
 	const boundaries = store?.buildingBoundaries || [];
 	const explicitEdges = [...(store?.navEdges || [])];
 
-	// Group STAIRS / ELEVATOR nodes by `${canonicalBuilding}__${portalGroupId}`
+	// Group STAIRS / ELEVATOR nodes by `${canonicalBuilding}__${type}__${portalGroupId}`
+	// so STAIRS vs ELEVATOR never bridge AND same-floor duplicates never auto-connect horizontally.
 	const groups = new Map();
 	for (const n of nodes) {
 		if (isPortalNode(n) && n.portalGroupId && n.portalGroupId.trim()) {
@@ -3324,17 +3449,24 @@ export function buildAllGraphEdges(store) {
 			const bldgKey = (
 				resolveCanonicalBuildingName(resolvedBldg) || "UNKNOWN"
 			).toUpperCase();
-			const key = `${bldgKey}__${n.portalGroupId.trim().toUpperCase()}`;
+			const key = `${bldgKey}__${n.type}__${n.portalGroupId.trim().toUpperCase()}`;
 			if (!groups.has(key)) groups.set(key, []);
 			groups.get(key).push(n);
 		}
 	}
 
 	for (const groupNodes of groups.values()) {
-		groupNodes.sort((a, b) => a.floorOrder - b.floorOrder);
-		for (let i = 0; i < groupNodes.length - 1; i++) {
-			const u = groupNodes[i].id;
-			const v = groupNodes[i + 1].id;
+		const byFloor = new Map();
+		for (const gn of groupNodes) {
+			const fl = Number(gn.floorOrder) || 0;
+			if (!byFloor.has(fl)) byFloor.set(fl, gn);
+		}
+		const floorLeaders = Array.from(byFloor.entries())
+			.sort((a, b) => a[0] - b[0])
+			.map((entry) => entry[1]);
+		for (let i = 0; i < floorLeaders.length - 1; i++) {
+			const u = floorLeaders[i].id;
+			const v = floorLeaders[i + 1].id;
 			const exists = explicitEdges.some(
 				([a, b]) => (a === u && b === v) || (a === v && b === u),
 			);
@@ -3351,12 +3483,7 @@ export function buildAllGraphEdges(store) {
  * Check whether an intra-floor segment should sit at Outdoor courtyard elevation (`z = 0.06m`)
  * using pure Floor-0 boundary geometry rather than legacy node labels.
  */
-function isSegmentOutdoorGeometry(
-	boundaries,
-	a,
-	b,
-	precomputedModels = null,
-) {
+function isSegmentOutdoorGeometry(boundaries, a, b, precomputedModels = null) {
 	const aFloor = Number(a?.floorOrder) || 0;
 	const bFloor = Number(b?.floorOrder) || 0;
 	if (aFloor !== bFloor || aFloor !== 0) return false;
@@ -3490,7 +3617,11 @@ export function computeDigitizedRoute({
 			(n) =>
 				(Number(n.floorOrder) || 0) === sFloor &&
 				!isPortalNode(n) &&
-				isPointInPolygonWithHoles(n.coords, startRoom.ring, startRoom.holes || []),
+				isPointInPolygonWithHoles(
+					n.coords,
+					startRoom.ring,
+					startRoom.holes || [],
+				),
 		);
 		let intraCoords = [startCoords, endCoords];
 		let intraNodes = [
@@ -3670,13 +3801,22 @@ export function computeDigitizedRoute({
 			return floorNodes.filter(
 				(n) =>
 					!isNodeOutdoor(boundaries, n, floorModels) &&
-					matchesBuilding(resolveNodeBuilding(boundaries, n, floorModels), bldg),
+					matchesBuilding(
+						resolveNodeBuilding(boundaries, n, floorModels),
+						bldg,
+					),
 			);
 		}
 		return floorNodes.length > 0 ? floorNodes : nodes;
 	};
 
-	const connectCoordsToPool = (targetNodeId, coords, bldg, flOrder, poolOpts = {}) => {
+	const connectCoordsToPool = (
+		targetNodeId,
+		coords,
+		bldg,
+		flOrder,
+		poolOpts = {},
+	) => {
 		const pool = getFloorPool(bldg, flOrder, coords, poolOpts);
 		if (pool.length === 0) return { node: null, edgePair: null };
 		const poolIds = new Set(pool.map((n) => n.id));
@@ -3743,7 +3883,11 @@ export function computeDigitizedRoute({
 			adj.get(u.id).push({ to: vId, weight: du });
 			adj.get(vId).push({ to: v.id, weight: dv });
 			adj.get(v.id).push({ to: vId, weight: dv });
-			return { node: vNode, edgePair: [u.id, v.id], dist: bestEdgeAttach.dProj };
+			return {
+				node: vNode,
+				edgePair: [u.id, v.id],
+				dist: bestEdgeAttach.dProj,
+			};
 		}
 
 		return { node: bestNode, edgePair: null, dist: bestNodeDist };
@@ -3764,7 +3908,10 @@ export function computeDigitizedRoute({
 				const dy = bM[1] - aM[1];
 				const l2 = dx * dx + dy * dy;
 				if (l2 < 1e-6) continue;
-				const t = Math.max(0, Math.min(1, ((0 - aM[0]) * dx + (0 - aM[1]) * dy) / l2));
+				const t = Math.max(
+					0,
+					Math.min(1, ((0 - aM[0]) * dx + (0 - aM[1]) * dy) / l2),
+				);
 				const px = aM[0] + t * dx;
 				const py = aM[1] + t * dy;
 				const d = Math.hypot(px, py);
@@ -3811,7 +3958,10 @@ export function computeDigitizedRoute({
 				const sideFace = model.faces.find((f) =>
 					isPointInPolygonWithHoles(sidePt, f.ring, f.holes || []),
 				);
-				if ((!sideFace || sideFace?.role === "VOID") && model.floorOrder === 0) {
+				if (
+					(!sideFace || sideFace?.role === "VOID") &&
+					model.floorOrder === 0
+				) {
 					const sideInVoid =
 						sideFace?.role === "VOID" ||
 						Boolean(findVoidCourtyardBuilding(sidePt));
@@ -4132,10 +4282,11 @@ export function computeDigitizedRoute({
 		endFloorOrder,
 		endPoolOpts,
 	);
-	let { sNode: startNode, eNode: endNode, pathNodes } = runDijkstraPass(
-		startAttach,
-		endAttach,
-	);
+	let {
+		sNode: startNode,
+		eNode: endNode,
+		pathNodes,
+	} = runDijkstraPass(startAttach, endAttach);
 
 	// Two strictly exterior campus clicks without a connecting sidewalk graph walk directly outdoors (avoiding buildings, never via unrelated doors)
 	if (
@@ -4329,14 +4480,24 @@ export function computeDigitizedRoute({
 
 	const startLegOutdoor = isSegmentOutdoorGeometry(
 		boundaries,
-		{ floorOrder: startFloorOrder, coords: startCoords, building: startBuilding, type: startBuilding === "OUTDOOR" ? "OUTDOOR" : "NODE" },
+		{
+			floorOrder: startFloorOrder,
+			coords: startCoords,
+			building: startBuilding,
+			type: startBuilding === "OUTDOOR" ? "OUTDOOR" : "NODE",
+		},
 		startNode,
 		floorModels,
 	);
 	const endLegOutdoor = isSegmentOutdoorGeometry(
 		boundaries,
 		endNode,
-		{ floorOrder: endFloorOrder, coords: endCoords, building: endBuilding, type: endBuilding === "OUTDOOR" ? "OUTDOOR" : "NODE" },
+		{
+			floorOrder: endFloorOrder,
+			coords: endCoords,
+			building: endBuilding,
+			type: endBuilding === "OUTDOOR" ? "OUTDOOR" : "NODE",
+		},
 		floorModels,
 	);
 
@@ -4535,9 +4696,7 @@ export function buildRoute3dLayers(
 	mergedChains.forEach((chain) => {
 		const { idx, segFloor, isOutdoor, isGhost, coords } = chain;
 		const floorBase = segFloor * FLOOR_ELEVATION_STEP;
-		const baseHeight = isOutdoor
-			? 0.06
-			: floorBase + FLOOR_SLAB_HEIGHT + 0.05;
+		const baseHeight = isOutdoor ? 0.06 : floorBase + FLOOR_SLAB_HEIGHT + 0.05;
 		const extrudeHeight = isOutdoor
 			? 0.28
 			: floorBase + FLOOR_SLAB_HEIGHT + 0.28;
@@ -4617,7 +4776,11 @@ export function deduplicateFloorVertices(
 	if (!Array.isArray(walls) || walls.length === 0) return [];
 	let refPt = null;
 	for (const w of walls) {
-		if (Array.isArray(w.line) && w.line.length > 0 && Array.isArray(w.line[0])) {
+		if (
+			Array.isArray(w.line) &&
+			w.line.length > 0 &&
+			Array.isArray(w.line[0])
+		) {
 			refPt = w.line[0];
 			break;
 		}
@@ -4636,7 +4799,9 @@ export function deduplicateFloorVertices(
 			const ptM = toM(pt);
 			let found = null;
 			for (const c of clusters) {
-				if (Math.hypot(c.ptM[0] - ptM[0], c.ptM[1] - ptM[1]) <= toleranceMeters) {
+				if (
+					Math.hypot(c.ptM[0] - ptM[0], c.ptM[1] - ptM[1]) <= toleranceMeters
+				) {
 					found = c;
 					break;
 				}
@@ -4675,18 +4840,26 @@ export function dragWeldedWallVertices(
 		toleranceMeters = 0.04,
 	} = {},
 ) {
-	if (!Array.isArray(walls) || !wallId || !Array.isArray(newCoord)) return walls;
+	if (!Array.isArray(walls) || !wallId || !Array.isArray(newCoord))
+		return walls;
 	const targetWall = walls.find((w) => w.id === wallId);
 	if (!targetWall || !Array.isArray(targetWall.line)) return walls;
 	const origCoord = targetWall.line[vertexIndex];
 	if (!Array.isArray(origCoord)) return walls;
 
 	const { toM } = toLocalMetersFactory(origCoord);
-	const cleanNew = [Number(newCoord[0].toFixed(6)), Number(newCoord[1].toFixed(6))];
+	const cleanNew = [
+		Number(newCoord[0].toFixed(6)),
+		Number(newCoord[1].toFixed(6)),
+	];
 
 	return walls.map((w) => {
 		if (!Array.isArray(w.line)) return w;
-		if (w.building && targetWall.building && !matchesBuilding(w.building, targetWall.building)) {
+		if (
+			w.building &&
+			targetWall.building &&
+			!matchesBuilding(w.building, targetWall.building)
+		) {
 			return w;
 		}
 		if (
@@ -4758,7 +4931,9 @@ export function mergeOrSplitNavNodeOnDrop({
 		let bestD = 0.25;
 		for (const n of navNodes) {
 			if (n.id === draggedNodeId) continue;
-			if ((Number(n.floorOrder) || 0) !== (Number(draggedNode.floorOrder) || 0)) {
+			if (
+				(Number(n.floorOrder) || 0) !== (Number(draggedNode.floorOrder) || 0)
+			) {
 				continue;
 			}
 			const m = toM(n.coords);
@@ -4802,7 +4977,11 @@ export function mergeOrSplitNavNodeOnDrop({
 			Array.isArray(floor0Bounds) &&
 			floor0Bounds.length > 0
 		) {
-			const contained = findBoundaryContainingPoint(floor0Bounds, finalCoords, 0);
+			const contained = findBoundaryContainingPoint(
+				floor0Bounds,
+				finalCoords,
+				0,
+			);
 			return {
 				...n,
 				coords: finalCoords,
@@ -4875,7 +5054,10 @@ export function buildOrientedDoorGeometry(
 		const lenSq = dx * dx + dy * dy;
 		if (lenSq < 0.04) continue;
 		const segLen = Math.sqrt(lenSq);
-		const t = Math.max(0, Math.min(1, ((0 - aM[0]) * dx + (0 - aM[1]) * dy) / lenSq));
+		const t = Math.max(
+			0,
+			Math.min(1, ((0 - aM[0]) * dx + (0 - aM[1]) * dy) / lenSq),
+		);
 		const px = aM[0] + t * dx;
 		const py = aM[1] + t * dy;
 		const d = Math.hypot(px, py);
@@ -4951,6 +5133,43 @@ export function buildOrientedDoorGeometry(
 }
 
 /**
+ * Generate the next unused vertical shaft `portalGroupId` scoped strictly by canonical building and portal type.
+ */
+export function generateNextPortalGroupId(
+	navNodes = [],
+	boundaries = [],
+	building = "Tòa HCM",
+	nodeType = "STAIRS",
+) {
+	const cBldg = resolveCanonicalBuildingName(building) || building || "Tòa HCM";
+	const bPrefix = cBldg.includes("Epsilon")
+		? "EPS"
+		: cBldg.includes("HCM") || cBldg.includes("Alpha")
+			? "HCM"
+			: cBldg
+					.replace(/[^A-Za-z0-9]/g, "")
+					.slice(0, 4)
+					.toUpperCase() || "BLDG";
+	const tTag = nodeType === "ELEVATOR" ? "ELEV" : "STAIR";
+	const used = new Set();
+	for (const n of navNodes || []) {
+		if (!isPortalNode(n) || n.type !== nodeType || !n.portalGroupId) continue;
+		const nb =
+			resolveNodeBuilding(boundaries, n) ||
+			resolveCanonicalBuildingName(n.building) ||
+			n.building;
+		if (matchesBuilding(nb, cBldg)) {
+			used.add(n.portalGroupId.trim().toUpperCase());
+		}
+	}
+	let idx = 1;
+	while (used.has(`${bPrefix}_${tTag}_${idx}`)) {
+		idx++;
+	}
+	return `${bPrefix}_${tTag}_${idx}`;
+}
+
+/**
  * Synchronize a vertical portal (`STAIRS` or `ELEVATOR`) across a user-selected list of floors
  * in the same building: aligns all group nodes to the exact same `[lng, lat]` shaft coordinate,
  * creates missing floor portals, removes unchecked floor portals, and auto-wires each newly created
@@ -4960,7 +5179,8 @@ export function syncPortalAcrossBuildingFloors(
 	store,
 	{ sourceNodeId, targetFloorOrders = [] } = {},
 ) {
-	if (!store || !sourceNodeId || !Array.isArray(targetFloorOrders)) return store;
+	if (!store || !sourceNodeId || !Array.isArray(targetFloorOrders))
+		return store;
 	const nodes = store.navNodes || [];
 	const edges = store.navEdges || [];
 	const sourceNode = nodes.find((n) => n.id === sourceNodeId);
@@ -4971,7 +5191,8 @@ export function syncPortalAcrossBuildingFloors(
 		resolveCanonicalBuildingName(sourceNode.building) ||
 		sourceNode.building ||
 		"Tòa HCM";
-	const groupKey = (sourceNode.portalGroupId || "").trim().toUpperCase() ||
+	const groupKey =
+		(sourceNode.portalGroupId || "").trim().toUpperCase() ||
 		`${bldg.includes("Epsilon") ? "EPS" : "HCM"}_${sourceNode.type}_${sourceNode.id.slice(-4).toUpperCase()}`;
 
 	const targetSet = new Set(targetFloorOrders.map((f) => Number(f) || 0));
@@ -4981,13 +5202,19 @@ export function syncPortalAcrossBuildingFloors(
 	}
 
 	const isSameShaftNode = (n) => {
-		if (!isPortalNode(n)) return false;
+		if (!isPortalNode(n) || n.type !== sourceNode.type) return false;
 		if ((n.portalGroupId || "").trim().toUpperCase() !== groupKey) return false;
 		const nb =
 			resolveNodeBuilding(store.buildingBoundaries || [], n) ||
 			resolveCanonicalBuildingName(n.building) ||
 			n.building;
-		return matchesBuilding(nb, bldg);
+		if (!matchesBuilding(nb, bldg)) return false;
+		// Never delete/overwrite another unrelated shaft at a completely different XY location
+		const isCloseXY =
+			Array.isArray(n.coords) &&
+			Array.isArray(sourceNode.coords) &&
+			haversineMeters(n.coords, sourceNode.coords) <= 2.5;
+		return isCloseXY || n.id.startsWith("node-portal-");
 	};
 
 	const removedNodeIds = new Set();
@@ -5147,8 +5374,7 @@ export function resolveTestRouteClickContext({
 	);
 
 	if (hitBuilding && hitBuilding !== "OUTDOOR") {
-		const fl =
-			hitFloor != null ? Number(hitFloor) || 0 : scopeFloorNum ?? 0;
+		const fl = hitFloor != null ? Number(hitFloor) || 0 : (scopeFloorNum ?? 0);
 		if (
 			fl === 0 &&
 			!isPointIndoorOnFloor(store, hitBuilding, 0, rawCoord, models)
@@ -5159,7 +5385,7 @@ export function resolveTestRouteClickContext({
 	}
 
 	const candidateFloor =
-		hitFloor != null ? Number(hitFloor) || 0 : scopeFloorNum ?? 0;
+		hitFloor != null ? Number(hitFloor) || 0 : (scopeFloorNum ?? 0);
 	const bndAtFloor = findBoundaryContainingPoint(
 		allBounds,
 		rawCoord,
@@ -5192,6 +5418,22 @@ export function resolveTestRouteClickContext({
 }
 
 /**
+ * Shortest-arc angular interpolation between two compass bearings (`[0, 360)` degrees clockwise from North).
+ */
+export function lerpBearingDeg(fromDeg, toDeg, alpha = 1) {
+	const hasFrom = typeof fromDeg === "number" && Number.isFinite(fromDeg);
+	const hasTo = typeof toDeg === "number" && Number.isFinite(toDeg);
+	if (!hasFrom && !hasTo) return 0;
+	if (!hasFrom) return ((toDeg % 360) + 360) % 360;
+	if (!hasTo) return ((fromDeg % 360) + 360) % 360;
+	const t = Math.max(0, Math.min(1, Number.isFinite(alpha) ? alpha : 1));
+	const a = ((fromDeg % 360) + 360) % 360;
+	const b = ((toDeg % 360) + 360) % 360;
+	const diff = ((b - a + 540) % 360) - 180;
+	return (((a + diff * t) % 360) + 360) % 360;
+}
+
+/**
  * Sample an interpolated walker position, current floor, elevation, bearing, and traveled trail GeoJSON
  * at normalized playback progress `t ∈ [0, 1]` along a `computeDigitizedRoute` result.
  */
@@ -5201,7 +5443,9 @@ export function samplePointAlongRoute(routeResult, progress01 = 0) {
 
 	const tClamped = Math.max(0, Math.min(1, Number(progress01) || 0));
 	const elevFor = (fl, isOut) =>
-		isOut ? 0.3 : (Number(fl) || 0) * FLOOR_ELEVATION_STEP + FLOOR_SLAB_HEIGHT + 0.38;
+		isOut
+			? 0.3
+			: (Number(fl) || 0) * FLOOR_ELEVATION_STEP + FLOOR_SLAB_HEIGHT + 0.38;
 
 	const steps = [];
 	let trackedFloor = Number(features[0]?.properties?.floorOrder) || 0;
@@ -5240,8 +5484,18 @@ export function samplePointAlongRoute(routeResult, progress01 = 0) {
 			const f0 = fromFloor + (toFloor - fromFloor) * (i / segCount);
 			const f1 = fromFloor + (toFloor - fromFloor) * ((i + 1) / segCount);
 			const weightMeters = isStair
-				? Math.max(realMeters, Math.max(1, Math.abs(f1 - f0)) * FLOOR_ELEVATION_STEP * 2.5)
+				? Math.max(
+						realMeters,
+						Math.max(1, Math.abs(f1 - f0)) * FLOOR_ELEVATION_STEP * 2.5,
+					)
 				: Math.max(realMeters, 0.25);
+
+			const dx = (b[0] - a[0]) * Math.cos(((a[1] || 10.84) * Math.PI) / 180);
+			const dy = b[1] - a[1];
+			const rawBearing =
+				Math.hypot(dx, dy) > 1e-9
+					? ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360
+					: null;
 
 			steps.push({
 				a,
@@ -5255,11 +5509,22 @@ export function samplePointAlongRoute(routeResult, progress01 = 0) {
 				building,
 				realMeters,
 				weightMeters,
+				rawBearing,
 			});
 		}
 	}
 
 	if (steps.length === 0) return null;
+
+	// Propagate valid horizontal bearing across zero-XY vertical stair/elevator steps
+	let lastHorizBearing =
+		steps.find((st) => st.rawBearing != null)?.rawBearing ?? 0;
+	for (const st of steps) {
+		if (st.rawBearing != null) {
+			lastHorizBearing = st.rawBearing;
+		}
+		st.bearing = lastHorizBearing;
+	}
 
 	const totalWeight = steps.reduce((acc, s) => acc + s.weightMeters, 0) || 1;
 	const targetWeight = tClamped * totalWeight;
@@ -5275,7 +5540,10 @@ export function samplePointAlongRoute(routeResult, progress01 = 0) {
 		if (targetWeight <= nextAccWeight || i === steps.length - 1) {
 			localT =
 				s.weightMeters > 1e-6
-					? Math.max(0, Math.min(1, (targetWeight - accWeight) / s.weightMeters))
+					? Math.max(
+							0,
+							Math.min(1, (targetWeight - accWeight) / s.weightMeters),
+						)
 					: 1;
 			accRealMeters += s.realMeters * localT;
 			const interpCoord = [
@@ -5300,12 +5568,6 @@ export function samplePointAlongRoute(routeResult, progress01 = 0) {
 			const elevationMeters = Number(
 				(s.startZ + (s.endZ - s.startZ) * localT).toFixed(2),
 			);
-			const dx = (s.b[0] - s.a[0]) * Math.cos(((s.a[1] || 10.84) * Math.PI) / 180);
-			const dy = s.b[1] - s.a[1];
-			const bearing =
-				Math.hypot(dx, dy) > 1e-9
-					? ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360
-					: 0;
 			const floorInt = Math.round(floorFloat);
 			const statusLabel = s.isStair
 				? `Chuyển tầng ${Math.round(s.fromFloor) === 0 ? "G" : Math.round(s.fromFloor)} → ${Math.round(s.toFloor) === 0 ? "G" : Math.round(s.toFloor)}`
@@ -5317,7 +5579,7 @@ export function samplePointAlongRoute(routeResult, progress01 = 0) {
 				coords: interpCoord,
 				floorOrder: floorInt,
 				elevationMeters,
-				bearing: Number(bearing.toFixed(1)),
+				bearing: Number((s.bearing ?? 0).toFixed(1)),
 				isOutdoor: s.isOutdoor,
 				isStair: s.isStair,
 				building: s.building,
@@ -5363,7 +5625,12 @@ export function isDoorConnectedToGraph(
 	edges = [],
 	maxToleranceMeters = 0.65,
 ) {
-	if (!door || !Array.isArray(door.coords) || !Array.isArray(navNodes) || !Array.isArray(edges)) {
+	if (
+		!door ||
+		!Array.isArray(door.coords) ||
+		!Array.isArray(navNodes) ||
+		!Array.isArray(edges)
+	) {
 		return false;
 	}
 	const doorFloor = Number(door.floorOrder) || 0;
@@ -5429,7 +5696,8 @@ export function auditNavigationConnectivity({
 	// 1. Check STAIRS & ELEVATOR nodes for missing same-floor horizontal corridor link
 	for (const n of navNodes) {
 		if (!isPortalNode(n)) continue;
-		if (!isNodeVisibleOnFloor(boundaries, n, building, floorOrder, models)) continue;
+		if (!isNodeVisibleOnFloor(boundaries, n, building, floorOrder, models))
+			continue;
 		const hasHorizontal = (sameFloorDegree.get(n.id) || 0) > 0;
 		portalHasFloorEdgeById.set(n.id, hasHorizontal);
 		if (!hasHorizontal) {
@@ -5478,5 +5746,3 @@ export function auditNavigationConnectivity({
 
 	return { doorStatusById, portalHasFloorEdgeById, issues };
 }
-
-

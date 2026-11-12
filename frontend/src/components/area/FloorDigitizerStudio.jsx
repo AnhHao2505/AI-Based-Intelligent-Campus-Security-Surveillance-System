@@ -53,6 +53,7 @@ import {
 	DoorOpen,
 	Play,
 	Pause,
+	Navigation,
 } from "lucide-react";
 import {
 	DEFAULT_BUILDINGS_META,
@@ -72,10 +73,12 @@ import {
 	deduplicateFloorVertices,
 	dragWeldedWallVertices,
 	findBoundaryContainingPoint,
+	generateNextPortalGroupId,
 	isNodeOutdoor,
 	isNodeVisibleOnFloor,
 	isPointIndoorOnFloor,
 	isPortalNode,
+	lerpBearingDeg,
 	matchesBuilding,
 	mergeOrSplitNavNodeOnDrop,
 	resolveBestSnapTarget,
@@ -226,6 +229,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 	// Core Geometry Store & Dirty Tracking
 	const [store, setStoreState] = useState(() => loadGeometryStore());
+	const storeRef = useRef(store);
+	storeRef.current = store;
 	const [lastSavedJson, setLastSavedJson] = useState(() =>
 		JSON.stringify(loadGeometryStore()),
 	);
@@ -347,7 +352,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 
 	// Nav Graph states
 	const [activeNodeType, setActiveNodeType] = useState("NODE");
-	const [portalGroupId, setPortalGroupId] = useState("HCM_STAIR_W");
+	const [portalGroupId, setPortalGroupId] = useState("HCM_STAIR_1");
 	const [chainLastNodeId, setChainLastNodeId] = useState(null);
 
 	// Live A* Route Tester & Real-Time Playback Simulation
@@ -355,7 +360,14 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	const [testRouteResult, setTestRouteResult] = useState(null);
 	const [routePlaying, setRoutePlaying] = useState(false);
 	const [routeProgress, setRouteProgress] = useState(0);
+	const [followRouteHeading, setFollowRouteHeading] = useState(true);
+	const [mapViewportBearing, setMapViewportBearing] = useState(0);
 	const routeProgressRef = useRef(0);
+	const routePlayingRef = useRef(false);
+	routePlayingRef.current = routePlaying;
+	const followRouteHeadingRef = useRef(true);
+	followRouteHeadingRef.current = followRouteHeading;
+	const camFollowRef = useRef(null);
 	const [toastMsg, setToastMsg] = useState(null);
 	const toastTimerRef = useRef(null);
 
@@ -793,9 +805,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		}
 	}, []);
 
-	// Fly to active building (or full campus midpoint when "ALL" selected)
+	// Fly to active building (or full campus midpoint when "ALL" selected); paused while chase-cam follows active route heading
 	useEffect(() => {
 		if (!isOpen || !mapRef.current) return;
+		if (routePlayingRef.current && followRouteHeadingRef.current) return;
 		mapRef.current.flyTo({
 			center: isAllBuildings ? [106.81065, 10.84095] : currentBuildingMeta.center,
 			zoom: isAllBuildings ? 17.3 : 18.6,
@@ -828,9 +841,29 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		setRoutePlaying(false);
 		setRouteProgress(0);
 		routeProgressRef.current = 0;
+		camFollowRef.current = null;
 	}, [testRouteResult]);
 
-	// Real-time RAF pedestrian playback along computed A* path
+	// Align camera immediately when user toggles follow-heading ON during playback
+	useEffect(() => {
+		if (!followRouteHeading || !routePlaying || !mapRef.current) {
+			if (!followRouteHeading) camFollowRef.current = null;
+			return;
+		}
+		const map = mapRef.current;
+		map.stop?.();
+		const c = map.getCenter?.();
+		const sample = samplePointAlongRoute(testRouteResult, routeProgressRef.current);
+		camFollowRef.current = {
+			lng: c ? c.lng : sample?.coords?.[0] ?? 106.81065,
+			lat: c ? c.lat : sample?.coords?.[1] ?? 10.84095,
+			bearing: map.getBearing?.() ?? 0,
+			zoom: Math.max(map.getZoom?.() ?? 18.6, 19.3),
+			lastNow: null,
+		};
+	}, [followRouteHeading, routePlaying, testRouteResult]);
+
+	// Real-time RAF pedestrian playback along computed A* path with smooth heading chase-cam
 	useEffect(() => {
 		if (!routePlaying || !testRouteResult?.geojson) return;
 		const totalDist = testRouteResult.totalDistanceMeters || 50;
@@ -845,6 +878,20 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			setRouteProgress(0);
 			routeProgressRef.current = 0;
 		}
+		if (followRouteHeadingRef.current && mapRef.current) {
+			const map = mapRef.current;
+			map.stop?.();
+			const c = map.getCenter?.();
+			const initSample = samplePointAlongRoute(testRouteResult, startProgress);
+			camFollowRef.current = {
+				lng: c ? c.lng : initSample?.coords?.[0] ?? 106.81065,
+				lat: c ? c.lat : initSample?.coords?.[1] ?? 10.84095,
+				bearing: map.getBearing?.() ?? initSample?.bearing ?? 0,
+				zoom: Math.max(map.getZoom?.() ?? 18.6, 19.3),
+				lastNow: null,
+			};
+		}
+
 		let startTime = null;
 		let rafId = null;
 
@@ -854,10 +901,51 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			const nextT = Math.min(1, startProgress + elapsed / durationMs);
 			routeProgressRef.current = nextT;
 			setRouteProgress(nextT);
+
+			if (followRouteHeadingRef.current && mapRef.current) {
+				const sample = samplePointAlongRoute(testRouteResult, nextT);
+				if (sample) {
+					const map = mapRef.current;
+					if (!camFollowRef.current) {
+						const c = map.getCenter?.();
+						camFollowRef.current = {
+							lng: c ? c.lng : sample.coords[0],
+							lat: c ? c.lat : sample.coords[1],
+							bearing: map.getBearing?.() ?? sample.bearing ?? 0,
+							zoom: Math.max(map.getZoom?.() ?? 18.6, 19.3),
+							lastNow: now,
+						};
+					}
+					const cam = camFollowRef.current;
+					const dt =
+						cam.lastNow != null ? Math.min(80, Math.max(8, now - cam.lastNow)) : 16;
+					cam.lastNow = now;
+					const alphaPos = 1 - Math.exp(-dt / 150);
+					const alphaRot = 1 - Math.exp(-dt / 220);
+					const alphaZoom = 1 - Math.exp(-dt / 320);
+
+					cam.lng += (sample.coords[0] - cam.lng) * alphaPos;
+					cam.lat += (sample.coords[1] - cam.lat) * alphaPos;
+					cam.bearing = lerpBearingDeg(cam.bearing, sample.bearing, alphaRot);
+					const desiredZoom = Math.max(map.getZoom?.() ?? 18.6, 19.3);
+					cam.zoom += (desiredZoom - cam.zoom) * alphaZoom;
+
+					map.jumpTo({
+						center: [cam.lng, cam.lat],
+						bearing: cam.bearing,
+						pitch: is3dPreviewRef.current ? 58 : 0,
+						zoom: cam.zoom,
+					});
+				}
+			}
+
 			if (nextT < 1) {
 				rafId = requestAnimationFrame(tick);
 			} else {
 				setRoutePlaying(false);
+				if (mapRef.current) {
+					setMapViewportBearing(Math.round(mapRef.current.getBearing?.() ?? 0));
+				}
 			}
 		};
 		rafId = requestAnimationFrame(tick);
@@ -897,6 +985,22 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		activeBuilding,
 		activeFloorOrder,
 	]);
+
+	// Keep default portalGroupId fresh & collision-free when switching building or STAIRS vs ELEVATOR
+	useEffect(() => {
+		if (activeNodeType !== "STAIRS" && activeNodeType !== "ELEVATOR") return;
+		const st = storeRef.current;
+		const targetBldg =
+			activeBuilding === "ALL" ? DEFAULT_BUILDINGS_META[0].name : activeBuilding;
+		setPortalGroupId(
+			generateNextPortalGroupId(
+				st?.navNodes || [],
+				st?.buildingBoundaries || [],
+				targetBldg,
+				activeNodeType,
+			),
+		);
+	}, [activeBuilding, activeNodeType]);
 
 	// Collect vertices & segments strictly from currently visible Wall Graph & Nav Graph layers in scope
 	const existingGeometryForSnapping = useMemo(() => {
@@ -966,7 +1070,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				(activeNodeType === "STAIRS" || activeNodeType === "ELEVATOR")
 			) {
 				for (const n of store.navNodes || []) {
-					if (!isPortalNode(n)) continue;
+					if (!isPortalNode(n) || n.type !== activeNodeType) continue;
 					if (Number(n.floorOrder) === scopeFloorNum) continue;
 					const nb =
 						resolveNodeBuilding(boundaries, n, floorWallModels) ||
@@ -2443,8 +2547,18 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					}
 				}
 
+				const chainPrevNode = chainLastNodeId
+					? (store.navNodes || []).find((n) => n.id === chainLastNodeId) || null
+					: null;
+
 				if (existingNode) {
-					if (chainLastNodeId && chainLastNodeId !== existingNode.id) {
+					const skipPortalToPortal =
+						isPortalNode(chainPrevNode) && isPortalNode(existingNode);
+					if (
+						chainLastNodeId &&
+						chainLastNodeId !== existingNode.id &&
+						!skipPortalToPortal
+					) {
 						setStore((prev) => {
 							const exists = (prev.navEdges || []).some(
 								([a, b]) =>
@@ -2484,23 +2598,57 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					floor0Bounds.length > 0 &&
 					!isPointIndoorOnFloor(store, targetBldgForNode, 0, pt, floorWallModels);
 
-				// Auto-inherit portalGroupId when snapping onto a Ghost Portal from another floor
+				// Auto-inherit portalGroupId strictly for same-type Ghost Portal; otherwise prevent shaft collisions
 				let resolvedPortalGroupId =
-					portalGroupId.trim().toUpperCase() || "PORTAL_1";
+					portalGroupId.trim().toUpperCase() ||
+					generateNextPortalGroupId(
+						store.navNodes || [],
+						boundaries,
+						targetBldgForNode,
+						activeNodeType,
+					);
+				let snappedGhostPortal = false;
 				if (isPortal) {
 					const ghostMatch = (store.navNodes || []).find(
 						(n) =>
 							isPortalNode(n) &&
+							n.type === activeNodeType &&
 							Number(n.floorOrder) !== scopeFloorNum &&
 							matchesBuilding(
 								resolveNodeBuilding(boundaries, n, floorWallModels) || n.building,
 								targetBldgForNode,
 							) &&
-							Math.hypot(n.coords[0] - pt[0], n.coords[1] - pt[1]) < 0.000018,
+							Math.hypot(n.coords[0] - pt[0], n.coords[1] - pt[1]) < 0.000025,
 					);
 					if (ghostMatch?.portalGroupId) {
 						resolvedPortalGroupId = ghostMatch.portalGroupId.trim().toUpperCase();
-						setPortalGroupId(resolvedPortalGroupId);
+						snappedGhostPortal = true;
+					} else {
+						const groupAlreadyUsedOnSameFloorOrElsewhere = (
+							store.navNodes || []
+						).some((n) => {
+							if (!isPortalNode(n) || n.type !== activeNodeType) return false;
+							if (
+								(n.portalGroupId || "").trim().toUpperCase() !==
+								resolvedPortalGroupId
+							) {
+								return false;
+							}
+							const nb =
+								resolveNodeBuilding(boundaries, n, floorWallModels) ||
+								n.building;
+							if (!matchesBuilding(nb, targetBldgForNode)) return false;
+							if (Number(n.floorOrder) === scopeFloorNum) return true;
+							return Math.hypot(n.coords[0] - pt[0], n.coords[1] - pt[1]) >= 0.000025;
+						});
+						if (groupAlreadyUsedOnSameFloorOrElsewhere) {
+							resolvedPortalGroupId = generateNextPortalGroupId(
+								store.navNodes || [],
+								boundaries,
+								targetBldgForNode,
+								activeNodeType,
+							);
+						}
 					}
 				}
 
@@ -2533,7 +2681,11 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						nextEdges.push([eu, newNodeId], [newNodeId, ev]);
 					}
 
-					if (chainLastNodeId) {
+					// Never auto-wire horizontal chain edge between two STAIRS/ELEVATOR portals
+					const canChainFromPrev =
+						Boolean(chainLastNodeId) &&
+						!(isPortal && isPortalNode(chainPrevNode));
+					if (canChainFromPrev) {
 						const alreadyConnected = nextEdges.some(
 							([a, b]) =>
 								(a === chainLastNodeId && b === newNodeId) ||
@@ -2551,7 +2703,21 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					};
 				});
 
-				setChainLastNodeId(newNodeId);
+				if (isPortal) {
+					setChainLastNodeId(null);
+					if (!snappedGhostPortal) {
+						setPortalGroupId(
+							generateNextPortalGroupId(
+								[...(store.navNodes || []), newNode],
+								boundaries,
+								targetBldgForNode,
+								activeNodeType,
+							),
+						);
+					}
+				} else {
+					setChainLastNodeId(newNodeId);
+				}
 				return;
 			}
 
@@ -3103,7 +3269,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		[effectiveStore, activeBuilding, activeFloorOrder, floorWallModels],
 	);
 
-	// 2D Wall-Mounted Doors GeoJSON in scope (Oriented Rectangular Door Frame Polygon + Icon Midpoint + Live Ghost Preview)
+	// 2D Wall-Mounted Doors GeoJSON in scope (Oriented Rectangular Door Frame Polygon + Midpoint Node + Live Ghost Preview)
 	const studioDoorsGeoJSON = useMemo(() => {
 		if (!layerVisibility.doors) {
 			return { type: "FeatureCollection", features: [] };
@@ -3121,11 +3287,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			if (!geom) continue;
 			const isSel = d.id === selectedDoorId;
 			const isConnected = Boolean(connectivityAudit.doorStatusById.get(d.id));
-			const heightOffset = Number(
-				(flOrder * FLOOR_ELEVATION_STEP + FLOOR_SLAB_HEIGHT + 0.28).toFixed(2),
-			);
 
-			// Oriented Rectangular Door Frame Box (as in Image 1)
+			// Oriented Rectangular Door Frame Box
 			features.push({
 				type: "Feature",
 				id: d.id,
@@ -3159,16 +3322,14 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				},
 			});
 
-			// Midpoint Graph Door Icon Badge (`portal-door` teal if wired, `portal-door-unlinked` amber if unwired)
+			// Midpoint Graph Node Anchor
 			features.push({
 				type: "Feature",
 				id: `${d.id}-mid`,
 				properties: {
 					id: d.id,
 					featureKind: "DOOR_MIDPOINT",
-					iconImage: isConnected ? "portal-door" : "portal-door-unlinked",
 					isConnected,
-					heightOffset,
 					widthMeters: geom.widthMeters,
 					isSelected: isSel,
 					isPreview: false,
@@ -3188,9 +3349,6 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 				wallSegs,
 			);
 			if (ghostGeom) {
-				const previewHeightOffset = Number(
-					((scopeFloorNum || 0) * FLOOR_ELEVATION_STEP + FLOOR_SLAB_HEIGHT + 0.28).toFixed(2),
-				);
 				features.push({
 					type: "Feature",
 					id: "door-preview-box",
@@ -3212,9 +3370,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					properties: {
 						id: "door-preview",
 						featureKind: "DOOR_MIDPOINT",
-						iconImage: "portal-door",
-						isConnected: true,
-						heightOffset: previewHeightOffset,
+						isConnected: false,
 						widthMeters: ghostGeom.widthMeters,
 						isSelected: false,
 						isPreview: true,
@@ -3238,7 +3394,6 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		activeTool,
 		snappedCoord,
 		isAllScope,
-		scopeFloorNum,
 	]);
 
 	// 2D Deduplicated Corner/Junction Dots & Open Dead-end Dots across active walls (renders at zoom >= 16.5 for Mappedin snap clarity)
@@ -3287,22 +3442,33 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		[testRouteResult, activeBuilding, activeFloorOrder],
 	);
 
-	// Real-time 3D walker column + badge anchor synced to true floor elevation
+	// Real-time 3D directional walker chevron synced to true floor elevation & travel bearing
 	const playbackWalker3dGeoJSON = useMemo(() => {
 		if (!playbackSample || (!routePlaying && routeProgress <= 0)) {
 			return { type: "FeatureCollection", features: [] };
 		}
 		const [lng, lat] = playbackSample.coords;
-		const rLng = 0.0000068;
-		const rLat = 0.0000066;
-		const ring = [];
-		for (let i = 0; i <= 10; i++) {
-			const ang = (i / 10) * Math.PI * 2;
-			ring.push([
-				Number((lng + Math.cos(ang) * rLng).toFixed(7)),
-				Number((lat + Math.sin(ang) * rLat).toFixed(7)),
-			]);
-		}
+		const rad = ((Number(playbackSample.bearing) || 0) * Math.PI) / 180;
+		const cosB = Math.cos(rad);
+		const sinB = Math.sin(rad);
+		const cosLat = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+		const metersPerDegLng = 111320 * cosLat;
+		const metersPerDegLat = 111320;
+		const toCoord = (fwdM, rightM) => {
+			const eastM = fwdM * sinB + rightM * cosB;
+			const northM = fwdM * cosB - rightM * sinB;
+			return [
+				Number((lng + eastM / metersPerDegLng).toFixed(7)),
+				Number((lat + northM / metersPerDegLat).toFixed(7)),
+			];
+		};
+		const ring = [
+			toCoord(0.95, 0),
+			toCoord(-0.65, -0.72),
+			toCoord(-0.28, 0),
+			toCoord(-0.65, 0.72),
+			toCoord(0.95, 0),
+		];
 		return {
 			type: "FeatureCollection",
 			features: [
@@ -3396,7 +3562,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			});
 		}
 
-		// Map (canonicalBuilding__portalGroupId) -> sorted floor labels for 2D/3D badge display
+		// Map (canonicalBuilding__type__portalGroupId) -> sorted floor labels for 2D/3D badge display
 		const portalFloorsByGroup = new Map();
 		for (const n of effectiveStore.navNodes || []) {
 			if (!isPortalNode(n) || !n.portalGroupId) continue;
@@ -3405,7 +3571,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					resolveNodeBuilding(boundaries, n, floorWallModels) || n.building,
 				) || n.building;
 			if (!isAllBuildings && !matchesBuilding(nb, activeBuilding)) continue;
-			const gk = `${nb}__${n.portalGroupId.trim().toUpperCase()}`;
+			const gk = `${nb}__${n.type}__${n.portalGroupId.trim().toUpperCase()}`;
 			if (!portalFloorsByGroup.has(gk)) portalFloorsByGroup.set(gk, new Set());
 			portalFloorsByGroup.get(gk).add(Number(n.floorOrder) || 0);
 		}
@@ -3429,7 +3595,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					resolveCanonicalBuildingName(
 						resolveNodeBuilding(boundaries, n, floorWallModels) || n.building,
 					) || n.building;
-				const gk = `${nb}__${(n.portalGroupId || "").trim().toUpperCase()}`;
+				const gk = `${nb}__${n.type}__${(n.portalGroupId || "").trim().toUpperCase()}`;
 				const floorsSet = portalFloorsByGroup.get(gk);
 				const sortedFl = floorsSet
 					? Array.from(floorsSet).sort((a, b) => a - b)
@@ -3478,7 +3644,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			});
 		}
 
-		// Ghost Portals from other floors of the same building (visible when placing STAIRS/ELEVATOR in NAV_GRAPH)
+		// Ghost Portals from other floors of the same building & same portal type
 		const ghostPortalFeatures = [];
 		if (
 			!isAllFloors &&
@@ -3487,11 +3653,17 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 		) {
 			const seenGroups = new Set(
 				visibleNodes
-					.filter((n) => isPortalNode(n) && n.portalGroupId)
-					.map((n) => n.portalGroupId.trim().toUpperCase()),
+					.filter(
+						(n) => isPortalNode(n) && n.type === activeNodeType && n.portalGroupId,
+					)
+					.map((n) => `${n.type}__${n.portalGroupId.trim().toUpperCase()}`),
 			);
 			for (const n of effectiveStore.navNodes || []) {
-				if (!isPortalNode(n) || Number(n.floorOrder) === scopeFloorNum) {
+				if (
+					!isPortalNode(n) ||
+					n.type !== activeNodeType ||
+					Number(n.floorOrder) === scopeFloorNum
+				) {
 					continue;
 				}
 				const nb =
@@ -3499,9 +3671,9 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 					resolveCanonicalBuildingName(n.building) ||
 					n.building;
 				if (!isAllBuildings && !matchesBuilding(nb, activeBuilding)) continue;
-				const gk = (n.portalGroupId || "").trim().toUpperCase();
-				if (gk && seenGroups.has(gk)) continue;
-				if (gk) seenGroups.add(gk);
+				const gk = `${n.type}__${(n.portalGroupId || "").trim().toUpperCase()}`;
+				if (n.portalGroupId && seenGroups.has(gk)) continue;
+				if (n.portalGroupId) seenGroups.add(gk);
 				ghostPortalFeatures.push({
 					type: "Feature",
 					properties: {
@@ -3688,12 +3860,12 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 			}
 		}
 
-		// 2. Unmatched Portals for STAIRS / ELEVATOR (strictly scoped per canonical building)
+		// 2. Unmatched Portals for STAIRS / ELEVATOR (strictly scoped per canonical building & portal type)
 		const portalKey = (n) => {
 			const bldg = resolveCanonicalBuildingName(
 				resolveNodeBuilding(boundaries, n, floorWallModels) || n.building,
 			);
-			return `${bldg.toUpperCase()}__${n.portalGroupId.trim().toUpperCase()}`;
+			return `${bldg.toUpperCase()}__${n.type}__${n.portalGroupId.trim().toUpperCase()}`;
 		};
 		const portalsByGroup = new Map();
 		for (const n of store.navNodes || []) {
@@ -4338,11 +4510,37 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									</button>
 									<button
 										type="button"
+										className={`digitizer-route-card__icon-btn ${followRouteHeading ? "is-active" : ""}`}
+										onClick={() => setFollowRouteHeading((p) => !p)}
+										title={
+											followRouteHeading
+												? "Đang tự xoay & bám theo hướng di chuyển (Nhấn để tắt)"
+												: "Bật tự xoay bản đồ theo hướng di chuyển"
+										}
+										aria-label="Tự xoay theo hướng di chuyển"
+										aria-pressed={followRouteHeading}
+									>
+										<Navigation size={13} />
+									</button>
+									<button
+										type="button"
 										className="digitizer-route-card__icon-btn"
 										onClick={() => {
 											setRoutePlaying(false);
 											setRouteProgress(0);
 											routeProgressRef.current = 0;
+											camFollowRef.current = null;
+											if (followRouteHeading && mapRef.current) {
+												const s0 = samplePointAlongRoute(testRouteResult, 0);
+												if (s0) {
+													mapRef.current.easeTo({
+														center: s0.coords,
+														bearing: s0.bearing,
+														pitch: is3dPreviewRef.current ? 58 : 0,
+														duration: 320,
+													});
+												}
+											}
 										}}
 										title="Đưa về điểm xuất phát"
 										aria-label="Đưa mô phỏng về điểm xuất phát"
@@ -4354,6 +4552,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										className="digitizer-route-card__close"
 										onClick={() => {
 											setRoutePlaying(false);
+											camFollowRef.current = null;
 											setTestRouteResult(null);
 										}}
 										aria-label="Đóng kết quả tuyến đường"
@@ -4375,6 +4574,17 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										setRoutePlaying(false);
 										routeProgressRef.current = nextVal;
 										setRouteProgress(nextVal);
+										if (followRouteHeading && mapRef.current) {
+											const s = samplePointAlongRoute(testRouteResult, nextVal);
+											if (s) {
+												mapRef.current.easeTo({
+													center: s.coords,
+													bearing: s.bearing,
+													pitch: is3dPreviewRef.current ? 58 : 0,
+													duration: 180,
+												});
+											}
+										}
 									}}
 									className="digitizer-route-scrubber"
 									aria-label="Tua tiến độ mô phỏng tuyến đường"
@@ -4453,6 +4663,21 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						onMouseMove={handleMapMouseMove}
 						onMouseDown={handleMapMouseDown}
 						onMouseUp={handleMapMouseUp}
+						onDragStart={(e) => {
+							if (routePlaying && e?.originalEvent && !draggingNavNodeRef.current) {
+								setFollowRouteHeading(false);
+							}
+						}}
+						onRotateStart={(e) => {
+							if (routePlaying && e?.originalEvent) {
+								setFollowRouteHeading(false);
+							}
+						}}
+						onRotateEnd={() => {
+							if (mapRef.current) {
+								setMapViewportBearing(Math.round(mapRef.current.getBearing?.() ?? 0));
+							}
+						}}
 						cursor={studioCursor}
 						interactiveLayerIds={studioInteractiveLayerIds}
 						light={STUDIO_LIGHT}
@@ -4893,32 +5118,29 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 								/>
 								<Layer
 									id="studio-doors-layer"
-									type="symbol"
+									type="circle"
 									filter={["==", ["get", "featureKind"], "DOOR_MIDPOINT"]}
-									layout={{
-										"icon-image": ["coalesce", ["get", "iconImage"], "portal-door"],
-										"icon-size": [
+									paint={{
+										"circle-radius": [
 											"case",
 											["get", "isSelected"],
-											0.74,
+											5.2,
 											activeTool === "NAV_GRAPH" || activeTool === "DOOR"
-												? 0.62
-												: 0.5,
+												? 4.6
+												: 3.4,
 										],
-										"icon-allow-overlap": true,
-										"icon-ignore-placement": true,
-										"symbol-height-anchor": "ground",
-										"symbol-height-offset": is3dPreview
-											? ["coalesce", ["get", "heightOffset"], 0.28]
-											: 0,
-									}}
-									paint={{
-										"icon-opacity": [
+										"circle-color": [
 											"case",
-											["get", "isPreview"],
-											0.72,
-											0.98,
+											["get", "isSelected"],
+											"#f59e0b",
+											["get", "isConnected"],
+											"#10b981",
+											activeTool === "NAV_GRAPH"
+												? "#f59e0b"
+												: "#e11d48",
 										],
+										"circle-stroke-width": 1.6,
+										"circle-stroke-color": "#ffffff",
 									}}
 								/>
 							</Source>
@@ -5010,12 +5232,12 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 										paint={{
 											"circle-radius": [
 												"case",
+												["get", "isPortal"],
+												0,
 												["get", "isSelected"],
 												10,
 												["get", "isChainHead"],
 												8,
-												["get", "isPortal"],
-												0,
 												5.5,
 											],
 											"circle-color": [
@@ -5036,10 +5258,10 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 											],
 											"circle-stroke-width": [
 												"case",
-												["get", "isSelected"],
-												3,
 												["get", "isPortal"],
 												0,
+												["get", "isSelected"],
+												3,
 												2,
 											],
 											"circle-stroke-color": [
@@ -5216,7 +5438,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 							</>
 						)}
 
-						{/* 7.5 Animated Real-Time Route Walker Marker (2D accurate anchor) */}
+						{/* 7.5 Animated Real-Time Route Walker Marker (2D heading-aware anchor) */}
 						{testRouteResult?.geojson &&
 							!is3dPreview &&
 							playbackSample &&
@@ -5228,6 +5450,15 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 									style={NON_INTERACTIVE_MARKER_STYLE}
 								>
 									<div className="digitizer-playback-walker">
+										<div
+											className="digitizer-playback-walker__heading"
+											style={{
+												transform: `rotate(${(Number(playbackSample.bearing) || 0) - (routePlaying && followRouteHeading ? (camFollowRef.current?.bearing ?? mapViewportBearing) : mapViewportBearing)}deg)`,
+											}}
+										>
+											<span className="digitizer-playback-walker__cone" />
+											<span className="digitizer-playback-walker__arrow" />
+										</div>
 										<div className="digitizer-playback-walker__pulse" />
 										<div className="digitizer-playback-walker__dot">
 											<Footprints size={12} />
@@ -5865,6 +6096,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 															.filter(
 																(n) =>
 																	isPortalNode(n) &&
+																	n.type === singleSelectedNavNode.type &&
 																	(n.portalGroupId || "")
 																		.trim()
 																		.toUpperCase() === gk &&
