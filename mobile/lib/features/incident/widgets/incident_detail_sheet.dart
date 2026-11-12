@@ -101,11 +101,11 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
 
     return Material(
         elevation: 16,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
         color: const Color(0xFF0F172A),
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
             border: Border.all(color: const Color(0xFF334155), width: 1.5),
           ),
           padding: EdgeInsets.only(
@@ -129,7 +129,7 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                     height: 4,
                     decoration: BoxDecoration(
                       color: const Color(0xFF64748B),
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(1),
                     ),
                   ),
                 ),
@@ -196,7 +196,7 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                 Container(
                   decoration: BoxDecoration(
                     color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: const Color(0xFF334155)),
                   ),
                   padding: const EdgeInsets.all(10),
@@ -232,7 +232,7 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                       ),
                       const SizedBox(height: 8),
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(4),
                         child: SizedBox(
                           width: double.infinity,
                           height: 160,
@@ -241,7 +241,7 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                             width: double.infinity,
                             height: 160,
                             fit: BoxFit.contain,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                             enableZoomOnTap: true,
                           ),
                         ),
@@ -361,11 +361,11 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderSide: const BorderSide(color: Color(0xFF475569)),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderSide: const BorderSide(color: Color(0xFF38BDF8)),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                   items: _categoryLabels.entries.map((e) {
@@ -403,11 +403,11 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                     contentPadding: const EdgeInsets.all(12),
                     enabledBorder: OutlineInputBorder(
                       borderSide: const BorderSide(color: Color(0xFF475569)),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderSide: const BorderSide(color: Color(0xFF38BDF8)),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
@@ -431,7 +431,7 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                           side: const BorderSide(color: Color(0xFF475569)),
                           padding: const EdgeInsets.symmetric(vertical: 11),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                         ),
                         child: const Text(
@@ -455,7 +455,7 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                           side: const BorderSide(color: Color(0xFF475569)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                         ),
                         child: const Text(
@@ -492,7 +492,7 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                         ),
                       ),
