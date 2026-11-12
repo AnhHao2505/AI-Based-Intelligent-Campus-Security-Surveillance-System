@@ -1,4 +1,4 @@
--- Migration V116: Bảng lưu tin nhắn văn bản giữa các nhân viên bảo vệ (Guard-to-Guard Chat)
+-- Migration V118: Bảng lưu tin nhắn văn bản giữa các nhân viên bảo vệ (Guard-to-Guard Chat)
 CREATE TABLE IF NOT EXISTS guard_chat_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
