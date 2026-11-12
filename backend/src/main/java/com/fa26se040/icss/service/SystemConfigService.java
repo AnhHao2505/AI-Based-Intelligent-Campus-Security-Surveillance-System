@@ -60,6 +60,12 @@ public class SystemConfigService {
 
     private volatile Map<String, String> cache = new ConcurrentHashMap<>();
 
+    /** min_value / max_value của từng khoá (metadata, không sửa qua API) — nạp cùng cache, dùng cho getIntWithinBounds. */
+    private record Bounds(BigDecimal min, BigDecimal max) {
+    }
+
+    private volatile Map<String, Bounds> bounds = new ConcurrentHashMap<>();
+
     @PostConstruct
     public void initCache() {
         refreshCache();
@@ -69,11 +75,16 @@ public class SystemConfigService {
         try {
             List<SystemConfiguration> configs = systemConfigurationRepository.findAll();
             Map<String, String> newCache = new ConcurrentHashMap<>();
+            Map<String, Bounds> newBounds = new ConcurrentHashMap<>();
             for (SystemConfiguration config : configs) {
                 if (config.getConfigKey() != null && config.getConfigValue() != null) {
                     newCache.put(config.getConfigKey(), config.getConfigValue());
                 }
+                if (config.getConfigKey() != null && (config.getMinValue() != null || config.getMaxValue() != null)) {
+                    newBounds.put(config.getConfigKey(), new Bounds(config.getMinValue(), config.getMaxValue()));
+                }
             }
+            this.bounds = newBounds;
             this.cache = newCache;
             log.info("SystemConfiguration cache loaded with {} entries", newCache.size());
         } catch (Exception e) {
@@ -95,6 +106,28 @@ public class SystemConfigService {
                     raw, configKey.getKey(), configKey.getDefaultValue());
             return Integer.parseInt(configKey.getDefaultValue());
         }
+    }
+
+    /**
+     * N2: như getInt nhưng giá trị phải nằm trong min_value / max_value khai báo ở DB (sửa thẳng trong DB có thể lọt khỏi
+     * khoảng mà PATCH chặn). Ngoài khoảng -> log WARN + trả mặc định của ConfigKey. Khoá không khai báo min / max -> như getInt.
+     */
+    public int getIntWithinBounds(ConfigKey configKey) {
+        int value = getInt(configKey);
+        Bounds b = bounds.get(configKey.getKey());
+        if (b == null) {
+            return value;
+        }
+        BigDecimal v = BigDecimal.valueOf(value);
+        boolean belowMin = b.min() != null && v.compareTo(b.min()) < 0;
+        boolean aboveMax = b.max() != null && v.compareTo(b.max()) > 0;
+        if (belowMin || aboveMax) {
+            int fallback = Integer.parseInt(configKey.getDefaultValue());
+            log.warn("Config key [{}] value [{}] out of range [{} - {}]. Using default: {}",
+                    configKey.getKey(), value, b.min(), b.max(), fallback);
+            return fallback;
+        }
+        return value;
     }
 
     public String getString(ConfigKey configKey) {
@@ -347,6 +380,7 @@ public class SystemConfigService {
                     throw new IllegalArgumentException("Giá trị cấu hình phải là số nguyên");
                 }
                 validateReasonLengthConfig(config.getConfigKey(), intVal);
+                validateGuestPurposeLengthConfig(config.getConfigKey(), intVal);
                 if (config.getMinValue() != null && intVal < config.getMinValue().intValue()) {
                     throw new IllegalArgumentException("Giá trị không được nhỏ hơn " + config.getMinValue().intValue());
                 }
@@ -433,6 +467,33 @@ public class SystemConfigService {
                 throw new IllegalArgumentException("Chu kỳ quét đơn tồn đọng (" + scanOverdue + ") không được lớn hơn ngưỡng tồn đọng ("
                         + overdueHours + " × 60 phút). Giá trị hiện hành: " + scanOverdue + " = " + currentScan + " phút, "
                         + overdueHours + " = " + currentHours + " giờ; giá trị vừa nhập: " + key + " = " + value + unit + ".");
+            }
+        }
+    }
+
+    /**
+     * N1 (V120): độ dài mục đích lượt khách phải thoả 1 ≤ GUEST_PURPOSE_MIN_LENGTH < GUEST_PURPOSE_MAX_LENGTH ≤ độ dài cột
+     * ({@link GuestRules#PURPOSE_STORAGE_MAX_LENGTH}). So với giá trị hiện hành của khoá còn lại (cùng mẫu độ dài lý do).
+     */
+    private void validateGuestPurposeLengthConfig(String key, int value) {
+        if (ConfigKey.GUEST_PURPOSE_MIN_LENGTH.getKey().equals(key)) {
+            if (value < 1) {
+                throw new IllegalArgumentException("Độ dài tối thiểu của mục đích lượt khách phải từ 1 ký tự trở lên");
+            }
+            int currentMax = getInt(ConfigKey.GUEST_PURPOSE_MAX_LENGTH);
+            if (value >= currentMax) {
+                throw new IllegalArgumentException("Độ dài tối thiểu của mục đích lượt khách (" + value
+                        + ") phải nhỏ hơn độ dài tối đa đang cấu hình (" + currentMax + ")");
+            }
+        } else if (ConfigKey.GUEST_PURPOSE_MAX_LENGTH.getKey().equals(key)) {
+            if (value > GuestRules.PURPOSE_STORAGE_MAX_LENGTH) {
+                throw new IllegalArgumentException("Độ dài tối đa của mục đích lượt khách không được vượt quá "
+                        + GuestRules.PURPOSE_STORAGE_MAX_LENGTH + " ký tự (độ dài cột lưu mục đích trong cơ sở dữ liệu)");
+            }
+            int currentMin = getInt(ConfigKey.GUEST_PURPOSE_MIN_LENGTH);
+            if (value <= currentMin) {
+                throw new IllegalArgumentException("Độ dài tối đa của mục đích lượt khách (" + value
+                        + ") phải lớn hơn độ dài tối thiểu đang cấu hình (" + currentMin + ")");
             }
         }
     }

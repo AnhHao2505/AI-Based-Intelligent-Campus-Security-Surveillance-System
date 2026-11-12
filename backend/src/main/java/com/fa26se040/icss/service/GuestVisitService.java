@@ -65,10 +65,11 @@ public class GuestVisitService {
         }
         // BR-GV-02
         List<Guest> guests = buildGuests(req.guests());
-        // BR-GV-03
+        // BR-GV-03 (N1, V120): độ dài đọc từ GUEST_PURPOSE_MIN_LENGTH / GUEST_PURPOSE_MAX_LENGTH
         String purpose = req.purpose() != null ? req.purpose().trim() : "";
-        if (purpose.length() < 10 || purpose.length() > 500) {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_006);
+        com.fa26se040.icss.dto.guest.GuestPurposeLimits purposeLimits = rules.purposeLimits();
+        if (purpose.length() < purposeLimits.minLength() || purpose.length() > purposeLimits.maxLength()) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_006, purposeLimits.minLength(), purposeLimits.maxLength());
         }
         // BR-GV-05
         validateWindow(req.startTime(), req.endTime(), now, true);

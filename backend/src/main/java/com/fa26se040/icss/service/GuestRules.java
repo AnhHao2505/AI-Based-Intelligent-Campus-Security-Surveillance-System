@@ -7,6 +7,7 @@ import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.GuestVisitRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
@@ -19,6 +20,7 @@ import java.util.Set;
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class GuestRules {
 
     /** B-04 (Lucas 08/10): ADMIN không làm host khách — chỉ NORMAL_USER và FACILITY_MANAGER mời khách. */
@@ -31,6 +33,26 @@ public class GuestRules {
 
     public int hostMinLevel() {
         return systemConfigService.getInt(ConfigKey.GUEST_HOST_MIN_LEVEL);
+    }
+
+    /** Độ dài cột guest_visits.purpose (VARCHAR(500), V60) — GUEST_PURPOSE_MAX_LENGTH không được vượt. */
+    public static final int PURPOSE_STORAGE_MAX_LENGTH = 500;
+
+    /**
+     * BR-GV-03 (N1, V120): độ dài mục đích đọc từ cấu hình. Giá trị sửa thẳng trong DB lọt khỏi min_value / max_value
+     * hoặc min ≥ max -> WARN + mặc định của ConfigKey (10 / 500), không để form khách bị khoá hẳn.
+     */
+    public com.fa26se040.icss.dto.guest.GuestPurposeLimits purposeLimits() {
+        int min = systemConfigService.getIntWithinBounds(ConfigKey.GUEST_PURPOSE_MIN_LENGTH);
+        int max = systemConfigService.getIntWithinBounds(ConfigKey.GUEST_PURPOSE_MAX_LENGTH);
+        if (min >= max || max > PURPOSE_STORAGE_MAX_LENGTH) {
+            int defMin = Integer.parseInt(ConfigKey.GUEST_PURPOSE_MIN_LENGTH.getDefaultValue());
+            int defMax = Integer.parseInt(ConfigKey.GUEST_PURPOSE_MAX_LENGTH.getDefaultValue());
+            log.warn("Config GUEST_PURPOSE_MIN_LENGTH [{}] / GUEST_PURPOSE_MAX_LENGTH [{}] invalid. Using defaults: {} / {}",
+                    min, max, defMin, defMax);
+            return new com.fa26se040.icss.dto.guest.GuestPurposeLimits(defMin, defMax);
+        }
+        return new com.fa26se040.icss.dto.guest.GuestPurposeLimits(min, max);
     }
 
     /** BR-GV-01: đang hoạt động, chưa xoá mềm, role được mời khách, cấp ≥ GUEST_HOST_MIN_LEVEL. */

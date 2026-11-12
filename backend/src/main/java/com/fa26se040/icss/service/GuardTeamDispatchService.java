@@ -326,7 +326,8 @@ public class GuardTeamDispatchService {
         }
     }
 
-    @Scheduled(cron = "0 0 0 * * ?")
+    // O1: cron là tham số vận hành (application.yml icss.scheduler.*), mặc định giữ nửa đêm như trước
+    @Scheduled(cron = "${icss.scheduler.guard-dispatch-expire-cron:0 0 0 * * *}")
     @Transactional
     public void scheduledAutoExpireDispatches() {
         autoExpireDispatches();

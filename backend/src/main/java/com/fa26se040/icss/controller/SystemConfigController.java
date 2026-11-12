@@ -1,12 +1,14 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.common.ApiResponse;
+import com.fa26se040.icss.dto.guest.GuestPurposeLimits;
 import com.fa26se040.icss.dto.systemconfig.AfterHoursWindowResponse;
 import com.fa26se040.icss.dto.systemconfig.ReasonLimits;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigChangeLogResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigUpdateRequest;
 import com.fa26se040.icss.enums.ConfigKey;
+import com.fa26se040.icss.service.GuestRules;
 import com.fa26se040.icss.service.ReasonValidator;
 import com.fa26se040.icss.service.SystemConfigService;
 import jakarta.validation.Valid;
@@ -35,6 +37,7 @@ public class SystemConfigController {
 
     private final SystemConfigService systemConfigService;
     private final ReasonValidator reasonValidator;
+    private final GuestRules guestRules;
 
     /** LT-06 / BR-224: chỉ ADMIN đọc toàn bộ cấu hình. Role khác đọc qua endpoint hẹp (/reason-limits, /after-hours-window). */
     @GetMapping
@@ -64,6 +67,16 @@ public class SystemConfigController {
                 systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_START),
                 systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_END));
         return ResponseEntity.ok(ApiResponse.success(window, "Lấy khung giờ ban đêm thành công"));
+    }
+
+    /**
+     * N1 (V120): độ dài mục đích lượt khách đang hiệu lực, cho người mời khách (cùng quyền POST /api/guest-visits)
+     * kiểm trước khi gửi. Chỉ trả 2 giá trị này.
+     */
+    @GetMapping("/guest-purpose-limits")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<GuestPurposeLimits>> getGuestPurposeLimits() {
+        return ResponseEntity.ok(ApiResponse.success(guestRules.purposeLimits(), "Lấy giới hạn độ dài mục đích lượt khách thành công"));
     }
 
     @PatchMapping("/{configKey}")

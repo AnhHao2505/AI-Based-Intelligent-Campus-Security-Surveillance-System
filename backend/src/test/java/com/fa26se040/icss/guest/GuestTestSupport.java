@@ -117,7 +117,9 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
 
         for (ConfigKey k : List.of(ConfigKey.GUEST_HOST_MIN_LEVEL, ConfigKey.GUEST_MAX_PER_VISIT, ConfigKey.GUEST_VISIT_MAX_HOURS,
                 ConfigKey.GUEST_MAX_ADVANCE_DAYS, ConfigKey.GUEST_FACE_RETENTION_HOURS, ConfigKey.GUEST_RECORD_RETENTION_DAYS,
-                ConfigKey.GUEST_PHOTO_URL_TTL_SECONDS, ConfigKey.GUEST_CONSENT_NOTICE_VERSION)) {
+                ConfigKey.GUEST_PHOTO_URL_TTL_SECONDS, ConfigKey.GUEST_CONSENT_NOTICE_VERSION,
+                // N1 (V120): MAX trước MIN để kiểm chéo min < max không chặn khi test trước để lại giá trị nhỏ
+                ConfigKey.GUEST_PURPOSE_MAX_LENGTH, ConfigKey.GUEST_PURPOSE_MIN_LENGTH)) {
             setConfig(k, k.getDefaultValue());
         }
     }

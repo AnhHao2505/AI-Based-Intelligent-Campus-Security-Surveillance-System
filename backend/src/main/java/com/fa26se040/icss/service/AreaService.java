@@ -1267,39 +1267,21 @@ public class AreaService {
                 .toList();
     }
 
+    // N2: khoảng hợp lệ lấy từ min_value / max_value ở DB (không viết cứng); ngoài khoảng -> WARN + mặc định của ConfigKey
     public int getEventModeMinMinutes() {
-        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_MIN_MINUTES);
-        if (val < 1 || val > 240) {
-            log.warn("Config EVENT_MODE_MIN_MINUTES value [{}] out of range [1-240]. Using default: 15", val);
-            return 15;
-        }
-        return val;
+        return systemConfigService.getIntWithinBounds(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_MIN_MINUTES);
     }
 
     public int getEventModeExpiryReminderMinutes() {
-        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_EXPIRY_REMINDER_MINUTES);
-        if (val < 0 || val > 240) {
-            return 30;
-        }
-        return val;
+        return systemConfigService.getIntWithinBounds(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_EXPIRY_REMINDER_MINUTES);
     }
 
     public int getEventModeScheduleMaxLeadDays() {
-        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_SCHEDULE_MAX_LEAD_DAYS);
-        if (val < 1 || val > 180) {
-            log.warn("Config EVENT_MODE_SCHEDULE_MAX_LEAD_DAYS value [{}] out of range [1-180]. Using default: 30", val);
-            return 30;
-        }
-        return val;
+        return systemConfigService.getIntWithinBounds(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_SCHEDULE_MAX_LEAD_DAYS);
     }
 
     public int getEventModeScheduleReminderMinutes() {
-        int val = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_SCHEDULE_REMINDER_MINUTES);
-        if (val < 0 || val > 1440) {
-            log.warn("Config EVENT_MODE_SCHEDULE_REMINDER_MINUTES value [{}] out of range [0-1440]. Using default: 30", val);
-            return 30;
-        }
-        return val;
+        return systemConfigService.getIntWithinBounds(com.fa26se040.icss.enums.ConfigKey.EVENT_MODE_SCHEDULE_REMINDER_MINUTES);
     }
 
     @org.springframework.scheduling.annotation.Scheduled(cron = "${icss.scheduler.notification-event-mode-expiring-cron:0 */1 * * * *}")

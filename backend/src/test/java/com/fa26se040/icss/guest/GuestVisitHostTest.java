@@ -153,7 +153,59 @@ public class GuestVisitHostTest extends GuestTestSupport {
         assertRejected(create(hostL2, b1), 400, "ERR_GUEST_006");
         Map<String, Object> b2 = validBody();
         b2.put("purpose", "x".repeat(501));
-        assertRejected(create(hostL2, b2), 400, "ERR_GUEST_006");
+        MvcResult r2 = create(hostL2, b2);
+        assertRejected(r2, 400, "ERR_GUEST_006");
+        assertEquals("Mục đích phải từ 10 đến 500 ký tự", message(r2), "câu nội suy giá trị mặc định");
+    }
+
+    @Test
+    @DisplayName("N1 (V120): GUEST_PURPOSE_MIN_LENGTH = 5, MAX = 20 -> mục đích 5 ký tự tạo được (CHECK DB đã bỏ); 4 / 21 ký tự -> ERR_GUEST_006 nêu 5 và 20")
+    void create_purpose_fromConfig() throws Exception {
+        setConfig(ConfigKey.GUEST_PURPOSE_MAX_LENGTH, "20");
+        setConfig(ConfigKey.GUEST_PURPOSE_MIN_LENGTH, "5");
+
+        Map<String, Object> ok = validBody();
+        ok.put("purpose", "  12345  ");
+        createdId(create(hostL2, ok));
+
+        Map<String, Object> tooShort = validBody();
+        tooShort.put("purpose", "1234");
+        MvcResult r1 = create(hostL2, tooShort);
+        assertRejected(r1, 400, "ERR_GUEST_006");
+        assertEquals("Mục đích phải từ 5 đến 20 ký tự", message(r1));
+
+        Map<String, Object> tooLong = validBody();
+        tooLong.put("purpose", "x".repeat(21));
+        assertRejected(create(hostL2, tooLong), 400, "ERR_GUEST_006");
+    }
+
+    @Test
+    @DisplayName("N1 (V120): GET /api/system-configurations/guest-purpose-limits — NORMAL_USER, FM 200 đúng cấu hình; ADMIN, GUARD 403")
+    void guestPurposeLimits_endpoint() throws Exception {
+        setConfig(ConfigKey.GUEST_PURPOSE_MAX_LENGTH, "300");
+        setConfig(ConfigKey.GUEST_PURPOSE_MIN_LENGTH, "12");
+        for (User u : List.of(hostL2, fm)) {
+            MvcResult r = send(get("/api/system-configurations/guest-purpose-limits"), u, null).andReturn();
+            assertEquals(200, status(r), r.getResponse().getContentAsString());
+            assertEquals(12, json(r).path("data").path("minLength").asInt());
+            assertEquals(300, json(r).path("data").path("maxLength").asInt());
+        }
+        assertEquals(403, status(send(get("/api/system-configurations/guest-purpose-limits"), admin, null).andReturn()));
+        assertEquals(403, status(send(get("/api/system-configurations/guest-purpose-limits"), guard, null).andReturn()));
+    }
+
+    @Test
+    @DisplayName("N1 (V120): kiểm chéo khi sửa — MIN ≥ MAX, MAX ≤ MIN, MAX > 500 (độ dài cột) -> từ chối, giá trị không đổi")
+    void guestPurposeLimits_crossValidation() {
+        assertThrows(IllegalArgumentException.class,
+                () -> systemConfigService.update(ConfigKey.GUEST_PURPOSE_MIN_LENGTH.name(), "500", admin.getEmail()));
+        assertThrows(IllegalArgumentException.class,
+                () -> systemConfigService.update(ConfigKey.GUEST_PURPOSE_MAX_LENGTH.name(), "10", admin.getEmail()));
+        IllegalArgumentException tooLong = assertThrows(IllegalArgumentException.class,
+                () -> systemConfigService.update(ConfigKey.GUEST_PURPOSE_MAX_LENGTH.name(), "501", admin.getEmail()));
+        assertTrue(tooLong.getMessage().contains("500"), tooLong.getMessage());
+        assertEquals(10, systemConfigService.getInt(ConfigKey.GUEST_PURPOSE_MIN_LENGTH));
+        assertEquals(500, systemConfigService.getInt(ConfigKey.GUEST_PURPOSE_MAX_LENGTH));
     }
 
     // ================================================================== BR-GV-04

@@ -131,6 +131,8 @@ icss:
     guest-visit-tick-cron: ${GUEST_VISIT_TICK_CRON:0 */1 * * * *}
     # Dọn nhật ký ra vào tại camera (số ngày giữ: ENTRY_LOG_RETENTION_DAYS trong system_configurations)
     access-log-retention-cron: ${ACCESS_LOG_RETENTION_CRON:0 30 2 * * *}
+    # Đợt điều động đội bảo vệ đã qua ngày kết thúc -> COMPLETED (GuardTeamDispatchService), mặc định 00:00 mỗi ngày
+    guard-dispatch-expire-cron: ${GUARD_DISPATCH_EXPIRE_CRON:0 0 0 * * *}
     # Job leo thang sự cố: chu kỳ đọc từ INCIDENT_ESCALATION_CHECK_SECONDS (system_configurations), cờ này chỉ bật/tắt job
     incident-escalation-enabled: ${INCIDENT_ESCALATION_ENABLED:true}
     # Job hết hạn lời mời phân phối sự cố (V93): chu kỳ đọc từ DISPATCH_CHECK_SECONDS, cờ này chỉ bật/tắt job
