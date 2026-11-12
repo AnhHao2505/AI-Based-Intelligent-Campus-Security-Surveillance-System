@@ -98,6 +98,9 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> applyRoleRestrictedRules(auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // KT-01: form đặt lại mật khẩu (chưa đăng nhập) đọc chính sách mật khẩu; khai báo riêng để không
+                        // phụ thuộc vào dòng /api/auth/** bên dưới nếu dòng đó bị thu hẹp sau này
+                        .requestMatchers(HttpMethod.GET, "/api/auth/password-policy").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         // Endpoint nội bộ AI → backend: không dùng JWT, InternalServiceKeyFilter kiểm header X-Service-Key
                         .requestMatchers("/api/access-control/check-entry", "/api/internal/**").permitAll()

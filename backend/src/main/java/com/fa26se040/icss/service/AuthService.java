@@ -145,6 +145,15 @@ public class AuthService {
     }
 
     /**
+     * KT-01: chính sách mật khẩu cho form đặt lại mật khẩu (chưa đăng nhập) — cùng nguồn với validateNewPassword,
+     * đọc PASSWORD_MIN_LENGTH lúc gọi nên sửa cấu hình có hiệu lực ngay.
+     */
+    public com.fa26se040.icss.dto.PasswordPolicyResponse passwordPolicy() {
+        return new com.fa26se040.icss.dto.PasswordPolicyResponse(
+                systemConfigService.getInt(ConfigKey.PASSWORD_MIN_LENGTH), true);
+    }
+
+    /**
      * BE-06 (V119): mật khẩu mới dài ít nhất PASSWORD_MIN_LENGTH ký tự, có ít nhất 1 chữ cái và 1 chữ số.
      * Câu lỗi nội suy giá trị cấu hình hiện hành.
      */

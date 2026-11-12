@@ -7,7 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { ROLES, ROLE_LABELS } from "../constants/roles";
-import { sendResetLink, resetPasswordWithToken } from "../services/authService";
+import { sendResetLink, resetPasswordWithToken, getPasswordPolicy } from "../services/authService";
 import { DEMO_LOGIN_ENABLED } from "../config/demoConfig";
 import FptBrandLogo from "../components/common/FptBrandLogo";
 import "../styles/LoginPage.css";
@@ -16,6 +16,24 @@ const credentialSchema = z.object({
 	email: z.string().trim().email("Vui lòng nhập email hợp lệ."),
 	password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự."),
 });
+
+// KT-01: gợi ý ô "Mật khẩu mới" theo chính sách backend; chưa tải được thì không nêu số (tránh viết cứng lệch cấu hình)
+const passwordPolicyHint = (policy) =>
+	policy
+		? `Tối thiểu ${policy.minLength} ký tự${policy.requireLetterAndDigit ? ", có chữ và số" : ""}`
+		: "Nhập mật khẩu mới";
+
+// KT-01: kiểm trước khi gửi, cùng quy tắc AuthService.validateNewPassword (đếm theo code point, chữ cái / chữ số Unicode).
+// Không có chính sách (tải lỗi) -> null, để backend kiểm.
+const passwordPolicyError = (value, policy) => {
+	if (!policy) return null;
+	const length = Array.from(value || "").length;
+	const missingLetterOrDigit = policy.requireLetterAndDigit && !(/\p{L}/u.test(value) && /\p{Nd}/u.test(value));
+	if (length < policy.minLength || missingLetterOrDigit) {
+		return `Mật khẩu mới phải có ít nhất ${policy.minLength} ký tự${policy.requireLetterAndDigit ? ", gồm cả chữ cái và chữ số" : ""}.`;
+	}
+	return null;
+};
 
 // Câu dự phòng, giống câu backend trả cho /api/auth/send-reset-link (không cho biết email có tồn tại hay không)
 const FORGOT_PASSWORD_MESSAGE =
@@ -67,6 +85,24 @@ export default function LoginPage({
 			setMode("reset");
 		}
 	}, [initialResetToken]);
+
+	// KT-01: chính sách mật khẩu mới (PASSWORD_MIN_LENGTH + có chữ và số) lấy từ backend khi mở form đặt lại.
+	// Tải lỗi thì để null: form không kiểm trước, backend vẫn kiểm khi gửi.
+	const [passwordPolicy, setPasswordPolicy] = useState(null);
+	useEffect(() => {
+		if (mode !== "reset") return undefined;
+		let cancelled = false;
+		getPasswordPolicy()
+			.then((policy) => {
+				if (!cancelled && Number.isInteger(policy?.minLength)) setPasswordPolicy(policy);
+			})
+			.catch(() => {
+				if (!cancelled) setPasswordPolicy(null);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [mode]);
 
 	// Interactive mouse parallax for login background
 	useEffect(() => {
@@ -229,6 +265,11 @@ export default function LoginPage({
 		e.preventDefault();
 		if (password !== confirmPassword) {
 			setError("Mật khẩu nhập lại không khớp");
+			return;
+		}
+		const policyError = passwordPolicyError(password, passwordPolicy);
+		if (policyError) {
+			setError(policyError);
 			return;
 		}
 		setError(null);
@@ -549,7 +590,7 @@ export default function LoginPage({
 									<input
 										type="password"
 										required
-										placeholder="Tối thiểu 6 ký tự"
+										placeholder={passwordPolicyHint(passwordPolicy)}
 										className="login-card__input"
 										value={password}
 										onChange={(e) => setPassword(e.target.value)}
