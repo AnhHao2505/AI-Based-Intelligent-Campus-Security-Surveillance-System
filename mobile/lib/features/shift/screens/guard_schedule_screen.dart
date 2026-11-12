@@ -12,6 +12,8 @@ import '../widgets/weekly_date_bar.dart';
 import '../../map/screens/guard_map_screen.dart';
 import '../../incident/providers/incident_provider.dart';
 import '../../incident/screens/incident_list_screen.dart';
+import '../../chat/providers/guard_chat_provider.dart';
+import '../../chat/widgets/floating_guard_chat_button.dart';
 
 class GuardScheduleScreen extends StatefulWidget {
   const GuardScheduleScreen({super.key});
@@ -26,6 +28,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ShiftProvider>().fetchWeeklyShifts();
+      context.read<GuardChatProvider>().fetchGuards();
       final incidentProvider = context.read<IncidentProvider>();
       if (!incidentProvider.isStompConnected) {
         incidentProvider.initStomp();
@@ -621,21 +624,30 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        icon: const Icon(Icons.map_rounded, size: 20),
-        label: const Text(
-          'Bản đồ tuần tra',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-        ),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const GuardMapScreen()),
-          );
-        },
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          const FloatingGuardChatButton(heroTag: 'fab_chat_schedule'),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'fab_map_schedule',
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            elevation: 4,
+            icon: const Icon(Icons.map_rounded, size: 20),
+            label: const Text(
+              'Bản đồ tuần tra',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const GuardMapScreen()),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

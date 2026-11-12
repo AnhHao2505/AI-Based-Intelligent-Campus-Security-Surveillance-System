@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../constants/roles';
 import { useStompSubscription } from '../../hooks/useStompSubscription';
 import Sidebar from './Sidebar';
+import GuardChatWidget from '../chat/GuardChatWidget';
 import '../../styles/AppLayout.css';
 
 // BR-IE-04: sự cố quá hạn chưa bảo vệ nào tiếp nhận -> báo real-time cho FM
@@ -43,6 +44,7 @@ export default function AppLayout({ children }) {
   const layoutRef = useRef(null);
   const userRole = user?.role || user?.role_type;
   const isFmOrAdmin = userRole === ROLES.FACILITY_MANAGER || userRole === ROLES.ADMIN;
+  const canUseGuardChat = userRole === ROLES.GUARD || userRole === ROLES.FACILITY_MANAGER;
 
   useStompSubscription(isFmOrAdmin ? ESCALATION_TOPIC : null, showEscalationToast);
   useStompSubscription(isFmOrAdmin ? CRITICAL_NOTICE_TOPIC : null, showCriticalNoticeToast);
@@ -59,6 +61,7 @@ export default function AppLayout({ children }) {
           {children ? children : <Outlet />}
         </div>
       </main>
+      {canUseGuardChat && <GuardChatWidget />}
     </div>
   );
 }

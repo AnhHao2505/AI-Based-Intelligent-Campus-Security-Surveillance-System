@@ -57,4 +57,11 @@ class ApiEndpoints {
   static String get testAlert => '$baseUrl/api/incidents/test-alert';
   static String get testAlertBatch => '$baseUrl/api/incidents/test-alert/batch';
 
+  // Guard Chat endpoints
+  static String get guardChatGuards => '$baseUrl/api/guard-chat/guards';
+  static String guardChatMessages(String peerId, {int limit = 50}) =>
+      '$baseUrl/api/guard-chat/messages?peerId=$peerId&limit=$limit';
+  static String get guardChatSendMessage => '$baseUrl/api/guard-chat/messages';
+  static String guardChatMarkRead(String peerId) => '$baseUrl/api/guard-chat/read/$peerId';
+  static String get guardChatUnreadCount => '$baseUrl/api/guard-chat/unread-count';
 }

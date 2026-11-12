@@ -13,6 +13,7 @@ class StompService {
   bool get isConnected => _isConnected;
 
   VoidCallback? onConnectionChange;
+  void Function(Map<String, dynamic>)? onChatMessage;
 
   /// Header gửi kèm STOMP CONNECT để backend phân biệt app mobile với web.
   static const Map<String, String> clientHeaders = {'client-type': 'mobile'};
@@ -74,6 +75,24 @@ class StompService {
                 },
               );
             }
+
+            // 1c. Tin nhắn nội bộ giữa các bảo vệ
+            final chatTopic = '/topic/guards/$guardId/messages';
+            debugPrint('[STOMP] Subscribing to guard chat topic: $chatTopic');
+            _client?.subscribe(
+              destination: chatTopic,
+              callback: (StompFrame frame) {
+                if (frame.body == null || frame.body!.isEmpty) return;
+                try {
+                  final decoded = jsonDecode(frame.body!);
+                  if (decoded is Map<String, dynamic>) {
+                    onChatMessage?.call(decoded);
+                  }
+                } catch (e) {
+                  debugPrint('[STOMP] Error parsing chat message: $e');
+                }
+              },
+            );
           } else {
             // Global security alerts fallback topic (for general monitoring)
             _client?.subscribe(
