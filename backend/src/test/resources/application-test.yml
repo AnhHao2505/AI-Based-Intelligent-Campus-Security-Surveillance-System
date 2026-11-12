@@ -17,7 +17,6 @@ spring:
 
 # Tắt mọi tick chạy theo lịch trong test: test gọi thẳng method job với now truyền vào.
 # Tick thật chạy nền trên DB test dùng chung gây flaky (thông báo lạ gửi tới user của test đang chạy).
-# GuardTeamDispatchService có cron viết cứng (0 0 0 * * ?), không tắt được bằng cấu hình.
 icss:
   scheduler:
     event-mode-tick-cron: "-"
@@ -30,6 +29,8 @@ icss:
     guest-visit-tick-cron: "-"
     # Job dọn nhật ký ra vào (AccessLogRetentionService)
     access-log-retention-cron: "-"
+    # Job hết hạn đợt điều động đội bảo vệ (GuardTeamDispatchService, O1): cron đưa ra cấu hình nên tắt được như job khác
+    guard-dispatch-expire-cron: "-"
     # Job leo thang sự cố (IncidentEscalationJob, Trigger động nên không tắt bằng cron "-")
     incident-escalation-enabled: false
     # Job hết hạn lời mời phân phối sự cố (IncidentDispatchJob, V93): test gọi thẳng runOnce
