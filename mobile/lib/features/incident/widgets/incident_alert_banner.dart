@@ -46,15 +46,15 @@ class IncidentAlertBanner extends StatelessWidget {
       child: Center(
         child: Material(
           elevation: 6,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(12),
           color: const Color(0xFF0F172A),
           child: InkWell(
             onTap: onTapBadge,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(12),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFEF4444), width: 1.5),
                 boxShadow: [
                   BoxShadow(
@@ -120,12 +120,12 @@ class IncidentAlertBanner extends StatelessWidget {
         },
         child: Material(
           elevation: 10,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           color: const Color(0xFF0F172A),
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: severityColor.withAlpha(230), width: 2),
               boxShadow: [
                 BoxShadow(
@@ -146,7 +146,7 @@ class IncidentAlertBanner extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: severityColor.withAlpha(51),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(3),
                         border: Border.all(color: severityColor, width: 1),
                       ),
                       child: Row(
@@ -172,7 +172,7 @@ class IncidentAlertBanner extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: const Color(0xFF334155),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -251,7 +251,7 @@ class IncidentAlertBanner extends StatelessWidget {
                         width: 60,
                         height: 60,
                         fit: BoxFit.cover,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(4),
                         enableZoomOnTap: true,
                       ),
                     ],
@@ -274,7 +274,7 @@ class IncidentAlertBanner extends StatelessWidget {
                           side: const BorderSide(color: Color(0xFF475569)),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                         ),
                         child: const Text('Bỏ qua', style: TextStyle(fontSize: 13)),
@@ -311,7 +311,7 @@ class IncidentAlertBanner extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           elevation: 2,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                         ),
                       ),
