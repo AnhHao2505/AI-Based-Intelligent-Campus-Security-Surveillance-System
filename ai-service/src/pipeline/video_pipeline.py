@@ -868,10 +868,12 @@ class VideoPipeline:
             is_reverifying = False
             if existing and existing.face_detected and existing.face_info and existing.face_info.matched_code:
                 if track_stats.get("first_matched_time") is None:
-                    track_stats["first_matched_time"] = existing.first_seen_time or current_time
+                    # Danh tính có sẵn (kế thừa từ track cha / bộ đếm tạo lại sau khi track bị xoá rồi xuất hiện lại):
+                    # độ trễ đã được đo và in ở lần nhận diện gốc. Không đo lại ở đây, vì first_seen_time của người
+                    # có thể từ hàng chục giây trước -> ra số vô nghĩa ("khớp→có quyền 55s") và in trùng dòng log.
+                    track_stats["first_matched_time"] = current_time
                     track_stats["matched_code"] = existing.face_info.matched_code
-                if getattr(existing.face_info, "access_checked", False) and track_stats.get("access_checked_time") is None:
-                    self._record_access_checked(track_id, existing.face_info.matched_code, current_time=current_time)
+                    track_stats["latency_logged"] = True
 
                 # Nếu người này trước đó ở ngoài ROI, nay bước chân vào ROI:
                 if in_roi and not getattr(existing.face_info, "access_checked", False):

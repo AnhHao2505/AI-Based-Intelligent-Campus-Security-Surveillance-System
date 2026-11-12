@@ -108,8 +108,25 @@ class HumanDetector:
             logger.info("⚡ [HumanDetector] Kích hoạt chế độ suy luận nửa chính xác (FP16/half) cho YOLO trên GPU.")
         else:
             logger.info("ℹ️ [HumanDetector] Chế độ suy luận FP32 chuẩn cho YOLO (AI_HALF=False).")
+        self._precision_kwargs = self._build_precision_kwargs(self.half)
 
         self.model = YOLO(model_path)
+
+    @staticmethod
+    def _build_precision_kwargs(half: bool) -> dict:
+        """
+        Ultralytics >= 8.4 thay 'half' bằng 'quantize' (16 = FP16) và in cảnh báo deprecated MỖI LẦN gọi nếu còn
+        truyền 'half' -> ngập terminal vì gọi mỗi khung hình. Bản cũ chưa có 'quantize' thì vẫn dùng 'half'.
+        FP32: không truyền gì (mặc định của ultralytics).
+        """
+        try:
+            from ultralytics.cfg import DEFAULT_CFG_DICT
+            supports_quantize = "quantize" in DEFAULT_CFG_DICT
+        except Exception:
+            supports_quantize = False
+        if not half:
+            return {}
+        return {"quantize": 16} if supports_quantize else {"half": True}
 
     def detect(self, frame: np.ndarray) -> List[Tuple[int, BoundingBox]]:
         """
@@ -124,7 +141,7 @@ class HumanDetector:
             classes=[0],
             conf=self.conf_threshold,
             device=self.device,
-            half=self.half,
+            **self._precision_kwargs,
             verbose=False
         )
 
@@ -191,7 +208,7 @@ class HumanDetector:
             conf=self.conf_threshold,
             tracker=self.tracker_config,
             device=self.device,
-            half=self.half,
+            **self._precision_kwargs,
             verbose=False
         )
         if hasattr(self.model, "predictor") and self.model.predictor is not None:

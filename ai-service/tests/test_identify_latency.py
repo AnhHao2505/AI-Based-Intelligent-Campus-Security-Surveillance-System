@@ -123,3 +123,28 @@ class TestIdentifyLatency(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_inherited_identity_does_not_log_bogus_latency(caplog):
+    """Track đã có danh tính sẵn (kế thừa) không được in dòng IdentifyLatency thứ hai với 'khớp→có quyền' vô nghĩa."""
+    import logging
+    import time as _time
+    from unittest.mock import MagicMock
+    from src.core.entity import BoundingBox, TrackedPerson, FaceDetectionResult
+    from src.pipeline.video_pipeline import VideoPipeline
+
+    p = VideoPipeline.__new__(VideoPipeline)
+    p.camera_code = "CAM-T"
+    p._track_identify_stats = {}
+    import threading
+    p._identify_stats_lock = threading.Lock()
+    stats = {"first_seen_time": _time.time(), "first_matched_time": None, "access_checked_time": None,
+             "matched_code": None, "drop_no_face": 0, "drop_too_small": 0, "drop_blurry": 0,
+             "drop_low_score": 0, "best_unmatched_score": 0.0, "latency_logged": False}
+    p._track_identify_stats[7] = stats
+    # Mô phỏng nhánh "existing đã có danh tính": đánh dấu như code thật
+    stats["first_matched_time"] = _time.time(); stats["matched_code"] = "SE1"; stats["latency_logged"] = True
+    with caplog.at_level(logging.INFO, logger="src.pipeline.video_pipeline"):
+        p._record_access_checked(7, "SE1", current_time=_time.time() + 55)
+        p._log_identify_latency(7, stats, _time.time() + 60)
+    assert not [r for r in caplog.records if "IdentifyLatency" in r.getMessage()]
