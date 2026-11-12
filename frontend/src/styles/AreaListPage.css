@@ -7,14 +7,14 @@
    -------------------------------------------------------------------------- */
 .area-dashboard {
   display: flex;
-  height: 100vh;
+  height: calc(100vh - 14px - var(--headbar-offset, 0px));
   width: 100%;
   background-color: transparent;
   color: var(--theme-text-primary);
   font-family: inherit;
   overflow: hidden;
   position: relative;
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition: height 0.42s cubic-bezier(0.22, 1, 0.3, 1), background-color 0.25s ease, color 0.25s ease;
 }
 
 /* Ambient Glow Orbs */
@@ -1490,7 +1490,7 @@
   background-color: transparent;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - 14px - var(--headbar-offset, 0px));
   min-height: 620px;
   overflow: hidden;
   color: var(--theme-text-primary);
@@ -1500,6 +1500,7 @@
   margin: 0 auto;
   padding: 16px 20px;
   box-sizing: border-box;
+  transition: height 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Inline Alert Banner */
