@@ -1,6 +1,7 @@
 import os
 import json
 import time
+from datetime import datetime, timezone
 import logging
 import threading
 from typing import Dict, Optional, Any, Set, Callable, List
@@ -62,14 +63,23 @@ class SecurityMqttClient:
             return
 
         try:
-            client_id = f"ai-service-{os.getpid()}-{int(time.time())}"
+            client_id = getattr(settings, "MQTT_CLIENT_ID", "campus-security-ai-service")
+            transport = getattr(settings, "MQTT_TRANSPORT", "tcp")
+            if transport not in ("tcp", "websockets"):
+                logger.warning(f"MQTT_TRANSPORT không hợp lệ ({transport}), dùng mặc định 'tcp'")
+                transport = "tcp"
+
             try:
                 self.client = mqtt.Client(
                     callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-                    client_id=client_id
+                    client_id=client_id,
+                    transport=transport
                 )
             except Exception:
-                self.client = mqtt.Client(client_id=client_id)
+                try:
+                    self.client = mqtt.Client(client_id=client_id, transport=transport)
+                except Exception:
+                    self.client = mqtt.Client(client_id=client_id)
 
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
@@ -79,9 +89,32 @@ class SecurityMqttClient:
             if settings.MQTT_PASSWORD:
                 self.client.username_pw_set(settings.MQTT_USERNAME, settings.MQTT_PASSWORD)
 
+            # M1: Cấu hình TLS nếu MQTT_TLS_ENABLED=True (mặc định tắt)
+            if getattr(settings, "MQTT_TLS_ENABLED", False):
+                ca_path = getattr(settings, "MQTT_TLS_CA_PATH", None)
+                try:
+                    self.client.tls_set(ca_certs=ca_path if ca_path else None)
+                    if getattr(settings, "MQTT_TLS_INSECURE", False):
+                        self.client.tls_insecure_set(True)
+                    logger.info(f"🔒 [MQTT Client] Đã kích hoạt TLS (ca_certs={ca_path}, insecure={getattr(settings, 'MQTT_TLS_INSECURE', False)}, transport={transport})")
+                except Exception as te:
+                    logger.warning(f"⚠️ [MQTT Client] Không thể thiết lập TLS: {te}")
+
+            # M4: Thiết lập MQTT Last Will (LWT) trạng thái OFFLINE trước khi connect
+            status_topic = f"campus/edge/status/{client_id}"
+            offline_payload = json.dumps({
+                "edge_id": client_id,
+                "status": "OFFLINE",
+                "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+            })
+            try:
+                self.client.will_set(status_topic, payload=offline_payload, qos=1, retain=True)
+            except Exception as we:
+                logger.warning(f"⚠️ [MQTT Client] Không thể thiết lập will_set: {we}")
+
             self.client.connect_async(self.host, self.port, keepalive=30)
             self.client.loop_start()
-            logger.info(f"🔌 [MQTT Client] Đang kết nối tới MQTT Broker {self.host}:{self.port} (user: {settings.MQTT_USERNAME if settings.MQTT_PASSWORD else '<ẩn danh>'})...")
+            logger.info(f"🔌 [MQTT Client] Đang kết nối tới MQTT Broker {self.host}:{self.port} (client_id: {client_id}, user: {settings.MQTT_USERNAME if settings.MQTT_PASSWORD else '<ẩn danh>'})...")
         except Exception as e:
             self.is_connected = False
             logger.warning(f"⚠️ [MQTT Client] Không thể kết nối tới MQTT Broker ({self.host}:{self.port}): {e}. Cảnh báo được giữ trong outbox.")

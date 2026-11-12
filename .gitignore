@@ -81,3 +81,13 @@ video/
 
 # MQTT outbox (SQLite cảnh báo chờ gửi của AI service)
 ai-service/data/
+
+# MQTT TLS Certificates & Keys (Tuyệt đối không commit chứng chỉ hoặc khoá)
+mosquitto/certs/*
+!mosquitto/certs/.gitkeep
+*.crt
+*.key
+*.csr
+*.srl
+*.jks
+*.p12

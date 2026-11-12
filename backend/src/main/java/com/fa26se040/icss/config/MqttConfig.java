@@ -1,6 +1,7 @@
 package com.fa26se040.icss.config;
 
 import com.fa26se040.icss.consumer.CameraRecordingMqttConsumer;
+import com.fa26se040.icss.consumer.EdgeStatusMqttConsumer;
 import com.fa26se040.icss.consumer.SecurityIncidentMqttConsumer;
 import com.fa26se040.icss.service.EdgeMqttControlService;
 import jakarta.annotation.PreDestroy;
@@ -14,26 +15,46 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.security.KeyStore;
+import java.security.SecureRandom;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Configuration
-@RequiredArgsConstructor
+// Có 2 constructor (constructor 3 tham số giữ cho test cũ) -> phải chỉ rõ constructor Spring dùng,
+// nếu không Spring tìm constructor rỗng và backend không khởi động được ("No default constructor found").
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class MqttConfig {
 
     /** Tiền tố topic phản hồi RPC từ Edge (khớp EdgeMqttControlService.TOPIC_RPC_REPLY_WILDCARD). */
     static final String RPC_REPLY_TOPIC_PREFIX = "campus/edge/rpc/reply/";
+    /** Topic và tiền tố topic theo dõi trạng thái heartbeat của Edge (M4). */
+    public static final String TOPIC_EDGE_STATUS_WILDCARD = "campus/edge/status/+";
+    public static final String EDGE_STATUS_TOPIC_PREFIX = "campus/edge/status/";
 
     private final SecurityIncidentMqttConsumer securityIncidentMqttConsumer;
     private final CameraRecordingMqttConsumer cameraRecordingMqttConsumer;
     private final EdgeMqttControlService edgeMqttControlService;
+    private final EdgeStatusMqttConsumer edgeStatusMqttConsumer;
+
+    public MqttConfig(SecurityIncidentMqttConsumer securityIncidentMqttConsumer,
+                      CameraRecordingMqttConsumer cameraRecordingMqttConsumer,
+                      EdgeMqttControlService edgeMqttControlService) {
+        this(securityIncidentMqttConsumer, cameraRecordingMqttConsumer, edgeMqttControlService, null);
+    }
 
     @Value("${app.mqtt.broker-url:tcp://localhost:1883}")
     private String brokerUrl;
@@ -59,6 +80,15 @@ public class MqttConfig {
     @Value("${app.mqtt.connect-retry-seconds:10}")
     private long connectRetrySeconds;
 
+    @Value("${app.mqtt.truststore-path:}")
+    private String truststorePath;
+
+    @Value("${app.mqtt.truststore-password:}")
+    private String truststorePassword;
+
+    @Value("${app.mqtt.truststore-type:JKS}")
+    private String truststoreType;
+
     private MqttClient mqttClient;
     private MqttConnectOptions connectOptions;
     private ScheduledExecutorService mqttExecutor;
@@ -73,17 +103,7 @@ public class MqttConfig {
         try {
             // Client ID cố định + cleanSession=false: broker giữ subscription và tin QoS 1 cho backend khi backend tắt
             mqttClient = new MqttClient(brokerUrl, clientId, new MemoryPersistence());
-
-            MqttConnectOptions options = new MqttConnectOptions();
-            options.setAutomaticReconnect(true);
-            options.setCleanSession(false);
-            options.setConnectionTimeout(10);
-            options.setKeepAliveInterval(30);
-            if (password != null && !password.isEmpty()) {
-                options.setUserName(username);
-                options.setPassword(password.toCharArray());
-            }
-            connectOptions = options;
+            connectOptions = buildConnectOptions();
 
             mqttExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread t = new Thread(r, "mqtt-connect");
@@ -94,11 +114,55 @@ public class MqttConfig {
             edgeMqttControlService.bindMqttClient(mqttClient);
 
             log.info("🔌 [MQTT] Đang kết nối tới MQTT Broker: {} (Client ID: {}, user: {})",
-                    brokerUrl, clientId, options.getUserName() != null ? options.getUserName() : "<ẩn danh>");
+                    brokerUrl, clientId, connectOptions.getUserName() != null ? connectOptions.getUserName() : "<ẩn danh>");
             connectOrScheduleRetry();
         } catch (Exception e) {
             log.warn("⚠️ [MQTT] Không thể khởi tạo MQTT Client ({}): {}", brokerUrl, e.getMessage());
         }
+    }
+
+    /**
+     * Xây dựng MqttConnectOptions với hỗ trợ kết nối bảo mật qua SSL/TLS (M1).
+     */
+    MqttConnectOptions buildConnectOptions() {
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setAutomaticReconnect(true);
+        options.setCleanSession(false);
+        options.setConnectionTimeout(10);
+        options.setKeepAliveInterval(30);
+        if (password != null && !password.isEmpty()) {
+            options.setUserName(username);
+            options.setPassword(password.toCharArray());
+        }
+
+        // M1: Cấu hình SSL/TLS nếu brokerUrl dùng giao thức ssl://
+        if (brokerUrl != null && brokerUrl.startsWith("ssl://")) {
+            if (truststorePath != null && !truststorePath.isBlank()) {
+                try {
+                    options.setSocketFactory(createSocketFactory(truststorePath, truststorePassword, truststoreType));
+                    log.info("🔒 [MQTT] Đã kích hoạt SSL/TLS với custom truststore: {} (type: {})", truststorePath, truststoreType);
+                } catch (Exception e) {
+                    log.error("❌ [MQTT] Không thể tải truststore cho kết nối SSL ({}): {}", truststorePath, e.getMessage());
+                    throw new IllegalStateException("Lỗi cấu hình SSL MQTT truststore: " + e.getMessage(), e);
+                }
+            } else {
+                log.info("🔒 [MQTT] Kết nối SSL/TLS sử dụng TrustManager mặc định của JVM");
+            }
+        }
+
+        return options;
+    }
+
+    SSLSocketFactory createSocketFactory(String path, String pass, String type) throws Exception {
+        KeyStore trustStore = KeyStore.getInstance(type != null && !type.isBlank() ? type : "JKS");
+        try (InputStream is = new FileInputStream(path)) {
+            trustStore.load(is, pass != null && !pass.isEmpty() ? pass.toCharArray() : null);
+        }
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(trustStore);
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, tmf.getTrustManagers(), new SecureRandom());
+        return sslContext.getSocketFactory();
     }
 
     /**
@@ -126,6 +190,9 @@ public class MqttConfig {
         subscribe(incidentsTopic, securityIncidentMqttConsumer);
         subscribe(recordingsTopic, cameraRecordingMqttConsumer);
         subscribe(EdgeMqttControlService.TOPIC_RPC_REPLY_WILDCARD, edgeMqttControlService::handleRpcReplyMessage);
+        if (edgeStatusMqttConsumer != null) {
+            subscribe(TOPIC_EDGE_STATUS_WILDCARD, edgeStatusMqttConsumer);
+        }
     }
 
     private void subscribe(String topic, IMqttMessageListener listener) {
@@ -153,6 +220,10 @@ public class MqttConfig {
             cameraRecordingMqttConsumer.messageArrived(topic, message);
         } else if (topic.startsWith(RPC_REPLY_TOPIC_PREFIX)) {
             edgeMqttControlService.handleRpcReplyMessage(topic, message);
+        } else if (topic.startsWith(EDGE_STATUS_TOPIC_PREFIX)) {
+            if (edgeStatusMqttConsumer != null) {
+                edgeStatusMqttConsumer.messageArrived(topic, message);
+            }
         } else {
             log.warn("⚠️ [MQTT] Bỏ tin từ topic không đăng ký: {}", topic);
         }

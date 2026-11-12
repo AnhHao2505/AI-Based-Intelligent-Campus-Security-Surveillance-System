@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     # MQTT Configuration (Edge-Cloud Control Plane & Real-time Telemetry)
     MQTT_BROKER_HOST: str = Field(default="localhost", validation_alias="MQTT_BROKER_HOST")
     MQTT_BROKER_PORT: int = Field(default=1883, validation_alias="MQTT_BROKER_PORT")
-    MQTT_CLIENT_ID: str = Field(default="campus-security-ai-service", validation_alias="MQTT_CLIENT_ID")
+    # Định danh edge trên broker (client id + edge_id của heartbeat). KHÔNG đọc MQTT_CLIENT_ID vì Backend cũng đọc biến đó:
+    # dùng chung 1 file .env thì 2 client trùng id sẽ đá nhau khỏi broker liên tục.
+    MQTT_CLIENT_ID: str = Field(default="campus-security-ai-service", validation_alias="MQTT_AI_CLIENT_ID")
     MQTT_TOPIC_ALERTS: str = "campus/alerts/incidents"
     MQTT_TOPIC_RECORDINGS: str = "campus/recordings/completed"
     MQTT_TOPIC_HEALTH: str = "campus/cameras/{camera_id}/health"
@@ -36,6 +38,12 @@ class Settings(BaseSettings):
     MQTT_OUTBOX_INFLIGHT_TIMEOUT_SECONDS: float = Field(default=30.0, validation_alias="MQTT_OUTBOX_INFLIGHT_TIMEOUT_SECONDS")
     MQTT_OUTBOX_MAX_ROWS: int = Field(default=10000, validation_alias="MQTT_OUTBOX_MAX_ROWS")
     MQTT_OUTBOX_MAX_AGE_HOURS: float = Field(default=24.0, validation_alias="MQTT_OUTBOX_MAX_AGE_HOURS")
+    EDGE_HEARTBEAT_SECONDS: float = Field(default=30.0, validation_alias="EDGE_HEARTBEAT_SECONDS")
+    # MQTT TLS & Transport (M1)
+    MQTT_TLS_ENABLED: bool = Field(default=False, validation_alias="MQTT_TLS_ENABLED")
+    MQTT_TLS_CA_PATH: Optional[str] = Field(default=None, validation_alias="MQTT_TLS_CA_PATH")
+    MQTT_TLS_INSECURE: bool = Field(default=False, validation_alias="MQTT_TLS_INSECURE")
+    MQTT_TRANSPORT: str = Field(default="tcp", validation_alias="MQTT_TRANSPORT")
 
     # MediaMTX Edge & Cloud Relay Configuration
     MEDIAMTX_API_URL: str = Field(default="http://localhost:9997", validation_alias="MEDIAMTX_API_URL")

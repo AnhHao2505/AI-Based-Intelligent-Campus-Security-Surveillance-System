@@ -2,6 +2,7 @@ import os
 import json
 import re
 import time
+from datetime import datetime, timezone
 import socket
 import logging
 import threading
@@ -84,18 +85,87 @@ class EdgeMqttAgent:
         self._lock = active_workers_lock if active_workers_lock is not None else threading.RLock()
         self._relay_processes: Dict[str, subprocess.Popen] = {}
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="edge-mqtt-rpc")
+        # M4: Luồng heartbeat định kỳ
+        self._heartbeat_stop = threading.Event()
+        self._heartbeat_thread: Optional[threading.Thread] = None
 
     def start(self):
         if self.mqtt and hasattr(self.mqtt, "register_edge_subscriptions"):
             self.mqtt.register_edge_subscriptions(self.TOPICS, self._on_mqtt_message_async)
             logger.info("🚀 [EdgeAgent] Đã kích hoạt Cloud-Edge MQTT Control Plane (Outbound-Only).")
+        # Khởi động luồng gửi heartbeat
+        self._heartbeat_stop.clear()
+        self._heartbeat_thread = threading.Thread(target=self._heartbeat_loop, name="edge-heartbeat", daemon=True)
+        self._heartbeat_thread.start()
 
     def stop(self):
+        self._heartbeat_stop.set()
+        if self._heartbeat_thread and self._heartbeat_thread.is_alive():
+            self._heartbeat_thread.join(timeout=2.0)
+        try:
+            self.publish_status("OFFLINE")
+        except Exception:
+            pass
+
         with self._lock:
             for cam, proc in list(self._relay_processes.items()):
                 self._terminate_process(proc)
             self._relay_processes.clear()
         self._executor.shutdown(wait=False)
+
+    def collect_edge_status(self, status: str = "ONLINE") -> Dict[str, Any]:
+        """Thu thập trạng thái sức khỏe và danh sách camera của thiết bị biên."""
+        edge_id = getattr(settings, "MQTT_CLIENT_ID", "campus-security-ai-service")
+        cameras = []
+        with self._lock:
+            for cam_code, worker in self.active_workers.items():
+                fps = round(float(getattr(worker, "processed_fps", 0.0)), 1)
+                connected = bool(getattr(worker, "is_running", False))
+                cameras.append({
+                    "camera_code": cam_code,
+                    "fps": fps,
+                    "connected": connected
+                })
+        gpu = False
+        try:
+            import torch
+            gpu = torch.cuda.is_available()
+        except Exception:
+            gpu = False
+
+        return {
+            "edge_id": edge_id,
+            "status": status,
+            "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+            "cameras": cameras,
+            "gpu": gpu,
+            "version": "1.0.0"
+        }
+
+    def publish_status(self, status: str = "ONLINE"):
+        payload = self.collect_edge_status(status=status)
+        edge_id = payload["edge_id"]
+        topic = f"campus/edge/status/{edge_id}"
+        if self.mqtt and hasattr(self.mqtt, "publish_json"):
+            # Heartbeat ONLINE gửi QoS 0: Backend dùng phiên bền (cleanSession=false), QoS 1 khiến broker xếp hàng
+            # mọi heartbeat lúc Backend tắt rồi dồn về khi bật lại (tin cũ làm edge đã chết hiện ONLINE trở lại).
+            # Trạng thái mới nhất vẫn tới Backend nhờ retained. OFFLINE (tắt chủ động) giữ QoS 1 để chắc chắn tới nơi.
+            qos = 1 if status != "ONLINE" else 0
+            self.mqtt.publish_json(topic, payload, qos=qos, retain=True)
+
+    def _heartbeat_loop(self):
+        interval = float(getattr(settings, "EDGE_HEARTBEAT_SECONDS", 30.0))
+        # Gửi heartbeat ban đầu ngay khi start
+        try:
+            self.publish_status("ONLINE")
+        except Exception as e:
+            logger.warning(f"⚠️ [EdgeAgent] Lỗi gửi heartbeat ban đầu: {e}")
+
+        while not self._heartbeat_stop.wait(interval):
+            try:
+                self.publish_status("ONLINE")
+            except Exception as e:
+                logger.warning(f"⚠️ [EdgeAgent] Lỗi gửi heartbeat định kỳ: {e}")
 
     def _on_mqtt_message_async(self, topic: str, payload: bytes):
         self._executor.submit(self.handle_message, topic, payload)
