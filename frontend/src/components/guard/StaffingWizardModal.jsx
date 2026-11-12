@@ -59,7 +59,7 @@ export default function StaffingWizardModal({
 
     if (bSet.size === 0) {
       bSet.add('Tòa Alpha');
-      bSet.add('Tòa Beta');
+      bSet.add('Tòa Epsilon');
     }
 
     return Array.from(bSet).sort();

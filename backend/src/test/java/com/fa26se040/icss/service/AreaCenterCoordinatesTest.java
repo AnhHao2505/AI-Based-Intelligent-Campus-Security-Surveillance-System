@@ -428,5 +428,71 @@ class AreaCenterCoordinatesTest extends Step5bTestSupport {
 
     }
 
-}
-
+
+    @Test
+    @DisplayName("U1 Happy Path: sửa tên/cấp khu vực đang chưa gắn block 3D (null/null) với null/null -> 200 OK, giữ null")
+    void updateUnlocatedAreaKeepingNullPair_succeeds() throws Exception {
+        Area unlocated = areaRepository.save(Area.builder()
+                .name("Chua dinh vi U1 " + suffix)
+                .areaLevel(AreaLevel.PUBLIC)
+                .building(building.getName())
+                .floor(floor.getName())
+                .floorEntity(floor)
+                .isActive(true)
+                .build());
+
+        Map<String, Object> body = updateBody(unlocated, null, null);
+        String newName = "Da doi ten U1 " + suffix;
+        body.put("name", newName);
+
+        MvcResult r = send(put("/api/areas/{id}", unlocated.getId()), admin, body).andReturn();
+
+        assertEquals(200, status(r), describe(r));
+        Area after = reload(unlocated);
+        assertEquals(newName, after.getName());
+        assertNull(after.getCenterLatitude(), "Vẫn giữ trạng thái chưa gắn block 3D");
+        assertNull(after.getCenterLongitude(), "Vẫn giữ trạng thái chưa gắn block 3D");
+    }
+
+    @Test
+    @DisplayName("U1 Validation: khu vực đang null/null gửi nửa cặp (chỉ vĩ độ) -> 400 ERR_AREA_006")
+    void updateUnlocatedAreaWithHalfPair_rejected() throws Exception {
+        Area unlocated = areaRepository.save(Area.builder()
+                .name("Nua cap U1 " + suffix)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
+                .building(building.getName())
+                .floor(floor.getName())
+                .floorEntity(floor)
+                .isActive(true)
+                .build());
+
+        MvcResult r = send(put("/api/areas/{id}", unlocated.getId()), admin, updateBody(unlocated, 10.84, null)).andReturn();
+
+        assertEquals(400, status(r), describe(r));
+        assertEquals("ERR_AREA_006", errorCode(r));
+        assertEquals(PAIR_MESSAGE, message(r));
+        Area after = reload(unlocated);
+        assertNull(after.getCenterLatitude());
+        assertNull(after.getCenterLongitude());
+    }
+
+    @Test
+    @DisplayName("U1 Bind: khu vực đang null/null gán đủ cặp toạ độ block 3D -> 200 OK, lưu toạ độ")
+    void updateUnlocatedAreaBindingCoordinates_succeeds() throws Exception {
+        Area unlocated = areaRepository.save(Area.builder()
+                .name("Gan block U1 " + suffix)
+                .areaLevel(AreaLevel.CONFIDENTIAL)
+                .building(building.getName())
+                .floor(floor.getName())
+                .floorEntity(floor)
+                .isActive(true)
+                .build());
+
+        MvcResult r = send(put("/api/areas/{id}", unlocated.getId()), admin, updateBody(unlocated, 10.8418, 106.81)).andReturn();
+
+        assertEquals(200, status(r), describe(r));
+        Area after = reload(unlocated);
+        assertEquals(10.8418, after.getCenterLatitude(), 1e-9);
+        assertEquals(106.81, after.getCenterLongitude(), 1e-9);
+    }
+}

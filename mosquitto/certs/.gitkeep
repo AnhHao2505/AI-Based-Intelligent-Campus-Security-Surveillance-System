@@ -1,0 +1,2 @@
+# Giữ thư mục mosquitto/certs rỗng trên Git repo.
+# Các chứng chỉ thật (*.crt, *.key, *.pem, *.jks, *.p12) KHÔNG được commit vào Git.

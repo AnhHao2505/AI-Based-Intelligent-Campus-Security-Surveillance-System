@@ -189,7 +189,11 @@ class FrameVisualizer:
                 label = f"ID:#{p.track_id} | {matched_name}" if matched_name else f"ID:#{p.track_id}"
             elif state == "VERIFYING":
                 box_color = (0, 165, 255)  # Vàng cam (vừa chạm ROI, đang quét mặt đệm 1.5s)
-                label = f"ID:#{p.track_id} | DANG XAC THUC..."
+                if is_identified:
+                    target = matched_name or (p.face_info.matched_code if p.face_info else None)
+                    label = f"ID:#{p.track_id} | {target} - Đang kiểm tra quyền"
+                else:
+                    label = f"ID:#{p.track_id} | DANG XAC THUC..."
             elif state == "AUTHORIZED":
                 box_color = (0, 255, 0)  # Xanh lá: Hợp lệ
                 label = f"ID:#{p.track_id} | {matched_name}" if matched_name else f"ID:#{p.track_id} | AUTHORIZED_PERSON"

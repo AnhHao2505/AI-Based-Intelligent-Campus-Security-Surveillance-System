@@ -3,6 +3,8 @@ topic write campus/alerts/incidents
 topic write campus/cameras/+/health
 topic write campus/recordings/completed
 topic write campus/edge/rpc/reply/+
+topic write campus/edge/status/+
+topic write campus/edge/health/+
 topic read campus/edge/config/cameras/+
 topic read campus/edge/config/roi/+
 topic read campus/edge/config/system
@@ -15,6 +17,8 @@ user icss-backend
 topic read campus/alerts/incidents
 topic read campus/recordings/completed
 topic read campus/edge/rpc/reply/+
+topic read campus/edge/status/+
+topic read campus/edge/health/+
 topic write campus/edge/rpc/request
 topic write campus/edge/config/cameras/+
 topic write campus/edge/config/roi/+

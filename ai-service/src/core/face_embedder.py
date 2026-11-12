@@ -1,5 +1,6 @@
 import os
 import logging
+import threading
 import cv2
 import numpy as np
 from typing import List, Optional, Tuple, Union
@@ -86,6 +87,8 @@ class FaceEmbedder:
             providers = []
             if prefer_gpu and "CUDAExecutionProvider" in available_providers:
                 providers.append("CUDAExecutionProvider")
+            elif prefer_gpu:
+                self._warn_if_gpu_unused()
             providers.append("CPUExecutionProvider")
             
             from ..utils.system_threads import configure_system_threads
@@ -114,6 +117,20 @@ class FaceEmbedder:
         except Exception as e:
             logger.error(f"❌ [FaceEmbedder] Lỗi khi nạp mô hình ArcFace: {e}")
             self.session = None
+
+    @staticmethod
+    def _warn_if_gpu_unused():
+        """Máy có GPU CUDA (torch thấy) nhưng onnxruntime không có CUDAExecutionProvider -> ArcFace chạy CPU chậm ~7 lần."""
+        try:
+            import torch
+            if not torch.cuda.is_available():
+                return
+        except Exception:
+            return
+        logger.warning(
+            "⚠️ [FaceEmbedder] Máy có GPU CUDA nhưng onnxruntime đang dùng bản CPU -> ArcFace chạy trên CPU (~100ms/mặt thay vì ~13ms). "
+            "Hãy chạy AI Service bằng .venv của ai-service hoặc cài 'onnxruntime-gpu' thay cho 'onnxruntime'."
+        )
 
     def get_active_provider(self) -> str:
         """Trả về ONNX Execution Provider đang chạy thực tế (P2-07)"""
@@ -249,3 +266,21 @@ class FaceEmbedder:
             feat_arr = np.zeros(self.embedding_dim, dtype=np.float32)
 
         return [round(float(x), 6) for x in feat_arr]
+
+
+_shared_embedder: Optional[FaceEmbedder] = None
+_shared_embedder_lock = threading.Lock()
+
+
+def get_shared_face_embedder() -> FaceEmbedder:
+    """
+    Một phiên ArcFace ONNX dùng chung cho toàn process (mọi camera + API đăng ký khuôn mặt).
+    Tránh nạp N bản model 174MB và N nhóm luồng CPU/CUDA tranh nhau khi chạy nhiều camera.
+    InferenceSession.run() của onnxruntime an toàn khi gọi đồng thời từ nhiều luồng.
+    """
+    global _shared_embedder
+    if _shared_embedder is None:
+        with _shared_embedder_lock:
+            if _shared_embedder is None:
+                _shared_embedder = FaceEmbedder(embedding_dim=512)
+    return _shared_embedder

@@ -15,7 +15,7 @@ Hệ thống được thiết kế theo mô hình **Cloud–Edge Hybrid (Biên �
 |---|---|---|---|
 | **Camera IP Giám sát** | Mạng LAN Nội bộ Campus | Thu nhận hình ảnh, xuất luồng RTSP (H.264). | Dải IP cục bộ (`192.168.1.x`), không ra Internet. |
 | **Edge AI Device (Raspberry Pi / Edge PC)** | Mạng LAN Nội bộ Campus | • Kéo luồng RTSP nội bộ qua LAN (0đ băng thông).<br>• Chạy YOLO26n + ROI Gate + Tracking tại chỗ.<br>• Ghi đệm video MP4 chuẩn 480p@15fps khi có sự cố.<br>• Quản lý hàng đợi SQLite **AlertOutbox** chống mất cảnh báo khi đứt mạng. | Đặt sau NAT/Firewall trường học; chỉ mở kết nối **Outbound** (đi ra ngoài) tới MQTT Broker và MinIO Cloud. |
-| **MQTT Message Broker (Mosquitto 2.0)** | Cloud Server (VPS / Docker) | • Tiếp nhận sự kiện cảnh báo an ninh (`QoS 1`).<br>• Xác thực tài khoản (`icss-ai`, `icss-backend`).<br>• Kiểm soát phân quyền qua ACL (Access Control List).<br>• Lưu trữ hàng đợi tin nhắn bền vững (`persistence true`, `cleanSession=false`). | Cổng `1883` (nội bộ/VPN) hoặc `8883` (MQTTS TLS ra công cộng). |
+| **MQTT Message Broker (Mosquitto 2.0)** | Cloud Server (VPS / Docker) | • Tiếp nhận sự kiện cảnh báo an ninh (`QoS 1`).<br>• Xác thực tài khoản (`icss-ai`, `icss-backend`).<br>• Kiểm soát phân quyền qua ACL (Access Control List).<br>• Lưu trữ hàng đợi tin nhắn bền vững (`persistence true`, `cleanSession=false`). | • Cổng `1883`: TCP nội bộ (chỉ bind `127.0.0.1` trên Host).<br>• Cổng `8883`: MQTTS (MQTT qua TLS bảo mật).<br>• Cổng `8884`: WSS (MQTT qua WebSockets + TLS). |
 | **Object Storage (MinIO S3)** | Cloud Server (hoặc Supabase Storage) | • Lưu trữ vector ảnh khuôn mặt (`face-profiles`).<br>• Lưu trữ ảnh bằng chứng sự cố (`security-evidence`).<br>• Lưu trữ video giám sát MP4 (`camera-recordings`). | Hỗ trợ chuẩn S3 API, mã hóa phía máy chủ (`SSE-S3`). |
 | **Backend (Spring Boot 3)** | Cloud Server (Render / Railway) | • Quản lý nghiệp vụ, xác thực JWT, phân quyền RBAC.<br>• Tiêu thụ sự kiện an ninh từ MQTT Broker (khử trùng theo `event_id`).<br>• Điều phối chuông báo, hàng đợi sự cố cho bảo vệ.<br>• Cung cấp REST API & WebSocket STOMP cho Client. | Kết nối PostgreSQL JDBC, tiêu thụ MQTT tin cậy. |
 | **Cơ sở dữ liệu (PostgreSQL 16 + pgvector)** | Cloud Server (hoặc Supabase) | • Lưu trữ quan hệ thực thể nghiệp vụ.<br>• Tìm kiếm tương đồng vector khuôn mặt (HNSW Index). | Chạy nền tảng Cloud ổn định. |
@@ -183,7 +183,7 @@ Khi mạng Internet trường học bị rớt hoặc Mosquitto Broker trên Clo
 | Hạng mục thiết kế | Trạng thái trong Code | Vị trí kiểm chứng trong Codebase | Chi tiết kỹ thuật & Hướng hoàn thiện |
 |---|:---:|---|---|
 | **1. MQTT chạy trên nền kết nối TCP socket (100% Outbound, Full-Duplex)** | **ĐÃ GIẢI QUYẾT 100%** | • `ai-service/src/integration/mqtt_client.py`<br>• `backend/.../config/MqttConfig.java`<br>• `mosquitto/config/mosquitto.conf` | Cả Edge Python và Cloud Java đều mở kết nối Persistent TCP Socket ra Mosquitto Broker (`tcp://...:1883`), duy trì `keepalive=30s`. Thiết bị Edge chủ động mở kết nối Outbound đi ra, sau đó nhận dữ liệu 2 chiều qua `subscribe` hoàn toàn không cần mở port mạng tại trường. |
-| **2. Cơ chế Outbound Sync khuôn mặt tại Edge** | **ĐÃ GIẢI QUYẾT 100%** | • `ai-service/src/core/face_matcher.py`<br>(Hàm `refresh_cache()`) | Khi Edge khởi động hoặc khi nhận tín hiệu làm mới, Edge AI chủ động tạo kết nối Outbound đọc CSDL PostgreSQL trên Cloud để nạp vector 512 chiều vào RAM nội bộ, không cần Cloud đẩy file. |
+| **2. Cơ chế Outbound Sync khuôn mặt tại Edge** | **ĐÃ GIẢI QUYẾT 100%** | • `ai-service/src/core/shared_face_cache.py`<br>(Hàm `refresh_cache()`) | Khi Edge khởi động hoặc khi nhận tín hiệu làm mới qua MQTT `campus/edge/sync/faces`, Edge AI chủ động tạo kết nối Outbound gọi Backend API Cloud (`/api/internal/ai/sync-data`) để nạp vector 512 chiều vào RAM nội bộ, không đọc trực tiếp PostgreSQL (kết nối trực tiếp DB chỉ là phương án dự phòng cục bộ khi cấu hình). |
 | **3. Đăng ký người dùng 100% trên Cloud Backend (Face Enrollment)** | **CHƯA ĐẦY ĐỦ (Đang ở chế độ Monolith / Local Dev)** | • `backend/.../service/FaceDataService.java`<br>(Dòng 88-101)<br>• `backend/.../service/GuestFaceEmbeddingClient.java` | **Hiện trạng:** Khi đăng ký người dùng/khách, Backend Spring Boot vẫn đang gọi HTTP REST trực tiếp sang AI Service (`POST /api/v1/faces/process-registration`).<br>**Vấn đề khi deploy:** Nếu tách Cloud Backend và Edge AI (Raspberry Pi), Backend Cloud không thể gọi HTTP Inbound vào Raspberry Pi.<br>**Giải pháp khi deploy Cloud:** Cần triển khai một container AI phụ siêu nhẹ (hoặc nhúng thư viện `onnxruntime` Java) chạy ngay trên Cloud chuyên xử lý trích xuất ảnh tĩnh, tách biệt hoàn toàn với Edge AI chạy camera. |
 
 ---
@@ -196,11 +196,15 @@ Khi mạng Internet trường học bị rớt hoặc Mosquitto Broker trên Clo
 MQTT_AI_PASSWORD=<set-in-env>
 MQTT_BACKEND_PASSWORD=<set-in-env>
 
-# --- Backend Application Settings ---
-APP_MQTT_BROKER_URL=tcp://localhost:1883
-APP_MQTT_USERNAME=icss-backend
-APP_MQTT_PASSWORD=<set-in-env>
-APP_MQTT_CONNECT_RETRY_SECONDS=10
+# --- Backend Application Settings (MQTT) ---
+MQTT_BROKER_URL=tcp://localhost:1883        # Đổi thành ssl://localhost:8883 khi bật TLS
+MQTT_BACKEND_USERNAME=icss-backend
+MQTT_BACKEND_PASSWORD=<set-in-env>
+MQTT_CONNECT_RETRY_SECONDS=10
+# Cấu hình Truststore nếu Broker dùng chứng chỉ CA tự ký (tuỳ chọn):
+MQTT_TRUSTSTORE_PATH=                       # Ví dụ: ../mosquitto/certs/truststore.jks
+MQTT_TRUSTSTORE_PASSWORD=                   # Mật khẩu truststore (ví dụ: changeit)
+MQTT_TRUSTSTORE_TYPE=JKS
 
 # --- Chế độ Cloud: Để trống URL HTTP Inbound tới Edge ---
 AI_SERVICE_URL=
@@ -227,9 +231,14 @@ APP_SECURITY_AUDITHASHKEY=<set-in-env>
 ```properties
 # --- Kết nối Outbound lên Cloud Broker ---
 MQTT_BROKER_HOST=cloud.yourdomain.com      # hoặc IP Public của VPS Cloud
-MQTT_BROKER_PORT=1883                     # hoặc 8883 nếu dùng TLS
+MQTT_BROKER_PORT=1883                     # hoặc 8883 (TLS) / 8884 (WSS) nếu dùng mã hóa
+MQTT_AI_CLIENT_ID=edge-cam-01                # BẮT BUỘC ĐỔI: Mỗi Edge Device phải có Client ID duy nhất để không đá nhau khỏi Broker
 MQTT_AI_USERNAME=icss-ai
 MQTT_AI_PASSWORD=<set-in-env>
+MQTT_TLS_ENABLED=false                    # Đặt true khi kết nối bảo mật qua cổng 8883/8884
+MQTT_TLS_CA_PATH=                         # Đường dẫn file Root CA (ví dụ: ../mosquitto/certs/ca.crt)
+MQTT_TLS_INSECURE=false                   # Chỉ đặt true trong môi trường Dev nếu hostname không khớp SAN
+MQTT_TRANSPORT=tcp                        # "tcp" cho cổng 8883 hoặc "websockets" cho cổng 8884 WSS
 
 # --- Cấu hình AlertOutbox (Lưu đĩa chống mất mạng) ---
 MQTT_OUTBOX_PATH=data/mqtt_outbox.sqlite3
@@ -244,9 +253,21 @@ MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=<set-in-env>
 MINIO_SECURE=false
 
-# --- API Backend Cloud (Dùng cho Outbound Check-Entry) ---
-API_BASE_URL=https://cloud.yourdomain.com
+# --- API Backend Cloud (Dùng cho Outbound Check-Entry & Sync khuôn mặt) ---
+BACKEND_API_URL=https://cloud.yourdomain.com
 INTERNAL_SERVICE_KEY=<set-in-env>
+
+# --- PostgreSQL Database (Bắt buộc cấu hình trong config.py để khởi động AI Service; dùng khi nạp ROI trực tiếp) ---
+POSTGRES_USER=sep
+POSTGRES_PASSWORD=<set-in-env>
+POSTGRES_DB=campus_security
+DB_HOST=localhost
+DB_PORT=5432
+
+# --- MediaMTX Streaming trên Edge & Cloud Relay ---
+MEDIAMTX_API_URL=http://localhost:9997
+MEDIAMTX_RTSP_URL=rtsp://localhost:8554
+CLOUD_MEDIAMTX_RTSP_URL=                  # Đặt RTSP URL Cloud khi cần bật On-Demand Stream Relay
 ```
 
 ---

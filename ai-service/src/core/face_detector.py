@@ -14,11 +14,15 @@ class FaceDetector:
         self,
         model_path: Optional[str] = None,
         score_threshold: Optional[float] = None,
-        nms_threshold: Optional[float] = None
+        nms_threshold: Optional[float] = None,
+        upscale_threshold: Optional[int] = None,
+        max_dim: Optional[int] = None
     ):
         self.model_path = model_path or settings.MODEL_YUNET_PATH
         self.score_threshold = score_threshold if score_threshold is not None else settings.DEFAULT_FACE_CONFIDENCE
         self.nms_threshold = nms_threshold if nms_threshold is not None else settings.DEFAULT_FACE_NMS_THRESHOLD
+        self.upscale_threshold = upscale_threshold if upscale_threshold is not None else getattr(settings, "FACE_CROP_UPSCALE_THRESHOLD", 160)
+        self.max_dim = max_dim if max_dim is not None else int(getattr(settings, "FACE_CROP_MAX_DIM", 480))
         self.detector = None
         self._init_detector()
 
@@ -81,10 +85,61 @@ class FaceDetector:
         return results
 
     def detect_best_face_in_crop(self, crop: np.ndarray, offset_xy: Tuple[int, int]) -> Optional[FaceDetectionResult]:
-        """Tìm khuôn mặt có độ tin cậy cao nhất trong vùng crop của người"""
-        faces = self.detect_in_image(crop, offset_xy=offset_xy)
+        """
+        Tìm khuôn mặt có độ tin cậy cao nhất trong vùng crop của người.
+        - Crop nhỏ (cạnh ngắn < upscale_threshold): phóng to để bắt được mặt ở xa.
+        - Crop lớn (cạnh dài > max_dim): thu nhỏ trước khi chạy YuNet. Camera 2688x1664 cho crop nửa trên cơ thể
+          rộng cả nghìn pixel, YuNet trên đó mất ~130ms; thu về 480px còn ~30ms mà mặt vẫn đủ lớn để phát hiện.
+        Tọa độ bbox + landmarks luôn quy đổi về khung hình gốc; ArcFace vẫn cắt mặt từ frame gốc (giữ chất lượng).
+        """
+        if crop is None or crop.size == 0:
+            return None
+
+        h, w = crop.shape[:2]
+        if w < 10 or h < 10:
+            return None
+
+        scale = 1.0
+        if min(h, w) < self.upscale_threshold:
+            scale = float(self.upscale_threshold) / float(min(h, w))
+        elif self.max_dim > 0 and max(h, w) > self.max_dim:
+            scale = float(self.max_dim) / float(max(h, w))
+
+        if scale == 1.0:
+            faces = self.detect_in_image(crop, offset_xy=offset_xy)
+            if not faces:
+                return None
+            faces.sort(key=lambda f: f.score, reverse=True)
+            return faces[0]
+
+        new_w = max(10, int(round(w * scale)))
+        new_h = max(10, int(round(h * scale)))
+        scale_x = float(new_w) / float(w)
+        scale_y = float(new_h) / float(h)
+        interp = cv2.INTER_LINEAR if scale > 1.0 else cv2.INTER_AREA
+        resized_crop = cv2.resize(crop, (new_w, new_h), interpolation=interp)
+
+        # Phát hiện mặt trên ảnh đã đổi kích thước (offset = (0, 0)) rồi quy đổi về tọa độ gốc
+        faces = self.detect_in_image(resized_crop, offset_xy=(0, 0))
         if not faces:
             return None
-        # Sắp xếp theo score giảm dần
         faces.sort(key=lambda f: f.score, reverse=True)
-        return faces[0]
+        best_face = faces[0]
+
+        off_x, off_y = offset_xy
+        orig_landmarks = []
+        if best_face.landmarks:
+            for lx, ly in best_face.landmarks:
+                orig_landmarks.append(((lx / scale_x) + off_x, (ly / scale_y) + off_y))
+
+        return FaceDetectionResult(
+            bbox=BoundingBox(
+                x1=(best_face.bbox.x1 / scale_x) + off_x,
+                y1=(best_face.bbox.y1 / scale_y) + off_y,
+                x2=(best_face.bbox.x2 / scale_x) + off_x,
+                y2=(best_face.bbox.y2 / scale_y) + off_y,
+                confidence=best_face.score
+            ),
+            score=best_face.score,
+            landmarks=orig_landmarks
+        )
