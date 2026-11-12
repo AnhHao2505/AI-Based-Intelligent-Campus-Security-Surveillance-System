@@ -1,145 +1,146 @@
 /* ==========================================================================
-   Shared Global Application Sidebar (Sidebar.css)
-   Baseline: M06 Area Management Sidebar Design System
+   Headbar — Auto-Hide Drop-Down Top Navigation Bar
+   Drops down smoothly when hovering the top edge of the viewport
    ========================================================================== */
 
-.sidebar {
-  width: 260px;
-  min-width: 260px;
-  height: 100vh;
+/* Full-width invisible top hover trigger strip */
+.headbar-hotspot {
   position: fixed;
   top: 0;
   left: 0;
+  right: 0;
+  height: 14px;
+  z-index: 499;
+}
+
+/* Sleek centered peek tab visible while headbar is retracted */
+.headbar-peek {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 5px;
+  border-radius: 0 0 6px 6px;
   background: var(--theme-bg-sidebar);
-  backdrop-filter: var(--theme-glass-blur, blur(16px));
-  -webkit-backdrop-filter: var(--theme-glass-blur, blur(16px));
-  border-right: 1px solid var(--theme-border);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 24px 16px;
-  z-index: 100;
-  box-shadow: var(--theme-card-shadow);
-  transition: width 0.25s ease, min-width 0.25s ease, padding 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
-  /* Đo bề rộng thật của sidebar cho luật badge góc icon ở cuối file (@container sidebar) */
-  container: sidebar / inline-size;
-}
-
-.sidebar__header {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* UI-AUDIT #15: mục active cuộn vào tầm nhìn dừng phía trên bóng mờ (cao 28px) của .sidebar__bottom */
-  scroll-padding-bottom: 28px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--theme-border) transparent;
-}
-
-.sidebar__header::-webkit-scrollbar {
-  width: 4px;
-}
-
-.sidebar__header::-webkit-scrollbar-thumb {
-  background: var(--theme-border);
-  border-radius: 2px;
-}
-
-.sidebar__header::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar__collapse-button {
-  position: absolute;
-  top: 18px;
-  /* Nằm trong lề phải của sidebar, cách chữ "FPTU SecureVision" ~8px */
-  right: 6px;
-  width: 28px;
-  height: 28px;
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
   border: 1px solid var(--theme-border);
-  border-radius: 4px;
-  background: var(--theme-bg-surface);
-  color: var(--theme-text-muted);
+  border-top: none;
+  color: var(--theme-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.16), 0 0 12px rgba(243, 112, 33, 0.12);
+  transition: transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+              opacity 0.26s ease,
+              color 0.15s ease,
+              border-color 0.15s ease;
 }
 
-.sidebar__collapse-button:hover {
-  background: var(--theme-bg-surface-elevated);
-  color: var(--theme-text-primary);
-  border-color: var(--theme-border-hover);
+.headbar-peek:hover {
+  color: var(--theme-primary);
+  border-color: var(--theme-primary-border);
 }
 
-.sidebar--collapsed {
-  width: 76px;
-  min-width: 76px;
-  padding: 24px 8px;
+.headbar-peek--hidden {
+  opacity: 0;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
 }
 
-.sidebar--collapsed .sidebar__title,
-.sidebar--collapsed .sidebar__subtitle,
-.sidebar--collapsed .sidebar__section-title,
-.sidebar--collapsed .sidebar__link span:not(.sidebar__unread-badge),
-.sidebar--collapsed .sidebar__theme-toggle span,
-.sidebar--collapsed .sidebar__user-info,
-.sidebar--collapsed .sidebar__user-actions,
-.sidebar--collapsed .sidebar__badge-soon {
-  display: none;
-}
-
-.sidebar--collapsed .sidebar__brand {
-  justify-content: center;
-  gap: 0;
-  padding: 0;
-}
-
-/* Sidebar thu gọn chỉ rộng 76px: nút nằm trong luồng, ngay dưới logo, không đè lên logo */
-.sidebar--collapsed .sidebar__collapse-button {
-  position: static;
-  align-self: center;
+.headbar-peek__bar {
+  width: 16px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: var(--brand-tri-gradient, var(--theme-primary));
   flex-shrink: 0;
-  margin: -16px 0 -8px;
 }
 
-.sidebar--collapsed .sidebar__link {
-  justify-content: center;
-  padding: 10px 0;
+.headbar-peek__icon {
+  color: var(--theme-primary);
+  flex-shrink: 0;
 }
 
-.sidebar--collapsed .sidebar__theme-toggle {
-  justify-content: center;
-  padding: 10px 0;
+.headbar-peek__label {
+  letter-spacing: 0.01em;
 }
 
-.sidebar--collapsed .sidebar__footer {
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px 4px;
+.headbar-peek__badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--theme-danger);
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
-.sidebar--collapsed .sidebar__user {
-  display: none;
+/* Drop-Down Headbar Container */
+.headbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 500;
+  background: var(--theme-bg-sidebar);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-bottom: 1px solid var(--theme-border);
+  box-shadow: 0 14px 34px -8px rgba(0, 0, 0, 0.24),
+              0 0 24px -4px rgba(243, 112, 33, 0.14);
+  transform: translateY(calc(-100% - 10px));
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.3, 1),
+              opacity 0.32s ease,
+              background-color 0.25s ease,
+              border-color 0.25s ease;
 }
 
-.sidebar__brand {
+.headbar--open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.headbar__inner {
+  max-width: 1640px;
+  margin: 0 auto;
+  padding: 10px 20px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Row 1: Brand & Quick Utility Controls */
+.headbar__top {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 8px;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.headbar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   text-decoration: none;
   color: var(--theme-text-primary);
+  min-width: 0;
 }
 
-.sidebar__logo {
-  width: 36px;
-  height: 36px;
+.headbar__logo {
+  width: 34px;
+  height: 30px;
   border-radius: 4.5px;
   background: var(--theme-bg-surface-elevated);
   display: flex;
@@ -148,121 +149,262 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   flex-shrink: 0;
   border: 1px solid var(--theme-border);
-  transition: all 0.2s ease;
+  padding: 3px;
 }
 
-.sidebar__title {
+.headbar__brand-text {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.headbar__title {
   font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: -0.015em;
   color: var(--theme-text-primary);
+  white-space: nowrap;
 }
 
-.sidebar__subtitle {
-  font-size: 0.675rem;
+.headbar__subtitle {
+  font-size: 0.68rem;
   color: var(--theme-text-muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
-/* Navigation Menu */
-.sidebar__nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.sidebar__section {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.sidebar__section-title {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  color: var(--theme-text-muted);
-  margin-top: 16px;
-  margin-bottom: 4px;
-  padding: 0 12px;
-  user-select: none;
-}
-
-.sidebar__section:first-child .sidebar__section-title {
-  margin-top: 0;
-}
-
-.sidebar__link {
+.headbar__controls {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  color: var(--theme-text-secondary);
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 500;
-  transition: all 0.15s ease;
-  cursor: pointer;
-  border: 1px solid transparent;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.sidebar__link:hover {
+.headbar__icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.headbar__icon-btn:hover {
+  color: var(--theme-text-primary);
+  background: var(--theme-bg-hover);
+  border-color: var(--theme-border-hover);
+}
+
+.headbar__icon-btn--active {
+  background: var(--brand-subtle);
+  color: var(--brand-text);
+  border-color: var(--brand-subtle-border);
+}
+
+.headbar__theme-toggle {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 4px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.16s ease;
+}
+
+.headbar__theme-toggle:hover {
   background: var(--theme-bg-hover);
   color: var(--theme-text-primary);
-  border-color: var(--theme-border);
+  border-color: var(--theme-border-hover);
 }
 
-.sidebar__link:hover svg {
-  color: var(--theme-primary);
+.headbar__user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px 3px 4px;
+  border-radius: 5px;
+  background: var(--theme-bg-surface-elevated);
+  border: 1px solid var(--theme-border);
 }
 
-.sidebar__link--active {
-  background: var(--theme-primary-light);
-  color: var(--theme-primary);
-  border-color: var(--theme-primary-border);
+.headbar__avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--brand-gradient);
+  color: var(--theme-on-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.headbar__user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 150px;
+  padding-right: 4px;
+}
+
+.headbar__username {
+  font-size: 0.76rem;
   font-weight: 600;
+  color: var(--theme-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
-.sidebar__link--active svg {
+.headbar__userrole {
+  font-size: 0.66rem;
+  color: var(--theme-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.15;
+}
+
+.headbar__logout-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 3.5px;
+  background: none;
+  border: none;
+  color: var(--theme-danger);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.headbar__logout-btn:hover {
+  background: var(--theme-danger-bg);
+}
+
+/* Row 2: Evenly Spaced Horizontal Navigation Links */
+.headbar__nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--theme-border);
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.headbar__item {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-width: 0;
+}
+
+.headbar__item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 14px;
+  background: var(--theme-border);
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+
+.headbar__item[data-row-end="true"]::after {
+  opacity: 0;
+}
+
+/* Balanced 2-row grid when viewport cannot fit all tabs on 1 row */
+.headbar__nav--grid {
+  display: grid;
+  grid-template-columns: repeat(var(--headbar-cols, 6), minmax(0, 1fr));
+  row-gap: 6px;
+  column-gap: 0;
+}
+
+.headbar__nav--grid .headbar__item {
+  width: 100%;
+  padding: 0 4px;
+}
+
+.headbar__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  color: var(--theme-text-secondary);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.15s ease;
+}
+
+.headbar__link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.headbar__link svg {
+  flex-shrink: 0;
+}
+
+.headbar__link:hover {
+  background: var(--theme-bg-hover);
+  color: var(--theme-text-primary);
+}
+
+.headbar__link--active {
+  background: var(--brand-subtle);
+  color: var(--brand-text);
+  font-weight: 600;
+  border-color: var(--brand-subtle-border);
+}
+
+.headbar__link--active svg {
   color: var(--theme-primary);
 }
 
-.sidebar__link--disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.sidebar__link--disabled:hover {
-  background: transparent;
-  color: var(--theme-text-secondary);
-  border-color: transparent;
-}
-
-.sidebar__badge-soon {
-  margin-left: auto;
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: var(--theme-border);
-  color: var(--theme-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.sidebar__unread-badge {
-  margin-left: auto;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
+.headbar__unread-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   border-radius: 999px;
-  /* UI-B B10: chữ #ffffff / nền #2563eb = 5.17:1 (trước: nền #3ba8d9 = 2.70:1) */
-  background: var(--action-primary-bg);
-  color: var(--action-primary-text);
-  font-size: 10px;
+  background: var(--theme-danger);
+  color: #ffffff;
+  font-size: 0.68rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
@@ -270,177 +412,24 @@
   line-height: 1;
 }
 
-/* Bottom Area: Theme Toggle + User Footer */
-.sidebar__bottom {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex-shrink: 0;
-  padding-top: 12px;
-  position: relative;
-}
-
-/* UI-AUDIT #15: bóng mờ phía trên vùng dưới khi menu còn mục chưa hiện */
-.sidebar__bottom::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -28px;
-  height: 28px;
-  background: linear-gradient(to bottom, transparent, var(--theme-bg-sidebar));
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.sidebar--more-below .sidebar__bottom::before {
-  opacity: 1;
-}
-
-.sidebar__theme-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--theme-bg-input);
-  border: 1px solid var(--theme-border);
-  border-radius: 4px;
-  color: var(--theme-text-secondary);
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.sidebar__theme-toggle:hover {
-  background: var(--theme-bg-surface-elevated);
-  border-color: var(--theme-border-hover);
-  color: var(--theme-text-primary);
-}
-
-.sidebar__footer {
-  padding: 12px;
-  border-radius: 6px;
-  background: var(--theme-bg-surface-elevated);
-  border: 1px solid var(--theme-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.sidebar__user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  overflow: hidden;
-}
-
-.sidebar__avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--brand-identity-gradient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--theme-on-brand);
-  flex-shrink: 0;
-}
-
-.sidebar__user-info {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.sidebar__username {
-  font-size: 0.825rem;
-  font-weight: 600;
-  color: var(--theme-text-primary);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-
-.sidebar__userrole {
-  font-size: 0.7rem;
-  color: var(--brand-text);
-  font-weight: 500;
-}
-
-.sidebar__logout-btn {
-  background: none;
-  border: none;
-  color: var(--theme-danger);
-  padding: 6px;
-  border-radius: 3px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s ease;
-}
-
-.sidebar__logout-btn:hover {
-  background: var(--theme-danger-bg);
-}
-
+/* Responsive adjustments */
 @media (max-width: 768px) {
-  .sidebar {
-    width: 72px;
-    min-width: 72px;
-    padding: 16px 8px;
+  .headbar__inner {
+    padding: 8px 14px 10px;
   }
-  .sidebar__title,
-  .sidebar__subtitle,
-  .sidebar__section-title,
-  .sidebar__link span:not(.sidebar__unread-badge),
-  .sidebar__theme-toggle span,
-  .sidebar__user-info,
-  .sidebar__badge-soon {
+
+  .headbar__subtitle {
     display: none;
   }
-  /* Ở khổ này sidebar luôn rộng 72px nên nút thu gọn không có tác dụng và đè lên logo */
-  .sidebar__collapse-button {
-    display: none;
-  }
-  .sidebar__brand {
-    justify-content: center;
-    padding: 0;
-  }
-  .sidebar__link {
-    justify-content: center;
-    padding: 10px 0;
-  }
-  .sidebar__footer {
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px 4px;
-  }
-  .sidebar__user {
-    display: none;
+
+  .headbar__nav--grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-/* Sidebar hẹp: thu gọn trên desktop (76px) hoặc màn ≤ 768px (luôn 72px). Badge chưa đọc thành số nhỏ ở góc icon.
-   Một luật cho cả hai trường hợp, theo bề rộng thật của sidebar (container khai báo ở .sidebar). */
-@container sidebar (max-width: 120px) {
-  .sidebar__link {
-    position: relative;
-  }
-  .sidebar__link .sidebar__unread-badge {
-    position: absolute;
-    top: 2px;
-    right: calc(50% - 20px);
-    margin-left: 0;
-    min-width: 15px;
-    height: 15px;
-    padding: 0 3px;
-    font-size: 9px;
-    box-shadow: 0 0 0 2px var(--theme-bg-sidebar);
+@media (max-width: 540px) {
+  .headbar__user-info,
+  .headbar__theme-toggle span {
+    display: none;
   }
 }

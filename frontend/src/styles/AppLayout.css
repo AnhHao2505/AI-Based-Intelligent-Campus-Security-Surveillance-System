@@ -1,5 +1,13 @@
+@property --headbar-offset {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
 .app-layout {
+  --headbar-offset: 0px;
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
   background-color: transparent;
   color: var(--theme-text-primary);
@@ -8,18 +16,17 @@
 
 .app-layout__content {
   flex: 1;
-  margin-left: 260px;
+  width: 100%;
   min-height: 100vh;
+  padding-top: calc(14px + var(--headbar-offset, 0px));
   position: relative;
   background-color: transparent;
   color: var(--theme-text-primary);
   overflow-x: hidden;
   overflow-y: auto;
-  transition: background-color 0.25s ease, color 0.25s ease;
-}
-
-.app-layout__content--collapsed {
-  margin-left: 76px;
+  transition: padding-top 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 0.25s ease,
+              color 0.25s ease;
 }
 
 /* Ensure top-level page containers inside app layout remain transparent to showcase ambient background */
@@ -74,12 +81,6 @@
     opacity: 1;
     transform: none;
     filter: none;
-  }
-}
-
-@media (max-width: 768px) {
-  .app-layout__content {
-    margin-left: 72px;
   }
 }
 

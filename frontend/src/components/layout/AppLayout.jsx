@@ -1,7 +1,7 @@
+import { useRef, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
-import { useUiStore } from '../../store/useUiStore';
 import { ROLES } from '../../constants/roles';
 import { useStompSubscription } from '../../hooks/useStompSubscription';
 import Sidebar from './Sidebar';
@@ -40,17 +40,21 @@ function showEscalationToast(payload) {
 export default function AppLayout({ children }) {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
+  const layoutRef = useRef(null);
   const userRole = user?.role || user?.role_type;
   const isFmOrAdmin = userRole === ROLES.FACILITY_MANAGER || userRole === ROLES.ADMIN;
 
   useStompSubscription(isFmOrAdmin ? ESCALATION_TOPIC : null, showEscalationToast);
   useStompSubscription(isFmOrAdmin ? CRITICAL_NOTICE_TOPIC : null, showCriticalNoticeToast);
 
+  const handleHeadbarStateChange = useCallback((visible, height) => {
+    layoutRef.current?.style.setProperty('--headbar-offset', visible && height ? `${height}px` : '0px');
+  }, []);
+
   return (
-    <div className="app-layout">
-      <Sidebar user={user} onLogout={logout} />
-      <main className={`app-layout__content ${sidebarCollapsed ? 'app-layout__content--collapsed' : ''}`}>
+    <div className="app-layout" ref={layoutRef}>
+      <Sidebar user={user} onLogout={logout} onLayoutChange={handleHeadbarStateChange} />
+      <main className="app-layout__content">
         <div key={location.pathname} className="canva-page-transition">
           {children ? children : <Outlet />}
         </div>
