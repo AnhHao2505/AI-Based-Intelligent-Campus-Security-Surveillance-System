@@ -25,7 +25,7 @@ class ActiveShiftCard extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.crd(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         title: Row(
           children: [
             Icon(
@@ -52,7 +52,7 @@ class ActiveShiftCard extends StatelessWidget {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: isSuccess ? AppColors.success : AppColors.primary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
               minimumSize: const Size(80, 36),
             ),
             onPressed: () => Navigator.pop(ctx),
@@ -68,7 +68,7 @@ class ActiveShiftCard extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.crd(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         title: Row(
           children: [
             const Icon(Icons.check_circle_outline, color: AppColors.success, size: 24),
@@ -91,7 +91,7 @@ class ActiveShiftCard extends StatelessWidget {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
               minimumSize: const Size(90, 38),
             ),
             onPressed: () async {
@@ -127,7 +127,7 @@ class ActiveShiftCard extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.crd(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         title: Row(
           children: [
             const Icon(Icons.logout, color: AppColors.danger, size: 24),
@@ -150,7 +150,7 @@ class ActiveShiftCard extends StatelessWidget {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.danger,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
               minimumSize: const Size(90, 38),
             ),
             onPressed: () async {
@@ -205,7 +205,7 @@ class ActiveShiftCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: AppColors.surfLight(context),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(color: AppColors.crdBorder(context)),
         ),
         child: Row(
@@ -250,7 +250,7 @@ class ActiveShiftCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: AppColors.crd(context),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.crdBorder(context)),
         ),
         child: Column(
@@ -291,7 +291,7 @@ class ActiveShiftCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.crd(context),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: s.isCheckedIn
               ? AppColors.success.withAlpha(180)
@@ -325,7 +325,7 @@ class ActiveShiftCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: AppColors.surfLight(context),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         'Ca $shiftIndex/$totalShifts',
@@ -348,7 +348,7 @@ class ActiveShiftCard extends StatelessWidget {
                       margin: const EdgeInsets.only(right: 6),
                       decoration: BoxDecoration(
                         color: Colors.amber.withAlpha(40),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(3),
                         border: Border.all(color: Colors.amber.shade700),
                       ),
                       child: const Text(
@@ -365,7 +365,7 @@ class ActiveShiftCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: s.statusColor.withAlpha(35),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: s.statusColor.withAlpha(100)),
                     ),
                     child: Row(
@@ -416,7 +416,7 @@ class ActiveShiftCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: AppColors.surfLight(context),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(4),
                 border: Border.all(color: AppColors.crdBorder(context)),
               ),
               child: Row(
@@ -466,7 +466,7 @@ class ActiveShiftCard extends StatelessWidget {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: AppColors.surfLight(context),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(5),
                 border: Border.all(color: AppColors.crdBorder(context)),
               ),
               child: Row(
@@ -537,7 +537,7 @@ class ActiveShiftCard extends StatelessWidget {
                 foregroundColor: AppColors.primaryLight,
                 side: BorderSide(color: AppColors.primary.withAlpha(120)),
                 minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
               ),
               onPressed: () => ShiftRequestBottomSheet.show(context, s),
               child: const Text(
@@ -567,7 +567,7 @@ class ActiveShiftCard extends StatelessWidget {
                 foregroundColor: AppColors.dangerLight,
                 side: const BorderSide(color: AppColors.danger, width: 1.5),
                 minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
               onPressed: () => _confirmCheckOut(context, shiftProvider, s),
@@ -587,7 +587,7 @@ class ActiveShiftCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
                 color: AppColors.surfLight(context),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(5),
                 border: Border.all(color: AppColors.crdBorder(context)),
               ),
               child: const Row(
@@ -608,7 +608,7 @@ class ActiveShiftCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
               decoration: BoxDecoration(
                 color: AppColors.danger.withAlpha(20),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(5),
                 border: Border.all(color: AppColors.danger.withAlpha(80)),
               ),
               child: const Row(

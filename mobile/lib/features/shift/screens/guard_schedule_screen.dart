@@ -81,7 +81,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.crd(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -121,7 +121,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
                 color: AppColors.surfLight(context),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 role,
@@ -137,7 +137,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.surf(context),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(7),
                 border: Border.all(color: AppColors.crdBorder(context)),
               ),
               child: Column(
@@ -199,7 +199,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
     final userCode = user?.userCode;
 
     return Scaffold(
-      backgroundColor: AppColors.bg(context),
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.primaryLight,
@@ -285,7 +285,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFEF4444),
-                                      borderRadius: BorderRadius.circular(10),
+                                      borderRadius: BorderRadius.circular(5),
                                       border: Border.all(color: AppColors.bg(context), width: 1.5),
                                     ),
                                     constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
@@ -344,7 +344,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                         color: AppColors.crd(context),
                         elevation: 6,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(8),
                           side: BorderSide(color: AppColors.crdBorder(context)),
                         ),
                         offset: const Offset(0, 42),
@@ -446,7 +446,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.danger.withAlpha(30),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(6),
                       border: Border.all(color: AppColors.danger.withAlpha(100)),
                     ),
                     child: Row(
@@ -485,7 +485,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                           height: 180,
                           decoration: BoxDecoration(
                             color: AppColors.card,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Center(
                             child: CircularProgressIndicator(color: AppColors.primaryLight),
@@ -561,7 +561,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: AppColors.surfLight(context),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
                           '${allWeekShifts.length} ca trực',
@@ -581,7 +581,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: AppColors.surf(context),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: AppColors.crdBorder(context)),
                     ),
                     child: Center(

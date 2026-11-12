@@ -91,12 +91,12 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
       child: Material(
         key: ValueKey('offer_${offer.incidentId}'),
         elevation: 12,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         color: const Color(0xFF0F172A),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: severityColor, width: 2),
           ),
           child: Column(
@@ -130,7 +130,7 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: severityColor.withAlpha(51),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -173,7 +173,7 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
                         foregroundColor: Colors.white70,
                         side: const BorderSide(color: Color(0xFF475569)),
                         padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                       ),
                       child: Text(
                         provider.isDeclineLoading ? 'Đang từ chối...' : 'Từ chối',
@@ -201,7 +201,7 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
                         backgroundColor: severityColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                       ),
                     ),
                   ),

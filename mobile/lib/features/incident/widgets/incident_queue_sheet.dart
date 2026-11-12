@@ -53,7 +53,7 @@ class IncidentQueueSheet extends StatelessWidget {
       ),
       decoration: const BoxDecoration(
         color: Color(0xFF0F172A),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
         border: Border(
           top: BorderSide(color: Color(0xFF334155), width: 1.5),
           left: BorderSide(color: Color(0xFF334155), width: 1.5),
@@ -74,7 +74,7 @@ class IncidentQueueSheet extends StatelessWidget {
                 height: 4,
                 decoration: BoxDecoration(
                   color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(1),
                 ),
               ),
             ),
@@ -89,7 +89,7 @@ class IncidentQueueSheet extends StatelessWidget {
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEF4444).withAlpha(35),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(5),
                     ),
                     child: const Icon(
                       Icons.warning_amber_rounded,
@@ -124,7 +124,7 @@ class IncidentQueueSheet extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEF4444),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       '${queue.length} sự cố',
@@ -169,7 +169,7 @@ class IncidentQueueSheet extends StatelessWidget {
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: color.withAlpha(120), width: 1.2),
                       ),
                       child: Column(
@@ -182,7 +182,7 @@ class IncidentQueueSheet extends StatelessWidget {
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: color.withAlpha(40),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(3),
                                   border: Border.all(color: color.withAlpha(160)),
                                 ),
                                 child: Text(
@@ -267,7 +267,7 @@ class IncidentQueueSheet extends StatelessWidget {
                                   width: 46,
                                   height: 46,
                                   fit: BoxFit.cover,
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(4),
                                   enableZoomOnTap: true,
                                 ),
                               ],
@@ -299,7 +299,7 @@ class IncidentQueueSheet extends StatelessWidget {
                                     foregroundColor: Colors.white70,
                                     side: const BorderSide(color: Color(0xFF475569)),
                                     padding: const EdgeInsets.symmetric(vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
                                   ),
                                   onPressed: () {
                                     Navigator.pop(context);
@@ -318,7 +318,7 @@ class IncidentQueueSheet extends StatelessWidget {
                                     backgroundColor: const Color(0xFF2563EB),
                                     foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
                                     elevation: 2,
                                   ),
                                   onPressed: () {

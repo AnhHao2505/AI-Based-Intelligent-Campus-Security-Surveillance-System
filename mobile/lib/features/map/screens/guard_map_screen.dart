@@ -91,7 +91,7 @@ class _GuardMapScreenState extends State<GuardMapScreen>
         ),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 80),
       ),
     );
@@ -310,7 +310,7 @@ class _GuardMapScreenState extends State<GuardMapScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: AppColors.crd(context).withAlpha(235),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppColors.crdBorder(context)),
                     boxShadow: [
                       BoxShadow(
@@ -421,7 +421,7 @@ class _GuardMapScreenState extends State<GuardMapScreen>
                             side: BorderSide(
                               color: isSelected ? AppColors.primary : AppColors.crdBorder(context),
                             ),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                           ),
                         );

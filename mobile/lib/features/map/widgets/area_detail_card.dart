@@ -42,7 +42,7 @@ class AreaDetailCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.crd(context),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.crdBorder(context)),
         boxShadow: [
           BoxShadow(
@@ -65,7 +65,7 @@ class AreaDetailCard extends StatelessWidget {
                 height: 42,
                 decoration: BoxDecoration(
                   color: area.levelColor.withAlpha(30),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: area.levelColor.withAlpha(80)),
                 ),
                 child: Icon(area.levelIcon, color: area.levelColor, size: 22),
@@ -95,7 +95,7 @@ class AreaDetailCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: area.levelColor.withAlpha(25),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(3),
                           ),
                           child: Text(
                             area.levelDisplayName,
@@ -136,7 +136,7 @@ class AreaDetailCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               color: AppColors.surf(context),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(5),
             ),
             child: Row(
               children: [
@@ -170,7 +170,7 @@ class AreaDetailCard extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.primaryLight.withAlpha(20),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: AppColors.primaryLight.withAlpha(80)),
               ),
               child: Row(
@@ -217,7 +217,7 @@ class AreaDetailCard extends StatelessWidget {
                       side: const BorderSide(color: AppColors.danger),
                       foregroundColor: AppColors.danger,
                       minimumSize: const Size(0, 44),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                     ),
                     onPressed: onCancelRoute,
                     icon: const Icon(Icons.cancel_outlined, size: 18),
@@ -231,7 +231,7 @@ class AreaDetailCard extends StatelessWidget {
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       minimumSize: const Size(0, 44),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                       elevation: 2,
                     ),
                     onPressed: isLoadingRoute ? null : onNavigateTap,

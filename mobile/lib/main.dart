@@ -8,6 +8,7 @@ import 'core/notifications/guard_duty_service.dart';
 import 'features/incident/widgets/guard_duty_watcher.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/utils/storage_helper.dart';
+import 'core/widgets/web_ambient_background.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/incident/providers/incident_provider.dart';
@@ -100,6 +101,7 @@ class GuardMobileApp extends StatelessWidget {
       // Banner lời mời xử lý sự cố nằm trên mọi màn hình; không có lời mời thì không hiện gì.
       builder: (context, child) => Stack(
         children: [
+          const WebAmbientBackground(),
           child ?? const SizedBox.shrink(),
           IncidentOfferBanner(onClaimed: (_) => openIncidentListScreen()),
         ],
@@ -118,7 +120,7 @@ class AuthGate extends StatelessWidget {
     // Initial session restoration splash
     if (!authProvider.isInitialized) {
       return Scaffold(
-        backgroundColor: AppColors.bg(context),
+        backgroundColor: Colors.transparent,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

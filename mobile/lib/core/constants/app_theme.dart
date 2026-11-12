@@ -8,7 +8,7 @@ class AppTheme {
     final base = ThemeData.dark(useMaterial3: true);
     return base.copyWith(
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: AppColors.darkBackground,
+      scaffoldBackgroundColor: Colors.transparent,
       textTheme: GoogleFonts.ibmPlexSansTextTheme(base.textTheme).apply(
         bodyColor: AppColors.darkTextPrimary,
         displayColor: AppColors.darkTextPrimary,
@@ -38,7 +38,7 @@ class AppTheme {
         color: AppColors.darkCard,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           side: const BorderSide(color: AppColors.darkCardBorder, width: 1),
         ),
       ),
@@ -46,19 +46,19 @@ class AppTheme {
         filled: true,
         fillColor: AppColors.darkSurfaceLight,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: AppColors.darkCardBorder),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: AppColors.darkCardBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: AppColors.primaryLight, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: AppColors.dangerLight),
         ),
         labelStyle: const TextStyle(color: AppColors.darkTextSecondary),
@@ -70,7 +70,7 @@ class AppTheme {
           foregroundColor: Colors.white,
           minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(6),
           ),
           textStyle: GoogleFonts.ibmPlexSans(
             fontSize: 15,
@@ -90,7 +90,7 @@ class AppTheme {
     final base = ThemeData.light(useMaterial3: true);
     return base.copyWith(
       brightness: Brightness.light,
-      scaffoldBackgroundColor: AppColors.lightBackground,
+      scaffoldBackgroundColor: Colors.transparent,
       textTheme: GoogleFonts.ibmPlexSansTextTheme(base.textTheme).apply(
         bodyColor: AppColors.lightTextPrimary,
         displayColor: AppColors.lightTextPrimary,
@@ -120,7 +120,7 @@ class AppTheme {
         color: AppColors.lightCard,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           side: const BorderSide(color: AppColors.lightCardBorder, width: 1),
         ),
       ),
@@ -128,19 +128,19 @@ class AppTheme {
         filled: true,
         fillColor: AppColors.lightSurfaceLight,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: AppColors.lightCardBorder),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: AppColors.lightCardBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: AppColors.danger),
         ),
         labelStyle: const TextStyle(color: AppColors.lightTextSecondary),
@@ -152,7 +152,7 @@ class AppTheme {
           foregroundColor: Colors.white,
           minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(6),
           ),
           textStyle: GoogleFonts.ibmPlexSans(
             fontSize: 15,
