@@ -172,7 +172,7 @@ class NightWindowEventScheduleIntegrationTest extends Step5bTestSupport {
     }
 
     @Test
-    @DisplayName("e) Khu Tuyệt mật -> ERR_AREA_022 như cũ (kiểm trước khung ban đêm)")
+    @DisplayName("e) Khu Bảo mật cao -> ERR_AREA_022 như cũ (kiểm trước khung ban đêm)")
     void e_highlyConfidentialStillBlocked() {
         nightWindow("22:00", "06:00");
         Area highly = nightArea(AreaLevel.HIGHLY_CONFIDENTIAL);

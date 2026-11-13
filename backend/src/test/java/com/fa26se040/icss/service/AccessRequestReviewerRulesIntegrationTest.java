@@ -88,7 +88,7 @@ class AccessRequestReviewerRulesIntegrationTest extends AbstractIntegrationTest 
                 .centerLongitude(106.8100)
                 .isActive(true)
                 .build());
-        // V83 (BR-RQ-01): người tạo cấp 2 vào thẳng khu Bảo mật nên đơn cá nhân xin khu Tuyệt mật (cao hơn 1 cấp)
+        // V83 (BR-RQ-01): người tạo cấp 2 vào thẳng khu Bảo mật nên đơn cá nhân xin khu Bảo mật cao (cao hơn 1 cấp)
         highlyArea = areaRepository.save(Area.builder()
                 .name("RQ rules highly " + suffix)
                 .building(building.getName())

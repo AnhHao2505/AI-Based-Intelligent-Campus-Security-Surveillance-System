@@ -559,7 +559,7 @@ public class SystemConfigService {
                 throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực Công khai (PUBLIC)");
             }
             if (level == com.fa26se040.icss.enums.AreaLevel.HIGHLY_CONFIDENTIAL) {
-                throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực Tuyệt mật (HIGHLY_CONFIDENTIAL)");
+                throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực Bảo mật cao (HIGHLY_CONFIDENTIAL)");
             }
             hasValid = true;
         }

@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * BR-RQ-33, BR-RQ-01, BR-RQ-03 (V83): endpoint tạo đơn (cá nhân + nhóm) dùng CHUNG điều kiện với danh sách available-areas
  * (AreaService.requestIneligibility), theo loại đơn:
  * - cá nhân: cấp khu > cấp người tạo, cách tối đa ACCESS_REQUEST_MAX_LEVEL_GAP cấp;
- * - nhóm: người tạo tự vào được khu bằng cấp, thành viên thiếu cấp được bảo lãnh (khu Bảo mật); Tuyệt mật chỉ khi bật cấu hình.
+ * - nhóm: người tạo tự vào được khu bằng cấp, thành viên thiếu cấp được bảo lãnh (khu Bảo mật); Bảo mật cao chỉ khi bật cấu hình.
  * Không @Transactional: thông báo NEW_REQUEST_PENDING chạy REQUIRES_NEW, cập nhật cấu hình ghi cache sau commit.
  */
 class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
@@ -218,7 +218,7 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("V83 đơn cá nhân: L1 xin Bảo mật -> 201; L1 xin Tuyệt mật -> 400 vượt khoảng cách cấp; L2 xin Bảo mật -> 400 đã đủ cấp; L3 không xin được khu nào")
+    @DisplayName("V83 đơn cá nhân: L1 xin Bảo mật -> 201; L1 xin Bảo mật cao -> 400 vượt khoảng cách cấp; L2 xin Bảo mật -> 400 đã đủ cấp; L3 không xin được khu nào")
     void individual_levelRules() throws Exception {
         assertEquals(201, create(userL1, "/api/access-requests/individual", contactArea, null).getResponse().getStatus());
 
@@ -237,12 +237,12 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("V83: ADMIN đổi ACCESS_REQUEST_MAX_LEVEL_GAP 1 -> 2: L1 xin Tuyệt mật được ngay (danh sách và tạo đơn), không restart; ngoài 1–2 -> 400")
+    @DisplayName("V83: ADMIN đổi ACCESS_REQUEST_MAX_LEVEL_GAP 1 -> 2: L1 xin Bảo mật cao được ngay (danh sách và tạo đơn), không restart; ngoài 1–2 -> 400")
     void individual_gapConfigAppliesImmediately() throws Exception {
         assertFalse(availableAreas(userL1, "INDIVIDUAL").contains(highlyArea.getId().toString()));
         assertEquals(400, create(userL1, "/api/access-requests/individual", highlyArea, null).getResponse().getStatus());
 
-        systemConfigService.update(GAP_KEY, "2", "Cho cấp 1 xin thẳng khu Tuyệt mật", admin.getEmail());
+        systemConfigService.update(GAP_KEY, "2", "Cho cấp 1 xin thẳng khu Bảo mật cao", admin.getEmail());
 
         assertTrue(availableAreas(userL1, "INDIVIDUAL").contains(highlyArea.getId().toString()));
         MvcResult ok = create(userL1, "/api/access-requests/individual", highlyArea, null);
@@ -256,7 +256,7 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("V83 đơn nhóm: L2 tạo vào Bảo mật kèm L1 -> 201, L1 sponsored; L1 tạo đơn nhóm -> 400; đơn nhóm vào Tuyệt mật -> 400")
+    @DisplayName("V83 đơn nhóm: L2 tạo vào Bảo mật kèm L1 -> 201, L1 sponsored; L1 tạo đơn nhóm -> 400; đơn nhóm vào Bảo mật cao -> 400")
     void group_levelRules() throws Exception {
         MvcResult ok = create(userL2, "/api/access-requests/group", contactArea, List.of(memberL1.getUserCode()));
         assertEquals(201, ok.getResponse().getStatus(), body(ok));
@@ -269,7 +269,7 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
 
         MvcResult highly = create(requester, "/api/access-requests/group", highlyArea, List.of(member.getUserCode()));
         assertEquals(400, highly.getResponse().getStatus(), body(highly));
-        assertEquals("Khu vực Tuyệt mật (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)", message(highly));
+        assertEquals("Khu vực Bảo mật cao (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)", message(highly));
     }
 
     @Test
@@ -303,16 +303,16 @@ class AccessRequestAreaEligibilityTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("A-06 (BR-RQ-28): đơn nhóm Tuyệt mật theo ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE: mặc định không có trong danh sách của L3 và tạo -> 400; bật cấu hình -> có, groupRequestAllowed true, tạo -> 201")
+    @DisplayName("A-06 (BR-RQ-28): đơn nhóm Bảo mật cao theo ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE: mặc định không có trong danh sách của L3 và tạo -> 400; bật cấu hình -> có, groupRequestAllowed true, tạo -> 201")
     void highlyConfidential_groupFlagFollowsConfig() throws Exception {
-        assertNull(groupRequestAllowed(requester, highlyArea), "mặc định: L3 không xin được gì ở Tuyệt mật");
+        assertNull(groupRequestAllowed(requester, highlyArea), "mặc định: L3 không xin được gì ở Bảo mật cao");
         assertEquals(Boolean.TRUE, groupRequestAllowed(requester, contactArea), "Bảo mật luôn nhận đơn nhóm");
         MvcResult rejected = create("/api/access-requests/group", highlyArea, List.of(member.getUserCode()));
         assertEquals(400, rejected.getResponse().getStatus(), body(rejected));
 
-        systemConfigService.update(GROUP_HC_KEY, "true", "Bật đơn nhóm Tuyệt mật cho test A-06", admin.getEmail());
+        systemConfigService.update(GROUP_HC_KEY, "true", "Bật đơn nhóm Bảo mật cao cho test A-06", admin.getEmail());
 
-        assertEquals(Boolean.TRUE, groupRequestAllowed(requester, highlyArea), "bật cấu hình: Tuyệt mật nhận đơn nhóm");
+        assertEquals(Boolean.TRUE, groupRequestAllowed(requester, highlyArea), "bật cấu hình: Bảo mật cao nhận đơn nhóm");
         MvcResult accepted = create("/api/access-requests/group", highlyArea, List.of(member.getUserCode()));
         assertEquals(201, accepted.getResponse().getStatus(), body(accepted));
     }

@@ -33,7 +33,7 @@ public class AreaLevelPresetService {
     }
 
     /**
-     * V83 (D2, BR-PR-23): loại ⇔ cấp cố định (Công khai 1, Bảo mật 2, Tuyệt mật 3), bảng preset chỉ để xem.
+     * V83 (D2, BR-PR-23): loại ⇔ cấp cố định (Công khai 1, Bảo mật 2, Bảo mật cao 3), bảng preset chỉ để xem.
      * Giữ endpoint PUT/PATCH để client cũ nhận 400 rõ ràng (ERR_AC_005), không sửa gì.
      */
     public LevelPresetResponse updatePreset(AreaLevel areaLevel, LevelPresetUpdateRequest req, String actorEmail) {

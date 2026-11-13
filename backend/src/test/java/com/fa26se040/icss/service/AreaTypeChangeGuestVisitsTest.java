@@ -70,7 +70,7 @@ class AreaTypeChangeGuestVisitsTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("Đổi loại Bảo mật -> Tuyệt mật: lượt APPROVED chưa kết thúc bị thu hồi (revoked_by ADMIN), host nhận GUEST_VISIT_REVOKED, có audit REVOKE")
+    @DisplayName("Đổi loại Bảo mật -> Bảo mật cao: lượt APPROVED chưa kết thúc bị thu hồi (revoked_by ADMIN), host nhận GUEST_VISIT_REVOKED, có audit REVOKE")
     void approvedVisit_revoked_hostNotified() throws Exception {
         Area area = newArea(AreaLevel.CONFIDENTIAL);
         GuestVisit approved = newVisit(hostL2, GuestVisitStatus.APPROVED, future(0), future(120), List.of(area), "Khách duyệt");
@@ -172,7 +172,7 @@ class AreaTypeChangeGuestVisitsTest extends GuestTestSupport {
         assertEquals(2, toHighly.path("guestVisitsToRevokeCount").asInt());
 
         Area highly = newArea(AreaLevel.HIGHLY_CONFIDENTIAL);
-        newVisit(hostL2, GuestVisitStatus.APPROVED, future(0), future(60), List.of(highly), "Khách khu tuyệt mật");
+        newVisit(hostL2, GuestVisitStatus.APPROVED, future(0), future(60), List.of(highly), "Khách khu bảo mật cao");
         JsonNode toConfidential = preview(highly, AreaLevel.CONFIDENTIAL);
         assertEquals(0, toConfidential.path("guestVisitsToCancelCount").asInt());
         assertEquals(0, toConfidential.path("guestVisitsToRevokeCount").asInt());

@@ -98,7 +98,7 @@ class AreaServiceAccessLevelTest {
 
     @ParameterizedTest
     @EnumSource(AreaLevel.class)
-    @DisplayName("V83 (BR-PR-23): tạo khu -> cấp = cấp của loại (Công khai 1, Bảo mật 2, Tuyệt mật 3), cờ chỉ định false")
+    @DisplayName("V83 (BR-PR-23): tạo khu -> cấp = cấp của loại (Công khai 1, Bảo mật 2, Bảo mật cao 3), cờ chỉ định false")
     void createArea_LevelFollowsType(AreaLevel level) {
         AreaCreateRequest req = AreaCreateRequest.builder()
                 .name("Khu " + level.label())
@@ -128,7 +128,7 @@ class AreaServiceAccessLevelTest {
     }
 
     @Test
-    @DisplayName("V83 (BR-TC-04): đổi loại Công khai -> Tuyệt mật khi update -> cấp theo loại mới (3), cờ false")
+    @DisplayName("V83 (BR-TC-04): đổi loại Công khai -> Bảo mật cao khi update -> cấp theo loại mới (3), cờ false")
     void updateArea_TypeChange_LevelFollowsNewType() {
         UUID areaId = UUID.randomUUID();
         Area existing = Area.builder()
@@ -147,7 +147,7 @@ class AreaServiceAccessLevelTest {
                 .floor("Tầng 1")
                 .centerLatitude(10.8418)
                 .centerLongitude(106.8100)
-                .reason("Đổi sang Tuyệt mật theo yêu cầu an ninh")
+                .reason("Đổi sang Bảo mật cao theo yêu cầu an ninh")
                 .version(0L)
                 .build();
 
@@ -174,7 +174,7 @@ class AreaServiceAccessLevelTest {
                 new AreaAccessRulesUpdateRequest(2, true, "Bật lại cờ chỉ định đích danh", 0L))) {
             AreaException ex = assertThrows(AreaException.class, () -> areaService.updateAccessRules(areaId, req, adminEmail));
             assertEquals(AreaErrorCode.ERR_AREA_056, ex.getErrorCode());
-            assertEquals("Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Tuyệt mật: cấp 3). Muốn đổi cấp, hãy đổi loại khu vực",
+            assertEquals("Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Bảo mật cao: cấp 3). Muốn đổi cấp, hãy đổi loại khu vực",
                     ex.getMessage());
         }
         verifyNoInteractions(areaRepository, auditService);
