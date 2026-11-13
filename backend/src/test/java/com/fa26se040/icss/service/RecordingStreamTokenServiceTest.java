@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,8 @@ import java.time.ZoneOffset;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /** BE-03: token xem video ghi hình — ký theo path + source, hết hạn theo cấu hình. */
 class RecordingStreamTokenServiceTest {
@@ -19,8 +22,15 @@ class RecordingStreamTokenServiceTest {
     private static final String PATH = "CAM-001/2026/11/12/10-00-00.mp4";
     private static final Instant NOW = Instant.parse("2026-11-12T03:00:00Z");
 
+    /** V121: thời hạn đọc từ RECORDING_STREAM_TOKEN_SECONDS. */
+    static SystemConfigService ttlConfig(int seconds) {
+        SystemConfigService config = mock(SystemConfigService.class);
+        when(config.getInt(ConfigKey.RECORDING_STREAM_TOKEN_SECONDS)).thenReturn(seconds);
+        return config;
+    }
+
     private RecordingStreamTokenService at(Instant instant) {
-        return new RecordingStreamTokenService(KEY, 300, Clock.fixed(instant, ZoneOffset.UTC));
+        return new RecordingStreamTokenService(KEY, ttlConfig(300), Clock.fixed(instant, ZoneOffset.UTC));
     }
 
     @Test
@@ -87,9 +97,20 @@ class RecordingStreamTokenServiceTest {
     @DisplayName("Token ký bằng khoá khác -> 401")
     void tokenSignedWithOtherKey_throwsUnauthorized() {
         RecordingStreamTokenService other = new RecordingStreamTokenService(
-                "another-key-another-key-another-key-0000", 300, Clock.fixed(NOW, ZoneOffset.UTC));
+                "another-key-another-key-another-key-0000", ttlConfig(300), Clock.fixed(NOW, ZoneOffset.UTC));
         String token = other.issue(PATH, "recording").token();
 
         assertThrows(UnauthorizedException.class, () -> at(NOW).verify(PATH, "recording", token));
+    }
+
+    @Test
+    @DisplayName("V121: thời hạn đọc mỗi lần cấp; giá trị <= 0 (sửa thẳng DB) -> dùng mặc định 300 của ConfigKey")
+    void ttlReadOnEveryIssue_invalidFallsBackToDefault() {
+        SystemConfigService config = ttlConfig(120);
+        RecordingStreamTokenService service = new RecordingStreamTokenService(KEY, config, Clock.fixed(NOW, ZoneOffset.UTC));
+        assertEquals(NOW.getEpochSecond() + 120, service.issue(PATH, "recording").expiresAt());
+
+        when(config.getInt(ConfigKey.RECORDING_STREAM_TOKEN_SECONDS)).thenReturn(0);
+        assertEquals(NOW.getEpochSecond() + 300, service.issue(PATH, "recording").expiresAt());
     }
 }

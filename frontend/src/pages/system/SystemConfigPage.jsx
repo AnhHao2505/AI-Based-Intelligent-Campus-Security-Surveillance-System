@@ -46,6 +46,8 @@ const CONFIG_SUBGROUPS = {
 		{ title: "Nhật ký ra vào", prefixes: ["ENTRY_LOG_"] },
 		{ title: "Tra cứu thành viên", prefixes: ["SECURITY_MEMBER_LOOKUP_"] },
 		{ title: "Lý do thao tác", prefixes: ["REASON_"] },
+		// V121: thời hạn token xem video ghi hình / live có chú thích
+		{ title: "Liên kết xem camera", prefixes: ["RECORDING_STREAM_", "ANNOTATED_STREAM_"] },
 	],
 };
 

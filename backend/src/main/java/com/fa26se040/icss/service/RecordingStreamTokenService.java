@@ -1,6 +1,8 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.exception.UnauthorizedException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -20,8 +22,10 @@ import java.util.HexFormat;
  * <p>
  * Token định dạng {exp}.{hexdigest}, hexdigest = HMAC-SHA256(key=INTERNAL_SERVICE_KEY,
  * msg="REC|" + source + "|" + path + "|" + exp). Token chỉ mở đúng một file (path + source), hết hạn sau
- * {@code icss.camera.recording-stream-token-seconds} giây.
+ * RECORDING_STREAM_TOKEN_SECONDS giây (V121, cấu hình hệ thống, đọc lại mỗi lần cấp nên sửa là có hiệu lực ngay;
+ * token đã cấp giữ hạn cũ vì exp nằm trong token).
  */
+@Slf4j
 @Service
 public class RecordingStreamTokenService {
 
@@ -32,7 +36,7 @@ public class RecordingStreamTokenService {
     static final String MSG_EXPIRED = "Liên kết xem video đã hết hạn. Vui lòng mở lại video từ danh sách ghi hình.";
 
     private final String serviceKey;
-    private final long tokenSeconds;
+    private final SystemConfigService systemConfigService;
     private final Clock clock;
 
     public record TokenResponse(String token, long expiresAt) {}
@@ -40,19 +44,20 @@ public class RecordingStreamTokenService {
     @Autowired
     public RecordingStreamTokenService(
             @Value("${icss.internal.service-key:}") String serviceKey,
-            @Value("${icss.camera.recording-stream-token-seconds:300}") long tokenSeconds) {
-        this(serviceKey, tokenSeconds, Clock.systemUTC());
+            SystemConfigService systemConfigService) {
+        this(serviceKey, systemConfigService, Clock.systemUTC());
     }
 
-    RecordingStreamTokenService(String serviceKey, long tokenSeconds, Clock clock) {
+    /** Đồng hồ thay được (test: token đã hết hạn, kiểm exp). */
+    public RecordingStreamTokenService(String serviceKey, SystemConfigService systemConfigService, Clock clock) {
         this.serviceKey = serviceKey;
-        this.tokenSeconds = tokenSeconds;
+        this.systemConfigService = systemConfigService;
         this.clock = clock;
     }
 
     public TokenResponse issue(String path, String source) {
         requireKey();
-        long exp = Instant.now(clock).getEpochSecond() + tokenSeconds;
+        long exp = Instant.now(clock).getEpochSecond() + tokenSeconds();
         return new TokenResponse(exp + "." + sign(path, normalizeSource(source), exp), exp);
     }
 
@@ -84,6 +89,20 @@ public class RecordingStreamTokenService {
         if (Instant.now(clock).getEpochSecond() > exp) {
             throw new UnauthorizedException(MSG_EXPIRED);
         }
+    }
+
+    /**
+     * RECORDING_STREAM_TOKEN_SECONDS hiện hành. Giá trị thiếu / sai kiểu: SystemConfigService đã ghi WARN và trả mặc định;
+     * giá trị &lt;= 0 (sửa thẳng DB lọt min_value) -> WARN + mặc định của ConfigKey.
+     */
+    long tokenSeconds() {
+        int seconds = systemConfigService.getInt(ConfigKey.RECORDING_STREAM_TOKEN_SECONDS);
+        if (seconds <= 0) {
+            int fallback = Integer.parseInt(ConfigKey.RECORDING_STREAM_TOKEN_SECONDS.getDefaultValue());
+            log.warn("{}={} không hợp lệ, dùng mặc định {}", ConfigKey.RECORDING_STREAM_TOKEN_SECONDS.getKey(), seconds, fallback);
+            return fallback;
+        }
+        return seconds;
     }
 
     private static String normalizeSource(String source) {
