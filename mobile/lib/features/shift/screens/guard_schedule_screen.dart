@@ -309,22 +309,6 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                       ),
                       const SizedBox(width: 2),
 
-                      // Map icon button
-                      IconButton(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.all(6),
-                        constraints: const BoxConstraints(),
-                        icon: const Icon(Icons.map_outlined, color: AppColors.primaryLight, size: 22),
-                        tooltip: 'Bản đồ tuần tra an ninh',
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const GuardMapScreen()),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 2),
-
                       // Shift requests history button
                       IconButton(
                         visualDensity: VisualDensity.compact,
