@@ -40,6 +40,15 @@ export async function getGuestPurposeLimits() {
 }
 
 /**
+ * Tham số ước tính thời gian lộ trình trên bản đồ (WALKING_SPEED_MPS, FLOOR_CHANGE_SECONDS — V123, MM-05).
+ * Mọi tài khoản đã đăng nhập đọc được; chỉ trả 2 giá trị này.
+ * @returns {Promise<{walkingSpeedMps: number, floorChangeSeconds: number}>}
+ */
+export async function getRouteSettings() {
+  return apiGet('/api/system-configurations/route-settings');
+}
+
+/**
  * Cập nhật giá trị của một cấu hình hệ thống (Yêu cầu quyền ADMIN)
  * @param {string} configKey - Mã khóa cấu hình
  * @param {string} configValue - Giá trị mới dạng chuỗi
@@ -68,6 +77,7 @@ export default {
   getReasonLimits,
   getAfterHoursWindow,
   getGuestPurposeLimits,
+  getRouteSettings,
   updateSystemConfig,
   getSystemConfigHistory,
 };
