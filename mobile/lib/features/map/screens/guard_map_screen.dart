@@ -46,6 +46,10 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
   ml.CameraPosition? _initialCamera;
   ({LatLng target, double zoom})? _pendingFocus;
 
+  // Đáy cụm tiêu đề + chip (toạ độ màn hình, dp) — để đặt la bàn MapLibre ngay bên dưới
+  final GlobalKey _topBarKey = GlobalKey();
+  double? _topBarBottom;
+
   // Chữ ký dữ liệu đã đẩy lên bản đồ (tránh gửi lại GeoJSON lớn khi không đổi)
   String? _campusKey;
   String? _highlightKey;
@@ -356,6 +360,23 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
 
   String _floorLabel(int floorOrder) => floorOrder == 0 ? 'Tầng G' : 'Tầng $floorOrder';
 
+  /// Lề trên của la bàn: dưới đáy cụm tiêu đề đã đo; chưa đo được thì ít nhất dưới thanh trạng thái + thẻ tiêu đề.
+  double _compassTopMargin(BuildContext context) {
+    final measured = _topBarBottom;
+    if (measured != null) return measured + 8;
+    return MediaQuery.viewPaddingOf(context).top + 80;
+  }
+
+  /// Đo đáy cụm tiêu đề sau khi vẽ (cụm cao thêm khi có banner lỗi / chip tầng); đổi thì vẽ lại để cập nhật la bàn.
+  void _measureTopBar() {
+    final box = _topBarKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || !mounted) return;
+    final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
+    if (_topBarBottom == null || (bottom - _topBarBottom!).abs() > 0.5) {
+      setState(() => _topBarBottom = bottom);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final mapState = context.select((MapProvider provider) => (
@@ -376,6 +397,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // Mọi thứ nổi ở đáy màn đặt trên dải ghi công OSM để không che chữ
     final bottomInset = osmAttributionBarHeight + MediaQuery.viewPaddingOf(context).bottom;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureTopBar());
 
     return Scaffold(
       body: Stack(
@@ -409,6 +431,10 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
                   styleString: campusMapStyleJson(dark: isDark),
                   initialCameraPosition: initial,
                   compassEnabled: true,
+                  // La bàn: góc trên phải, ngay dưới cụm tiêu đề + chip (cụm đó đã nằm dưới thanh trạng thái nhờ
+                  // SafeArea) → không đè thanh trạng thái, không bị thẻ tiêu đề che, vẫn bấm được. Lề tính theo dp.
+                  compassViewPosition: ml.CompassViewPosition.topRight,
+                  compassViewMargins: Point(16, _compassTopMargin(context)),
                   // Nút (i) của MapLibre: góc dưới phải, trên dải ghi công, lệch trái khỏi cột nút nổi (rộng 40 + lề 16)
                   attributionEnabled: true,
                   attributionButtonPosition: ml.AttributionButtonPosition.bottomRight,
@@ -427,6 +453,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
           // 2. Thanh tiêu đề + chip toà + chip tầng
           SafeArea(
             child: Column(
+              key: _topBarKey,
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
