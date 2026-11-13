@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../data/campus_map_data.dart';
 import '../data/campus_map_style.dart';
+import '../data/campus_route_planner.dart';
 import '../models/area_pin_model.dart';
 import '../providers/map_provider.dart';
 import '../widgets/area_detail_card.dart';
@@ -26,6 +27,11 @@ const String _pinsSource = 'campus-pins';
 const String _pinsLayer = 'campus-pins-layer';
 const String _guardSource = 'campus-guard';
 const String _routeSource = 'campus-route';
+const String _routeFloorsSource = 'campus-route-floors';
+
+/// Tuyến trên đồ thị (không phải hướng thẳng): đoạn ở tầng đang xem đậm, đoạn ở tầng khác / đoạn đổi tầng mờ.
+const List<Object> _routeGraphFilter = ['!=', ['get', 'direct'], true];
+const List<Object> _routeDirectFilter = ['==', ['get', 'direct'], true];
 
 /// Lề khi đưa khung bao (khuôn viên / tuyến đường) vào màn hình: chừa thanh tiêu đề + chip ở trên, thẻ khu ở dưới.
 const EdgeInsets _fitPadding = EdgeInsets.fromLTRB(40, 170, 40, 220);
@@ -218,14 +224,54 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
       await map.addLineLayer(
         _routeSource,
         'campus-route-outline',
-        const ml.LineLayerProperties(lineColor: '#ffffff', lineWidth: 6.5, lineCap: 'round', lineJoin: 'round'),
+        const ml.LineLayerProperties(
+          lineColor: '#ffffff',
+          lineWidth: ['case', ['get', 'current'], 7.5, 4.0],
+          lineOpacity: ['case', ['get', 'current'], 1.0, 0.35],
+          lineCap: 'round',
+          lineJoin: 'round',
+        ),
+        filter: _routeGraphFilter,
         enableInteraction: false,
       );
       await map.addLineLayer(
         _routeSource,
         'campus-route-line',
         ml.LineLayerProperties(
-            lineColor: colorHex(AppColors.primaryLight), lineWidth: 4.0, lineCap: 'round', lineJoin: 'round'),
+          lineColor: colorHex(AppColors.primaryLight),
+          lineWidth: const ['case', ['get', 'current'], 5.0, 2.5],
+          lineOpacity: const ['case', ['get', 'current'], 1.0, 0.35],
+          lineCap: 'round',
+          lineJoin: 'round',
+        ),
+        filter: _routeGraphFilter,
+        enableInteraction: false,
+      );
+      // Không có đường trên đồ thị: đoạn thẳng nét đứt xuất phát → đích
+      await map.addLineLayer(
+        _routeSource,
+        'campus-route-direct',
+        ml.LineLayerProperties(
+          lineColor: colorHex(AppColors.primaryLight),
+          lineWidth: 4.0,
+          lineDasharray: const [1.5, 1.5],
+        ),
+        filter: _routeDirectFilter,
+        enableInteraction: false,
+      );
+      // Chỗ đổi tầng (Lên / Xuống tầng X): chấm cam, mờ khi không thuộc tầng đang xem
+      await map.addGeoJsonSource(_routeFloorsSource, empty);
+      await map.addCircleLayer(
+        _routeFloorsSource,
+        'campus-route-floors-layer',
+        const ml.CircleLayerProperties(
+          circleColor: selectedRoomColor,
+          circleRadius: ['case', ['get', 'current'], 8, 5],
+          circleOpacity: ['case', ['get', 'current'], 1.0, 0.4],
+          circleStrokeColor: '#ffffff',
+          circleStrokeWidth: 2,
+          circlePitchAlignment: 'viewport',
+        ),
         enableInteraction: false,
       );
       await map.addGeoJsonSource(_pinsSource, empty);
@@ -333,7 +379,9 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
       }
 
       await map.setGeoJsonSource(_guardSource, pointGeoJson(p.guardLocation));
-      await map.setGeoJsonSource(_routeSource, lineGeoJson(p.currentRoute?.points ?? const []));
+      await map.setGeoJsonSource(_routeSource, routeGeoJson(p.currentRoute, currentFloor: p.selectedFloorOrder));
+      await map.setGeoJsonSource(
+          _routeFloorsSource, floorChangesGeoJson(p.currentRoute, currentFloor: p.selectedFloorOrder));
     } catch (e) {
       debugPrint('[GuardMapScreen] sync layers: $e');
     } finally {
@@ -357,8 +405,6 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
   }
 
   // ------------------------------------------------------------------ UI
-
-  String _floorLabel(int floorOrder) => floorOrder == 0 ? 'Tầng G' : 'Tầng $floorOrder';
 
   /// Lề trên của la bàn: dưới đáy cụm tiêu đề đã đo; chưa đo được thì ít nhất dưới thanh trạng thái + thẻ tiêu đề.
   double _compassTopMargin(BuildContext context) {
@@ -496,7 +542,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
                               ),
                             ),
                             Text(
-                              '${mapState.pinCount} khu vực bảo vệ • ${_floorLabel(mapState.selectedFloor)}',
+                              '${mapState.pinCount} khu vực bảo vệ • ${campusFloorLabel(mapState.selectedFloor)}',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.txtSecondary(context),
@@ -601,7 +647,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
                               padding: const EdgeInsets.only(right: 6),
                               child: _chip(
                                 context,
-                                label: _floorLabel(f),
+                                label: campusFloorLabel(f),
                                 selected: mapState.selectedFloor == f,
                                 onSelected: () => mapProvider.selectFloor(f),
                                 dense: true,
@@ -692,8 +738,12 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
                   isLoadingRoute: mapState.isLoadingRoute,
                   onNavigateTap: () async {
                     await mapProvider.calculateRouteTo(mapState.selectedArea!);
-                    if (mapProvider.currentRoute != null) {
-                      _fitRoute(mapProvider.currentRoute!.points);
+                    final route = mapProvider.currentRoute;
+                    if (route != null) {
+                      _fitRoute(route.latLngs);
+                      if (route.message != null) _showSnack(route.message!);
+                    } else if (mapProvider.errorMessage != null) {
+                      _showSnack(mapProvider.errorMessage!);
                     }
                   },
                   onCancelRoute: () {

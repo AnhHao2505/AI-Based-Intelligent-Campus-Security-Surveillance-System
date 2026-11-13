@@ -7,12 +7,13 @@ import '../../../core/network/api_client.dart';
 import '../data/campus_floor_resolver.dart';
 import '../data/campus_map_data.dart';
 import '../data/campus_map_repository.dart';
+import '../data/campus_route_planner.dart';
 import '../models/area_pin_model.dart';
-import '../services/routing_service.dart';
+import '../services/route_settings_service.dart';
 
 class MapProvider extends ChangeNotifier {
   final ApiClient _apiClient;
-  final RoutingService _routingService;
+  final RouteSettingsService _routeSettingsService;
   final CampusMapRepository _campusRepository;
 
   // Dữ liệu bản đồ 3D khuôn viên (asset sinh từ seed web, mobile/assets/campus/)
@@ -51,8 +52,9 @@ class MapProvider extends ChangeNotifier {
   AreaPinModel? _selectedArea;
   AreaPinModel? get selectedArea => _selectedArea;
 
-  RouteResult? _currentRoute;
-  RouteResult? get currentRoute => _currentRoute;
+  /// Tuyến dẫn đường hiện tại trên đồ thị khuôn viên (P-MAP-2); không còn gọi OSRM.
+  CampusRoute? _currentRoute;
+  CampusRoute? get currentRoute => _currentRoute;
 
   LatLng? _guardLocation;
   LatLng? get guardLocation => _guardLocation;
@@ -88,8 +90,8 @@ class MapProvider extends ChangeNotifier {
     return LatLng(lat, lng);
   }
 
-  MapProvider(this._apiClient, {RoutingService? routingService, CampusMapRepository? campusRepository})
-      : _routingService = routingService ?? RoutingService(dio: _apiClient.dio),
+  MapProvider(this._apiClient, {RouteSettingsService? routeSettingsService, CampusMapRepository? campusRepository})
+      : _routeSettingsService = routeSettingsService ?? RouteSettingsService(_apiClient.dio),
         _campusRepository = campusRepository ?? CampusMapRepository();
 
   /// Nạp asset bản đồ 3D (một lần). Lỗi → [campusError] (câu thân thiện), không ném ra ngoài.
@@ -311,27 +313,36 @@ class MapProvider extends ChangeNotifier {
     return focus;
   }
 
-  /// Calculate navigation route to an area
+  /// Dựng tuyến tới khu [destination] trên đồ thị khuôn viên (trong nhà + ngoài trời, nhiều tầng, nhiều toà).
+  /// Xuất phát: GPS ngoài trời trong khuôn viên; còn lại (trong nhà / không GPS / GPS xa) theo toà + tầng đang chọn.
+  /// Thời gian dự kiến dùng cấu hình route-settings, đọc lại mỗi lần dẫn đường để đổi cấu hình có hiệu lực ngay.
   Future<void> calculateRouteTo(AreaPinModel destination) async {
     _selectedArea = destination;
     _isLoadingRoute = true;
+    _errorMessage = null;
     notifyListeners();
 
-    final start = _guardLocation ?? campusCenter;
-    if (start == null) {
-      _errorMessage = 'Chưa xác định được vị trí của bạn';
-      _isLoadingRoute = false;
-      notifyListeners();
-      return;
-    }
-
     try {
-      final route = await _routingService.getWalkingRoute(
-        start: start,
-        destination: destination.latLng,
+      final eta = await _routeSettingsService.load();
+      final destFloor = floorOrderOfPin(destination, _campus);
+      _currentRoute = planCampusRoute(
+        graph: _campus?.graph,
+        campus: _campus,
+        gps: _guardLocation,
+        selectedBuilding: _selectedBuilding,
+        selectedFloorOrder: _selectedFloorOrder,
+        destinationLatitude: pinHasCoordinates(destination) ? destination.centerLatitude : null,
+        destinationLongitude: pinHasCoordinates(destination) ? destination.centerLongitude : null,
+        destinationBuilding: destination.building,
+        destinationFloorOrder: destFloor,
+        eta: eta,
       );
-      _currentRoute = route;
+    } on CampusRouteUnavailable catch (e) {
+      _currentRoute = null;
+      _errorMessage = e.message;
     } catch (e) {
+      debugPrint('[MapProvider] calculateRouteTo: $e');
+      _currentRoute = null;
       _errorMessage = 'Không thể tìm lộ trình dẫn đường';
     } finally {
       _isLoadingRoute = false;

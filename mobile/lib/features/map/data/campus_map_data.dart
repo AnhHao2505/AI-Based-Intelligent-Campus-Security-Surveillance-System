@@ -173,14 +173,17 @@ class CampusMapData {
 }
 
 extension CampusFootprint on CampusMapData {
-  /// Toà (tên chuẩn) có mặt sàn tầng trệt (layer = slab: phòng + hành lang) chứa điểm (lat, lon); ngoài mọi toà → null.
+  /// Toà (tên chuẩn) có PHÒNG tầng trệt (layer = slab, role = ROOM) chứa điểm (lat, lon); không nằm trong phòng nào → null.
   /// Dùng để biết vị trí GPS đang ở trong nhà (GPS trong nhà không đủ tin cậy để gắn vào nút gần nhất).
+  /// Không tính mặt hành lang (role = CORRIDOR): trong asset có mặt hành lang phủ cả lối đi / sân ngoài trời có nút
+  /// ngoài trời (vd sân trong Tòa Alpha, điểm xuất phát của các ca golden GR-020…GR-032).
   String? buildingAt({required double latitude, required double longitude}) {
     for (final b in buildings) {
       final floor = floors[CampusMapData.floorKey(b.name, 0)];
       if (floor == null) continue;
       for (final f in floor.features) {
-        if ((f['properties'] as Map?)?['layer'] != 'slab') continue;
+        final props = f['properties'] as Map?;
+        if (props?['layer'] != 'slab' || props?['role'] != 'ROOM') continue;
         final geom = f['geometry'] as Map?;
         if (geom?['type'] != 'Polygon') continue;
         final rings = (geom!['coordinates'] as List).cast<List>();
