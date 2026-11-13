@@ -1,0 +1,8141 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-0-106810029",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810032,
+       10.841018
+      ],
+      [
+       106.809973,
+       10.84096
+      ],
+      [
+       106.810027,
+       10.840909
+      ],
+      [
+       106.810085,
+       10.840967
+      ],
+      [
+       106.810032,
+       10.841018
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-1-106810085",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810084,
+       10.840855
+      ],
+      [
+       106.810144,
+       10.84091
+      ],
+      [
+       106.810085,
+       10.840967
+      ],
+      [
+       106.810027,
+       10.840909
+      ],
+      [
+       106.810084,
+       10.840855
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-10-106809978",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810041,
+       10.841817
+      ],
+      [
+       106.809974,
+       10.841869
+      ],
+      [
+       106.809916,
+       10.841801
+      ],
+      [
+       106.809981,
+       10.84175
+      ],
+      [
+       106.810041,
+       10.841817
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-11-106810361",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810334,
+       10.840881
+      ],
+      [
+       106.810448,
+       10.840998
+      ],
+      [
+       106.810388,
+       10.841052
+      ],
+      [
+       106.810275,
+       10.840939
+      ],
+      [
+       106.810334,
+       10.840881
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-12-106809304",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809266,
+       10.841746
+      ],
+      [
+       106.809208,
+       10.841689
+      ],
+      [
+       106.809344,
+       10.841555
+      ],
+      [
+       106.8094,
+       10.841615
+      ],
+      [
+       106.809266,
+       10.841746
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-13-106810463",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810405,
+       10.840808
+      ],
+      [
+       106.81058,
+       10.840982
+      ],
+      [
+       106.81052,
+       10.841038
+      ],
+      [
+       106.810346,
+       10.840866
+      ],
+      [
+       106.810405,
+       10.840808
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-14-106809494",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809527,
+       10.842014
+      ],
+      [
+       106.809287,
+       10.841768
+      ],
+      [
+       106.809464,
+       10.841595
+      ],
+      [
+       106.809698,
+       10.841836
+      ],
+      [
+       106.809527,
+       10.842014
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-16-106809712",
+    "role": "CORRIDOR",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809637,
+       10.842132
+      ],
+      [
+       106.809527,
+       10.842014
+      ],
+      [
+       106.809698,
+       10.841836
+      ],
+      [
+       106.809464,
+       10.841595
+      ],
+      [
+       106.809287,
+       10.841768
+      ],
+      [
+       106.809266,
+       10.841746
+      ],
+      [
+       106.8094,
+       10.841615
+      ],
+      [
+       106.809344,
+       10.841555
+      ],
+      [
+       106.809688,
+       10.84123
+      ],
+      [
+       106.809747,
+       10.841289
+      ],
+      [
+       106.809805,
+       10.841234
+      ],
+      [
+       106.809745,
+       10.841176
+      ],
+      [
+       106.809973,
+       10.84096
+      ],
+      [
+       106.810032,
+       10.841018
+      ],
+      [
+       106.810085,
+       10.840967
+      ],
+      [
+       106.810144,
+       10.84091
+      ],
+      [
+       106.810084,
+       10.840855
+      ],
+      [
+       106.810273,
+       10.840676
+      ],
+      [
+       106.810405,
+       10.840808
+      ],
+      [
+       106.810346,
+       10.840866
+      ],
+      [
+       106.81052,
+       10.841038
+      ],
+      [
+       106.81058,
+       10.840982
+      ],
+      [
+       106.81068,
+       10.841082
+      ],
+      [
+       106.810473,
+       10.84148
+      ],
+      [
+       106.810351,
+       10.841576
+      ],
+      [
+       106.810292,
+       10.841506
+      ],
+      [
+       106.810229,
+       10.841556
+      ],
+      [
+       106.810166,
+       10.841605
+      ],
+      [
+       106.810106,
+       10.841652
+      ],
+      [
+       106.81004,
+       10.841703
+      ],
+      [
+       106.809981,
+       10.84175
+      ],
+      [
+       106.809916,
+       10.841801
+      ],
+      [
+       106.809853,
+       10.84185
+      ],
+      [
+       106.809913,
+       10.841917
+      ],
+      [
+       106.809637,
+       10.842132
+      ]
+     ],
+     [
+      [
+       106.810448,
+       10.840998
+      ],
+      [
+       106.810334,
+       10.840881
+      ],
+      [
+       106.810275,
+       10.840939
+      ],
+      [
+       106.810219,
+       10.840883
+      ],
+      [
+       106.809487,
+       10.841582
+      ],
+      [
+       106.809777,
+       10.841879
+      ],
+      [
+       106.810374,
+       10.841407
+      ],
+      [
+       106.810503,
+       10.841167
+      ],
+      [
+       106.810447,
+       10.841112
+      ],
+      [
+       106.810507,
+       10.841056
+      ],
+      [
+       106.810448,
+       10.840998
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-2-106809746",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809747,
+       10.841289
+      ],
+      [
+       106.809688,
+       10.84123
+      ],
+      [
+       106.809745,
+       10.841176
+      ],
+      [
+       106.809805,
+       10.841234
+      ],
+      [
+       106.809747,
+       10.841289
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-3-106810447",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810388,
+       10.841052
+      ],
+      [
+       106.810448,
+       10.840998
+      ],
+      [
+       106.810507,
+       10.841056
+      ],
+      [
+       106.810447,
+       10.841112
+      ],
+      [
+       106.810388,
+       10.841052
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-4-106810040",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101,
+       10.841771
+      ],
+      [
+       106.810041,
+       10.841817
+      ],
+      [
+       106.809981,
+       10.84175
+      ],
+      [
+       106.81004,
+       10.841703
+      ],
+      [
+       106.8101,
+       10.841771
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-5-106810165",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810225,
+       10.841674
+      ],
+      [
+       106.810163,
+       10.841722
+      ],
+      [
+       106.810106,
+       10.841652
+      ],
+      [
+       106.810166,
+       10.841605
+      ],
+      [
+       106.810225,
+       10.841674
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-6-106809914",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809974,
+       10.841869
+      ],
+      [
+       106.809913,
+       10.841917
+      ],
+      [
+       106.809853,
+       10.84185
+      ],
+      [
+       106.809916,
+       10.841801
+      ],
+      [
+       106.809974,
+       10.841869
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-7-106810290",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810289,
+       10.841624
+      ],
+      [
+       106.810229,
+       10.841556
+      ],
+      [
+       106.810292,
+       10.841506
+      ],
+      [
+       106.810351,
+       10.841576
+      ],
+      [
+       106.810289,
+       10.841624
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-8-106810227",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810289,
+       10.841624
+      ],
+      [
+       106.810225,
+       10.841674
+      ],
+      [
+       106.810166,
+       10.841605
+      ],
+      [
+       106.810229,
+       10.841556
+      ],
+      [
+       106.810289,
+       10.841624
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "slab",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-9-106810102",
+    "role": "ROOM",
+    "color": "#f8fafc",
+    "baseHeight": 7,
+    "extrudeHeight": 7.16
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810163,
+       10.841722
+      ],
+      [
+       106.8101,
+       10.841771
+      ],
+      [
+       106.81004,
+       10.841703
+      ],
+      [
+       106.810106,
+       10.841652
+      ],
+      [
+       106.810163,
+       10.841722
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-0",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8095407,
+       10.8416731
+      ],
+      [
+       106.8095415,
+       10.8416738
+      ],
+      [
+       106.8095398,
+       10.8416754
+      ],
+      [
+       106.8095391,
+       10.8416747
+      ],
+      [
+       106.8095407,
+       10.8416731
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-1",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100541,
+       10.8409953
+      ],
+      [
+       106.8100547,
+       10.8409946
+      ],
+      [
+       106.8100564,
+       10.8409963
+      ],
+      [
+       106.8100557,
+       10.8409969
+      ],
+      [
+       106.8100541,
+       10.8409953
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-10",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100052,
+       10.8417292
+      ],
+      [
+       106.810006,
+       10.8417285
+      ],
+      [
+       106.8100074,
+       10.8417304
+      ],
+      [
+       106.8100066,
+       10.841731
+      ],
+      [
+       106.8100052,
+       10.8417292
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-11",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100722,
+       10.8416762
+      ],
+      [
+       106.810073,
+       10.8416755
+      ],
+      [
+       106.8100744,
+       10.8416774
+      ],
+      [
+       106.8100736,
+       10.841678
+      ],
+      [
+       106.8100722,
+       10.8416762
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-12",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101311,
+       10.8416312
+      ],
+      [
+       106.8101318,
+       10.8416306
+      ],
+      [
+       106.8101334,
+       10.8416323
+      ],
+      [
+       106.8101327,
+       10.841633
+      ],
+      [
+       106.8101311,
+       10.8416312
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-13",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101922,
+       10.8415832
+      ],
+      [
+       106.810193,
+       10.8415825
+      ],
+      [
+       106.8101944,
+       10.8415844
+      ],
+      [
+       106.8101936,
+       10.841585
+      ],
+      [
+       106.8101922,
+       10.8415832
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-14",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102552,
+       10.8415331
+      ],
+      [
+       106.810256,
+       10.8415325
+      ],
+      [
+       106.8102574,
+       10.8415345
+      ],
+      [
+       106.8102566,
+       10.8415351
+      ],
+      [
+       106.8102552,
+       10.8415331
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-15",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8093281,
+       10.8416832
+      ],
+      [
+       106.8093288,
+       10.8416826
+      ],
+      [
+       106.8093304,
+       10.8416843
+      ],
+      [
+       106.8093297,
+       10.841685
+      ],
+      [
+       106.8093281,
+       10.8416832
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-2",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101071,
+       10.8409443
+      ],
+      [
+       106.8101078,
+       10.8409435
+      ],
+      [
+       106.8101095,
+       10.8409452
+      ],
+      [
+       106.8101087,
+       10.8409459
+      ],
+      [
+       106.8101071,
+       10.8409443
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-3",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8097711,
+       10.8412642
+      ],
+      [
+       106.8097718,
+       10.8412636
+      ],
+      [
+       106.8097734,
+       10.8412653
+      ],
+      [
+       106.8097727,
+       10.841266
+      ],
+      [
+       106.8097711,
+       10.8412642
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-4",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8104748,
+       10.8410221
+      ],
+      [
+       106.8104755,
+       10.8410229
+      ],
+      [
+       106.8104737,
+       10.8410244
+      ],
+      [
+       106.810473,
+       10.8410237
+      ],
+      [
+       106.8104748,
+       10.8410221
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-5",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103568,
+       10.8409021
+      ],
+      [
+       106.8103575,
+       10.8409029
+      ],
+      [
+       106.8103557,
+       10.8409044
+      ],
+      [
+       106.810355,
+       10.8409037
+      ],
+      [
+       106.8103568,
+       10.8409021
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-6",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8104953,
+       10.8410149
+      ],
+      [
+       106.8104945,
+       10.8410142
+      ],
+      [
+       106.8104962,
+       10.8410125
+      ],
+      [
+       106.8104969,
+       10.8410133
+      ],
+      [
+       106.8104953,
+       10.8410149
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-7",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103763,
+       10.8408979
+      ],
+      [
+       106.8103755,
+       10.8408972
+      ],
+      [
+       106.8103772,
+       10.8408955
+      ],
+      [
+       106.8103779,
+       10.8408963
+      ],
+      [
+       106.8103763,
+       10.8408979
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-8",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8098792,
+       10.8418282
+      ],
+      [
+       106.80988,
+       10.8418275
+      ],
+      [
+       106.8098814,
+       10.8418294
+      ],
+      [
+       106.8098806,
+       10.84183
+      ],
+      [
+       106.8098792,
+       10.8418282
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-ja-Tòa Alpha-2-9",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099432,
+       10.8417782
+      ],
+      [
+       106.809944,
+       10.8417775
+      ],
+      [
+       106.8099454,
+       10.8417794
+      ],
+      [
+       106.8099446,
+       10.84178
+      ],
+      [
+       106.8099432,
+       10.8417782
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-0",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8095722,
+       10.8417046
+      ],
+      [
+       106.8095729,
+       10.8417053
+      ],
+      [
+       106.8095713,
+       10.8417069
+      ],
+      [
+       106.8095705,
+       10.8417062
+      ],
+      [
+       106.8095722,
+       10.8417046
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-1",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100606,
+       10.8409887
+      ],
+      [
+       106.8100613,
+       10.8409881
+      ],
+      [
+       106.8100629,
+       10.8409897
+      ],
+      [
+       106.8100623,
+       10.8409904
+      ],
+      [
+       106.8100606,
+       10.8409887
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-10",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100136,
+       10.8417226
+      ],
+      [
+       106.8100144,
+       10.841722
+      ],
+      [
+       106.8100158,
+       10.8417238
+      ],
+      [
+       106.810015,
+       10.8417245
+      ],
+      [
+       106.8100136,
+       10.8417226
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-11",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100806,
+       10.8416696
+      ],
+      [
+       106.8100814,
+       10.841669
+      ],
+      [
+       106.8100828,
+       10.8416708
+      ],
+      [
+       106.810082,
+       10.8416715
+      ],
+      [
+       106.8100806,
+       10.8416696
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-12",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101386,
+       10.8416247
+      ],
+      [
+       106.8101393,
+       10.841624
+      ],
+      [
+       106.8101409,
+       10.8416258
+      ],
+      [
+       106.8101402,
+       10.8416264
+      ],
+      [
+       106.8101386,
+       10.8416247
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-13",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102006,
+       10.8415766
+      ],
+      [
+       106.8102014,
+       10.841576
+      ],
+      [
+       106.8102028,
+       10.8415778
+      ],
+      [
+       106.810202,
+       10.8415785
+      ],
+      [
+       106.8102006,
+       10.8415766
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-14",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102636,
+       10.8415275
+      ],
+      [
+       106.8102644,
+       10.8415269
+      ],
+      [
+       106.8102658,
+       10.8415289
+      ],
+      [
+       106.810265,
+       10.8415295
+      ],
+      [
+       106.8102636,
+       10.8415275
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-15",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8093356,
+       10.8416767
+      ],
+      [
+       106.8093363,
+       10.841676
+      ],
+      [
+       106.8093379,
+       10.8416778
+      ],
+      [
+       106.8093372,
+       10.8416784
+      ],
+      [
+       106.8093356,
+       10.8416767
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-2",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101145,
+       10.8409368
+      ],
+      [
+       106.8101153,
+       10.8409361
+      ],
+      [
+       106.8101169,
+       10.8409377
+      ],
+      [
+       106.8101162,
+       10.8409385
+      ],
+      [
+       106.8101145,
+       10.8409368
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-3",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8097786,
+       10.8412577
+      ],
+      [
+       106.8097793,
+       10.841257
+      ],
+      [
+       106.8097809,
+       10.8412588
+      ],
+      [
+       106.8097802,
+       10.8412594
+      ],
+      [
+       106.8097786,
+       10.8412577
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-4",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8104813,
+       10.8410296
+      ],
+      [
+       106.810482,
+       10.8410303
+      ],
+      [
+       106.8104802,
+       10.8410319
+      ],
+      [
+       106.8104795,
+       10.8410311
+      ],
+      [
+       106.8104813,
+       10.8410296
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-5",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103633,
+       10.8409096
+      ],
+      [
+       106.810364,
+       10.8409103
+      ],
+      [
+       106.8103622,
+       10.8409119
+      ],
+      [
+       106.8103615,
+       10.8409111
+      ],
+      [
+       106.8103633,
+       10.8409096
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-6",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8104878,
+       10.8410075
+      ],
+      [
+       106.8104871,
+       10.8410067
+      ],
+      [
+       106.8104887,
+       10.8410051
+      ],
+      [
+       106.8104895,
+       10.8410058
+      ],
+      [
+       106.8104878,
+       10.8410075
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-7",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103688,
+       10.8408905
+      ],
+      [
+       106.8103681,
+       10.8408897
+      ],
+      [
+       106.8103697,
+       10.8408881
+      ],
+      [
+       106.8103705,
+       10.8408888
+      ],
+      [
+       106.8103688,
+       10.8408905
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-8",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8098876,
+       10.8418216
+      ],
+      [
+       106.8098884,
+       10.841821
+      ],
+      [
+       106.8098898,
+       10.8418228
+      ],
+      [
+       106.809889,
+       10.8418235
+      ],
+      [
+       106.8098876,
+       10.8418216
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-jb-Tòa Alpha-2-9",
+    "wallKind": "DOOR_JAMB",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099516,
+       10.8417716
+      ],
+      [
+       106.8099524,
+       10.841771
+      ],
+      [
+       106.8099538,
+       10.8417728
+      ],
+      [
+       106.809953,
+       10.8417735
+      ],
+      [
+       106.8099516,
+       10.8417716
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-0",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8095406,
+       10.8416732
+      ],
+      [
+       106.8095728,
+       10.8417054
+      ],
+      [
+       106.8095714,
+       10.8417068
+      ],
+      [
+       106.8095392,
+       10.8416746
+      ],
+      [
+       106.8095406,
+       10.8416732
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-1",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100542,
+       10.8409954
+      ],
+      [
+       106.8100614,
+       10.8409882
+      ],
+      [
+       106.8100628,
+       10.8409896
+      ],
+      [
+       106.8100556,
+       10.8409968
+      ],
+      [
+       106.8100542,
+       10.8409954
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-10",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100053,
+       10.8417293
+      ],
+      [
+       106.8100145,
+       10.8417221
+      ],
+      [
+       106.8100157,
+       10.8417237
+      ],
+      [
+       106.8100065,
+       10.8417309
+      ],
+      [
+       106.8100053,
+       10.8417293
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-11",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100723,
+       10.8416763
+      ],
+      [
+       106.8100815,
+       10.8416691
+      ],
+      [
+       106.8100827,
+       10.8416707
+      ],
+      [
+       106.8100735,
+       10.8416779
+      ],
+      [
+       106.8100723,
+       10.8416763
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-12",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101312,
+       10.8416313
+      ],
+      [
+       106.8101394,
+       10.8416242
+      ],
+      [
+       106.8101408,
+       10.8416257
+      ],
+      [
+       106.8101326,
+       10.8416328
+      ],
+      [
+       106.8101312,
+       10.8416313
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-13",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101923,
+       10.8415833
+      ],
+      [
+       106.8102015,
+       10.8415761
+      ],
+      [
+       106.8102027,
+       10.8415777
+      ],
+      [
+       106.8101935,
+       10.8415849
+      ],
+      [
+       106.8101923,
+       10.8415833
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-14",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102553,
+       10.8415333
+      ],
+      [
+       106.8102646,
+       10.8415271
+      ],
+      [
+       106.8102657,
+       10.8415287
+      ],
+      [
+       106.8102564,
+       10.8415349
+      ],
+      [
+       106.8102553,
+       10.8415333
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-15",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8093282,
+       10.8416833
+      ],
+      [
+       106.8093364,
+       10.8416762
+      ],
+      [
+       106.8093378,
+       10.8416777
+      ],
+      [
+       106.8093296,
+       10.8416848
+      ],
+      [
+       106.8093282,
+       10.8416833
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-2",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101072,
+       10.8409444
+      ],
+      [
+       106.8101154,
+       10.8409362
+      ],
+      [
+       106.8101168,
+       10.8409376
+      ],
+      [
+       106.8101086,
+       10.8409458
+      ],
+      [
+       106.8101072,
+       10.8409444
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-3",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8097712,
+       10.8412643
+      ],
+      [
+       106.8097794,
+       10.8412572
+      ],
+      [
+       106.8097808,
+       10.8412587
+      ],
+      [
+       106.8097726,
+       10.8412658
+      ],
+      [
+       106.8097712,
+       10.8412643
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-4",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8104747,
+       10.8410222
+      ],
+      [
+       106.8104819,
+       10.8410305
+      ],
+      [
+       106.8104803,
+       10.8410318
+      ],
+      [
+       106.8104731,
+       10.8410235
+      ],
+      [
+       106.8104747,
+       10.8410222
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-5",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103567,
+       10.8409022
+      ],
+      [
+       106.8103639,
+       10.8409105
+      ],
+      [
+       106.8103623,
+       10.8409118
+      ],
+      [
+       106.8103551,
+       10.8409035
+      ],
+      [
+       106.8103567,
+       10.8409022
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-6",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8104954,
+       10.8410148
+      ],
+      [
+       106.8104872,
+       10.8410066
+      ],
+      [
+       106.8104886,
+       10.8410052
+      ],
+      [
+       106.8104968,
+       10.8410134
+      ],
+      [
+       106.8104954,
+       10.8410148
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-7",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103764,
+       10.8408978
+      ],
+      [
+       106.8103682,
+       10.8408896
+      ],
+      [
+       106.8103696,
+       10.8408882
+      ],
+      [
+       106.8103778,
+       10.8408964
+      ],
+      [
+       106.8103764,
+       10.8408978
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-8",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8098793,
+       10.8418283
+      ],
+      [
+       106.8098885,
+       10.8418211
+      ],
+      [
+       106.8098897,
+       10.8418227
+      ],
+      [
+       106.8098805,
+       10.8418299
+      ],
+      [
+       106.8098793,
+       10.8418283
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-lintel-Tòa Alpha-2-9",
+    "wallKind": "DOOR_LINTEL",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 8.18,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099433,
+       10.8417783
+      ],
+      [
+       106.8099525,
+       10.8417711
+      ],
+      [
+       106.8099537,
+       10.8417727
+      ],
+      [
+       106.8099445,
+       10.8417799
+      ],
+      [
+       106.8099433,
+       10.8417783
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-0",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809539,
+       10.841675
+      ],
+      [
+       106.809571,
+       10.841707
+      ],
+      [
+       106.809573,
+       10.841705
+      ],
+      [
+       106.809541,
+       10.841673
+      ],
+      [
+       106.809539,
+       10.841675
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-1",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810056,
+       10.840997
+      ],
+      [
+       106.810063,
+       10.84099
+      ],
+      [
+       106.810061,
+       10.840988
+      ],
+      [
+       106.810053,
+       10.840995
+      ],
+      [
+       106.810056,
+       10.840997
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-10",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810007,
+       10.841731
+      ],
+      [
+       106.810016,
+       10.841724
+      ],
+      [
+       106.810014,
+       10.841722
+      ],
+      [
+       106.810005,
+       10.841729
+      ],
+      [
+       106.810007,
+       10.841731
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-11",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810074,
+       10.841678
+      ],
+      [
+       106.810083,
+       10.841672
+      ],
+      [
+       106.810081,
+       10.841669
+      ],
+      [
+       106.810073,
+       10.841676
+      ],
+      [
+       106.810074,
+       10.841678
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-12",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810133,
+       10.841633
+      ],
+      [
+       106.810141,
+       10.841626
+      ],
+      [
+       106.810139,
+       10.841624
+      ],
+      [
+       106.810131,
+       10.841631
+      ],
+      [
+       106.810133,
+       10.841633
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-13",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810194,
+       10.841585
+      ],
+      [
+       106.810203,
+       10.841578
+      ],
+      [
+       106.810201,
+       10.841576
+      ],
+      [
+       106.810192,
+       10.841583
+      ],
+      [
+       106.810194,
+       10.841585
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-14",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810257,
+       10.841536
+      ],
+      [
+       106.810266,
+       10.841529
+      ],
+      [
+       106.810264,
+       10.841527
+      ],
+      [
+       106.810255,
+       10.841533
+      ],
+      [
+       106.810257,
+       10.841536
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-15",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.80933,
+       10.841685
+      ],
+      [
+       106.809338,
+       10.841678
+      ],
+      [
+       106.809336,
+       10.841676
+      ],
+      [
+       106.809328,
+       10.841683
+      ],
+      [
+       106.80933,
+       10.841685
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-2",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810109,
+       10.840946
+      ],
+      [
+       106.810117,
+       10.840938
+      ],
+      [
+       106.810115,
+       10.840936
+      ],
+      [
+       106.810107,
+       10.840944
+      ],
+      [
+       106.810109,
+       10.840946
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-3",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809773,
+       10.841266
+      ],
+      [
+       106.809781,
+       10.841259
+      ],
+      [
+       106.809779,
+       10.841257
+      ],
+      [
+       106.809771,
+       10.841264
+      ],
+      [
+       106.809773,
+       10.841266
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-4",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810473,
+       10.841024
+      ],
+      [
+       106.81048,
+       10.841032
+      ],
+      [
+       106.810482,
+       10.84103
+      ],
+      [
+       106.810475,
+       10.841022
+      ],
+      [
+       106.810473,
+       10.841024
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-5",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810355,
+       10.840904
+      ],
+      [
+       106.810362,
+       10.840912
+      ],
+      [
+       106.810365,
+       10.84091
+      ],
+      [
+       106.810357,
+       10.840902
+      ],
+      [
+       106.810355,
+       10.840904
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-6",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810497,
+       10.841013
+      ],
+      [
+       106.810489,
+       10.841005
+      ],
+      [
+       106.810487,
+       10.841007
+      ],
+      [
+       106.810495,
+       10.841015
+      ],
+      [
+       106.810497,
+       10.841013
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-7",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810378,
+       10.840896
+      ],
+      [
+       106.81037,
+       10.840888
+      ],
+      [
+       106.810368,
+       10.84089
+      ],
+      [
+       106.810376,
+       10.840898
+      ],
+      [
+       106.810378,
+       10.840896
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-8",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809881,
+       10.84183
+      ],
+      [
+       106.80989,
+       10.841823
+      ],
+      [
+       106.809888,
+       10.841821
+      ],
+      [
+       106.809879,
+       10.841828
+      ],
+      [
+       106.809881,
+       10.84183
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "udoor-sill-Tòa Alpha-2-9",
+    "wallKind": "DOOR_THRESHOLD",
+    "isPerimeter": false,
+    "color": "#f59e0b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.3
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809945,
+       10.84178
+      ],
+      [
+       106.809954,
+       10.841773
+      ],
+      [
+       106.809952,
+       10.841771
+      ],
+      [
+       106.809943,
+       10.841778
+      ],
+      [
+       106.809945,
+       10.84178
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-0",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8096369,
+       10.842134
+      ],
+      [
+       106.8095249,
+       10.8420139
+      ],
+      [
+       106.8095271,
+       10.842012
+      ],
+      [
+       106.8096391,
+       10.8421321
+      ],
+      [
+       106.8096369,
+       10.842134
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-1",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809527,
+       10.842016
+      ],
+      [
+       106.8092849,
+       10.841768
+      ],
+      [
+       106.809287,
+       10.841766
+      ],
+      [
+       106.8095291,
+       10.842014
+      ],
+      [
+       106.809527,
+       10.842016
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-10",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102271,
+       10.8416742
+      ],
+      [
+       106.8101627,
+       10.841724
+      ],
+      [
+       106.8101609,
+       10.8417218
+      ],
+      [
+       106.8102253,
+       10.841672
+      ],
+      [
+       106.8102271,
+       10.8416742
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-11",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101651,
+       10.8417222
+      ],
+      [
+       106.8100998,
+       10.841773
+      ],
+      [
+       106.8100979,
+       10.8417708
+      ],
+      [
+       106.8101632,
+       10.84172
+      ],
+      [
+       106.8101651,
+       10.8417222
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-12",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101021,
+       10.8417712
+      ],
+      [
+       106.8100408,
+       10.841819
+      ],
+      [
+       106.8100389,
+       10.8418168
+      ],
+      [
+       106.8101002,
+       10.841769
+      ],
+      [
+       106.8101021,
+       10.8417712
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-13",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100431,
+       10.8418172
+      ],
+      [
+       106.8099738,
+       10.841871
+      ],
+      [
+       106.8099719,
+       10.8418688
+      ],
+      [
+       106.8100412,
+       10.841815
+      ],
+      [
+       106.8100431,
+       10.8418172
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-14",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099761,
+       10.8418692
+      ],
+      [
+       106.8099128,
+       10.841919
+      ],
+      [
+       106.8099109,
+       10.8419168
+      ],
+      [
+       106.8099742,
+       10.841867
+      ],
+      [
+       106.8099761,
+       10.8418692
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-15",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099151,
+       10.8419172
+      ],
+      [
+       106.8096368,
+       10.842134
+      ],
+      [
+       106.8096349,
+       10.8421318
+      ],
+      [
+       106.8099132,
+       10.841915
+      ],
+      [
+       106.8099151,
+       10.8419172
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-16",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810334,
+       10.8408797
+      ],
+      [
+       106.8103567,
+       10.8409025
+      ],
+      [
+       106.8103554,
+       10.8409037
+      ],
+      [
+       106.8103327,
+       10.840881
+      ],
+      [
+       106.810334,
+       10.8408797
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-17",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103636,
+       10.8409103
+      ],
+      [
+       106.8104493,
+       10.840998
+      ],
+      [
+       106.810448,
+       10.8409993
+      ],
+      [
+       106.8103622,
+       10.8409115
+      ],
+      [
+       106.8103636,
+       10.8409103
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-18",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8104493,
+       10.8409981
+      ],
+      [
+       106.8103879,
+       10.8410533
+      ],
+      [
+       106.8103867,
+       10.8410519
+      ],
+      [
+       106.8104481,
+       10.8409967
+      ],
+      [
+       106.8104493,
+       10.8409981
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-19",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810448,
+       10.8409967
+      ],
+      [
+       106.8104747,
+       10.8410224
+      ],
+      [
+       106.8104735,
+       10.8410237
+      ],
+      [
+       106.8104467,
+       10.840998
+      ],
+      [
+       106.810448,
+       10.8409967
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-2",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809266,
+       10.841748
+      ],
+      [
+       106.8092059,
+       10.841689
+      ],
+      [
+       106.809208,
+       10.841687
+      ],
+      [
+       106.8092681,
+       10.841746
+      ],
+      [
+       106.809266,
+       10.841748
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-20",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8104815,
+       10.8410303
+      ],
+      [
+       106.8105083,
+       10.841056
+      ],
+      [
+       106.810507,
+       10.8410573
+      ],
+      [
+       106.8104803,
+       10.8410316
+      ],
+      [
+       106.8104815,
+       10.8410303
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-21",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8105083,
+       10.841056
+      ],
+      [
+       106.810447,
+       10.8411133
+      ],
+      [
+       106.8104457,
+       10.841112
+      ],
+      [
+       106.810507,
+       10.8410547
+      ],
+      [
+       106.8105083,
+       10.841056
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-22",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8105813,
+       10.840982
+      ],
+      [
+       106.81052,
+       10.8410393
+      ],
+      [
+       106.8105187,
+       10.841038
+      ],
+      [
+       106.81058,
+       10.8409807
+      ],
+      [
+       106.8105813,
+       10.840982
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-23",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.81052,
+       10.8410393
+      ],
+      [
+       106.8104953,
+       10.8410145
+      ],
+      [
+       106.8104966,
+       10.8410133
+      ],
+      [
+       106.8105213,
+       10.841038
+      ],
+      [
+       106.81052,
+       10.8410393
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-24",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8104875,
+       10.8410067
+      ],
+      [
+       106.8103763,
+       10.8408975
+      ],
+      [
+       106.8103775,
+       10.8408963
+      ],
+      [
+       106.8104887,
+       10.8410055
+      ],
+      [
+       106.8104875,
+       10.8410067
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-25",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103684,
+       10.8408897
+      ],
+      [
+       106.8103447,
+       10.840866
+      ],
+      [
+       106.810346,
+       10.8408647
+      ],
+      [
+       106.8103697,
+       10.8408885
+      ],
+      [
+       106.8103684,
+       10.8408897
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-26",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103447,
+       10.840866
+      ],
+      [
+       106.810405,
+       10.8408067
+      ],
+      [
+       106.8104063,
+       10.840808
+      ],
+      [
+       106.810346,
+       10.8408673
+      ],
+      [
+       106.8103447,
+       10.840866
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-27",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810084,
+       10.8408537
+      ],
+      [
+       106.8101453,
+       10.84091
+      ],
+      [
+       106.810144,
+       10.8409113
+      ],
+      [
+       106.8100827,
+       10.840855
+      ],
+      [
+       106.810084,
+       10.8408537
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-28",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809747,
+       10.8412903
+      ],
+      [
+       106.8096867,
+       10.84123
+      ],
+      [
+       106.809688,
+       10.8412287
+      ],
+      [
+       106.8097483,
+       10.841289
+      ],
+      [
+       106.809747,
+       10.8412903
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-29",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8093441,
+       10.8415537
+      ],
+      [
+       106.8094013,
+       10.8416151
+      ],
+      [
+       106.8093999,
+       10.8416163
+      ],
+      [
+       106.8093427,
+       10.8415549
+      ],
+      [
+       106.8093441,
+       10.8415537
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-3",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8092059,
+       10.841689
+      ],
+      [
+       106.809344,
+       10.841553
+      ],
+      [
+       106.8093461,
+       10.841555
+      ],
+      [
+       106.809208,
+       10.841691
+      ],
+      [
+       106.8092059,
+       10.841689
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-30",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8092857,
+       10.841768
+      ],
+      [
+       106.809464,
+       10.8415937
+      ],
+      [
+       106.8094653,
+       10.841595
+      ],
+      [
+       106.809287,
+       10.8417693
+      ],
+      [
+       106.8092857,
+       10.841768
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-31",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809464,
+       10.8415937
+      ],
+      [
+       106.8095408,
+       10.8416735
+      ],
+      [
+       106.8095394,
+       10.8416747
+      ],
+      [
+       106.8094627,
+       10.841595
+      ],
+      [
+       106.809464,
+       10.8415937
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-32",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8095726,
+       10.8417053
+      ],
+      [
+       106.8096993,
+       10.841836
+      ],
+      [
+       106.809698,
+       10.8418373
+      ],
+      [
+       106.8095712,
+       10.8417065
+      ],
+      [
+       106.8095726,
+       10.8417053
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-33",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8096993,
+       10.841836
+      ],
+      [
+       106.809527,
+       10.8420153
+      ],
+      [
+       106.8095257,
+       10.842014
+      ],
+      [
+       106.809698,
+       10.8418347
+      ],
+      [
+       106.8096993,
+       10.841836
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-34",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099129,
+       10.8419183
+      ],
+      [
+       106.8098517,
+       10.8418499
+      ],
+      [
+       106.8098531,
+       10.8418487
+      ],
+      [
+       106.8099143,
+       10.8419171
+      ],
+      [
+       106.8099129,
+       10.8419183
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-35",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8098517,
+       10.8418498
+      ],
+      [
+       106.8098795,
+       10.8418282
+      ],
+      [
+       106.8098807,
+       10.8418296
+      ],
+      [
+       106.8098528,
+       10.8418513
+      ],
+      [
+       106.8098517,
+       10.8418498
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-36",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8098883,
+       10.8418214
+      ],
+      [
+       106.8099162,
+       10.8417997
+      ],
+      [
+       106.8099173,
+       10.8418012
+      ],
+      [
+       106.8098895,
+       10.8418228
+      ],
+      [
+       106.8098883,
+       10.8418214
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-37",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099147,
+       10.8418009
+      ],
+      [
+       106.8099435,
+       10.8417782
+      ],
+      [
+       106.8099447,
+       10.8417796
+      ],
+      [
+       106.8099159,
+       10.8418023
+      ],
+      [
+       106.8099147,
+       10.8418009
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-38",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099523,
+       10.8417714
+      ],
+      [
+       106.8099811,
+       10.8417487
+      ],
+      [
+       106.8099823,
+       10.8417501
+      ],
+      [
+       106.8099535,
+       10.8417728
+      ],
+      [
+       106.8099523,
+       10.8417714
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-39",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099797,
+       10.8417499
+      ],
+      [
+       106.8100055,
+       10.8417292
+      ],
+      [
+       106.8100067,
+       10.8417306
+      ],
+      [
+       106.8099809,
+       10.8417513
+      ],
+      [
+       106.8099797,
+       10.8417499
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-4",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100819,
+       10.840855
+      ],
+      [
+       106.810273,
+       10.840674
+      ],
+      [
+       106.8102751,
+       10.840676
+      ],
+      [
+       106.810084,
+       10.840857
+      ],
+      [
+       106.8100819,
+       10.840855
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-40",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100143,
+       10.8417224
+      ],
+      [
+       106.8100401,
+       10.8417017
+      ],
+      [
+       106.8100413,
+       10.8417031
+      ],
+      [
+       106.8100155,
+       10.8417238
+      ],
+      [
+       106.8100143,
+       10.8417224
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-41",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100387,
+       10.8417029
+      ],
+      [
+       106.8100725,
+       10.8416762
+      ],
+      [
+       106.8100737,
+       10.8416776
+      ],
+      [
+       106.8100399,
+       10.8417043
+      ],
+      [
+       106.8100387,
+       10.8417029
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-42",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100813,
+       10.8416694
+      ],
+      [
+       106.8101062,
+       10.8416507
+      ],
+      [
+       106.8101073,
+       10.8416522
+      ],
+      [
+       106.8100824,
+       10.8416708
+      ],
+      [
+       106.8100813,
+       10.8416694
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-43",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101047,
+       10.8416518
+      ],
+      [
+       106.8101315,
+       10.8416312
+      ],
+      [
+       106.8101327,
+       10.8416326
+      ],
+      [
+       106.8101058,
+       10.8416533
+      ],
+      [
+       106.8101047,
+       10.8416518
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-44",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101393,
+       10.8416244
+      ],
+      [
+       106.8101662,
+       10.8416037
+      ],
+      [
+       106.8101673,
+       10.8416052
+      ],
+      [
+       106.8101405,
+       10.8416258
+      ],
+      [
+       106.8101393,
+       10.8416244
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-45",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101661,
+       10.8416037
+      ],
+      [
+       106.8102263,
+       10.8416741
+      ],
+      [
+       106.8102249,
+       10.8416753
+      ],
+      [
+       106.8101647,
+       10.8416049
+      ],
+      [
+       106.8101661,
+       10.8416037
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-46",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102889,
+       10.8416253
+      ],
+      [
+       106.8102277,
+       10.8415559
+      ],
+      [
+       106.8102291,
+       10.8415547
+      ],
+      [
+       106.8102903,
+       10.8416241
+      ],
+      [
+       106.8102889,
+       10.8416253
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-47",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102277,
+       10.8415559
+      ],
+      [
+       106.8102555,
+       10.8415332
+      ],
+      [
+       106.8102567,
+       10.8415346
+      ],
+      [
+       106.8102289,
+       10.8415573
+      ],
+      [
+       106.8102277,
+       10.8415559
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-48",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102643,
+       10.8415274
+      ],
+      [
+       106.8102921,
+       10.8415047
+      ],
+      [
+       106.8102933,
+       10.8415061
+      ],
+      [
+       106.8102655,
+       10.8415288
+      ],
+      [
+       106.8102643,
+       10.8415274
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-49",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102921,
+       10.8415047
+      ],
+      [
+       106.8103523,
+       10.8415761
+      ],
+      [
+       106.8103509,
+       10.8415773
+      ],
+      [
+       106.8102907,
+       10.8415059
+      ],
+      [
+       106.8102921,
+       10.8415047
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-5",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810273,
+       10.840674
+      ],
+      [
+       106.8104071,
+       10.840808
+      ],
+      [
+       106.810405,
+       10.84081
+      ],
+      [
+       106.8102709,
+       10.840676
+      ],
+      [
+       106.810273,
+       10.840674
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-50",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809777,
+       10.8418803
+      ],
+      [
+       106.8094857,
+       10.841582
+      ],
+      [
+       106.809487,
+       10.8415807
+      ],
+      [
+       106.8097783,
+       10.841879
+      ],
+      [
+       106.809777,
+       10.8418803
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-51",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8094857,
+       10.841582
+      ],
+      [
+       106.810219,
+       10.8408817
+      ],
+      [
+       106.8102203,
+       10.840883
+      ],
+      [
+       106.809487,
+       10.8415833
+      ],
+      [
+       106.8094857,
+       10.841582
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-52",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810219,
+       10.8408817
+      ],
+      [
+       106.8102763,
+       10.840939
+      ],
+      [
+       106.810275,
+       10.8409403
+      ],
+      [
+       106.8102177,
+       10.840883
+      ],
+      [
+       106.810219,
+       10.8408817
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-53",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810275,
+       10.8409377
+      ],
+      [
+       106.8103893,
+       10.841052
+      ],
+      [
+       106.810388,
+       10.8410533
+      ],
+      [
+       106.8102737,
+       10.840939
+      ],
+      [
+       106.810275,
+       10.8409377
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-54",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810388,
+       10.8410507
+      ],
+      [
+       106.8104483,
+       10.841112
+      ],
+      [
+       106.810447,
+       10.8411133
+      ],
+      [
+       106.8103867,
+       10.841052
+      ],
+      [
+       106.810388,
+       10.8410507
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-55",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810447,
+       10.8411107
+      ],
+      [
+       106.8105043,
+       10.841167
+      ],
+      [
+       106.810503,
+       10.8411683
+      ],
+      [
+       106.8104457,
+       10.841112
+      ],
+      [
+       106.810447,
+       10.8411107
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-56",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8105042,
+       10.8411666
+      ],
+      [
+       106.8103744,
+       10.8414082
+      ],
+      [
+       106.8103728,
+       10.8414074
+      ],
+      [
+       106.8105026,
+       10.8411658
+      ],
+      [
+       106.8105042,
+       10.8411666
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-57",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103753,
+       10.8414071
+      ],
+      [
+       106.8097769,
+       10.8418803
+      ],
+      [
+       106.8097757,
+       10.8418789
+      ],
+      [
+       106.8103741,
+       10.8414057
+      ],
+      [
+       106.8103753,
+       10.8414071
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-58",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809805,
+       10.8412353
+      ],
+      [
+       106.8097437,
+       10.841176
+      ],
+      [
+       106.809745,
+       10.8411747
+      ],
+      [
+       106.8098063,
+       10.841234
+      ],
+      [
+       106.809805,
+       10.8412353
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-59",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810032,
+       10.8410193
+      ],
+      [
+       106.8099717,
+       10.84096
+      ],
+      [
+       106.809973,
+       10.8409587
+      ],
+      [
+       106.8100333,
+       10.841018
+      ],
+      [
+       106.810032,
+       10.8410193
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-6",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810405,
+       10.840806
+      ],
+      [
+       106.8105821,
+       10.840982
+      ],
+      [
+       106.81058,
+       10.840984
+      ],
+      [
+       106.8104029,
+       10.840808
+      ],
+      [
+       106.810405,
+       10.840806
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-60",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810085,
+       10.8409683
+      ],
+      [
+       106.8100257,
+       10.840909
+      ],
+      [
+       106.810027,
+       10.8409077
+      ],
+      [
+       106.8100863,
+       10.840967
+      ],
+      [
+       106.810085,
+       10.8409683
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-61",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103353,
+       10.840881
+      ],
+      [
+       106.810275,
+       10.8409403
+      ],
+      [
+       106.8102737,
+       10.840939
+      ],
+      [
+       106.810334,
+       10.8408797
+      ],
+      [
+       106.8103353,
+       10.840881
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-62",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102869,
+       10.8416238
+      ],
+      [
+       106.8103513,
+       10.841574
+      ],
+      [
+       106.8103531,
+       10.8415762
+      ],
+      [
+       106.8102887,
+       10.841626
+      ],
+      [
+       106.8102869,
+       10.8416238
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-63",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8103489,
+       10.8415758
+      ],
+      [
+       106.8104732,
+       10.841478
+      ],
+      [
+       106.8104751,
+       10.8414802
+      ],
+      [
+       106.8103508,
+       10.841578
+      ],
+      [
+       106.8103489,
+       10.8415758
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-64",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101647,
+       10.8416048
+      ],
+      [
+       106.8101925,
+       10.8415832
+      ],
+      [
+       106.8101937,
+       10.8415846
+      ],
+      [
+       106.8101658,
+       10.8416063
+      ],
+      [
+       106.8101647,
+       10.8416048
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-65",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102013,
+       10.8415764
+      ],
+      [
+       106.8102292,
+       10.8415547
+      ],
+      [
+       106.8102303,
+       10.8415562
+      ],
+      [
+       106.8102025,
+       10.8415778
+      ],
+      [
+       106.8102013,
+       10.8415764
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-66",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099739,
+       10.8418703
+      ],
+      [
+       106.8099147,
+       10.8418009
+      ],
+      [
+       106.8099161,
+       10.8417997
+      ],
+      [
+       106.8099753,
+       10.8418691
+      ],
+      [
+       106.8099739,
+       10.8418703
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-67",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100409,
+       10.8418183
+      ],
+      [
+       106.8099797,
+       10.8417499
+      ],
+      [
+       106.8099811,
+       10.8417487
+      ],
+      [
+       106.8100423,
+       10.8418171
+      ],
+      [
+       106.8100409,
+       10.8418183
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-68",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100999,
+       10.8417723
+      ],
+      [
+       106.8100387,
+       10.8417029
+      ],
+      [
+       106.8100401,
+       10.8417017
+      ],
+      [
+       106.8101013,
+       10.8417711
+      ],
+      [
+       106.8100999,
+       10.8417723
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-69",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101629,
+       10.8417233
+      ],
+      [
+       106.8101047,
+       10.8416519
+      ],
+      [
+       106.8101061,
+       10.8416507
+      ],
+      [
+       106.8101643,
+       10.8417221
+      ],
+      [
+       106.8101629,
+       10.8417233
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-7",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.81058,
+       10.84098
+      ],
+      [
+       106.8106821,
+       10.841082
+      ],
+      [
+       106.81068,
+       10.841084
+      ],
+      [
+       106.8105779,
+       10.840982
+      ],
+      [
+       106.81058,
+       10.84098
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-70",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8092647,
+       10.841746
+      ],
+      [
+       106.8093285,
+       10.8416833
+      ],
+      [
+       106.8093297,
+       10.8416845
+      ],
+      [
+       106.809266,
+       10.8417473
+      ],
+      [
+       106.8092647,
+       10.841746
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-71",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8093363,
+       10.8416765
+      ],
+      [
+       106.8094,
+       10.8416137
+      ],
+      [
+       106.8094013,
+       10.841615
+      ],
+      [
+       106.8093375,
+       10.8416777
+      ],
+      [
+       106.8093363,
+       10.8416765
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-72",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8092869,
+       10.84177
+      ],
+      [
+       106.8092639,
+       10.8417459
+      ],
+      [
+       106.8092661,
+       10.841744
+      ],
+      [
+       106.8092891,
+       10.8417681
+      ],
+      [
+       106.8092869,
+       10.84177
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-73",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8097457,
+       10.841289
+      ],
+      [
+       106.8097715,
+       10.8412643
+      ],
+      [
+       106.8097727,
+       10.8412656
+      ],
+      [
+       106.809747,
+       10.8412903
+      ],
+      [
+       106.8097457,
+       10.841289
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-74",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8097793,
+       10.8412574
+      ],
+      [
+       106.809805,
+       10.8412327
+      ],
+      [
+       106.8098063,
+       10.841234
+      ],
+      [
+       106.8097805,
+       10.8412587
+      ],
+      [
+       106.8097793,
+       10.8412574
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-75",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8096859,
+       10.84123
+      ],
+      [
+       106.809745,
+       10.841174
+      ],
+      [
+       106.8097471,
+       10.841176
+      ],
+      [
+       106.809688,
+       10.841232
+      ],
+      [
+       106.8096859,
+       10.84123
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-76",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8093419,
+       10.841555
+      ],
+      [
+       106.809688,
+       10.841228
+      ],
+      [
+       106.8096901,
+       10.84123
+      ],
+      [
+       106.809344,
+       10.841557
+      ],
+      [
+       106.8093419,
+       10.841555
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-77",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8097429,
+       10.841176
+      ],
+      [
+       106.809973,
+       10.840958
+      ],
+      [
+       106.8099751,
+       10.84096
+      ],
+      [
+       106.809745,
+       10.841178
+      ],
+      [
+       106.8097429,
+       10.841176
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-78",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8099709,
+       10.84096
+      ],
+      [
+       106.810027,
+       10.840907
+      ],
+      [
+       106.8100291,
+       10.840909
+      ],
+      [
+       106.809973,
+       10.840962
+      ],
+      [
+       106.8099709,
+       10.84096
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-79",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100249,
+       10.840909
+      ],
+      [
+       106.810084,
+       10.840853
+      ],
+      [
+       106.8100861,
+       10.840855
+      ],
+      [
+       106.810027,
+       10.840911
+      ],
+      [
+       106.8100249,
+       10.840909
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-8",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810682,
+       10.8410814
+      ],
+      [
+       106.8104736,
+       10.8414819
+      ],
+      [
+       106.810471,
+       10.8414806
+      ],
+      [
+       106.8106794,
+       10.8410801
+      ],
+      [
+       106.810682,
+       10.8410814
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-80",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100307,
+       10.841018
+      ],
+      [
+       106.8100545,
+       10.8409953
+      ],
+      [
+       106.8100557,
+       10.8409966
+      ],
+      [
+       106.810032,
+       10.8410193
+      ],
+      [
+       106.8100307,
+       10.841018
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-81",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100613,
+       10.8409884
+      ],
+      [
+       106.810085,
+       10.8409657
+      ],
+      [
+       106.8100863,
+       10.840967
+      ],
+      [
+       106.8100625,
+       10.8409897
+      ],
+      [
+       106.8100613,
+       10.8409884
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-82",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8100837,
+       10.840967
+      ],
+      [
+       106.8101075,
+       10.8409443
+      ],
+      [
+       106.8101087,
+       10.8409456
+      ],
+      [
+       106.810085,
+       10.8409683
+      ],
+      [
+       106.8100837,
+       10.840967
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-83",
+    "wallKind": "INTERIOR",
+    "isPerimeter": false,
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 8.51
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101153,
+       10.8409364
+      ],
+      [
+       106.810144,
+       10.8409087
+      ],
+      [
+       106.8101453,
+       10.84091
+      ],
+      [
+       106.8101165,
+       10.8409377
+      ],
+      [
+       106.8101153,
+       10.8409364
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "wall",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "uwall-9",
+    "wallKind": "PERIMETER",
+    "isPerimeter": true,
+    "color": "#64748b",
+    "baseHeight": 7.16,
+    "extrudeHeight": 10.01
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8102911,
+       10.8416242
+      ],
+      [
+       106.8102248,
+       10.841676
+      ],
+      [
+       106.8102229,
+       10.8416738
+      ],
+      [
+       106.8102892,
+       10.841622
+      ],
+      [
+       106.8102911,
+       10.8416242
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-0-106810029",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810032,
+       10.841018
+      ],
+      [
+       106.809973,
+       10.84096
+      ],
+      [
+       106.810027,
+       10.840909
+      ],
+      [
+       106.810085,
+       10.840967
+      ],
+      [
+       106.810032,
+       10.841018
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-1-106810085",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810084,
+       10.840855
+      ],
+      [
+       106.810144,
+       10.84091
+      ],
+      [
+       106.810085,
+       10.840967
+      ],
+      [
+       106.810027,
+       10.840909
+      ],
+      [
+       106.810084,
+       10.840855
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-10-106809978",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810041,
+       10.841817
+      ],
+      [
+       106.809974,
+       10.841869
+      ],
+      [
+       106.809916,
+       10.841801
+      ],
+      [
+       106.809981,
+       10.84175
+      ],
+      [
+       106.810041,
+       10.841817
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-11-106810361",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810334,
+       10.840881
+      ],
+      [
+       106.810448,
+       10.840998
+      ],
+      [
+       106.810388,
+       10.841052
+      ],
+      [
+       106.810275,
+       10.840939
+      ],
+      [
+       106.810334,
+       10.840881
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-12-106809304",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809266,
+       10.841746
+      ],
+      [
+       106.809208,
+       10.841689
+      ],
+      [
+       106.809344,
+       10.841555
+      ],
+      [
+       106.8094,
+       10.841615
+      ],
+      [
+       106.809266,
+       10.841746
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-13-106810463",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810405,
+       10.840808
+      ],
+      [
+       106.81058,
+       10.840982
+      ],
+      [
+       106.81052,
+       10.841038
+      ],
+      [
+       106.810346,
+       10.840866
+      ],
+      [
+       106.810405,
+       10.840808
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-14-106809494",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809527,
+       10.842014
+      ],
+      [
+       106.809287,
+       10.841768
+      ],
+      [
+       106.809464,
+       10.841595
+      ],
+      [
+       106.809698,
+       10.841836
+      ],
+      [
+       106.809527,
+       10.842014
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-2-106809746",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809747,
+       10.841289
+      ],
+      [
+       106.809688,
+       10.84123
+      ],
+      [
+       106.809745,
+       10.841176
+      ],
+      [
+       106.809805,
+       10.841234
+      ],
+      [
+       106.809747,
+       10.841289
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-3-106810447",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810388,
+       10.841052
+      ],
+      [
+       106.810448,
+       10.840998
+      ],
+      [
+       106.810507,
+       10.841056
+      ],
+      [
+       106.810447,
+       10.841112
+      ],
+      [
+       106.810388,
+       10.841052
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-4-106810040",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.8101,
+       10.841771
+      ],
+      [
+       106.810041,
+       10.841817
+      ],
+      [
+       106.809981,
+       10.84175
+      ],
+      [
+       106.81004,
+       10.841703
+      ],
+      [
+       106.8101,
+       10.841771
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-5-106810165",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810225,
+       10.841674
+      ],
+      [
+       106.810163,
+       10.841722
+      ],
+      [
+       106.810106,
+       10.841652
+      ],
+      [
+       106.810166,
+       10.841605
+      ],
+      [
+       106.810225,
+       10.841674
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-6-106809914",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809974,
+       10.841869
+      ],
+      [
+       106.809913,
+       10.841917
+      ],
+      [
+       106.809853,
+       10.84185
+      ],
+      [
+       106.809916,
+       10.841801
+      ],
+      [
+       106.809974,
+       10.841869
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-7-106810290",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810289,
+       10.841624
+      ],
+      [
+       106.810229,
+       10.841556
+      ],
+      [
+       106.810292,
+       10.841506
+      ],
+      [
+       106.810351,
+       10.841576
+      ],
+      [
+       106.810289,
+       10.841624
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-8-106810227",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810289,
+       10.841624
+      ],
+      [
+       106.810225,
+       10.841674
+      ],
+      [
+       106.810166,
+       10.841605
+      ],
+      [
+       106.810229,
+       10.841556
+      ],
+      [
+       106.810289,
+       10.841624
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "room",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "face-Tòa HCM-2-9-106810102",
+    "role": "ROOM",
+    "color": "#94a3b8",
+    "baseHeight": 7.16,
+    "extrudeHeight": 7.68
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810163,
+       10.841722
+      ],
+      [
+       106.8101,
+       10.841771
+      ],
+      [
+       106.81004,
+       10.841703
+      ],
+      [
+       106.810106,
+       10.841652
+      ],
+      [
+       106.810163,
+       10.841722
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-11",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809773,
+       10.841266
+      ],
+      [
+       106.809781,
+       10.841259
+      ],
+      [
+       106.809779,
+       10.841257
+      ],
+      [
+       106.809771,
+       10.841264
+      ],
+      [
+       106.809773,
+       10.841266
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-12",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810473,
+       10.841024
+      ],
+      [
+       106.81048,
+       10.841032
+      ],
+      [
+       106.810482,
+       10.84103
+      ],
+      [
+       106.810475,
+       10.841022
+      ],
+      [
+       106.810473,
+       10.841024
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-13",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810355,
+       10.840904
+      ],
+      [
+       106.810362,
+       10.840912
+      ],
+      [
+       106.810365,
+       10.84091
+      ],
+      [
+       106.810357,
+       10.840902
+      ],
+      [
+       106.810355,
+       10.840904
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-14",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810497,
+       10.841013
+      ],
+      [
+       106.810489,
+       10.841005
+      ],
+      [
+       106.810487,
+       10.841007
+      ],
+      [
+       106.810495,
+       10.841015
+      ],
+      [
+       106.810497,
+       10.841013
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-15",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810378,
+       10.840896
+      ],
+      [
+       106.81037,
+       10.840888
+      ],
+      [
+       106.810368,
+       10.84089
+      ],
+      [
+       106.810376,
+       10.840898
+      ],
+      [
+       106.810378,
+       10.840896
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-16",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809881,
+       10.84183
+      ],
+      [
+       106.80989,
+       10.841823
+      ],
+      [
+       106.809888,
+       10.841821
+      ],
+      [
+       106.809879,
+       10.841828
+      ],
+      [
+       106.809881,
+       10.84183
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-17",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809945,
+       10.84178
+      ],
+      [
+       106.809954,
+       10.841773
+      ],
+      [
+       106.809952,
+       10.841771
+      ],
+      [
+       106.809943,
+       10.841778
+      ],
+      [
+       106.809945,
+       10.84178
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-18",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810007,
+       10.841731
+      ],
+      [
+       106.810016,
+       10.841724
+      ],
+      [
+       106.810014,
+       10.841722
+      ],
+      [
+       106.810005,
+       10.841729
+      ],
+      [
+       106.810007,
+       10.841731
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-19",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810074,
+       10.841678
+      ],
+      [
+       106.810083,
+       10.841672
+      ],
+      [
+       106.810081,
+       10.841669
+      ],
+      [
+       106.810073,
+       10.841676
+      ],
+      [
+       106.810074,
+       10.841678
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-20",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810133,
+       10.841633
+      ],
+      [
+       106.810141,
+       10.841626
+      ],
+      [
+       106.810139,
+       10.841624
+      ],
+      [
+       106.810131,
+       10.841631
+      ],
+      [
+       106.810133,
+       10.841633
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-21",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810194,
+       10.841585
+      ],
+      [
+       106.810203,
+       10.841578
+      ],
+      [
+       106.810201,
+       10.841576
+      ],
+      [
+       106.810192,
+       10.841583
+      ],
+      [
+       106.810194,
+       10.841585
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-22",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810257,
+       10.841536
+      ],
+      [
+       106.810266,
+       10.841529
+      ],
+      [
+       106.810264,
+       10.841527
+      ],
+      [
+       106.810255,
+       10.841533
+      ],
+      [
+       106.810257,
+       10.841536
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-24",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.80933,
+       10.841685
+      ],
+      [
+       106.809338,
+       10.841678
+      ],
+      [
+       106.809336,
+       10.841676
+      ],
+      [
+       106.809328,
+       10.841683
+      ],
+      [
+       106.80933,
+       10.841685
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-4",
+    "isPerimeter": false,
+    "widthMeters": 4.98,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.809539,
+       10.841675
+      ],
+      [
+       106.809571,
+       10.841707
+      ],
+      [
+       106.809573,
+       10.841705
+      ],
+      [
+       106.809541,
+       10.841673
+      ],
+      [
+       106.809539,
+       10.841675
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-5",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810056,
+       10.840997
+      ],
+      [
+       106.810063,
+       10.84099
+      ],
+      [
+       106.810061,
+       10.840988
+      ],
+      [
+       106.810053,
+       10.840995
+      ],
+      [
+       106.810056,
+       10.840997
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "door",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "door-clone-1794365994213-6",
+    "isPerimeter": false,
+    "widthMeters": 1.2,
+    "heightOffset": 7.28
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       106.810109,
+       10.840946
+      ],
+      [
+       106.810117,
+       10.840938
+      ],
+      [
+       106.810115,
+       10.840936
+      ],
+      [
+       106.810107,
+       10.840944
+      ],
+      [
+       106.810109,
+       10.840946
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "portal",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "node-portal-tòahcm-f2-1794367778012-2",
+    "nodeType": "STAIRS",
+    "portalGroupId": "HCM_STAIR_W",
+    "heightOffset": 7.51
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     106.809714,
+     10.841267
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "layer": "portal",
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "id": "node-portal-tòahcm-f2-1794441453910-2",
+    "nodeType": "STAIRS",
+    "portalGroupId": "HCM_STAIR_1",
+    "heightOffset": 7.51
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     106.810354,
+     10.841507
+    ]
+   }
+  }
+ ]
+}

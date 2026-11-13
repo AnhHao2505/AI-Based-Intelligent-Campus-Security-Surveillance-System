@@ -134,6 +134,16 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+      # P-MAP-0: asset bản đồ cho mobile phải khớp seed web (sinh lại vào thư mục tạm rồi so)
+      - name: Check mobile campus map assets
+        run: |
+          OUT="$RUNNER_TEMP/campus-map"
+          node scripts/export-campus-map.mjs --out "$OUT"
+          if ! diff -r --exclude=README.md "$OUT" ../mobile/assets/campus; then
+            echo "::error::mobile/assets/campus không khớp seed bản đồ web. Chạy: cd frontend && npm run export:campus-map và commit mobile/assets/campus."
+            exit 1
+          fi
+
   ai-service-test:
     name: ai-service-test
     runs-on: ubuntu-latest
