@@ -91,8 +91,18 @@ class AreaPinModel {
 
   String get locationSubtitle {
     final parts = <String>[];
-    if (building != null && building!.isNotEmpty) parts.add('Tòa $building');
-    if (floor != null && floor!.isNotEmpty) parts.add('Tầng $floor');
+    final b = building?.trim() ?? '';
+    final f = floor?.trim() ?? '';
+    // API đã trả tên có tiền tố ("Tòa Alpha", "Tầng Trệt") -> chỉ thêm tiền tố khi tên chưa có
+    if (b.isNotEmpty) parts.add(withPrefix(b, 'Tòa', const ['tòa', 'toà', 'toa']));
+    if (f.isNotEmpty) parts.add(withPrefix(f, 'Tầng', const ['tầng', 'tang']));
     return parts.isEmpty ? 'Khuôn viên ngoài trời' : parts.join(' • ');
+  }
+
+  /// Thêm [prefix] trước [name] trừ khi [name] đã bắt đầu bằng một trong [existing] (không phân biệt hoa thường).
+  static String withPrefix(String name, String prefix, List<String> existing) {
+    final lower = name.toLowerCase();
+    final hasPrefix = existing.any((p) => lower == p || lower.startsWith('$p '));
+    return hasPrefix ? name : '$prefix $name';
   }
 }
