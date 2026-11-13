@@ -146,7 +146,7 @@ class V83MergeAreaTypesMigrationTest extends AbstractIntegrationTest {
                 assertEquals("CONFIDENTIAL_CONTACT_REQUIRED", jdbc.queryForObject(
                         "SELECT old_value ->> 'areaLevel' FROM audit_logs WHERE actor_source = ? AND area_id = ? AND action = 'CHANGE_TYPE'",
                         String.class, SOURCE, contact), "audit giữ tên loại cũ");
-                assertEquals(presetAuditsBefore + 3, presetAudits(), "audit 3 dòng preset đổi (Nội bộ, Liên hệ trước, Tuyệt mật)");
+                assertEquals(presetAuditsBefore + 3, presetAudits(), "audit 3 dòng preset đổi (Nội bộ, Liên hệ trước, Bảo mật cao)");
 
                 assertEquals(List.of("PUBLIC:1:false", "CONFIDENTIAL:2:false", "HIGHLY_CONFIDENTIAL:3:false"), jdbc.queryForList(
                         "SELECT area_level || ':' || area_access_level || ':' || explicit_authorization_required FROM area_level_presets ORDER BY area_access_level",

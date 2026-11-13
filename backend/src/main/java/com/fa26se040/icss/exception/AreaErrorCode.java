@@ -57,7 +57,7 @@ public enum AreaErrorCode {
     ERR_AREA_054("ERR_AREA_054", HttpStatus.CONFLICT, "Khu vực chưa bị vô hiệu hoá, không cần khôi phục"),
     ERR_AREA_055("ERR_AREA_055", HttpStatus.CONFLICT, "Không thể khôi phục: tầng hoặc toà nhà của khu vực không còn hoạt động"),
     // V83 (D4): không còn sửa cấp riêng từng khu; PATCH /api/areas/{id}/access-rules luôn trả lỗi này
-    ERR_AREA_056("ERR_AREA_056", HttpStatus.BAD_REQUEST, "Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Tuyệt mật: cấp 3). Muốn đổi cấp, hãy đổi loại khu vực"),
+    ERR_AREA_056("ERR_AREA_056", HttpStatus.BAD_REQUEST, "Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Bảo mật cao: cấp 3). Muốn đổi cấp, hãy đổi loại khu vực"),
     // V87: tên sự kiện của lịch
     ERR_AREA_057("ERR_AREA_057", HttpStatus.BAD_REQUEST, "Tên sự kiện bắt buộc, tối đa {max} ký tự"),
     // X-01a: chế độ sự kiện chỉ mở qua lịch; PATCH /event-mode chỉ còn DISABLE

@@ -8,7 +8,7 @@ package com.fa26se040.icss.enums;
 public enum AreaLevel {
     PUBLIC(1, "Công khai"),
     CONFIDENTIAL(2, "Bảo mật"),
-    HIGHLY_CONFIDENTIAL(3, "Tuyệt mật");
+    HIGHLY_CONFIDENTIAL(3, "Bảo mật cao");
 
     private final int level;
     private final String label;
@@ -18,7 +18,7 @@ public enum AreaLevel {
         this.label = label;
     }
 
-    /** Cấp truy cập của loại: Công khai 1, Bảo mật 2, Tuyệt mật 3. */
+    /** Cấp truy cập của loại: Công khai 1, Bảo mật 2, Bảo mật cao 3. */
     public int level() {
         return level;
     }

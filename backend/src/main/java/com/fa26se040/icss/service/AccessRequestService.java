@@ -149,7 +149,7 @@ public class AccessRequestService {
 
         validateCommonRules(area, request.startTime(), request.endTime());
 
-        // Phần chỉ phụ thuộc khu (đang hoạt động, Tuyệt mật không nhận đơn nhóm) báo trước khi tra thành viên
+        // Phần chỉ phụ thuộc khu (đang hoạt động, Bảo mật cao không nhận đơn nhóm) báo trước khi tra thành viên
         requireAreaAvailableForRequest(area, null, RequestType.GROUP);
         List<User> memberUsers = resolveAndValidateGroupMembers(request.memberUserCodes(), requester);
         List<User> lockTargets = new ArrayList<>(memberUsers);
@@ -515,7 +515,7 @@ public class AccessRequestService {
                 if (pendingReq.getRequestType() == RequestType.GROUP
                         && currentArea.getAreaLevel() == AreaLevel.HIGHLY_CONFIDENTIAL
                         && !groupAllowedInPrivate) {
-                    throw new IllegalArgumentException("Khu vực Tuyệt mật (HIGHLY_CONFIDENTIAL) không cho phép duyệt đơn truy cập nhóm (GROUP)");
+                    throw new IllegalArgumentException("Khu vực Bảo mật cao (HIGHLY_CONFIDENTIAL) không cho phép duyệt đơn truy cập nhóm (GROUP)");
                 }
 
                 // V83 (BR-RQ-02): không kiểm lại cấp người tạo đơn (đơn cá nhân vốn dành cho người thiếu cấp;
