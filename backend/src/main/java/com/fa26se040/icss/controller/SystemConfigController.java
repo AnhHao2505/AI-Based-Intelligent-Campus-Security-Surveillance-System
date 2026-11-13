@@ -4,6 +4,7 @@ import com.fa26se040.icss.dto.common.ApiResponse;
 import com.fa26se040.icss.dto.guest.GuestPurposeLimits;
 import com.fa26se040.icss.dto.systemconfig.AfterHoursWindowResponse;
 import com.fa26se040.icss.dto.systemconfig.ReasonLimits;
+import com.fa26se040.icss.dto.systemconfig.RouteSettingsResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigChangeLogResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigUpdateRequest;
@@ -77,6 +78,20 @@ public class SystemConfigController {
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuestPurposeLimits>> getGuestPurposeLimits() {
         return ResponseEntity.ok(ApiResponse.success(guestRules.purposeLimits(), "Lấy giới hạn độ dài mục đích lượt khách thành công"));
+    }
+
+    /**
+     * P-MAP-2 (V123, MM-05): tham số ước tính thời gian lộ trình trên bản đồ cho mọi tài khoản đã đăng nhập (bảo vệ dùng
+     * trên app, ADMIN dùng ở công cụ thử tuyến trên web). Chỉ trả 2 giá trị này. Cùng cách khai báo với
+     * /reason-limits: GET không tham số nên chỉ cần @PreAuthorize, không thêm vào RoleRestrictedEndpoints.
+     */
+    @GetMapping("/route-settings")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<RouteSettingsResponse>> getRouteSettings() {
+        RouteSettingsResponse settings = new RouteSettingsResponse(
+                systemConfigService.getDoubleWithinBounds(ConfigKey.WALKING_SPEED_MPS),
+                systemConfigService.getIntWithinBounds(ConfigKey.FLOOR_CHANGE_SECONDS));
+        return ResponseEntity.ok(ApiResponse.success(settings, "Lấy tham số ước tính thời gian di chuyển thành công"));
     }
 
     @PatchMapping("/{configKey}")

@@ -78,6 +78,9 @@ public enum ConfigKey {
     // V121: thời hạn token xem video ghi hình / live có chú thích (giây), đọc mỗi lần cấp token
     RECORDING_STREAM_TOKEN_SECONDS("RECORDING_STREAM_TOKEN_SECONDS", "300"),
     ANNOTATED_STREAM_TOKEN_SECONDS("ANNOTATED_STREAM_TOKEN_SECONDS", "60"),
+    // V123 (P-MAP-2, MM-05): ước tính thời gian di chuyển trên bản đồ (web + app bảo vệ)
+    WALKING_SPEED_MPS("WALKING_SPEED_MPS", "1.45"),
+    FLOOR_CHANGE_SECONDS("FLOOR_CHANGE_SECONDS", "14"),
     // Phân phối sự cố (V90, K7): bật mời theo đợt, cửa sổ tính load score, chu kỳ job lời mời;
     // mức độ khi không có luật severity khớp (BR-SEV-03, validate riêng trong SystemConfigService)
     DISPATCH_ENABLED("DISPATCH_ENABLED", "false"),
