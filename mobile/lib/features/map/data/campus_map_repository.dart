@@ -21,7 +21,7 @@ class CampusMapRepository {
       : _bundle = bundle ?? rootBundle,
         _parser = parser ?? _parseInIsolate;
 
-  /// Đọc manifest + mọi GeoJSON khối 3D. Lỗi bất kỳ → [CampusMapLoadException] với câu thân thiện.
+  /// Đọc manifest + mọi GeoJSON khối 3D + đồ thị đường đi. Lỗi bất kỳ → [CampusMapLoadException] với câu thân thiện.
   Future<CampusMapData> load() async {
     try {
       final manifestRaw = await _bundle.loadString('$basePath/manifest.json', cache: false);
@@ -35,6 +35,15 @@ class CampusMapRepository {
           final rel = (f as Map)['file']?.toString();
           if (rel == null || files.containsKey(rel)) continue;
           files[rel] = await _bundle.loadString('$basePath/$rel', cache: false);
+        }
+      }
+      // Đồ thị đường đi (P-MAP-2); không đọc được thì bản đồ 3D vẫn mở, dẫn đường chỉ vẽ hướng thẳng
+      final graphRel = (manifest['graph'] as Map?)?['file']?.toString();
+      if (graphRel != null && !files.containsKey(graphRel)) {
+        try {
+          files[graphRel] = await _bundle.loadString('$basePath/$graphRel', cache: false);
+        } catch (e) {
+          debugPrint('[CampusMapRepository] Không đọc được $graphRel: $e');
         }
       }
       return await _parser(files);

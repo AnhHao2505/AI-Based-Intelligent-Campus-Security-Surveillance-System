@@ -95,20 +95,3 @@ Map<String, dynamic> pointGeoJson(ll.LatLng? point) => {
           },
       ],
     };
-
-Map<String, dynamic> lineGeoJson(List<ll.LatLng> points) => {
-      'type': 'FeatureCollection',
-      'features': [
-        if (points.length >= 2)
-          {
-            'type': 'Feature',
-            'properties': <String, dynamic>{},
-            'geometry': {
-              'type': 'LineString',
-              'coordinates': [
-                for (final p in points) [p.longitude, p.latitude],
-              ],
-            },
-          },
-      ],
-    };

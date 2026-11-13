@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'campus_graph.dart';
+
 /// Lỗi nạp / phân tích asset bản đồ khuôn viên. [message] hiển thị được cho người dùng.
 class CampusMapLoadException implements Exception {
   final String message;
@@ -88,12 +90,16 @@ class CampusMapData {
   final Map<String, CampusFloorLayer> floors;
   final CampusBounds bounds;
 
+  /// Đồ thị đường đi (graph.json); null khi asset không có đồ thị → dẫn đường chỉ vẽ hướng thẳng.
+  final CampusGraph? graph;
+
   const CampusMapData({
     required this.schemaVersion,
     required this.seedVersion,
     required this.buildings,
     required this.floors,
     required this.bounds,
+    this.graph,
   });
 
   static String floorKey(String building, int floorOrder) => '$building::$floorOrder';
@@ -160,6 +166,28 @@ class CampusMapData {
             !rings.skip(1).any((hole) => _pointInRing(longitude, latitude, hole))) {
           return props?['id']?.toString();
         }
+      }
+    }
+    return null;
+  }
+}
+
+extension CampusFootprint on CampusMapData {
+  /// Toà (tên chuẩn) có PHÒNG tầng trệt (layer = slab, role = ROOM) chứa điểm (lat, lon); không nằm trong phòng nào → null.
+  /// Dùng để biết vị trí GPS đang ở trong nhà (GPS trong nhà không đủ tin cậy để gắn vào nút gần nhất).
+  /// Không tính mặt hành lang (role = CORRIDOR): trong asset có mặt hành lang phủ cả lối đi / sân ngoài trời có nút
+  /// ngoài trời (vd sân trong Tòa Alpha, điểm xuất phát của các ca golden GR-020…GR-032).
+  String? buildingAt({required double latitude, required double longitude}) {
+    for (final b in buildings) {
+      final floor = floors[CampusMapData.floorKey(b.name, 0)];
+      if (floor == null) continue;
+      for (final f in floor.features) {
+        final props = f['properties'] as Map?;
+        if (props?['layer'] != 'slab' || props?['role'] != 'ROOM') continue;
+        final geom = f['geometry'] as Map?;
+        if (geom?['type'] != 'Polygon') continue;
+        final rings = (geom!['coordinates'] as List).cast<List>();
+        if (rings.isNotEmpty && _pointInRing(longitude, latitude, rings.first)) return b.name;
       }
     }
     return null;
@@ -283,11 +311,25 @@ CampusMapData parseCampusAssets(Map<String, String> files) {
     throw const CampusMapLoadException('Dữ liệu bản đồ khuôn viên rỗng');
   }
 
+  // Đồ thị đường đi (P-MAP-2). Thiếu / hỏng thì vẫn mở được bản đồ 3D; dẫn đường rơi về hướng thẳng.
+  CampusGraph? graph;
+  final graphFile = (manifest['graph'] as Map?)?['file']?.toString();
+  final graphRaw = graphFile == null ? null : files[graphFile];
+  if (graphRaw != null) {
+    try {
+      final g = CampusGraph.fromJson(jsonDecode(graphRaw) as Map<String, dynamic>);
+      graph = g.nodes.isEmpty ? null : g;
+    } catch (_) {
+      graph = null;
+    }
+  }
+
   return CampusMapData(
     schemaVersion: schema as int,
     seedVersion: seed,
     buildings: buildings,
     floors: floors,
     bounds: CampusBounds(west: west, south: south, east: east, north: north),
+    graph: graph,
   );
 }

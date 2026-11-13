@@ -19,6 +19,10 @@ export const DEFAULT_GEOMETRY_SEED_VERSION =
 export const STORAGE_KEY_3D_GEOMETRY = "icss_campus_3d_geometry_v4";
 
 export const FLOOR_ELEVATION_STEP = 3.5;
+// P-MAP-2 (V123, MM-05): mặc định ước tính thời gian lộ trình khi chưa tải được cấu hình
+// WALKING_SPEED_MPS / FLOOR_CHANGE_SECONDS (GET /api/system-configurations/route-settings). Giá trị thật lấy từ cấu hình.
+export const DEFAULT_WALKING_SPEED_MPS = 1.45;
+export const DEFAULT_FLOOR_CHANGE_SECONDS = 14;
 export const EXPLODED_FLOOR_STEP_OPTIONS = [
 	{ id: "compact", label: "Khép", step: FLOOR_ELEVATION_STEP },
 	{ id: "medium", label: "Vừa", step: 7.5 },
@@ -3805,7 +3809,18 @@ export function computeDigitizedRoute({
 	endBuilding = "Tòa Alpha",
 	endFloorOrder = 0,
 	diagnosticsOut = null,
+	walkingSpeedMps = DEFAULT_WALKING_SPEED_MPS,
+	floorChangeSeconds = DEFAULT_FLOOR_CHANGE_SECONDS,
 }) {
+	// Tham số ước tính thời gian (cấu hình hệ thống); giá trị không hợp lệ → mặc định
+	const speedMps =
+		Number.isFinite(Number(walkingSpeedMps)) && Number(walkingSpeedMps) > 0
+			? Number(walkingSpeedMps)
+			: DEFAULT_WALKING_SPEED_MPS;
+	const secondsPerFloor =
+		Number.isFinite(Number(floorChangeSeconds)) && Number(floorChangeSeconds) >= 0
+			? Number(floorChangeSeconds)
+			: DEFAULT_FLOOR_CHANGE_SECONDS;
 	const setDiag = (reasonCode, message) => {
 		if (diagnosticsOut && typeof diagnosticsOut === "object") {
 			diagnosticsOut.reasonCode = reasonCode;
@@ -3953,7 +3968,7 @@ export function computeDigitizedRoute({
 			pathNodes: intraNodes,
 			totalDistanceMeters: Math.round(directMeters),
 			floorsClimbed: 0,
-			estimatedSeconds: Math.max(1, Math.round(directMeters / 1.45)),
+			estimatedSeconds: Math.max(1, Math.round(directMeters / speedMps)),
 			geojson: {
 				type: "FeatureCollection",
 				features: [
@@ -4392,7 +4407,7 @@ export function computeDigitizedRoute({
 			pathNodes: [],
 			totalDistanceMeters: Math.round(extMeters),
 			floorsClimbed: 0,
-			estimatedSeconds: Math.max(1, Math.round(extMeters / 1.45)),
+			estimatedSeconds: Math.max(1, Math.round(extMeters / speedMps)),
 			geojson: {
 				type: "FeatureCollection",
 				features: [
@@ -4656,7 +4671,7 @@ export function computeDigitizedRoute({
 		pathNodes,
 		totalDistanceMeters: Math.round(totalMeters),
 		floorsClimbed,
-		estimatedSeconds: Math.round(totalMeters / 1.45 + floorsClimbed * 14),
+		estimatedSeconds: Math.round(totalMeters / speedMps + floorsClimbed * secondsPerFloor),
 		geojson: { type: "FeatureCollection", features },
 	};
 }

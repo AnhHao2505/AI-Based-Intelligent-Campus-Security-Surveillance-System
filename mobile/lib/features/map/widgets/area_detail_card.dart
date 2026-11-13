@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
+import '../data/campus_route_planner.dart';
 import '../models/area_pin_model.dart';
-import '../services/routing_service.dart';
 
 class AreaDetailCard extends StatelessWidget {
   final AreaPinModel area;
   final LatLng? guardLocation;
-  final RouteResult? currentRoute;
+  final CampusRoute? currentRoute;
   final bool isLoadingRoute;
   final VoidCallback onNavigateTap;
   final VoidCallback onCancelRoute;
@@ -189,12 +189,43 @@ class AreaDetailCard extends StatelessWidget {
                             color: AppColors.primaryLight,
                           ),
                         ),
-                        if (currentRoute!.isFallbackDirect)
-                          Text(
-                            'Ước tính đường thẳng (OSRM không khả dụng)',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: AppColors.txtMuted(context),
+                        if (currentRoute!.startMode == CampusRouteStartMode.selectedFloor &&
+                            currentRoute!.startBuilding != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              'Xuất phát: cầu thang / thang máy ${currentRoute!.startBuilding} • '
+                              '${campusFloorLabel(currentRoute!.startFloorOrder)} (toà / tầng đang chọn)',
+                              style: TextStyle(fontSize: 11, color: AppColors.txtSecondary(context)),
+                            ),
+                          ),
+                        if (currentRoute!.floorChanges.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.stairs_rounded, size: 14, color: AppColors.warning),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    currentRoute!.floorChanges.map((c) => c.label).join(' → '),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.warning,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (currentRoute!.isDirectFallback)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              CampusRoute.directFallbackMessage,
+                              style: TextStyle(fontSize: 11, color: AppColors.txtMuted(context)),
                             ),
                           ),
                       ],
