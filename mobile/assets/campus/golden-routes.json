@@ -1,7 +1,7 @@
 {
  "schemaVersion": 1,
  "seedVersion": "2026-11-12-epsilon-1",
- "source": "computeDigitizedRoute (frontend/src/data/campusIndoor3dData.js:3799)",
+ "source": "computeDigitizedRoute (frontend/src/data/campusIndoor3dData.js)",
  "areaSource": "backend/src/main/resources/db/migration/V120_1__seed_epsilon_areas.sql",
  "cases": [
   {
@@ -36,7 +36,7 @@
      "node-1794367175244",
      "node-portal-tòahcm-f0-1794441452896-0"
     ],
-    "totalCost": 130.793,
+    "totalCost": 130.791366196,
     "totalDistanceMeters": 131,
     "floorsClimbed": 0,
     "estimatedSeconds": 90
@@ -65,7 +65,7 @@
      "node-1794441185020",
      "node-portal-tòahcm-f1-1794367768726-1"
     ],
-    "totalCost": 6.39,
+    "totalCost": 6.390110746,
     "totalDistanceMeters": 6,
     "floorsClimbed": 0,
     "estimatedSeconds": 4
@@ -107,7 +107,7 @@
      "node-1794441946456",
      "node-portal-tòahcm-f2-1794441453910-2"
     ],
-    "totalCost": 175.414,
+    "totalCost": 175.412622646,
     "totalDistanceMeters": 175,
     "floorsClimbed": 0,
     "estimatedSeconds": 121
@@ -145,7 +145,7 @@
      "node-1794457066858",
      "node-1794466798457"
     ],
-    "totalCost": 53.795,
+    "totalCost": 53.795653516,
     "totalDistanceMeters": 54,
     "floorsClimbed": 0,
     "estimatedSeconds": 37
@@ -189,7 +189,7 @@
      "node-1794465170911",
      "node-portal-tòaepsilon-f1-1794456904999-1"
     ],
-    "totalCost": 83.801,
+    "totalCost": 83.801090569,
     "totalDistanceMeters": 84,
     "floorsClimbed": 0,
     "estimatedSeconds": 58
@@ -228,7 +228,7 @@
      "node-clone-eps-f2-1794465229315",
      "node-portal-tòaepsilon-f2-1794462400588-2"
     ],
-    "totalCost": 63.251,
+    "totalCost": 63.250568238,
     "totalDistanceMeters": 63,
     "floorsClimbed": 0,
     "estimatedSeconds": 44
@@ -267,7 +267,7 @@
      "node-clone-eps-f3-1794465229315",
      "node-portal-tòaepsilon-f3-1794462401569-3"
     ],
-    "totalCost": 63.251,
+    "totalCost": 63.250568238,
     "totalDistanceMeters": 63,
     "floorsClimbed": 0,
     "estimatedSeconds": 44
@@ -306,7 +306,7 @@
      "node-clone-eps-f4-1794465229315",
      "node-portal-tòaepsilon-f4-1794462401157-4"
     ],
-    "totalCost": 63.251,
+    "totalCost": 63.250568238,
     "totalDistanceMeters": 63,
     "floorsClimbed": 0,
     "estimatedSeconds": 44
@@ -352,7 +352,7 @@
      "node-1794441293728",
      "__door_door-clone-1794365982376-21__"
     ],
-    "totalCost": 169.843,
+    "totalCost": 169.841865856,
     "totalDistanceMeters": 152,
     "floorsClimbed": 1,
     "estimatedSeconds": 119
@@ -399,7 +399,7 @@
      "node-1794441952503",
      "__door_door-clone-1794365994213-21__"
     ],
-    "totalCost": 187.461,
+    "totalCost": 187.459999061,
     "totalDistanceMeters": 151,
     "floorsClimbed": 2,
     "estimatedSeconds": 132
@@ -440,7 +440,7 @@
      "node-1794465245301",
      "node-1794465244606"
     ],
-    "totalCost": 69.398,
+    "totalCost": 69.398826731,
     "totalDistanceMeters": 51,
     "floorsClimbed": 1,
     "estimatedSeconds": 49
@@ -481,7 +481,7 @@
      "node-clone-eps-f2-1794465248249",
      "node-clone-eps-f2-1794465245301"
     ],
-    "totalCost": 85.543,
+    "totalCost": 85.544198179,
     "totalDistanceMeters": 50,
     "floorsClimbed": 2,
     "estimatedSeconds": 62
@@ -523,7 +523,7 @@
      "node-clone-eps-f3-1794465248249",
      "node-clone-eps-f3-1794465245301"
     ],
-    "totalCost": 103.543,
+    "totalCost": 103.544198179,
     "totalDistanceMeters": 50,
     "floorsClimbed": 3,
     "estimatedSeconds": 76
@@ -566,7 +566,7 @@
      "node-clone-eps-f4-1794465248249",
      "node-clone-eps-f4-1794465245301"
     ],
-    "totalCost": 121.543,
+    "totalCost": 121.544198179,
     "totalDistanceMeters": 50,
     "floorsClimbed": 4,
     "estimatedSeconds": 90
@@ -621,7 +621,7 @@
      "node-1794457066858",
      "node-1794466798457"
     ],
-    "totalCost": 332.859,
+    "totalCost": 332.859836851,
     "totalDistanceMeters": 333,
     "floorsClimbed": 0,
     "estimatedSeconds": 230
@@ -674,7 +674,7 @@
      "node-1794456888115",
      "node-portal-tòaepsilon-f1-1794456904999-1"
     ],
-    "totalCost": 331.875,
+    "totalCost": 331.876183325,
     "totalDistanceMeters": 296,
     "floorsClimbed": 2,
     "estimatedSeconds": 232
@@ -734,7 +734,7 @@
      "node-1794462396535",
      "node-portal-tòaepsilon-f2-1794462400588-2"
     ],
-    "totalCost": 402.071,
+    "totalCost": 402.071803029,
     "totalDistanceMeters": 330,
     "floorsClimbed": 4,
     "estimatedSeconds": 284
@@ -795,7 +795,7 @@
      "node-portal-tòaepsilon-f2-1794462400588-2",
      "node-portal-tòaepsilon-f3-1794462401569-3"
     ],
-    "totalCost": 420.071,
+    "totalCost": 420.071803029,
     "totalDistanceMeters": 330,
     "floorsClimbed": 5,
     "estimatedSeconds": 298
@@ -857,7 +857,7 @@
      "node-portal-tòaepsilon-f3-1794462401569-3",
      "node-portal-tòaepsilon-f4-1794462401157-4"
     ],
-    "totalCost": 438.071,
+    "totalCost": 438.071803029,
     "totalDistanceMeters": 330,
     "floorsClimbed": 6,
     "estimatedSeconds": 312
@@ -901,7 +901,7 @@
      "__t___door_door-1794452514914___cor__",
      "__door_door-1794452514914__"
     ],
-    "totalCost": 250.301,
+    "totalCost": 250.30167293,
     "totalDistanceMeters": 252,
     "floorsClimbed": 0,
     "estimatedSeconds": 173
@@ -945,7 +945,7 @@
      "node-1794457081382",
      "__door_door-1794452672351__"
     ],
-    "totalCost": 250.68,
+    "totalCost": 250.681313782,
     "totalDistanceMeters": 254,
     "floorsClimbed": 0,
     "estimatedSeconds": 175
@@ -992,7 +992,7 @@
      "node-1794457150908",
      "__door_door-1794451517090__"
     ],
-    "totalCost": 286.104,
+    "totalCost": 286.106267072,
     "totalDistanceMeters": 290,
     "floorsClimbed": 0,
     "estimatedSeconds": 200
@@ -1038,7 +1038,7 @@
      "__t___door_door-1794451843911___cor__",
      "__door_door-1794451843911__"
     ],
-    "totalCost": 263.314,
+    "totalCost": 263.314227317,
     "totalDistanceMeters": 267,
     "floorsClimbed": 0,
     "estimatedSeconds": 184
@@ -1081,7 +1081,7 @@
      "__t___door_door-1794451718266___cor__",
      "__door_door-1794451718266__"
     ],
-    "totalCost": 264.435,
+    "totalCost": 264.435511346,
     "totalDistanceMeters": 269,
     "floorsClimbed": 0,
     "estimatedSeconds": 185
@@ -1121,7 +1121,7 @@
      "node-1794457098586",
      "__door_door-1794449965635__"
     ],
-    "totalCost": 233.305,
+    "totalCost": 233.305966717,
     "totalDistanceMeters": 239,
     "floorsClimbed": 0,
     "estimatedSeconds": 165
@@ -1168,7 +1168,7 @@
      "node-1794457065080",
      "__door_door-1794461339057__"
     ],
-    "totalCost": 262.151,
+    "totalCost": 262.151711228,
     "totalDistanceMeters": 264,
     "floorsClimbed": 0,
     "estimatedSeconds": 182
@@ -1218,7 +1218,7 @@
      "__t___door_door-1794462812021___cor__",
      "__door_door-1794462812021__"
     ],
-    "totalCost": 306.03,
+    "totalCost": 306.032047073,
     "totalDistanceMeters": 291,
     "floorsClimbed": 1,
     "estimatedSeconds": 215
@@ -1270,7 +1270,7 @@
      "node-clone-eps-f2-1794465288725",
      "__door_door-clone-1794463593663-10__"
     ],
-    "totalCost": 333.119,
+    "totalCost": 333.120020256,
     "totalDistanceMeters": 299,
     "floorsClimbed": 2,
     "estimatedSeconds": 234
@@ -1318,7 +1318,7 @@
      "__t___door_door-clone-1794463593663-6___cor__",
      "__door_door-clone-1794463593663-6__"
     ],
-    "totalCost": 319.673,
+    "totalCost": 319.673638961,
     "totalDistanceMeters": 289,
     "floorsClimbed": 2,
     "estimatedSeconds": 227
@@ -1370,7 +1370,7 @@
      "__t___door_door-clone-1794463599934-15___cor__",
      "__door_door-clone-1794463599934-15__"
     ],
-    "totalCost": 342.661,
+    "totalCost": 342.661919277,
     "totalDistanceMeters": 292,
     "floorsClimbed": 3,
     "estimatedSeconds": 243
@@ -1424,7 +1424,7 @@
      "node-clone-eps-f4-1794465288725",
      "__door_door-clone-1794463603738-10__"
     ],
-    "totalCost": 369.431,
+    "totalCost": 369.431733464,
     "totalDistanceMeters": 299,
     "floorsClimbed": 4,
     "estimatedSeconds": 262
@@ -1468,7 +1468,7 @@
      "__door_door-1794457160957__",
      "node-1794466544256"
     ],
-    "totalCost": 252.622,
+    "totalCost": 252.62302002,
     "totalDistanceMeters": 253,
     "floorsClimbed": 0,
     "estimatedSeconds": 174

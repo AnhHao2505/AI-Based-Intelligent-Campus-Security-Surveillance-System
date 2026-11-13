@@ -4,7 +4,8 @@
  "generator": "frontend/scripts/export-campus-map.mjs",
  "precision": {
   "coordinateDigits": 7,
-  "numberDigits": 3
+  "numberDigits": 3,
+  "costDigits": 9
  },
  "graph": {
   "file": "graph.json",
@@ -81,13 +82,13 @@
  "files": [
   {
    "path": "golden-routes.json",
-   "bytes": 37142,
-   "sha256": "e28c9a7a698b2d1f0ce07bb9994bcff409da92797b8649d50612d473f0bdb7e7"
+   "bytes": 37330,
+   "sha256": "e2bab049dcf46d346bd4d89e5602ca6b4798ab9b8ddf1e539c8c84db7e0ae4c8"
   },
   {
    "path": "graph.json",
-   "bytes": 277894,
-   "sha256": "5e105bc12fdd4bba52667f6b218c0d54c5671094770727e2e7effb2592add900"
+   "bytes": 283176,
+   "sha256": "f528f48ee437c1b2cf6fc8b0cbd94d2405ff06c4ca39db7903803eb031395f25"
   },
   {
    "path": "layers/toa-alpha__f0.geojson",

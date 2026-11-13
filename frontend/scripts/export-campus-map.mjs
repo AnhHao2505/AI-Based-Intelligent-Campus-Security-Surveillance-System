@@ -36,7 +36,10 @@ const DEFAULT_OUT = path.join(REPO_DIR, "mobile/assets/campus");
 
 const SCHEMA_VERSION = 1;
 const COORD_DIGITS = 7; // ~1 cm
-const NUM_DIGITS = 3; // mét / chi phí / chiều cao
+const NUM_DIGITS = 3; // mét / chiều cao
+// P-MAP-2: chi phí cạnh giữ 9 chữ số (~1 nm). Làm tròn 3 chữ số làm các đường gần bằng nhau đảo thứ tự, Dijkstra mobile
+// chọn khác web (11/32 ca chuẩn lệch).
+const COST_DIGITS = 9;
 
 const args = process.argv.slice(2);
 const outIdx = args.indexOf("--out");
@@ -197,7 +200,7 @@ function buildGraph(web, base) {
 			const key = `${a}\u0000${b}`;
 			const u = base.nodeMap.get(a);
 			const v = base.nodeMap.get(b);
-			const cost = round(weight, NUM_DIGITS);
+			const cost = round(weight, COST_DIGITS);
 			const prev = edgeMap.get(key);
 			if (!prev || cost < prev.cost) {
 				edgeMap.set(key, {
@@ -324,7 +327,7 @@ function routeCase(web, store, c, graph) {
 	}
 	const ids = res.pathNodes.map((n) => n.id);
 	// Tổng chi phí theo trọng số web: cạnh có trong đồ thị nền dùng đúng cost đã xuất; cạnh gắn điểm đi / đến (nút ảo
-	// sinh lúc gọi) dùng công thức nền của web: haversineMeters + |Δtầng| × 18 (campusIndoor3dData.js:3412-3416).
+	// sinh lúc gọi) dùng công thức nền của web: haversineMeters + |Δtầng| × 18 (campusIndoor3dData.js, buildOrGetCachedRouteBase).
 	let totalCost = 0;
 	for (let i = 0; i < res.pathNodes.length - 1; i++) {
 		const u = res.pathNodes[i];
@@ -338,7 +341,7 @@ function routeCase(web, store, c, graph) {
 	return {
 		reachable: true,
 		pathNodeIds: ids,
-		totalCost: round(totalCost, NUM_DIGITS),
+		totalCost: round(totalCost, COST_DIGITS),
 		totalDistanceMeters: res.totalDistanceMeters,
 		floorsClimbed: res.floorsClimbed,
 		estimatedSeconds: res.estimatedSeconds,
@@ -476,7 +479,7 @@ async function main() {
 			schemaVersion: SCHEMA_VERSION,
 			seedVersion,
 			costFormula:
-				"cost = haversineMeters(u,v) + |floorOrder(u) - floorOrder(v)| * 18 (campusIndoor3dData.js:3412-3416); cạnh nối cửa ảo: max(0.05, haversine) (:3635); lengthMeters = haversineMeters(u,v) (mặt phẳng, không tính chiều cao)",
+				"cost = haversineMeters(u,v) + |floorOrder(u) - floorOrder(v)| * 18 (campusIndoor3dData.js, buildOrGetCachedRouteBase; 18 = phạt đổi tầng của thuật toán, cùng cho cầu thang và thang máy); cạnh nối cửa ảo: max(0.05, haversine); cost giữ 9 chữ số thập phân; lengthMeters = haversineMeters(u,v) (mặt phẳng, không tính chiều cao)",
 			nodes: graph.nodes,
 			edges: graph.edges,
 		}),
@@ -488,7 +491,7 @@ async function main() {
 		stableJson({
 			schemaVersion: SCHEMA_VERSION,
 			seedVersion,
-			source: "computeDigitizedRoute (frontend/src/data/campusIndoor3dData.js:3799)",
+			source: "computeDigitizedRoute (frontend/src/data/campusIndoor3dData.js)",
 			areaSource: "backend/src/main/resources/db/migration/V120_1__seed_epsilon_areas.sql",
 			cases: goldenCases,
 		}),
@@ -498,7 +501,7 @@ async function main() {
 		schemaVersion: SCHEMA_VERSION,
 		seedVersion,
 		generator: "frontend/scripts/export-campus-map.mjs",
-		precision: { coordinateDigits: COORD_DIGITS, numberDigits: NUM_DIGITS },
+		precision: { coordinateDigits: COORD_DIGITS, numberDigits: NUM_DIGITS, costDigits: COST_DIGITS },
 		graph: { file: "graph.json", nodes: graph.nodes.length, edges: graph.edges.length },
 		goldenRoutes: { file: "golden-routes.json", cases: goldenCases.length },
 		buildings,
