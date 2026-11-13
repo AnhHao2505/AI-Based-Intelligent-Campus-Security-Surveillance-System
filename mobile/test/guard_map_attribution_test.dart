@@ -12,6 +12,9 @@ import 'package:guard_mobile_app/features/map/data/campus_map_style.dart';
 import 'package:guard_mobile_app/features/map/providers/map_provider.dart';
 import 'package:guard_mobile_app/features/map/screens/guard_map_screen.dart';
 import 'package:guard_mobile_app/features/map/widgets/osm_attribution_bar.dart';
+import 'package:guard_mobile_app/features/chat/widgets/floating_guard_chat_button.dart';
+import 'package:guard_mobile_app/features/map/models/area_pin_model.dart';
+import 'package:guard_mobile_app/features/map/widgets/area_detail_card.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -60,5 +63,42 @@ void main() {
       final r = tester.getRect(find.byWidget(fab));
       expect(r.overlaps(bar), isFalse, reason: 'nút ${fab.tooltip} che dòng ghi công');
     }
+  });
+
+  testWidgets('Nút chat ẩn khi thẻ khu mở, hiện lại khi đóng thẻ', (tester) async {
+    final api = ApiClient();
+    final mapProvider = MapProvider(api, campusRepository: _PendingCampusRepository());
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: mapProvider),
+          ChangeNotifierProvider(
+            create: (_) => GuardChatProvider(chatService: GuardChatService(api), stompService: StompService()),
+          ),
+        ],
+        child: const MaterialApp(home: GuardMapScreen()),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(FloatingGuardChatButton), findsOneWidget);
+
+    mapProvider.selectArea(const AreaPinModel(
+      id: 'a1',
+      name: 'KT Điện',
+      areaLevel: 'HIGHLY_CONFIDENTIAL',
+      building: 'Tòa Epsilon',
+      floor: 'Tầng Trệt',
+      centerLatitude: 10.840506,
+      centerLongitude: 106.811247,
+      isActive: true,
+    ));
+    await tester.pump();
+    expect(find.byType(AreaDetailCard), findsOneWidget);
+    expect(find.byType(FloatingGuardChatButton), findsNothing);
+    expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
+
+    mapProvider.selectArea(null);
+    await tester.pump();
+    expect(find.byType(FloatingGuardChatButton), findsOneWidget);
   });
 }

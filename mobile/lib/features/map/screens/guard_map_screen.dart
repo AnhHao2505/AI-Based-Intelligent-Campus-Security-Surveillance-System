@@ -665,12 +665,14 @@ class _GuardMapScreenState extends State<GuardMapScreen> {
             ),
           ),
 
-          // 3b. Nút chat bảo vệ
-          Positioned(
-            left: 16,
-            bottom: bottomInset + (mapState.selectedArea != null ? 230 : 28),
-            child: const FloatingGuardChatButton(heroTag: 'fab_chat_map'),
-          ),
+          // 3b. Nút chat bảo vệ — ẩn khi thẻ khu đang mở (thẻ cao hơn mọi vị trí đặt cố định nên sẽ che nút);
+          // đóng thẻ thì nút hiện lại.
+          if (mapState.selectedArea == null)
+            Positioned(
+              left: 16,
+              bottom: bottomInset + 28,
+              child: const FloatingGuardChatButton(heroTag: 'fab_chat_map'),
+            ),
 
           // 3c. Dòng ghi công OpenStreetMap — luôn hiện, không bị nút / thẻ che
           const Positioned(left: 0, right: 0, bottom: 0, child: OsmAttributionBar()),
