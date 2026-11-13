@@ -4,15 +4,40 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
+import '../data/campus_floor_resolver.dart';
+import '../data/campus_map_data.dart';
+import '../data/campus_map_repository.dart';
 import '../models/area_pin_model.dart';
 import '../services/routing_service.dart';
 
 class MapProvider extends ChangeNotifier {
   final ApiClient _apiClient;
   final RoutingService _routingService;
+  final CampusMapRepository _campusRepository;
 
-  // Campus Default: FPT University HCMC (Dist. 9)
-  static const LatLng campusCenter = LatLng(10.84113, 106.80973);
+  // Dữ liệu bản đồ 3D khuôn viên (asset sinh từ seed web, mobile/assets/campus/)
+  CampusMapData? _campus;
+  CampusMapData? get campus => _campus;
+
+  bool _isLoadingCampus = false;
+  bool get isLoadingCampus => _isLoadingCampus;
+
+  String? _campusError;
+  String? get campusError => _campusError;
+
+  /// Tâm khuôn viên = tâm khung bao các khối 3D trong asset (không viết cứng toạ độ); null khi chưa nạp được.
+  LatLng? get campusCenter {
+    final b = _campus?.bounds;
+    return b == null ? null : LatLng(b.centerLatitude, b.centerLongitude);
+  }
+
+  /// Tầng đang xem; mặc định tầng trệt.
+  int _selectedFloorOrder = 0;
+  int get selectedFloorOrder => _selectedFloorOrder;
+
+  /// Phòng cần tô nổi (khu của sự cố / khu đang chọn).
+  String? _highlightRoomId;
+  String? get highlightRoomId => _highlightRoomId;
 
   List<AreaPinModel> _areaPins = [];
   List<AreaPinModel> get areaPins => _areaPins;
@@ -54,24 +79,56 @@ class MapProvider extends ChangeNotifier {
   LatLng _normalizePosition(double lat, double lng) {
     if (((lat - 10.8468).abs() < 0.005 && (lng - 106.8091).abs() < 0.005) ||
         ((lat - 37.42).abs() < 0.1 && (lng - -122.08).abs() < 0.1)) {
-      debugPrint('[MapProvider] Phát hiện tọa độ máy ảo mặc định ($lat, $lng). Tự động chuẩn hóa về sân trường ($campusCenter).');
-      return campusCenter;
+      final center = campusCenter;
+      if (center != null) {
+        debugPrint('[MapProvider] Phát hiện tọa độ máy ảo mặc định ($lat, $lng). Tự động chuẩn hóa về sân trường ($center).');
+        return center;
+      }
     }
     return LatLng(lat, lng);
   }
 
-  MapProvider(this._apiClient, {RoutingService? routingService})
-      : _routingService = routingService ?? RoutingService(dio: _apiClient.dio);
+  MapProvider(this._apiClient, {RoutingService? routingService, CampusMapRepository? campusRepository})
+      : _routingService = routingService ?? RoutingService(dio: _apiClient.dio),
+        _campusRepository = campusRepository ?? CampusMapRepository();
 
-  List<AreaPinModel> get filteredPins {
-    if (_selectedBuilding == null || _selectedBuilding!.isEmpty) {
-      return _areaPins;
+  /// Nạp asset bản đồ 3D (một lần). Lỗi → [campusError] (câu thân thiện), không ném ra ngoài.
+  Future<void> loadCampusMap({bool force = false}) async {
+    if (_isLoadingCampus || (_campus != null && !force)) return;
+    _isLoadingCampus = true;
+    _campusError = null;
+    notifyListeners();
+    try {
+      _campus = await _campusRepository.load();
+      _clampFloorToBuilding();
+    } on CampusMapLoadException catch (e) {
+      debugPrint('[MapProvider] $e');
+      _campusError = e.message;
+    } catch (e) {
+      debugPrint('[MapProvider] loadCampusMap: $e');
+      _campusError = 'Không đọc được dữ liệu bản đồ khuôn viên';
+    } finally {
+      _isLoadingCampus = false;
+      notifyListeners();
     }
-    return _areaPins
-        .where((pin) =>
-            pin.building != null &&
-            pin.building!.toLowerCase() == _selectedBuilding!.toLowerCase())
-        .toList();
+  }
+
+  /// Các tầng có bản đồ 3D của toà đang chọn (null = mọi toà).
+  List<int> get availableFloorOrders => _campus?.floorOrdersFor(_selectedBuilding) ?? const [0];
+
+  /// Ghim khu theo toà / tầng đang chọn (bỏ khu không có toạ độ; khu không có tầng luôn hiện).
+  List<AreaPinModel> get filteredPins => filterPinsForView(
+        pins: _areaPins,
+        building: _selectedBuilding,
+        floorOrder: _selectedFloorOrder,
+        campus: _campus,
+      );
+
+  void _clampFloorToBuilding() {
+    final floors = availableFloorOrders;
+    if (floors.isNotEmpty && !floors.contains(_selectedFloorOrder)) {
+      _selectedFloorOrder = floors.first;
+    }
   }
 
   /// Initialize location tracking using geolocator
@@ -195,12 +252,15 @@ class MapProvider extends ChangeNotifier {
           .where((p) => p.isActive && p.centerLatitude != 0.0 && p.centerLongitude != 0.0)
           .toList();
 
-      // Extract unique building names for filter
+      // Extract unique building names for filter (quy về tên chuẩn của bản đồ 3D khi có)
       final bldSet = <String>{};
       for (final pin in _areaPins) {
         if (pin.building != null && pin.building!.trim().isNotEmpty) {
-          bldSet.add(pin.building!.trim());
+          bldSet.add(_campus?.buildingFor(pin.building)?.name ?? pin.building!.trim());
         }
+      }
+      for (final b in _campus?.buildings ?? const <CampusBuilding>[]) {
+        bldSet.add(b.name);
       }
       _buildings = bldSet.toList()..sort();
     } catch (e) {
@@ -213,12 +273,42 @@ class MapProvider extends ChangeNotifier {
 
   void selectBuilding(String? building) {
     _selectedBuilding = building;
+    _clampFloorToBuilding();
+    notifyListeners();
+  }
+
+  void selectFloor(int floorOrder) {
+    _selectedFloorOrder = floorOrder;
     notifyListeners();
   }
 
   void selectArea(AreaPinModel? area) {
     _selectedArea = area;
+    _highlightRoomId = area == null ? null : resolveIncidentFocus(area, _campus).roomId;
     notifyListeners();
+  }
+
+  /// Mở bản đồ từ thẻ sự cố: chọn khu, chuyển tới đúng toà / tầng của khu và tô nổi phòng chứa tâm khu.
+  /// [pin] có thể là ghim tạm (chưa có toà / tầng) → thử ghép lại với ghim thật theo id / tên khi đã có danh sách khu.
+  IncidentMapFocus focusIncident(AreaPinModel pin) {
+    final resolved = _areaPins.cast<AreaPinModel?>().firstWhere(
+              (p) => p!.id.toLowerCase() == pin.id.toLowerCase(),
+              orElse: () => null,
+            ) ??
+        _areaPins.cast<AreaPinModel?>().firstWhere(
+              (p) => p!.name.toLowerCase() == pin.name.toLowerCase(),
+              orElse: () => null,
+            ) ??
+        pin;
+    final focus = resolveIncidentFocus(resolved, _campus);
+    _selectedArea = resolved;
+    _highlightRoomId = focus.roomId;
+    if (focus.building != null) {
+      _selectedBuilding = focus.building;
+    }
+    _selectedFloorOrder = focus.floorOrder;
+    notifyListeners();
+    return focus;
   }
 
   /// Calculate navigation route to an area
@@ -228,6 +318,12 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
 
     final start = _guardLocation ?? campusCenter;
+    if (start == null) {
+      _errorMessage = 'Chưa xác định được vị trí của bạn';
+      _isLoadingRoute = false;
+      notifyListeners();
+      return;
+    }
 
     try {
       final route = await _routingService.getWalkingRoute(
@@ -272,7 +368,11 @@ class MapProvider extends ChangeNotifier {
     }
 
     if (matchedPin == null) {
-      final latLng = targetLatLng ?? (_areaPins.isNotEmpty ? _areaPins.first.latLng : campusCenter);
+      // Chưa có toạ độ nào → (0, 0) = "không có toạ độ" (pinHasCoordinates); màn bản đồ ghép lại theo id / tên khi
+      // danh sách khu đã tải (focusIncident).
+      final latLng = targetLatLng ??
+          (_areaPins.isNotEmpty ? _areaPins.first.latLng : campusCenter) ??
+          const LatLng(0, 0);
       matchedPin = AreaPinModel(
         id: areaId ?? 'incident_target',
         name: areaName ?? 'Vị trí sự cố (${cameraCode ?? "CAM"})',
