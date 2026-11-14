@@ -338,7 +338,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           circleColor: ['get', 'color'],
           circleRadius: ['case', ['get', 'selected'], areaPinMaxRadius, 9],
           circleStrokeColor: '#ffffff',
-          circleStrokeWidth: ['case', ['get', 'selected'], 3, 2],
+          circleStrokeWidth: ['case', ['get', 'selected'], areaPinMaxStrokeWidth, 2],
           circlePitchAlignment: 'viewport',
         ),
       );

@@ -152,16 +152,21 @@ const List<(double, double)> roomLabelIconSizeStops = [(16.4, 0.78), (18.2, 0.94
 /// Bán kính lớn nhất của ghim khu (ghim khu đang chọn, lớp campus-pins-layer của guard_map_screen.dart), dp.
 const double areaPinMaxRadius = 13;
 
-/// Khoảng hở giữa ghim và cạnh dưới viên nhãn, dp.
+/// Viền trắng dày nhất của ghim khu (ghim khu đang chọn), dp. MapLibre vẽ viền NGOÀI bán kính, nên mép ghim nhìn thấy
+/// cách tâm [areaPinMaxRadius] + [areaPinMaxStrokeWidth].
+const double areaPinMaxStrokeWidth = 3;
+
+/// Khoảng hở giữa mép ghim nhìn thấy (gồm viền) và cạnh dưới viên nhãn, dp.
 const double roomLabelPinGap = 4;
 
 /// Neo nhãn ở cạnh dưới ảnh (điểm nhãn nằm dưới nhãn, ghim không che chữ).
 const String roomLabelIconAnchor = 'bottom';
 
-/// Nhãn đặt TRÊN ghim: cạnh dưới viên nhãn cách điểm neo [areaPinMaxRadius] + [roomLabelPinGap] = 17 dp.
+/// Nhãn đặt TRÊN ghim: cạnh dưới viên nhãn cách điểm neo
+/// [areaPinMaxRadius] + [areaPinMaxStrokeWidth] + [roomLabelPinGap] (= 20 dp), tức hở [roomLabelPinGap] với mép mọi ghim.
 /// Lý do: phòng khớp khu khi tâm khu nằm trong phòng, nên ghim (tâm khu) và điểm nhãn (điểm trong phòng) thường gần
 /// nhau; nhãn ở giữa thì ghim (lớp trên cùng) che mất chữ (P-MAP-3, ảnh a3).
-const double roomLabelLiftAbovePin = areaPinMaxRadius + roomLabelPinGap;
+const double roomLabelLiftAbovePin = areaPinMaxRadius + areaPinMaxStrokeWidth + roomLabelPinGap;
 
 /// `icon-offset` (đơn vị ảnh ở icon-size 1) của nhãn neo `bottom` khi icon-size = [iconSize]: MapLibre nhân offset với
 /// icon-size, và cạnh dưới ảnh còn lề bóng [roomLabelShadowPad] (cũng nhân icon-size) dưới viên nhãn, nên
@@ -177,7 +182,7 @@ List<Object> roomLabelIconSizeExpression() => [
     ];
 
 /// Biểu thức `icon-offset` của lớp nhãn: đúng tại mỗi mốc của [roomLabelIconSizeStops], nội suy giữa các mốc
-/// (sai lệch giữa hai mốc dưới 1 %, vd 17.15 thay vì 17 dp ở zoom 17.3).
+/// (sai lệch giữa hai mốc dưới 1 %, vd 20.18 thay vì 20 dp ở zoom 17.3).
 List<Object> roomLabelIconOffsetExpression() => [
       'interpolate',
       ['linear'],

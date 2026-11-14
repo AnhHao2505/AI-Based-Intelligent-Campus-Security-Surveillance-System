@@ -275,21 +275,27 @@ void main() {
     /// MapLibre nhân offset với icon-size; dưới viên nhãn còn lề bóng trong suốt (cũng nhân icon-size).
     double pillBottomLift(double size, double offsetY) => (-offsetY + roomLabelShadowPad) * size;
 
-    test('neo cạnh dưới, khoảng dịch = bán kính ghim lớn nhất (13) + 4 = 17 dp', () {
+    test('neo cạnh dưới, khoảng dịch = bán kính (13) + viền (3) + hở (4) = 20 dp', () {
       expect(roomLabelIconAnchor, 'bottom');
       expect(areaPinMaxRadius, 13);
-      expect(roomLabelLiftAbovePin, 17);
+      expect(areaPinMaxStrokeWidth, 3);
+      expect(roomLabelPinGap, 4);
+      expect(roomLabelLiftAbovePin, 20);
+      // Mép nhìn thấy của mọi ghim (bán kính + viền) cách cạnh dưới nhãn ít nhất 4 dp
+      for (final (radius, stroke) in [(9.0, 2.0), (areaPinMaxRadius, areaPinMaxStrokeWidth)]) {
+        expect(roomLabelLiftAbovePin - (radius + stroke), greaterThanOrEqualTo(roomLabelPinGap));
+      }
     });
 
-    test('tại mỗi mốc icon-size: cạnh dưới viên nhãn cách điểm neo đúng 17 dp, chỉ dịch lên', () {
+    test('tại mỗi mốc icon-size: cạnh dưới viên nhãn cách điểm neo đúng 20 dp, chỉ dịch lên', () {
       for (final (zoom, size) in roomLabelIconSizeStops) {
         final offset = roomLabelIconOffset(size);
         expect(offset[0], 0, reason: 'zoom $zoom: không dịch ngang');
         expect(offset[1], lessThan(0), reason: 'zoom $zoom: số âm = dịch lên');
-        expect(pillBottomLift(size, offset[1]), closeTo(17, 1e-9), reason: 'zoom $zoom');
+        expect(pillBottomLift(size, offset[1]), closeTo(roomLabelLiftAbovePin, 1e-9), reason: 'zoom $zoom');
       }
-      // Ví dụ số: icon-size 1 → offset −14 (14 + lề 3 = 17)
-      expect(roomLabelIconOffset(1), [0, -14]);
+      // Ví dụ số: icon-size 1 → offset −17 (17 + lề 3 = 20)
+      expect(roomLabelIconOffset(1), [0, -17]);
     });
 
     test('biểu thức icon-size / icon-offset: cùng mốc zoom; giữa hai mốc sai lệch dưới 1 %', () {
@@ -314,8 +320,9 @@ void main() {
         final o0 = roomLabelIconOffset(s0)[1], o1 = roomLabelIconOffset(s1)[1];
         for (var t = 0.0; t <= 1.0; t += 0.1) {
           final lift = pillBottomLift(s0 + (s1 - s0) * t, o0 + (o1 - o0) * t);
-          expect(lift, greaterThanOrEqualTo(17 - 1e-9), reason: 'zoom ${z0 + (z1 - z0) * t}: không thấp hơn 17 dp');
-          expect(lift, lessThan(17 * 1.01), reason: 'zoom ${z0 + (z1 - z0) * t}');
+          expect(lift, greaterThanOrEqualTo(roomLabelLiftAbovePin - 1e-9),
+              reason: 'zoom ${z0 + (z1 - z0) * t}: không thấp hơn khoảng dịch');
+          expect(lift, lessThan(roomLabelLiftAbovePin * 1.01), reason: 'zoom ${z0 + (z1 - z0) * t}');
         }
       }
     });
