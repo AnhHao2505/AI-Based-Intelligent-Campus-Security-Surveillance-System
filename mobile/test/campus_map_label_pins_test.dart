@@ -6,12 +6,11 @@ import 'package:guard_mobile_app/core/network/api_client.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_data.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_overlays.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_repository.dart';
-import 'package:guard_mobile_app/features/map/data/campus_map_sprites.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_style.dart';
 import 'package:guard_mobile_app/features/map/models/area_pin_model.dart';
 import 'package:guard_mobile_app/features/map/providers/map_provider.dart';
 
-// Ẩn ghim của khu đã có nhãn khi phóng to, và bấm nhãn mở đúng khu (P-MAP-4).
+// Tên phòng nằm trên ghim khu (phương án C), ghim hiện ở mọi zoom, bấm nhãn mở đúng khu (P-MAP-4).
 
 CampusMapData _campusOnDisk() {
   final manifestRaw = File('assets/campus/manifest.json').readAsStringSync();
@@ -79,50 +78,62 @@ void main() {
         for (final f in fc['features'] as List) (f as Map)['properties']['id'] as String: f['properties'] as Map,
       };
 
-  group('ghim khu: cờ hasLabel', () {
-    test('khu có nhãn → hasLabel true; khu không khớp phòng → false', () {
-      final labelled = roomLabelAreaIds(labelsAlphaG());
-      expect(labelled, {'in-0', 'in-1'});
+  group('thứ tự lớp (phương án C)', () {
+    int at(String id) {
+      final i = campusLayerOrder.indexOf(id);
+      expect(i, greaterThanOrEqualTo(0), reason: '$id phải có trong campusLayerOrder');
+      return i;
+    }
 
-      final byId = propsById(pinsGeoJson(pins, labelledAreaIds: labelled));
-      expect(byId['in-0']!['hasLabel'], isTrue);
-      expect(byId['in-1']!['hasLabel'], isTrue);
-      expect(byId['out']!['hasLabel'], isFalse);
+    test('tên phòng nằm NGAY TRÊN ghim khu, dưới vị trí bảo vệ', () {
+      expect(at('campus-room-labels-layer'), at('campus-pins-layer') + 1);
+      expect(at('campus-room-labels-layer'), lessThan(at('campus-guard-halo')));
+      expect(at('campus-room-labels-layer'), lessThan(at('campus-guard-dot')));
     });
 
-    test('"Tất cả" toà (không có nhãn) → mọi ghim hasLabel false', () {
-      final labelled = roomLabelAreaIds(roomLabelsGeoJson(campus, pins, floorOrder: 0));
-      expect(labelled, isEmpty);
-      expect(propsById(pinsGeoJson(pins, labelledAreaIds: labelled)).values.every((p) => p['hasLabel'] == false),
-          isTrue);
-    });
-
-    test('không truyền danh sách khu có nhãn → hasLabel false (như trước P-MAP-4)', () {
-      expect(propsById(pinsGeoJson(pins)).values.every((p) => p['hasLabel'] == false), isTrue);
+    test('sàn → phòng → tường → cầu thang → tuyến đường → ghim khu; không trùng id', () {
+      expect(campusLayerOrder.take(4), ['campus-slab-layer', 'campus-room-layer', 'campus-wall-layer', 'campus-portals-layer']);
+      for (final route in ['campus-route-outline', 'campus-route-line', 'campus-route-direct', 'campus-route-floors-layer']) {
+        expect(at(route), greaterThan(at('campus-portals-layer')), reason: route);
+        expect(at(route), lessThan(at('campus-pins-layer')), reason: route);
+      }
+      expect(campusLayerOrder.last, 'campus-guard-dot');
+      expect(campusLayerOrder.toSet().length, campusLayerOrder.length);
     });
   });
 
-  group('biểu thức ẩn ghim', () {
-    test('dưới zoom nhãn giữ giá trị cũ; từ zoom nhãn: 0 khi hasLabel và không phải khu đang chọn', () {
-      const value = ['case', ['get', 'selected'], areaPinMaxRadius, 9];
-      final expr = areaPinHiddenWhenLabelled(value);
-      expect(expr, [
-        'step',
-        ['zoom'],
-        value,
-        roomLabelMinZoom,
-        [
-          'case',
-          [
-            'all',
-            ['get', 'hasLabel'],
-            ['!', ['get', 'selected']],
-          ],
-          0,
-          value,
-        ],
-      ]);
-      expect(roomLabelMinZoom, 16.4, reason: 'cùng minzoom với lớp nhãn (web 16.4)');
+  group('ghim khu hiện ở mọi zoom (bỏ ẩn ghim)', () {
+    test('GeoJSON ghim không còn cờ hasLabel; mọi khu đều có ghim', () {
+      final byId = propsById(pinsGeoJson(pins, selectedId: 'in-0'));
+      expect(byId.keys.toSet(), {'in-0', 'in-1', 'out'});
+      for (final p in byId.values) {
+        expect(p.keys.toSet(), {'id', 'name', 'color', 'selected'});
+      }
+      expect(byId['in-0']!['selected'], isTrue);
+    });
+  });
+
+  group('chạm trúng cả nhãn và ghim', () {
+    test('ghim khu A nằm dưới nhãn khu B → chọn khu B của nhãn', () {
+      // MapLibre trả ghim 'out' (khu khác), nhưng tại điểm chạm có nhãn của khu 'in-1'
+      final areaId = tappedAreaId(featureId: 'out', labelIdsAtPoint: ['in-1']);
+      expect(areaId, 'in-1');
+      expect(findAreaPinById(pins, areaId)!.name, 'Phòng B');
+    });
+
+    test('không có nhãn tại điểm chạm → khu của ghim; id rỗng / null bị bỏ qua', () {
+      expect(tappedAreaId(featureId: 'out'), 'out');
+      expect(tappedAreaId(featureId: 'out', labelIdsAtPoint: [null, '']), 'out');
+      expect(tappedAreaId(featureId: 'out', labelIdsAtPoint: [null, 'in-0']), 'in-0');
+    });
+
+    test('nhãn thật của tầng: id feature nhãn đưa vào tappedAreaId → đúng khu của nhãn', () {
+      for (final f in labelsAlphaG()['features'] as List) {
+        final label = f as Map;
+        final areaId = tappedAreaId(featureId: 'out', labelIdsAtPoint: [label['id']]);
+        expect(areaId, label['properties']['areaId']);
+        expect(findAreaPinById(pins, areaId)!.id, label['properties']['areaId']);
+      }
     });
   });
 

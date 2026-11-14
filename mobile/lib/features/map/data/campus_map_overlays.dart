@@ -155,11 +155,15 @@ Map<String, dynamic> roomLabelsGeoJson(
   return {'type': 'FeatureCollection', 'features': features};
 }
 
-/// Id các khu đang có nhãn trong [labels] (cờ `hasLabel` của ghim, pinsGeoJson).
-Set<String> roomLabelAreaIds(Map<String, dynamic> labels) => {
-      for (final f in (labels['features'] as List? ?? const []))
-        if ((f as Map)['properties']?['areaId'] is String) f['properties']['areaId'] as String,
-    };
+/// Id khu cần mở cho một lần chạm: [featureId] là feature MapLibre trả về; [labelIdsAtPoint] là id các nhãn tên phòng
+/// nằm ngay tại điểm chạm. Có nhãn → khu của nhãn (lớp nhãn nằm trên lớp ghim, nhãn đè lên ghim khu khác thì chạm vào
+/// nhãn là chọn khu của nhãn); không có → [featureId].
+String tappedAreaId({required String featureId, Iterable<Object?> labelIdsAtPoint = const []}) {
+  for (final id in labelIdsAtPoint) {
+    if (id != null && id.toString().isNotEmpty) return id.toString();
+  }
+  return featureId;
+}
 
 /// Khu ứng với id của feature vừa bấm (ghim hoặc nhãn; nhãn mang id khu ở feature id và `areaId`): tìm trong [pins],
 /// không có thì là [selected] nếu trùng id (ghim tạm của sự cố chưa có trong danh sách); không thấy → null.

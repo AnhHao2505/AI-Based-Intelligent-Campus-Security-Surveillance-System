@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart' as ll;
 
 import '../models/area_pin_model.dart';
-import 'campus_map_sprites.dart';
 
 /// Dòng ghi công bắt buộc của OpenStreetMap (giống `attribution` của nguồn tile web, CampusMapView.jsx:104).
 const String osmAttributionText = '© OpenStreetMap contributors';
@@ -58,30 +57,26 @@ String colorHex(Color c) {
   return '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
 }
 
-/// Giá trị paint của ghim khu (bán kính / viền): [value] như cũ dưới [roomLabelMinZoom]; từ mức đó trở lên ghim của khu
-/// đang có nhãn trên tầng đang xem (`hasLabel`) và không phải khu đang chọn thì bằng 0 (không vẽ, không nhận chạm),
-/// để nhãn không bị ghim che. Dùng biểu thức paint thay cho filter vì MapLibre chỉ tính `zoom` trong filter ở mức zoom
-/// nguyên (16.4 sẽ thành 17); paint tính liên tục và không phải xoá / thêm lớp.
-List<Object> areaPinHiddenWhenLabelled(Object value) => [
-      'step',
-      ['zoom'],
-      value,
-      roomLabelMinZoom,
-      [
-        'case',
-        [
-          'all',
-          ['get', 'hasLabel'],
-          ['!', ['get', 'selected']],
-        ],
-        0,
-        value,
-      ],
-    ];
+/// Thứ tự các lớp bản đồ do app thêm, từ dưới lên (guard_map_screen.dart _onStyleLoaded thêm đúng thứ tự này và ghi
+/// log đối chiếu): khối 3D → cầu thang → tuyến đường → ghim khu → TÊN PHÒNG → vị trí bảo vệ. Tên phòng nằm ngay trên
+/// ghim khu để ghim không che chữ; vị trí bảo vệ luôn trên cùng.
+const List<String> campusLayerOrder = [
+  'campus-slab-layer',
+  'campus-room-layer',
+  'campus-wall-layer',
+  'campus-portals-layer',
+  'campus-route-outline',
+  'campus-route-line',
+  'campus-route-direct',
+  'campus-route-floors-layer',
+  'campus-pins-layer',
+  'campus-room-labels-layer',
+  'campus-guard-halo',
+  'campus-guard-dot',
+];
 
-/// GeoJSON ghim khu: mỗi khu một điểm, thuộc tính màu theo cấp khu (AreaPinModel.levelColor), cờ đang chọn và cờ
-/// `hasLabel` (khu có nhãn tên phòng trên tầng đang xem: id nằm trong [labelledAreaIds], xem roomLabelAreaIds).
-Map<String, dynamic> pinsGeoJson(List<AreaPinModel> pins, {String? selectedId, Set<String> labelledAreaIds = const {}}) {
+/// GeoJSON ghim khu: mỗi khu một điểm, thuộc tính màu theo cấp khu (AreaPinModel.levelColor) và cờ đang chọn.
+Map<String, dynamic> pinsGeoJson(List<AreaPinModel> pins, {String? selectedId}) {
   return {
     'type': 'FeatureCollection',
     'features': [
@@ -94,7 +89,6 @@ Map<String, dynamic> pinsGeoJson(List<AreaPinModel> pins, {String? selectedId, S
             'name': p.name,
             'color': colorHex(p.levelColor),
             'selected': p.id == selectedId,
-            'hasLabel': labelledAreaIds.contains(p.id),
           },
           'geometry': {
             'type': 'Point',

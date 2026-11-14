@@ -146,8 +146,7 @@ const Map<String, int> roomLabelAccentColors = {
 /// Lề trong suốt quanh viên nhãn để chừa chỗ cho bóng (đơn vị logic = điểm ảnh / [campusSpritePixelRatio]).
 const double roomLabelShadowPad = 3;
 
-/// Zoom nhỏ nhất hiện nhãn tên phòng (web CampusMapView.jsx, minzoom 16.4 của lớp nhãn). Từ mức này ghim của khu đã
-/// có nhãn được ẩn (areaPinHiddenWhenLabelled, campus_map_style.dart).
+/// Zoom nhỏ nhất hiện nhãn tên phòng (web CampusMapView.jsx, minzoom 16.4 của lớp nhãn).
 const double roomLabelMinZoom = 16.4;
 
 /// Cỡ nhãn theo zoom: (zoom, icon-size), nội suy tuyến tính (web CampusMapView.jsx, lớp campus-3d-room-labels-layer).

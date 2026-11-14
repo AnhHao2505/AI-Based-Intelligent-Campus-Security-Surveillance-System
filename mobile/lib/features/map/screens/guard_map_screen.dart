@@ -1,5 +1,6 @@
 import 'dart:math' show Point;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
@@ -71,9 +72,6 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
   String? _pinsKey;
   String? _portalsKey;
   String? _labelsKey;
-
-  /// Khu đang có nhãn trên tầng đang xem (cờ hasLabel của ghim); cập nhật cùng nhãn.
-  Set<String> _labelledAreaIds = const {};
   bool _syncing = false;
 
   /// Ảnh đã addImage vào style hiện tại (maplibre_gl không có hasImage); style nạp lại thì xoá.
@@ -260,26 +258,6 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         minzoom: 16.5,
         enableInteraction: false,
       );
-      // Tên phòng: ảnh nhãn theo khu, khu đang chọn đặt trước (CampusMapView.jsx:1487-1528).
-      // Neo cạnh dưới + dịch lên để nhãn nằm trên ghim khu, không bị ghim che (roomLabelLiftAbovePin).
-      await map.addGeoJsonSource(_roomLabelsSource, empty);
-      await map.addSymbolLayer(
-        _roomLabelsSource,
-        _roomLabelsLayer,
-        ml.SymbolLayerProperties(
-          iconImage: const ['get', 'imageId'],
-          iconSize: roomLabelIconSizeExpression(),
-          iconAnchor: roomLabelIconAnchor,
-          iconOffset: roomLabelIconOffsetExpression(),
-          iconAllowOverlap: false,
-          iconIgnorePlacement: false,
-          iconPadding: 3,
-          symbolSortKey: ['get', 'sortKey'],
-          iconOpacity: 0.98,
-        ),
-        minzoom: roomLabelMinZoom,
-        // Bấm nhãn mở thẻ khu như bấm ghim (_onFeatureTapped)
-      );
       await map.addGeoJsonSource(_routeSource, empty);
       await map.addLineLayer(
         _routeSource,
@@ -340,12 +318,32 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         _pinsLayer,
         ml.CircleLayerProperties(
           circleColor: const ['get', 'color'],
-          // Từ zoom nhãn trở lên: ghim của khu đã có nhãn (trừ khu đang chọn) bán kính / viền 0 → ẩn, không che nhãn
-          circleRadius: areaPinHiddenWhenLabelled(const ['case', ['get', 'selected'], areaPinMaxRadius, 9]),
+          circleRadius: const ['case', ['get', 'selected'], areaPinMaxRadius, 9],
           circleStrokeColor: '#ffffff',
-          circleStrokeWidth: areaPinHiddenWhenLabelled(const ['case', ['get', 'selected'], areaPinMaxStrokeWidth, 2]),
+          circleStrokeWidth: const ['case', ['get', 'selected'], areaPinMaxStrokeWidth, 2],
           circlePitchAlignment: 'viewport',
         ),
+      );
+      // Tên phòng: ảnh nhãn theo khu, khu đang chọn đặt trước (CampusMapView.jsx:1487-1528).
+      // Nằm NGAY TRÊN lớp ghim khu (campusLayerOrder): ghim không che được chữ; neo cạnh dưới + dịch lên
+      // roomLabelLiftAbovePin để nhãn không che ghim của chính khu đó.
+      await map.addGeoJsonSource(_roomLabelsSource, empty);
+      await map.addSymbolLayer(
+        _roomLabelsSource,
+        _roomLabelsLayer,
+        ml.SymbolLayerProperties(
+          iconImage: const ['get', 'imageId'],
+          iconSize: roomLabelIconSizeExpression(),
+          iconAnchor: roomLabelIconAnchor,
+          iconOffset: roomLabelIconOffsetExpression(),
+          iconAllowOverlap: false,
+          iconIgnorePlacement: false,
+          iconPadding: 3,
+          symbolSortKey: ['get', 'sortKey'],
+          iconOpacity: 0.98,
+        ),
+        minzoom: roomLabelMinZoom,
+        // Bấm nhãn mở thẻ khu như bấm ghim (_onFeatureTapped); chạm trúng cả nhãn lẫn ghim → nhãn (lớp trên)
       );
       await map.addGeoJsonSource(_guardSource, empty);
       await map.addCircleLayer(
@@ -366,6 +364,11 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         ),
         enableInteraction: false,
       );
+      // Đối chiếu thứ tự lớp thật với campusLayerOrder (chỉ ghi log, không chặn bản đồ)
+      final actual = (await map.getLayerIds()).map((e) => e.toString()).where(campusLayerOrder.contains).toList();
+      debugPrint(listEquals(actual, campusLayerOrder)
+          ? '[MAP] thứ tự lớp đúng: ${actual.join(' → ')}'
+          : '[MAP] thứ tự lớp LỆCH: ${actual.join(' → ')}');
     } catch (e) {
       debugPrint('[GuardMapScreen] add layers: $e');
     }
@@ -455,7 +458,6 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           await _ensureImage(map, id);
         }
         await map.setGeoJsonSource(_roomLabelsSource, labels);
-        _labelledAreaIds = roomLabelAreaIds(labels);
         debugPrint('[MAP] room labels ${p.selectedBuilding ?? 'ALL'}/${p.selectedFloorOrder}: '
             '${(labels['features'] as List).length} nhãn, dựng $built ms, tổng ${sw.elapsedMilliseconds} ms');
       }
@@ -483,11 +485,10 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       if (selected != null && selected.centerLatitude != 0.0 && !pins.any((x) => x.id == selected.id)) {
         pins.add(selected);
       }
-      final pinsKey = '${pins.map((x) => x.id).join(',')}|${selected?.id}|${(_labelledAreaIds.toList()..sort()).join(',')}';
+      final pinsKey = '${pins.map((x) => x.id).join(',')}|${selected?.id}';
       if (pinsKey != _pinsKey) {
         _pinsKey = pinsKey;
-        await map.setGeoJsonSource(
-            _pinsSource, pinsGeoJson(pins, selectedId: selected?.id, labelledAreaIds: _labelledAreaIds));
+        await map.setGeoJsonSource(_pinsSource, pinsGeoJson(pins, selectedId: selected?.id));
       }
 
       await map.setGeoJsonSource(_guardSource, pointGeoJson(p.guardLocation));
@@ -508,7 +509,25 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
   void _onFeatureTapped(dynamic point, ml.LatLng coordinates, String id, String layerId, dynamic annotation) {
     // Ghim và nhãn tên phòng đều mang id khu ở feature id
     if (layerId != _pinsLayer && layerId != _roomLabelsLayer) return;
-    final pin = findAreaPinById(_provider.areaPins, id, selected: _provider.selectedArea);
+    _selectTappedArea(point, id, layerId);
+  }
+
+  /// MapLibre Android đã ưu tiên lớp nằm trên (nhãn) khi một lần chạm trúng nhiều lớp
+  /// (MapLibreMapController.firstFeatureOnLayers). Chạm rơi vào ghim thì vẫn hỏi lại lớp nhãn tại đúng điểm chạm:
+  /// có nhãn ở đó → mở khu của NHÃN (tappedAreaId).
+  Future<void> _selectTappedArea(dynamic point, String id, String layerId) async {
+    var areaId = id;
+    final map = _map;
+    if (layerId == _pinsLayer && map != null && point is Point<double>) {
+      try {
+        final labels = await map.queryRenderedFeatures(point, const [_roomLabelsLayer], null);
+        areaId = tappedAreaId(featureId: id, labelIdsAtPoint: [for (final f in labels) (f as Map)['id']]);
+      } catch (e) {
+        debugPrint('[GuardMapScreen] query labels at tap: $e');
+      }
+    }
+    if (!mounted) return;
+    final pin = findAreaPinById(_provider.areaPins, areaId, selected: _provider.selectedArea);
     if (pin == null) return;
     _provider.selectArea(pin);
     _focusOn(pin.latLng, 17.8);
