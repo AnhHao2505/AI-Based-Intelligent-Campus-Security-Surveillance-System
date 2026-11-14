@@ -43,6 +43,7 @@ import {
 	DEFAULT_BUILDINGS_META,
 	EXPLODED_FLOOR_STEP_OPTIONS,
 	FLOOR_ELEVATION_STEP,
+	OPENFREEMAP_STYLE_URL,
 	loadGeometryStore,
 	buildVector3dLayers,
 	extractAreaLevelCode,
@@ -87,41 +88,6 @@ const INTERACTIVE_3D_LAYERS = [
 	"campus-3d-ghost-slabs-layer",
 	"campus-3d-ghost-walls-layer",
 ];
-
-// OpenStreetMap Standard Raster Style with multi-subdomain CDN for speed & reliability
-const OSM_STYLE = {
-	version: 8,
-	light: MAP_LIGHT,
-	sources: {
-		"osm-tiles": {
-			type: "raster",
-			tiles: [
-				"https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-				"https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-				"https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
-			],
-			tileSize: 256,
-			attribution: "© OpenStreetMap contributors",
-			maxzoom: 19,
-		},
-	},
-	layers: [
-		{
-			id: "osm-background",
-			type: "background",
-			paint: {
-				"background-color": "#f1f5f9",
-			},
-		},
-		{
-			id: "osm-tiles-layer",
-			type: "raster",
-			source: "osm-tiles",
-			minzoom: 0,
-			maxzoom: 24,
-		},
-	],
-};
 
 const LABEL_MIN_ZOOM = 18.2;
 
@@ -1326,7 +1292,7 @@ export default function CampusMapView({
 						cursor={hoverCursor}
 						interactiveLayerIds={INTERACTIVE_3D_LAYERS}
 						light={MAP_LIGHT}
-						mapStyle={OSM_STYLE}
+						mapStyle={OPENFREEMAP_STYLE_URL}
 						style={{ width: "100%", height: "100%" }}
 						minZoom={1}
 						maxZoom={22}

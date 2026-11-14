@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import {
 	BOUNDARY_WALL_HEIGHT,
@@ -6,6 +9,7 @@ import {
 	FLOOR_ELEVATION_STEP,
 	FLOOR_SLAB_HEIGHT,
 	INTERIOR_WALL_HEIGHT,
+	OPENFREEMAP_STYLE_URL,
 	OVERVIEW_WALL_HEIGHT,
 	buildVector3dLayers,
 	collectWeldedDragExclusion,
@@ -200,6 +204,33 @@ describe("Phase 5 (Mục 3A + Bug 4A/4B) - BIM-Lite 3D Rendering & Studio CAD St
 				resolveToolSwitchDraftAction("SELECT", [p1], null).action,
 				"NOOP",
 			);
+		});
+	});
+
+	describe("4. OpenFreeMap Vector Basemap Migration", () => {
+		it("exports OpenFreeMap bright style URL without rate-limited tile.openstreetmap.org or 3D building collisions", () => {
+			assert.equal(
+				OPENFREEMAP_STYLE_URL,
+				"https://tiles.openfreemap.org/styles/bright",
+			);
+		});
+
+		it("configures both CampusMapView and FloorDigitizerStudio to use OPENFREEMAP_STYLE_URL", () => {
+			const __dirname = path.dirname(fileURLToPath(import.meta.url));
+			const areaDir = path.resolve(__dirname, "../../components/area");
+			const campusMapSrc = fs.readFileSync(
+				path.join(areaDir, "CampusMapView.jsx"),
+				"utf8",
+			);
+			const studioSrc = fs.readFileSync(
+				path.join(areaDir, "FloorDigitizerStudio.jsx"),
+				"utf8",
+			);
+
+			assert.match(campusMapSrc, /OPENFREEMAP_STYLE_URL/);
+			assert.doesNotMatch(campusMapSrc, /tile\.openstreetmap\.org/);
+			assert.match(studioSrc, /OPENFREEMAP_STYLE_URL/);
+			assert.doesNotMatch(studioSrc, /tile\.openstreetmap\.org/);
 		});
 	});
 });

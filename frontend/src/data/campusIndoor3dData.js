@@ -17,6 +17,8 @@ import { DEFAULT_CAMPUS_GEOMETRY_V3 } from "./defaultCampusGeometryV3.js";
 export const DEFAULT_GEOMETRY_SEED_VERSION =
 	DEFAULT_CAMPUS_GEOMETRY_V3.seedVersion;
 export const STORAGE_KEY_3D_GEOMETRY = "icss_campus_3d_geometry_v4";
+// OpenFreeMap Bright vector style (no rate limit, crisp 3D zoom, zero OSM building-3d collisions)
+export const OPENFREEMAP_STYLE_URL = "https://tiles.openfreemap.org/styles/bright";
 
 export const FLOOR_ELEVATION_STEP = 3.5;
 export const EXPLODED_FLOOR_STEP_OPTIONS = [

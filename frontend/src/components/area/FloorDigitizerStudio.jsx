@@ -59,6 +59,7 @@ import {
 	DEFAULT_BUILDINGS_META,
 	FLOOR_ELEVATION_STEP,
 	FLOOR_SLAB_HEIGHT,
+	OPENFREEMAP_STYLE_URL,
 	loadGeometryStore,
 	saveGeometryStore,
 	createDefaultGeometryStore,
@@ -116,38 +117,6 @@ const STUDIO_LIGHT = {
 };
 
 const NON_INTERACTIVE_MARKER_STYLE = { pointerEvents: "none" };
-
-const OSM_STYLE = {
-	version: 8,
-	light: STUDIO_LIGHT,
-	sources: {
-		"osm-tiles": {
-			type: "raster",
-			tiles: [
-				"https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-				"https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-			],
-			tileSize: 256,
-			maxzoom: 19,
-		},
-	},
-	layers: [
-		{
-			id: "osm-bg",
-			type: "background",
-			paint: {
-				"background-color": "#f1f5f9",
-			},
-		},
-		{
-			id: "osm-tiles-layer",
-			type: "raster",
-			source: "osm-tiles",
-			minzoom: 0,
-			maxzoom: 24,
-		},
-	],
-};
 
 const NODE_TYPES = [
 	{
@@ -4883,7 +4852,7 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						cursor={studioCursor}
 						interactiveLayerIds={studioInteractiveLayerIds}
 						light={STUDIO_LIGHT}
-						mapStyle={OSM_STYLE}
+						mapStyle={OPENFREEMAP_STYLE_URL}
 						style={{ width: "100%", height: "100%" }}
 						minZoom={14}
 						maxZoom={22}
