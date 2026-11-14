@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../models/area_pin_model.dart';
 import 'campus_floor_resolver.dart';
 import 'campus_map_data.dart';
+import 'campus_map_style.dart';
 
 // Dữ liệu cho lớp biểu tượng cầu thang / thang máy và lớp tên phòng trên bản đồ 3D (P-MAP-3).
 // Không phụ thuộc MapLibre: chỉ dựng GeoJSON từ asset + danh sách khu, để test được không cần bản đồ.
@@ -135,6 +136,8 @@ Map<String, dynamic> roomLabelsGeoJson(
       final selected = matched.id == selectedAreaId;
       features.add({
         'type': 'Feature',
+        // Id của feature = id khu: MapLibre Android trả feature.id() khi bấm (onFeatureTapped), giống lớp ghim
+        'id': matched.id,
         'properties': {
           'id': props?['id'],
           'areaId': matched.id,
@@ -151,6 +154,30 @@ Map<String, dynamic> roomLabelsGeoJson(
     }
   }
   return {'type': 'FeatureCollection', 'features': features};
+}
+
+/// Id khu cần mở cho một lần chạm: [featureId] là feature MapLibre trả về ở lớp [layerId]; [labelIdsAtPoint] là id các
+/// nhãn tên phòng nằm ngay tại điểm chạm. Chỉ khi chạm rơi vào lớp GHIM KHU ([campusPinsLayerId]) mà có nhãn tại đó
+/// → khu của nhãn (nhãn nằm trên ghim khu). Lớp ghim sự cố nằm trên nhãn nên chạm vào nó luôn là sự cố.
+String tappedAreaId({
+  required String layerId,
+  required String featureId,
+  Iterable<Object?> labelIdsAtPoint = const [],
+}) {
+  if (layerId != campusPinsLayerId) return featureId;
+  for (final id in labelIdsAtPoint) {
+    if (id != null && id.toString().isNotEmpty) return id.toString();
+  }
+  return featureId;
+}
+
+/// Khu ứng với id của feature vừa bấm (ghim hoặc nhãn; nhãn mang id khu ở feature id và `areaId`): tìm trong [pins],
+/// không có thì là [selected] nếu trùng id (ghim tạm của sự cố chưa có trong danh sách); không thấy → null.
+AreaPinModel? findAreaPinById(Iterable<AreaPinModel> pins, String id, {AreaPinModel? selected}) {
+  for (final p in pins) {
+    if (p.id == id) return p;
+  }
+  return selected?.id == id ? selected : null;
 }
 
 /// Các id ảnh nhãn có trong [labels] (để đăng ký ảnh trước khi đẩy GeoJSON lên bản đồ).

@@ -1,5 +1,6 @@
 import 'dart:math' show Point;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
@@ -27,7 +28,10 @@ const List<({String layer, double opacity})> _campusLayers = [
 ];
 
 const String _pinsSource = 'campus-pins';
-const String _pinsLayer = 'campus-pins-layer';
+const String _pinsLayer = campusPinsLayerId;
+const String _roomLabelsLayer = campusRoomLabelsLayerId;
+const String _incidentPinSource = 'campus-incident-pin';
+const String _incidentPinLayer = campusIncidentPinLayerId;
 const String _guardSource = 'campus-guard';
 const String _routeSource = 'campus-route';
 const String _routeFloorsSource = 'campus-route-floors';
@@ -256,23 +260,6 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         minzoom: 16.5,
         enableInteraction: false,
       );
-      // Tên phòng: ảnh nhãn theo khu, khu đang chọn đặt trước (CampusMapView.jsx:1487-1528)
-      await map.addGeoJsonSource(_roomLabelsSource, empty);
-      await map.addSymbolLayer(
-        _roomLabelsSource,
-        'campus-room-labels-layer',
-        const ml.SymbolLayerProperties(
-          iconImage: ['get', 'imageId'],
-          iconSize: ['interpolate', ['linear'], ['zoom'], 16.4, 0.78, 18.2, 0.94, 19.8, 1.05],
-          iconAllowOverlap: false,
-          iconIgnorePlacement: false,
-          iconPadding: 3,
-          symbolSortKey: ['get', 'sortKey'],
-          iconOpacity: 0.98,
-        ),
-        minzoom: 16.4,
-        enableInteraction: false,
-      );
       await map.addGeoJsonSource(_routeSource, empty);
       await map.addLineLayer(
         _routeSource,
@@ -331,14 +318,32 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       await map.addCircleLayer(
         _pinsSource,
         _pinsLayer,
-        const ml.CircleLayerProperties(
-          circleColor: ['get', 'color'],
-          circleRadius: ['case', ['get', 'selected'], 13, 9],
-          circleStrokeColor: '#ffffff',
-          circleStrokeWidth: ['case', ['get', 'selected'], 3, 2],
-          circlePitchAlignment: 'viewport',
-        ),
+        _areaPinPaint,
       );
+      // Tên phòng: ảnh nhãn theo khu, khu đang chọn đặt trước (CampusMapView.jsx:1487-1528).
+      // Nằm NGAY TRÊN lớp ghim khu (campusLayerOrder): ghim không che được chữ; neo cạnh dưới + dịch lên
+      // roomLabelLiftAbovePin để nhãn không che ghim của chính khu đó.
+      await map.addGeoJsonSource(_roomLabelsSource, empty);
+      await map.addSymbolLayer(
+        _roomLabelsSource,
+        _roomLabelsLayer,
+        ml.SymbolLayerProperties(
+          iconImage: const ['get', 'imageId'],
+          iconSize: roomLabelIconSizeExpression(),
+          iconAnchor: roomLabelIconAnchor,
+          iconOffset: roomLabelIconOffsetExpression(),
+          iconAllowOverlap: false,
+          iconIgnorePlacement: false,
+          iconPadding: 3,
+          symbolSortKey: ['get', 'sortKey'],
+          iconOpacity: 0.98,
+        ),
+        minzoom: roomLabelMinZoom,
+        // Bấm nhãn mở thẻ khu như bấm ghim (_onFeatureTapped); chạm trúng cả nhãn lẫn ghim → nhãn (lớp trên)
+      );
+      // Ghim sự cố đang mở (kể cả ghim tạm): trên tên phòng để nhãn không che, dưới vị trí bảo vệ. Cùng hình với ghim khu.
+      await map.addGeoJsonSource(_incidentPinSource, empty);
+      await map.addCircleLayer(_incidentPinSource, _incidentPinLayer, _areaPinPaint);
       await map.addGeoJsonSource(_guardSource, empty);
       await map.addCircleLayer(
         _guardSource,
@@ -358,6 +363,11 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         ),
         enableInteraction: false,
       );
+      // Đối chiếu thứ tự lớp thật với campusLayerOrder (chỉ ghi log, không chặn bản đồ)
+      final actual = (await map.getLayerIds()).map((e) => e.toString()).where(campusLayerOrder.contains).toList();
+      debugPrint(listEquals(actual, campusLayerOrder)
+          ? '[MAP] thứ tự lớp đúng: ${actual.join(' → ')}'
+          : '[MAP] thứ tự lớp LỆCH: ${actual.join(' → ')}');
     } catch (e) {
       debugPrint('[GuardMapScreen] add layers: $e');
     }
@@ -367,6 +377,15 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     _pendingFocus = null;
     if (pending != null) _focusOn(pending.target, pending.zoom);
   }
+
+  /// Hình ghim khu (màu theo cấp khu; khu đang chọn to hơn), dùng chung cho lớp ghim khu và lớp ghim sự cố.
+  static final ml.CircleLayerProperties _areaPinPaint = ml.CircleLayerProperties(
+    circleColor: const ['get', 'color'],
+    circleRadius: const ['case', ['get', 'selected'], areaPinMaxRadius, 9],
+    circleStrokeColor: '#ffffff',
+    circleStrokeWidth: const ['case', ['get', 'selected'], areaPinMaxStrokeWidth, 2],
+    circlePitchAlignment: 'viewport',
+  );
 
   /// Đăng ký ảnh [id] vào style hiện tại nếu chưa có. Ảnh vẽ một lần rồi giữ trong [_spriteCache].
   Future<void> _ensureImage(ml.MapLibreMapController map, String id) async {
@@ -469,15 +488,16 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         );
       }
 
-      final pins = List<AreaPinModel>.of(p.filteredPins);
+      // Ghim sự cố đang mở tách sang lớp riêng; lớp ghim khu không vẽ lại nó
       final selected = p.selectedArea;
-      if (selected != null && selected.centerLatitude != 0.0 && !pins.any((x) => x.id == selected.id)) {
-        pins.add(selected);
-      }
-      final pinsKey = '${pins.map((x) => x.id).join(',')}|${selected?.id}';
+      final split = splitIncidentPin(p.filteredPins, selected: selected, incidentAreaId: p.incidentAreaId);
+      final incident = split.incident;
+      final pinsKey = '${split.areas.map((x) => x.id).join(',')}|${selected?.id}|${incident?.id}';
       if (pinsKey != _pinsKey) {
         _pinsKey = pinsKey;
-        await map.setGeoJsonSource(_pinsSource, pinsGeoJson(pins, selectedId: selected?.id));
+        await map.setGeoJsonSource(_pinsSource, pinsGeoJson(split.areas, selectedId: selected?.id));
+        await map.setGeoJsonSource(
+            _incidentPinSource, pinsGeoJson([?incident], selectedId: incident?.id));
       }
 
       await map.setGeoJsonSource(_guardSource, pointGeoJson(p.guardLocation));
@@ -496,11 +516,28 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
   }
 
   void _onFeatureTapped(dynamic point, ml.LatLng coordinates, String id, String layerId, dynamic annotation) {
-    if (layerId != _pinsLayer) return;
-    final pin = _provider.filteredPins.cast<AreaPinModel?>().firstWhere(
-          (x) => x!.id == id,
-          orElse: () => _provider.selectedArea?.id == id ? _provider.selectedArea : null,
-        );
+    // Ghim khu, nhãn tên phòng và ghim sự cố đều mang id khu ở feature id
+    if (layerId != _pinsLayer && layerId != _roomLabelsLayer && layerId != _incidentPinLayer) return;
+    _selectTappedArea(point, id, layerId);
+  }
+
+  /// MapLibre Android đã ưu tiên lớp nằm trên khi một lần chạm trúng nhiều lớp
+  /// (MapLibreMapController.firstFeatureOnLayers): ghim sự cố > nhãn > ghim khu. Chạm rơi vào ghim khu thì vẫn hỏi lại
+  /// lớp nhãn tại đúng điểm chạm: có nhãn ở đó → mở khu của NHÃN; chạm vào ghim sự cố luôn là sự cố (tappedAreaId).
+  Future<void> _selectTappedArea(dynamic point, String id, String layerId) async {
+    var areaId = id;
+    final map = _map;
+    if (layerId == _pinsLayer && map != null && point is Point<double>) {
+      try {
+        final labels = await map.queryRenderedFeatures(point, const [_roomLabelsLayer], null);
+        areaId = tappedAreaId(
+            layerId: layerId, featureId: id, labelIdsAtPoint: [for (final f in labels) (f as Map)['id']]);
+      } catch (e) {
+        debugPrint('[GuardMapScreen] query labels at tap: $e');
+      }
+    }
+    if (!mounted) return;
+    final pin = findAreaPinById(_provider.areaPins, areaId, selected: _provider.selectedArea);
     if (pin == null) return;
     _provider.selectArea(pin);
     _focusOn(pin.latLng, 17.8);

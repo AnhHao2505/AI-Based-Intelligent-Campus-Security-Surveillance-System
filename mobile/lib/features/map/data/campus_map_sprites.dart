@@ -143,6 +143,59 @@ const Map<String, int> roomLabelAccentColors = {
   'HIGHLY_CONFIDENTIAL': 0xDC2626,
 };
 
+/// Lề trong suốt quanh viên nhãn để chừa chỗ cho bóng (đơn vị logic = điểm ảnh / [campusSpritePixelRatio]).
+const double roomLabelShadowPad = 3;
+
+/// Zoom nhỏ nhất hiện nhãn tên phòng (web CampusMapView.jsx, minzoom 16.4 của lớp nhãn).
+const double roomLabelMinZoom = 16.4;
+
+/// Cỡ nhãn theo zoom: (zoom, icon-size), nội suy tuyến tính (web CampusMapView.jsx, lớp campus-3d-room-labels-layer).
+const List<(double, double)> roomLabelIconSizeStops = [(16.4, 0.78), (18.2, 0.94), (19.8, 1.05)];
+
+/// Bán kính lớn nhất của ghim khu (ghim khu đang chọn, lớp campus-pins-layer của guard_map_screen.dart), dp.
+const double areaPinMaxRadius = 13;
+
+/// Viền trắng dày nhất của ghim khu (ghim khu đang chọn), dp. MapLibre vẽ viền NGOÀI bán kính, nên mép ghim nhìn thấy
+/// cách tâm [areaPinMaxRadius] + [areaPinMaxStrokeWidth].
+const double areaPinMaxStrokeWidth = 3;
+
+/// Khoảng hở giữa mép ghim nhìn thấy (gồm viền) và cạnh dưới viên nhãn, dp.
+const double roomLabelPinGap = 4;
+
+/// Neo nhãn ở cạnh dưới ảnh (điểm nhãn nằm dưới nhãn, ghim không che chữ).
+const String roomLabelIconAnchor = 'bottom';
+
+/// Nhãn đặt TRÊN ghim: cạnh dưới viên nhãn cách điểm neo
+/// [areaPinMaxRadius] + [areaPinMaxStrokeWidth] + [roomLabelPinGap] (= 20 dp), tức hở [roomLabelPinGap] với mép mọi ghim.
+/// Lý do: phòng khớp khu khi tâm khu nằm trong phòng, nên ghim (tâm khu) và điểm nhãn (điểm trong phòng) thường gần
+/// nhau; nhãn ở giữa thì ghim (lớp trên cùng) che mất chữ (P-MAP-3, ảnh a3).
+const double roomLabelLiftAbovePin = areaPinMaxRadius + areaPinMaxStrokeWidth + roomLabelPinGap;
+
+/// `icon-offset` (đơn vị ảnh ở icon-size 1) của nhãn neo `bottom` khi icon-size = [iconSize]: MapLibre nhân offset với
+/// icon-size, và cạnh dưới ảnh còn lề bóng [roomLabelShadowPad] (cũng nhân icon-size) dưới viên nhãn, nên
+/// (offset + lề) × iconSize = [roomLabelLiftAbovePin] → offset = lift / iconSize − lề. Số âm = dịch lên.
+List<double> roomLabelIconOffset(double iconSize) => [0, -(roomLabelLiftAbovePin / iconSize - roomLabelShadowPad)];
+
+/// Biểu thức `icon-size` của lớp nhãn (theo [roomLabelIconSizeStops]).
+List<Object> roomLabelIconSizeExpression() => [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      for (final (zoom, size) in roomLabelIconSizeStops) ...[zoom, size],
+    ];
+
+/// Biểu thức `icon-offset` của lớp nhãn: đúng tại mỗi mốc của [roomLabelIconSizeStops], nội suy giữa các mốc
+/// (sai lệch giữa hai mốc dưới 1 %, vd 20.18 thay vì 20 dp ở zoom 17.3).
+List<Object> roomLabelIconOffsetExpression() => [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      for (final (zoom, size) in roomLabelIconSizeStops) ...[
+        zoom,
+        ['literal', roomLabelIconOffset(size)],
+      ],
+    ];
+
 /// Cắt tên dài, thêm một dấu "…" ở cuối (web truncateLabelText, mapRoomLabelSprites.js:19-26).
 String truncateRoomLabel(String text, [int maxLength = roomLabelMaxLength]) {
   final raw = text.trim();
@@ -176,7 +229,7 @@ Future<CampusSprite?> renderRoomLabel({required String name, required String lev
   if (label.isEmpty) return null;
 
   const scale = campusSpritePixelRatio;
-  const dotRadius = 3.0, dotGap = 6.0, padX = 9.0, shadowPad = 3.0, pillHeight = 22.0;
+  const dotRadius = 3.0, dotGap = 6.0, padX = 9.0, shadowPad = roomLabelShadowPad, pillHeight = 22.0;
 
   final builder = ui.ParagraphBuilder(ui.ParagraphStyle(fontSize: 11, fontWeight: ui.FontWeight.w600, maxLines: 1))
     ..pushStyle(ui.TextStyle(color: selected ? _hex(0xFFFFFF) : _hex(0x0F172A)))
