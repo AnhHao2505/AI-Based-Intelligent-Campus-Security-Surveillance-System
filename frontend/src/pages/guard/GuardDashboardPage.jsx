@@ -12,17 +12,24 @@ import {
 	Loader2,
 	Flame,
 	ArrowRight,
+	Broom,
 	RotateCcw,
 	Maximize2,
 	Minimize2,
 	AlertTriangle,
 	BellOff,
 	Eye,
+	Check,
 	CheckCheck,
 	Camera as CameraIcon,
 	X,
 	Film,
+	Download,
+	ExternalLink,
+	RefreshCw,
+	Play,
 } from "lucide-react";
+import { fetchDiskRecordings, withRecordingStreamToken } from "../../services/recordingService";
 import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 import WebRtcPlayer from "../../components/video/WebRtcPlayer";
 import { fetchCameras } from "../../services/cameraService";
@@ -152,7 +159,7 @@ const EVENT_SEVERITY_CONFIG = {
 	},
 };
 
-const formatIncidentTimestamp = (isoString) => {
+const getIncidentTimeParts = (isoString) => {
 	const d = isoString ? new Date(isoString) : new Date();
 	const time = d.toLocaleTimeString("vi-VN", {
 		hour: "2-digit",
@@ -163,7 +170,15 @@ const formatIncidentTimestamp = (isoString) => {
 	const day = String(d.getDate()).padStart(2, "0");
 	const month = String(d.getMonth() + 1).padStart(2, "0");
 	const year = d.getFullYear();
-	return `${time} ${day}/${month}/${year}`;
+	return {
+		time,
+		date: `${day}/${month}/${year}`,
+		full: `${time} ${day}/${month}/${year}`,
+	};
+};
+
+const formatIncidentTimestamp = (isoString) => {
+	return getIncidentTimeParts(isoString).full;
 };
 
 const cleanIncidentMessage = (msg, eventType = "", areaName = "", cameraCode = "") => {
@@ -271,7 +286,7 @@ const getStoredSet = (key) => {
 
 const saveStoredSet = (key, set) => {
 	try {
-		const arr = Array.from(set).slice(-1000);
+		const arr = Array.from(set).slice(-5000);
 		localStorage.setItem(key, JSON.stringify(arr));
 	} catch (e) {
 		console.warn(`Lỗi lưu ${key} vào localStorage:`, e);
@@ -335,9 +350,16 @@ export function SecuritySurveillancePage() {
 	const [cameraList, setCameraList] = useState([]);
 	const [camerasLoading, setCamerasLoading] = useState(true);
 	const [alertFilter, setAlertFilter] = useState("ALL"); // 'ALL' | 'PENDING'
+	const [hasClearedIncidents, setHasClearedIncidents] = useState(
+		() => getStoredSet(SOC_CLEARED_STORAGE_KEY).size > 0,
+	);
 	const [flashAlertCamera, setFlashAlertCamera] = useState(null);
 	const [statusNotification, setStatusNotification] = useState(null);
 	const [evidenceModalAlert, setEvidenceModalAlert] = useState(null);
+	const [evidenceModalTab, setEvidenceModalTab] = useState("image"); // "image" | "video"
+	const [incidentVideoLoading, setIncidentVideoLoading] = useState(false);
+	const [incidentVideoData, setIncidentVideoData] = useState(null);
+	const [incidentVideoError, setIncidentVideoError] = useState(null);
 
 	const flashTimeoutRef = useRef(null);
 	const soundEnabledRef = useRef(soundEnabled);
@@ -346,12 +368,14 @@ export function SecuritySurveillancePage() {
 		soundEnabledRef.current = soundEnabled;
 	}, [soundEnabled]);
 
-	// Phím tắt ESC để thoát chế độ phóng to hoặc đóng modal xem ảnh bằng chứng
+	// Phím tắt ESC để thoát chế độ phóng to hoặc đóng modal xem ảnh/video bằng chứng
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			if (e.key === "Escape") {
 				if (evidenceModalAlert) {
 					setEvidenceModalAlert(null);
+					setIncidentVideoData(null);
+					setIncidentVideoError(null);
 				} else if (isTheaterMode) {
 					setIsTheaterMode(false);
 				}
@@ -576,6 +600,7 @@ export function SecuritySurveillancePage() {
 			duration: incident.duration_seconds
 				? `${incident.duration_seconds}s`
 				: incident.duration || "Vừa phát hiện",
+			timeParts: getIncidentTimeParts(incident.detectedAt || incident.detected_at),
 			timestamp: formatIncidentTimestamp(incident.detectedAt || incident.detected_at),
 			rawTime: Date.now(),
 			status: incident.status || "NEW",
@@ -739,6 +764,7 @@ export function SecuritySurveillancePage() {
 								duration: incident.duration_seconds
 									? `${incident.duration_seconds}s`
 									: "Vừa phát hiện",
+								timeParts: getIncidentTimeParts(incident.detectedAt),
 								timestamp: formatIncidentTimestamp(incident.detectedAt),
 								rawTime: incident.detectedAt
 									? new Date(incident.detectedAt).getTime()
@@ -794,14 +820,14 @@ export function SecuritySurveillancePage() {
 
 		try {
 			await acknowledgeIncident(strId, camCode);
-			triggerNotification("Đã xác nhận xem sự cố. Video bằng chứng đã được lưu vào thư mục evidence!");
+			triggerNotification("Đã ghi nhận sự cố. Video bằng chứng đã được lưu vào thư mục evidence!");
 		} catch (err) {
 			console.warn("Lỗi khi kết thúc ghi hình sự cố:", err);
-			triggerNotification("Đã xác nhận xem sự cố");
+			triggerNotification("Đã ghi nhận sự cố");
 		}
 	};
 
-	// Nghiệp vụ SOC: Xác nhận đã xem toàn bộ sự cố đang chờ xử lý
+	// Nghiệp vụ SOC: Ghi nhận toàn bộ sự cố đang chờ
 	// Đồng thời kết thúc toàn bộ video ghi hình sự cố an ninh
 	const handleAcknowledgeAll = async () => {
 		const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
@@ -821,14 +847,14 @@ export function SecuritySurveillancePage() {
 
 		try {
 			await acknowledgeAllIncidents();
-			triggerNotification("Đã xác nhận xem tất cả sự cố. Toàn bộ video bằng chứng đã được lưu vào thư mục evidence!");
+			triggerNotification("Đã ghi nhận tất cả sự cố. Toàn bộ video bằng chứng đã được lưu vào thư mục evidence!");
 		} catch (err) {
 			console.warn("Lỗi khi kết thúc toàn bộ ghi hình sự cố:", err);
-			triggerNotification("Đã xác nhận xem tất cả sự cố đang chờ");
+			triggerNotification("Đã ghi nhận tất cả sự cố");
 		}
 	};
 
-	// Xóa các sự cố đã tắt còi (SOC đã xem) hoặc đã được hiện trường đóng khỏi bảng trực
+	// Dọn dẹp các sự cố đã ghi nhận (SOC đã xem) hoặc đã được hiện trường đóng khỏi bảng trực
 	const handleClearResolved = () => {
 		const clearedSet = getStoredSet(SOC_CLEARED_STORAGE_KEY);
 		activeAlerts.forEach((a) => {
@@ -837,11 +863,122 @@ export function SecuritySurveillancePage() {
 			}
 		});
 		saveStoredSet(SOC_CLEARED_STORAGE_KEY, clearedSet);
+		setHasClearedIncidents(clearedSet.size > 0);
 
 		setActiveAlerts((prev) =>
 			prev.filter((a) => !a.socAcknowledged && isAlertPending(a.status)),
 		);
-		triggerNotification("Đã dọn dẹp các sự cố đã xem/đã đóng");
+		triggerNotification("Đã dọn dẹp các sự cố đã ghi nhận khỏi bảng trực");
+	};
+
+	// Khôi phục lại toàn bộ danh sách sự cố đã ẩn khỏi bảng trực
+	const handleRestoreCleared = () => {
+		localStorage.removeItem(SOC_CLEARED_STORAGE_KEY);
+		localStorage.removeItem(SOC_ACK_STORAGE_KEY);
+		setHasClearedIncidents(false);
+		setIncidentsReloadKey((k) => k + 1);
+		triggerNotification("Đã khôi phục toàn bộ danh sách sự cố an ninh");
+	};
+
+	// Tải và phát video hiện trường sự cố trực tiếp trong tab này
+	const loadIncidentVideo = async (alert) => {
+		if (!alert) return;
+		setIncidentVideoLoading(true);
+		setIncidentVideoError(null);
+		try {
+			const camCode = alert.camCodeClean || alert.cameraCode;
+			const list = await fetchDiskRecordings({ cameraId: camCode });
+			if (!list || list.length === 0) {
+				setIncidentVideoError("Chưa có bản ghi video nào của camera này trên máy chủ.");
+				return;
+			}
+
+			// Ưu tiên 1: Video sự cố an ninh (SECURITY_EVENT hoặc file Incident)
+			const alertTime = alert.detectedAt ? new Date(alert.detectedAt).getTime() : Date.now();
+			const incidentVideos = list.filter(
+				(v) =>
+					v.eventType === "SECURITY_EVENT" ||
+					(v.filename && v.filename.toLowerCase().startsWith("incident")),
+			);
+
+			let bestMatch = null;
+			if (incidentVideos.length > 0) {
+				incidentVideos.sort((a, b) => {
+					const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
+					const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
+					return diffA - diffB;
+				});
+				bestMatch = incidentVideos[0];
+			} else {
+				// Fallback: Bản ghi định kỳ gần thời điểm sự cố nhất
+				list.sort((a, b) => {
+					const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
+					const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
+					return diffA - diffB;
+				});
+				bestMatch = list[0];
+			}
+
+			if (!bestMatch || !bestMatch.videoUrl) {
+				setIncidentVideoError("Không tìm thấy tệp video sự cố phù hợp.");
+				return;
+			}
+
+			let signedUrl = bestMatch.videoUrl;
+			try {
+				signedUrl = await withRecordingStreamToken(bestMatch.videoUrl);
+			} catch (tokenErr) {
+				console.warn("Lỗi xin stream token, fallback sang URL trực tiếp:", tokenErr);
+			}
+
+			setIncidentVideoData({
+				...bestMatch,
+				signedUrl,
+			});
+		} catch (err) {
+			console.warn("Lỗi tải video sự cố:", err);
+			setIncidentVideoError(err.message || "Không thể kết nối đến máy chủ video.");
+		} finally {
+			setIncidentVideoLoading(false);
+		}
+	};
+
+	// Mở modal xem Ảnh hoặc Video sự cố trong tab hiện tại
+	const handleOpenIncidentMedia = (alert, initialTab = "image") => {
+		setEvidenceModalAlert(alert);
+		setEvidenceModalTab(initialTab);
+		setIncidentVideoData(null);
+		setIncidentVideoError(null);
+		if (initialTab === "video") {
+			loadIncidentVideo(alert);
+		}
+	};
+
+	// Chuyển đổi qua lại giữa Ảnh và Video trong modal
+	const handleSwitchModalTab = (tab) => {
+		setEvidenceModalTab(tab);
+		if (tab === "video" && !incidentVideoData && !incidentVideoLoading) {
+			loadIncidentVideo(evidenceModalAlert);
+		}
+	};
+
+	// Tải file video MP4 về máy
+	const handleDownloadIncidentVideo = async () => {
+		if (!incidentVideoData) return;
+		const popup = window.open("", "_blank");
+		try {
+			const signedUrl = await withRecordingStreamToken(
+				incidentVideoData.downloadUrl || incidentVideoData.videoUrl,
+			);
+			if (popup) {
+				popup.location.href = signedUrl;
+			} else {
+				window.location.assign(signedUrl);
+			}
+		} catch (err) {
+			popup?.close();
+			triggerNotification("Không thể lấy liên kết tải video");
+		}
 	};
 
 	// Chuyển trực tiếp video sang camera cụ thể
@@ -1105,9 +1242,6 @@ export function SecuritySurveillancePage() {
 											streamPath={camera.code}
 											cameraCode={camera.cameraCode}
 											cameraName={camera.name}
-											resolution="1080p"
-											fps="30 FPS"
-											isRecording={true}
 											enabled={camera.status === "ONLINE"}
 											host="localhost:8889"
 											onStatusChange={(playerStatus) => {
@@ -1145,17 +1279,18 @@ export function SecuritySurveillancePage() {
 									size={18}
 									className="soc-shield-icon"
 								/>
-								<span>SỰ KIỆN AN NINH</span>
+								<span>SỰ CỐ AN NINH</span>
 							</div>
 							<span
 								className={`soc-header-count ${pendingAlertCount > 0 ? "has-incidents" : ""}`}
+								title="Số sự cố chờ ghi nhận"
 							>
 								{pendingAlertCount}
 							</span>
 						</div>
 
 						{/* ┌──────────────────────────────┐
-						    │ [Tất cả 0] [Chưa xử lý 0]    │
+						    │ [Tất cả 0] [Chờ ghi nhận 0]  │
 						    └──────────────────────────────┘ */}
 						<div className="soc-filter-tabs">
 							<button
@@ -1169,8 +1304,9 @@ export function SecuritySurveillancePage() {
 								type="button"
 								className={`soc-tab-btn ${alertFilter === "PENDING" ? "active" : ""}`}
 								onClick={() => setAlertFilter("PENDING")}
+								title="Sự cố chưa được phòng trực ghi nhận"
 							>
-								Cần xử lý {pendingAlertCount}
+								Chờ ghi nhận {pendingAlertCount}
 							</button>
 
 							{pendingAlertCount > 1 && (
@@ -1178,10 +1314,10 @@ export function SecuritySurveillancePage() {
 									type="button"
 									className="soc-btn-ack-all"
 									onClick={handleAcknowledgeAll}
-									title="Xác nhận đã xem tất cả sự cố chưa xử lý"
+									title="Ghi nhận toàn bộ sự cố và tắt cảnh báo âm thanh"
 								>
 									<CheckCheck size={13} />
-									<span>Xem hết</span>
+									<span>Ghi nhận tất cả</span>
 								</button>
 							)}
 
@@ -1192,11 +1328,24 @@ export function SecuritySurveillancePage() {
 										type="button"
 										className="soc-btn-clear"
 										onClick={handleClearResolved}
-										title="Dọn dẹp sự cố đã xem hoặc đã giải quyết"
+										title="Dọn dẹp bảng trực (chỉ ẩn các sự cố đã ghi nhận/đã đóng khỏi màn hình, không xóa dữ liệu lưu trữ)"
+										aria-label="Dọn dẹp bảng trực"
 									>
-										<RotateCcw size={12} />
+										<Broom size={13} />
 									</button>
 								)}
+
+							{hasClearedIncidents && (
+								<button
+									type="button"
+									className="soc-btn-restore"
+									onClick={handleRestoreCleared}
+									title="Khôi phục lại toàn bộ danh sách sự cố đã ẩn"
+								>
+									<RotateCcw size={12} />
+									<span>Khôi phục</span>
+								</button>
+							)}
 						</div>
 
 						{/* Khu Vực Hiển Thị Sự Kiện Hoặc Trạng Thái An Toàn */}
@@ -1221,7 +1370,18 @@ export function SecuritySurveillancePage() {
 								<div className="soc-safe-system-state">
 									<div className="soc-green-pulse-circle" />
 									<h4 className="soc-safe-title">HỆ THỐNG AN TOÀN</h4>
-									<p className="soc-safe-desc">Không có sự cố</p>
+									<p className="soc-safe-desc">Không có sự cố cần chú ý</p>
+									{hasClearedIncidents && (
+										<button
+											type="button"
+											className="soc-btn-restore-safe"
+											onClick={handleRestoreCleared}
+											title="Khôi phục lại toàn bộ sự cố đã ẩn trước đó"
+										>
+											<RotateCcw size={13} />
+											<span>Khôi phục danh sách</span>
+										</button>
+									)}
 								</div>
 							) : (
 								<div className="soc-incident-list">
@@ -1236,22 +1396,31 @@ export function SecuritySurveillancePage() {
 												className={`soc-incident-card ${isPending ? "pending" : "resolved"} ${sev.badgeClass}`}
 											>
 												<div className="soc-incident-top">
-													<div className="soc-incident-tag">
-														<AlertTriangle size={12} />
-														<span>{sev.label}</span>
+													<div className="soc-incident-tags-group">
+														<div className="soc-incident-tag">
+															<AlertTriangle size={14} />
+															<span>{sev.label}</span>
+														</div>
+														{/* V93 (BR-DSP-11): đang mời một nhóm bảo vệ trên mobile; web chỉ theo dõi */}
+														{isPending && status === "NEW" && String(alert.dispatchStage || "").toUpperCase() === "STEP1" && (
+															<span
+																className="soc-claimed-label"
+																title="Hệ thống đang mời một nhóm bảo vệ tiếp nhận qua ứng dụng di động"
+															>
+																Đang mời bảo vệ
+															</span>
+														)}
 													</div>
-													{/* V93 (BR-DSP-11): đang mời một nhóm bảo vệ trên mobile; web chỉ theo dõi */}
-													{isPending && status === "NEW" && String(alert.dispatchStage || "").toUpperCase() === "STEP1" && (
-														<span
-															className="soc-claimed-label"
-															title="Hệ thống đang mời một nhóm bảo vệ tiếp nhận qua ứng dụng di động"
-														>
-															Đang mời bảo vệ
+
+													<div className="soc-incident-time" title={alert.timeParts?.full || alert.timestamp}>
+														<span className="soc-time-clock">
+															<Clock size={10} />
+															{alert.timeParts?.time || alert.timestamp}
 														</span>
-													)}
-													<span className="soc-incident-time">
-														<Clock size={11} /> {alert.timestamp}
-													</span>
+														{alert.timeParts?.date && (
+															<span className="soc-time-date">{alert.timeParts.date}</span>
+														)}
+													</div>
 												</div>
 
 												<p className="soc-incident-msg">{alert.message}</p>
@@ -1279,22 +1448,30 @@ export function SecuritySurveillancePage() {
 															<button
 																type="button"
 																className="btn-soc-evidence"
-																onClick={() => setEvidenceModalAlert(alert)}
+																onClick={() => handleOpenIncidentMedia(alert, "image")}
 																title="Xem ảnh chụp bằng chứng quả tang từ AI"
 															>
 																<CameraIcon size={12} />
 																<span>Bằng chứng</span>
 															</button>
 														)}
+
+														{/* Nút xem video sự cố ngay trong tab này */}
+														<button
+															type="button"
+															className="btn-soc-video"
+															onClick={() => handleOpenIncidentMedia(alert, "video")}
+															title="Xem video hiện trường sự cố ngay trong tab này"
+														>
+															<Film size={12} />
+															<span>Video</span>
+														</button>
 													</div>
 
 													<div
 														className="soc-incident-workflow"
 														aria-label="Trạng thái và thao tác phòng trực SOC"
 													>
-														<span className="soc-incident-workflow__heading">
-															Phòng trực
-														</span>
 														{/* Trạng thái & Thao tác nghiệp vụ phòng trực SOC */}
 														{!isPending ? (
 															<span
@@ -1319,10 +1496,10 @@ export function SecuritySurveillancePage() {
 																		type="button"
 																		className="btn-soc-ack"
 																		onClick={() => handleAcknowledge(alert.id)}
-																		title="Xác nhận đã theo dõi qua Camera"
+																		title="Ghi nhận đã theo dõi qua Camera"
 																	>
-																		<Eye size={11} />
-																		<span>Đã xem</span>
+																		<Check size={11} />
+																		<span>Ghi nhận</span>
 																	</button>
 																)}
 															</div>
@@ -1331,17 +1508,17 @@ export function SecuritySurveillancePage() {
 																className="soc-ack-badge"
 																title="Phòng SOC đã ghi nhận và đang quan sát qua camera"
 															>
-																<Eye size={12} /> Đã xem
+																<Eye size={12} /> Đã ghi nhận
 															</span>
 														) : (
 															<button
 																type="button"
 																className="btn-soc-ack"
 																onClick={() => handleAcknowledge(alert.id)}
-																title="Xác nhận đã xem"
+																title="Ghi nhận sự cố và tắt cảnh báo âm thanh"
 															>
-																<BellOff size={12} />
-																<span>Xác nhận đã xem</span>
+																<Check size={12} />
+																<span>Ghi nhận</span>
 															</button>
 														)}
 													</div>
@@ -1356,11 +1533,14 @@ export function SecuritySurveillancePage() {
 				)}
 			</div>
 
-			{/* Modal hiển thị ảnh bằng chứng quả tang từ AI */}
+			{/* Modal hiển thị ảnh và video bằng chứng quả tang từ AI */}
 			{evidenceModalAlert && (
 				<div
 					className="soc-evidence-modal-backdrop"
-					onClick={() => setEvidenceModalAlert(null)}
+					onClick={() => {
+						setEvidenceModalAlert(null);
+						setIncidentVideoData(null);
+					}}
 				>
 					<div
 						className="soc-evidence-modal-content"
@@ -1374,7 +1554,7 @@ export function SecuritySurveillancePage() {
 										color: getAlertSeverityMeta(evidenceModalAlert).color,
 									}}
 								/>
-								<h4>ẢNH BẰNG CHỨNG VI PHẠM AN NINH</h4>
+								<h4>BẰNG CHỨNG VI PHẠM AN NINH</h4>
 								<span
 									className={`soc-incident-tag ${getAlertSeverityMeta(evidenceModalAlert).badgeClass}`}
 								>
@@ -1384,7 +1564,10 @@ export function SecuritySurveillancePage() {
 							<button
 								type="button"
 								className="soc-evidence-close-btn"
-								onClick={() => setEvidenceModalAlert(null)}
+								onClick={() => {
+									setEvidenceModalAlert(null);
+									setIncidentVideoData(null);
+								}}
 								title="Đóng (ESC)"
 							>
 								<X size={18} />
@@ -1392,13 +1575,118 @@ export function SecuritySurveillancePage() {
 						</div>
 
 						<div className="soc-evidence-modal-body">
-							<div className="soc-evidence-image-container">
-								<EvidenceImage
-									src={evidenceModalAlert.imageUrl}
-									alt="Ảnh bằng chứng vi phạm an ninh"
-									className="soc-evidence-full-img"
-								/>
+							{/* Thanh chuyển chế độ Ảnh / Video ngay trong tab này */}
+							<div className="soc-media-mode-toggle">
+								<button
+									type="button"
+									className={`soc-media-tab-btn ${evidenceModalTab === "image" ? "active" : ""}`}
+									onClick={() => handleSwitchModalTab("image")}
+								>
+									<CameraIcon size={14} />
+									<span>Ảnh bằng chứng quả tang</span>
+								</button>
+								<button
+									type="button"
+									className={`soc-media-tab-btn ${evidenceModalTab === "video" ? "active" : ""}`}
+									onClick={() => handleSwitchModalTab("video")}
+								>
+									<Film size={14} />
+									<span>Video hiện trường sự cố</span>
+								</button>
 							</div>
+
+							{evidenceModalTab === "image" ? (
+								<div className="soc-evidence-image-container">
+									<EvidenceImage
+										src={evidenceModalAlert.imageUrl}
+										alt="Ảnh bằng chứng vi phạm an ninh"
+										className="soc-evidence-full-img"
+									/>
+								</div>
+							) : (
+								<div className="soc-evidence-video-container">
+									{incidentVideoLoading ? (
+										<div className="soc-video-loading-box">
+											<Loader2 size={32} className="soc-spinner" />
+											<span>Đang kết nối và tải video sự cố...</span>
+										</div>
+									) : incidentVideoError ? (
+										<div className="soc-video-empty-box">
+											<AlertTriangle size={36} color="#ef4444" />
+											<p className="soc-video-error-text">{incidentVideoError}</p>
+											<div className="soc-video-error-actions">
+												<button
+													type="button"
+													className="btn-soc-retry-video"
+													onClick={() => loadIncidentVideo(evidenceModalAlert)}
+												>
+													<RefreshCw size={13} /> Thử tải lại
+												</button>
+												<button
+													type="button"
+													className="btn-soc-open-archive"
+													onClick={() =>
+														window.open(
+															`/recordings?cameraId=${evidenceModalAlert.camCodeClean || evidenceModalAlert.cameraCode}`,
+															"_blank",
+														)
+													}
+												>
+													<ExternalLink size={13} /> Mở Kho lưu trữ ghi hình
+												</button>
+											</div>
+										</div>
+									) : incidentVideoData?.signedUrl ? (
+										<div className="soc-video-player-wrapper">
+											<video
+												key={incidentVideoData.signedUrl}
+												src={incidentVideoData.signedUrl}
+												controls
+												autoPlay
+												preload="auto"
+												className="soc-evidence-video-player"
+												onError={() =>
+													setIncidentVideoError(
+														"Không thể phát trực tiếp video trên trình duyệt (codec chưa hỗ trợ hoặc tệp đang ghi). Bạn có thể tải file MP4 về máy.",
+													)
+												}
+											>
+												Trình duyệt không hỗ trợ thẻ video HTML5.
+											</video>
+											<div className="soc-video-meta-bar">
+												<span>
+													<strong>Tệp:</strong> {incidentVideoData.filename || incidentVideoData.id}
+												</span>
+												{incidentVideoData.durationDisplay && (
+													<span>
+														<strong>Thời lượng:</strong> {incidentVideoData.durationDisplay}
+													</span>
+												)}
+												<button
+													type="button"
+													className="btn-soc-dl-video"
+													onClick={handleDownloadIncidentVideo}
+													title="Tải video này về máy"
+												>
+													<Download size={12} /> Tải MP4
+												</button>
+											</div>
+										</div>
+									) : (
+										<div className="soc-video-empty-box">
+											<Film size={36} color="#64748b" />
+											<p>Chưa có video được chọn</p>
+											<button
+												type="button"
+												className="btn-soc-retry-video"
+												onClick={() => loadIncidentVideo(evidenceModalAlert)}
+											>
+												<RefreshCw size={13} /> Tải video
+											</button>
+										</div>
+									)}
+								</div>
+							)}
 
 							<div className="soc-evidence-meta-panel">
 								<div className="soc-evidence-meta-row">
@@ -1419,28 +1707,73 @@ export function SecuritySurveillancePage() {
 						</div>
 
 						<div className="soc-evidence-modal-footer">
-							<button
-								type="button"
-								className="btn-soc-jump-cam"
-								onClick={() => {
-									handleSelectCamera(
-										evidenceModalAlert.camCodeClean ||
-											evidenceModalAlert.cameraCode,
-									);
-									setEvidenceModalAlert(null);
-								}}
-								title="Chuyển màn hình sang xem trực tiếp camera này"
-							>
-								<Video size={13} />
-								<span>Xem trực tiếp camera {evidenceModalAlert.cameraCode}</span>
-							</button>
-							<button
-								type="button"
-								className="btn-soc-evidence-close"
-								onClick={() => setEvidenceModalAlert(null)}
-							>
-								Đóng
-							</button>
+							<div className="soc-evidence-footer-left">
+								{evidenceModalTab === "image" ? (
+									<button
+										type="button"
+										className="btn-soc-switch-tab"
+										onClick={() => handleSwitchModalTab("video")}
+										title="Chuyển sang xem video sự cố ngay trong modal"
+									>
+										<Film size={13} />
+										<span>Xem Video sự cố</span>
+									</button>
+								) : (
+									<button
+										type="button"
+										className="btn-soc-switch-tab"
+										onClick={() => handleSwitchModalTab("image")}
+										title="Chuyển về xem ảnh bằng chứng"
+									>
+										<CameraIcon size={13} />
+										<span>Xem Ảnh bằng chứng</span>
+									</button>
+								)}
+
+								<button
+									type="button"
+									className="btn-soc-link-archive"
+									onClick={() =>
+										window.open(
+											`/recordings?cameraId=${evidenceModalAlert.camCodeClean || evidenceModalAlert.cameraCode}`,
+											"_blank",
+										)
+									}
+									title="Mở toàn bộ kho lưu trữ ghi hình camera này ở tab mới"
+								>
+									<ExternalLink size={12} />
+									<span>Kho lưu trữ ↗</span>
+								</button>
+							</div>
+
+							<div className="soc-evidence-footer-right">
+								<button
+									type="button"
+									className="btn-soc-jump-cam"
+									onClick={() => {
+										handleSelectCamera(
+											evidenceModalAlert.camCodeClean ||
+												evidenceModalAlert.cameraCode,
+										);
+										setEvidenceModalAlert(null);
+										setIncidentVideoData(null);
+									}}
+									title="Chuyển màn hình sang xem trực tiếp camera này"
+								>
+									<Video size={13} />
+									<span>Xem trực tiếp camera {evidenceModalAlert.cameraCode}</span>
+								</button>
+								<button
+									type="button"
+									className="btn-soc-evidence-close"
+									onClick={() => {
+										setEvidenceModalAlert(null);
+										setIncidentVideoData(null);
+									}}
+								>
+									Đóng
+								</button>
+							</div>
 						</div>
 					</div>
 				</div>
