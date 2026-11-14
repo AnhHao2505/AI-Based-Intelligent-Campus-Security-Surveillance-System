@@ -126,6 +126,58 @@ class IncidentPolicyServiceTest {
         verifyNoInteractions(auditService);
     }
 
+    // ------------------------------------------------------------------ ràng buộc chéo (ERR_INCPOL_009, V124)
+
+    @Test
+    @DisplayName("Ràng buộc chéo: mời 2, đợt 1 120 giây, báo Quản lý CSVC sau 1 phút -> ERR_INCPOL_009, không lưu, không audit")
+    void crossCheck_violation_rejectedWithoutSaveOrAudit() {
+        when(dispatchPolicyRepository.findById(IncidentSeverity.HIGH)).thenReturn(Optional.of(highPolicy));
+
+        IncidentPolicyException ex = assertThrows(IncidentPolicyException.class,
+                () -> service.updateDispatchPolicy(IncidentSeverity.HIGH, policyReq(2, 120, 1), admin.getEmail()));
+
+        assertEquals(IncidentPolicyErrorCode.ERR_INCPOL_009, ex.getErrorCode());
+        assertEquals("Thời gian chờ trước khi báo Quản lý CSVC (1 phút = 60 giây) phải lớn hơn thời gian chờ đợt 1 (120 giây)",
+                ex.getMessage());
+        verify(dispatchPolicyRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(auditService);
+        assertEquals(30, highPolicy.getStep1TimeoutSeconds());
+        assertEquals(5, highPolicy.getEscalateFmMinutes());
+        assertEquals((short) 2, highPolicy.getStep1Size());
+    }
+
+    @ParameterizedTest(name = "size={0}, timeout={1}, escalate={2} (bằng nhau) -> ERR_INCPOL_009")
+    @DisplayName("Ràng buộc chéo: biên escalate × 60 == timeout -> bị từ chối")
+    @CsvSource({"1, 60, 1", "2, 120, 2", "10, 600, 10"})
+    void crossCheck_equalBoundary_rejected(int size, int timeout, int escalate) {
+        when(dispatchPolicyRepository.findById(IncidentSeverity.HIGH)).thenReturn(Optional.of(highPolicy));
+
+        IncidentPolicyException ex = assertThrows(IncidentPolicyException.class,
+                () -> service.updateDispatchPolicy(IncidentSeverity.HIGH, policyReq(size, timeout, escalate), admin.getEmail()));
+
+        assertEquals(IncidentPolicyErrorCode.ERR_INCPOL_009, ex.getErrorCode());
+        verify(dispatchPolicyRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(auditService);
+    }
+
+    @ParameterizedTest(name = "size={0}, timeout={1}, escalate={2} -> lưu")
+    @DisplayName("Ràng buộc chéo: hợp lệ (31 giây / 1 phút) và mời 0 người (600 giây / 1 phút, không có đợt 1) -> lưu + audit")
+    @CsvSource({"2, 31, 1", "0, 600, 1", "10, 600, 11"})
+    void crossCheck_validOrNoStep1_saved(int size, int timeout, int escalate) {
+        when(dispatchPolicyRepository.findById(IncidentSeverity.HIGH)).thenReturn(Optional.of(highPolicy));
+        when(userRepository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));
+        when(dispatchPolicyRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        IncidentDispatchPolicyResponse res = service.updateDispatchPolicy(IncidentSeverity.HIGH,
+                policyReq(size, timeout, escalate), admin.getEmail());
+
+        assertEquals(size, res.step1Size());
+        assertEquals(timeout, res.step1TimeoutSeconds());
+        assertEquals(escalate, res.escalateFmMinutes());
+        verify(auditService).record(eq(AuditTargetType.INCIDENT_DISPATCH_POLICY), eq(AuditAction.UPDATE), eq("HIGH"),
+                isNull(), isNull(), any(), any(), any(String.class), eq(admin));
+    }
+
     // ------------------------------------------------------------------ version / optimistic lock
 
     @Test
