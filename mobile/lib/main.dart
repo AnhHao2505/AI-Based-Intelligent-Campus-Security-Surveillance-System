@@ -10,6 +10,7 @@ import 'core/theme/theme_provider.dart';
 import 'core/utils/storage_helper.dart';
 import 'core/widgets/web_ambient_background.dart';
 import 'features/auth/providers/auth_provider.dart';
+import 'features/auth/services/guard_session_teardown.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/incident/providers/incident_provider.dart';
 import 'features/incident/services/incident_service.dart';
@@ -58,6 +59,16 @@ void main() async {
   final stompService = StompService();
   final incidentService = IncidentService(apiClient);
   final guardChatService = GuardChatService(apiClient);
+  final shiftProvider = ShiftProvider(apiClient);
+  final incidentProvider = IncidentProvider(
+    incidentService: incidentService,
+    stompService: stompService,
+  );
+  // DEF-16: đăng xuất dọn STOMP + sự cố + ca theo thứ tự rồi mới xoá token.
+  final sessionTeardown = GuardSessionTeardown(
+    incidentProvider: incidentProvider,
+    shiftProvider: shiftProvider,
+  );
 
   runApp(
     MultiProvider(
@@ -66,19 +77,16 @@ void main() async {
           create: (_) => ThemeProvider(),
         ),
         ChangeNotifierProvider(
-          create: (_) => AuthProvider(apiClient)..restoreSession(),
+          create: (_) => AuthProvider(apiClient, beforeClearAuth: sessionTeardown.call)..restoreSession(),
         ),
         ChangeNotifierProvider(
-          create: (_) => ShiftProvider(apiClient),
+          create: (_) => shiftProvider,
         ),
         ChangeNotifierProvider(
           create: (_) => MapProvider(apiClient),
         ),
         ChangeNotifierProvider(
-          create: (_) => IncidentProvider(
-            incidentService: incidentService,
-            stompService: stompService,
-          ),
+          create: (_) => incidentProvider,
         ),
         ChangeNotifierProvider(
           create: (_) => GuardChatProvider(

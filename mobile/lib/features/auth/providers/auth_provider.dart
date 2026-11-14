@@ -14,7 +14,10 @@ class AuthProvider with ChangeNotifier {
   String? _errorMessage;
   bool _isInitialized = false;
 
-  AuthProvider(this._apiClient);
+  /// Dọn phiên bảo vệ (STOMP, foreground service, sự cố, ca) trước khi xoá token — xem GuardSessionTeardown.
+  final Future<void> Function()? beforeClearAuth;
+
+  AuthProvider(this._apiClient, {this.beforeClearAuth});
 
   UserModel? get user => _user;
   bool get isAuthenticated => _user != null;
@@ -139,6 +142,15 @@ class AuthProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    // DEF-16: ngắt STOMP và xoá dữ liệu phiên trước, token xoá sau cùng. Lỗi dọn phiên không chặn đăng xuất.
+    final teardown = beforeClearAuth;
+    if (teardown != null) {
+      try {
+        await teardown();
+      } catch (e) {
+        debugPrint('[AUTH] Session teardown failed: $e');
+      }
+    }
     await StorageHelper.clearAuth();
     // Không để lại thông báo sự cố của phiên trước trên thiết bị.
     await LocalNotificationService.instance.cancelAll();
