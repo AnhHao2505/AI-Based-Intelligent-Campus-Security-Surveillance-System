@@ -360,9 +360,20 @@ class AIRuntimeConfigRequest(BaseModel):
     access_check_timeout_seconds: Optional[float] = None
     access_decision_cache_ttl: Optional[float] = None
     access_deny_cache_ttl: Optional[float] = None
+    # V125: chính sách cảnh báo
+    identity_grace_seconds: Optional[float] = None
+    unauthorized_alert_cooldown: Optional[float] = None
+    suspicious_motion_cooldown: Optional[float] = None
 
 @app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])
 async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
+    from .pipeline.runtime_config import apply_alert_policy, parse_alert_policy
+    policy_payload = req.model_dump(exclude_none=True)
+    _, policy_errors = parse_alert_policy(policy_payload)
+    if policy_errors:
+        # Kiểm tra trước khi áp bất kỳ giá trị nào để không áp dở dang
+        raise HTTPException(status_code=400, detail="; ".join(policy_errors))
+
     if req.max_inactive_seconds is not None:
         if req.max_inactive_seconds < 1.0 or req.max_inactive_seconds > 60.0:
             raise HTTPException(status_code=400, detail="max_inactive_seconds must be between 1.0 and 60.0")
@@ -406,6 +417,10 @@ async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
             raise HTTPException(status_code=400, detail="access_deny_cache_ttl must be between 1.0 and 600.0")
         settings.ACCESS_DENY_CACHE_TTL = req.access_deny_cache_ttl
 
+    with active_workers_lock:
+        policy_workers = list(active_workers.values())
+    apply_alert_policy(policy_payload, default_pipeline, policy_workers)
+
     logger.info(
         f"✅ Cập nhật cấu hình runtime AI: max_inactive_seconds={settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS}s, "
         f"cooldown={settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS}s, threshold={settings.FACE_MATCH_THRESHOLD}, "
@@ -419,7 +434,10 @@ async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
         "face_match_threshold": settings.FACE_MATCH_THRESHOLD,
         "access_check_timeout_seconds": settings.ACCESS_CHECK_TIMEOUT_SECONDS,
         "access_decision_cache_ttl": settings.ACCESS_DECISION_CACHE_TTL,
-        "access_deny_cache_ttl": settings.ACCESS_DENY_CACHE_TTL
+        "access_deny_cache_ttl": settings.ACCESS_DENY_CACHE_TTL,
+        "identity_grace_seconds": settings.ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS,
+        "unauthorized_alert_cooldown": settings.DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS,
+        "suspicious_motion_cooldown": settings.SUSPICIOUS_MOTION_COOLDOWN_SECONDS
     }
 
 @app.post("/api/v1/cameras/configure", dependencies=[Depends(require_service_key)])

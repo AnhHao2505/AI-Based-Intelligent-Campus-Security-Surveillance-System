@@ -101,7 +101,7 @@ class VideoPipeline:
         self._cached_motion_res = None
         self._suspicious_motion_start_time: Optional[float] = None
         self._last_suspicious_motion_time: float = 0.0
-        self._suspicious_motion_cooldown: float = 5.0
+        self._suspicious_motion_cooldown: float = float(getattr(settings, "SUSPICIOUS_MOTION_COOLDOWN_SECONDS", 5.0))
         self.suspicious_motion_min_duration: float = float(getattr(settings, "SUSPICIOUS_MOTION_MIN_DURATION", 0.0))
         self._pending_access_checks = set()
         self._pending_checks_lock = threading.Lock()

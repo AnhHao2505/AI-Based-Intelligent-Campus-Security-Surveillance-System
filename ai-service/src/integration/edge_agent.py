@@ -395,6 +395,10 @@ class EdgeMqttAgent:
                     worker.pipeline.analysis_engine.after_hour_end = settings.DEFAULT_AFTER_HOUR_END
                 worker.pipeline.analysis_engine.access_grace_period = getattr(settings, "ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS", 1.5)
 
+        # V125: chính sách cảnh báo (thời gian chờ nhận diện, khoảng cách cảnh báo không có quyền / vật lạ)
+        from ..pipeline.runtime_config import apply_alert_policy
+        apply_alert_policy(data, default_pipe, self.active_workers.values())
+
         logger.info("✅ [EdgeAgent] Đã đồng bộ cấu hình hệ thống AI qua MQTT Retained.")
 
     # ------------------------------------------------------------------
