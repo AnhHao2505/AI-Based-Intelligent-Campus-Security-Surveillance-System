@@ -13,6 +13,7 @@ import '../providers/map_provider.dart';
 import '../widgets/area_detail_card.dart';
 import '../widgets/osm_attribution_bar.dart';
 import '../../chat/widgets/floating_guard_chat_button.dart';
+import '../../incident/widgets/peer_claim_notice.dart';
 
 /// Các loại khối 3D trong asset (thuộc tính `layer`), vẽ theo thứ tự này. Độ mờ theo web (CampusMapView.jsx:1386-1424).
 /// Lớp `door` (mặt bằng cửa, không có màu / chiều cao) web không vẽ; khung cửa 3D đã nằm trong lớp `wall`
@@ -45,7 +46,7 @@ class GuardMapScreen extends StatefulWidget {
   State<GuardMapScreen> createState() => _GuardMapScreenState();
 }
 
-class _GuardMapScreenState extends State<GuardMapScreen> {
+class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMixin {
   late final MapProvider _provider;
   ml.MapLibreMapController? _map;
   bool _styleReady = false;

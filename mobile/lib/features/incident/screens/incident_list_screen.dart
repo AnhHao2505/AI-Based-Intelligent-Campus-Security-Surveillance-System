@@ -8,6 +8,7 @@ import '../../map/screens/guard_map_screen.dart';
 import '../models/incident_model.dart';
 import '../providers/incident_provider.dart';
 import '../widgets/incident_detail_sheet.dart';
+import '../widgets/peer_claim_notice.dart';
 
 enum IncidentFilterTab {
   pending,
@@ -38,7 +39,7 @@ class IncidentListScreen extends StatefulWidget {
   State<IncidentListScreen> createState() => _IncidentListScreenState();
 }
 
-class _IncidentListScreenState extends State<IncidentListScreen> {
+class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimNoticeMixin {
   static _IncidentListScreenState? activeInstance;
 
   late IncidentFilterTab _selectedTab = widget.initialTab;
