@@ -79,15 +79,11 @@ void main() async {
         ChangeNotifierProvider(
           create: (_) => AuthProvider(apiClient, beforeClearAuth: sessionTeardown.call)..restoreSession(),
         ),
-        ChangeNotifierProvider(
-          create: (_) => shiftProvider,
-        ),
+        ChangeNotifierProvider.value(value: shiftProvider),
         ChangeNotifierProvider(
           create: (_) => MapProvider(apiClient),
         ),
-        ChangeNotifierProvider(
-          create: (_) => incidentProvider,
-        ),
+        ChangeNotifierProvider.value(value: incidentProvider),
         ChangeNotifierProvider(
           create: (_) => GuardChatProvider(
             chatService: guardChatService,
