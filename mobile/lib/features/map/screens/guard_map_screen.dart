@@ -256,14 +256,17 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         minzoom: 16.5,
         enableInteraction: false,
       );
-      // Tên phòng: ảnh nhãn theo khu, khu đang chọn đặt trước (CampusMapView.jsx:1487-1528)
+      // Tên phòng: ảnh nhãn theo khu, khu đang chọn đặt trước (CampusMapView.jsx:1487-1528).
+      // Neo cạnh dưới + dịch lên để nhãn nằm trên ghim khu, không bị ghim che (roomLabelLiftAbovePin).
       await map.addGeoJsonSource(_roomLabelsSource, empty);
       await map.addSymbolLayer(
         _roomLabelsSource,
         'campus-room-labels-layer',
-        const ml.SymbolLayerProperties(
-          iconImage: ['get', 'imageId'],
-          iconSize: ['interpolate', ['linear'], ['zoom'], 16.4, 0.78, 18.2, 0.94, 19.8, 1.05],
+        ml.SymbolLayerProperties(
+          iconImage: const ['get', 'imageId'],
+          iconSize: roomLabelIconSizeExpression(),
+          iconAnchor: roomLabelIconAnchor,
+          iconOffset: roomLabelIconOffsetExpression(),
           iconAllowOverlap: false,
           iconIgnorePlacement: false,
           iconPadding: 3,
@@ -333,7 +336,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         _pinsLayer,
         const ml.CircleLayerProperties(
           circleColor: ['get', 'color'],
-          circleRadius: ['case', ['get', 'selected'], 13, 9],
+          circleRadius: ['case', ['get', 'selected'], areaPinMaxRadius, 9],
           circleStrokeColor: '#ffffff',
           circleStrokeWidth: ['case', ['get', 'selected'], 3, 2],
           circlePitchAlignment: 'viewport',
