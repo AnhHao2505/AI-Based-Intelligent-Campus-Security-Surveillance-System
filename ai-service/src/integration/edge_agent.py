@@ -324,80 +324,28 @@ class EdgeMqttAgent:
             logger.info(f"✅ [EdgeAgent] Đã cập nhật {len(polygons)} ROI polygon(s) cho worker [{camera_code}] qua MQTT.")
 
     def _handle_system_config(self, data: Dict[str, Any]):
-        threshold = data.get("face_match_threshold")
         ah_start = data.get("after_hour_start")
         ah_end = data.get("after_hour_end")
-        max_inactive = data.get("max_inactive_seconds")
-        cooldown = data.get("unknown_alert_cooldown")
-
-        if threshold is not None:
-            settings.FACE_MATCH_THRESHOLD = float(threshold)
         if ah_start:
             settings.DEFAULT_AFTER_HOUR_START = str(ah_start)
         if ah_end:
             settings.DEFAULT_AFTER_HOUR_END = str(ah_end)
-        if max_inactive is not None:
-            settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS = float(max_inactive)
-        if cooldown is not None:
-            settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS = float(cooldown)
-
-        # M3: Timeout check-entry và TTL cache quyền ra vào
-        timeout_val = data.get("access_check_timeout_seconds")
-        if timeout_val is not None:
-            try:
-                t_val = float(timeout_val)
-                if 0.5 <= t_val <= 10.0:
-                    settings.ACCESS_CHECK_TIMEOUT_SECONDS = t_val
-                else:
-                    logger.warning(f"⚠️ [EdgeAgent] access_check_timeout_seconds={t_val} ngoài khoảng [0.5, 10.0], bỏ qua")
-            except (ValueError, TypeError):
-                logger.warning(f"⚠️ [EdgeAgent] access_check_timeout_seconds không hợp lệ: {timeout_val}, bỏ qua")
-
-        decision_ttl_val = data.get("access_decision_cache_ttl")
-        if decision_ttl_val is not None:
-            try:
-                d_val = float(decision_ttl_val)
-                if 1.0 <= d_val <= 600.0:
-                    settings.ACCESS_DECISION_CACHE_TTL = d_val
-                else:
-                    logger.warning(f"⚠️ [EdgeAgent] access_decision_cache_ttl={d_val} ngoài khoảng [1.0, 600.0], bỏ qua")
-            except (ValueError, TypeError):
-                logger.warning(f"⚠️ [EdgeAgent] access_decision_cache_ttl không hợp lệ: {decision_ttl_val}, bỏ qua")
-
-        deny_ttl_val = data.get("access_deny_cache_ttl")
-        if deny_ttl_val is not None:
-            try:
-                dn_val = float(deny_ttl_val)
-                if 1.0 <= dn_val <= 600.0:
-                    settings.ACCESS_DENY_CACHE_TTL = dn_val
-                else:
-                    logger.warning(f"⚠️ [EdgeAgent] access_deny_cache_ttl={dn_val} ngoài khoảng [1.0, 600.0], bỏ qua")
-            except (ValueError, TypeError):
-                logger.warning(f"⚠️ [EdgeAgent] access_deny_cache_ttl không hợp lệ: {deny_ttl_val}, bỏ qua")
 
         default_pipe = self.default_pipeline_getter() if self.default_pipeline_getter else None
         if default_pipe is not None:
             default_pipe.analysis_engine.after_hour_start = settings.DEFAULT_AFTER_HOUR_START
             default_pipe.analysis_engine.after_hour_end = settings.DEFAULT_AFTER_HOUR_END
-            default_pipe.analysis_engine.max_inactive_seconds = settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS
-            default_pipe.analysis_engine.unknown_alert_cooldown = settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS
-            default_pipe.analysis_engine.access_grace_period = getattr(settings, "ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS", 1.5)
 
-        for worker in list(self.active_workers.values()):
-            if hasattr(worker, "update_runtime_config"):
-                worker.update_runtime_config(
-                    max_inactive_seconds=settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS,
-                    unknown_alert_cooldown=settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS,
-                )
-            if getattr(worker, "pipeline", None):
-                if ah_start or ah_end:
+        if ah_start or ah_end:
+            for worker in list(self.active_workers.values()):
+                if getattr(worker, "pipeline", None):
                     worker.pipeline.analysis_engine.after_hour_start = settings.DEFAULT_AFTER_HOUR_START
                     worker.pipeline.analysis_engine.after_hour_end = settings.DEFAULT_AFTER_HOUR_END
-                worker.pipeline.analysis_engine.access_grace_period = getattr(settings, "ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS", 1.5)
 
-        # V125: chính sách cảnh báo (thời gian chờ nhận diện, khoảng cách cảnh báo không có quyền / vật lạ)
-        from ..pipeline.runtime_config import apply_alert_policy
-        apply_alert_policy(data, default_pipe, self.active_workers.values())
+        # Ngưỡng khớp mặt, giữ track, khoảng cách cảnh báo, timeout / TTL check-entry, chính sách cảnh báo (V125):
+        # dùng chung với endpoint REST. Khoảng min/max do Backend kiểm khi admin lưu.
+        from ..pipeline.runtime_config import apply_runtime_config
+        apply_runtime_config(data, default_pipe, self.active_workers.values())
 
         logger.info("✅ [EdgeAgent] Đã đồng bộ cấu hình hệ thống AI qua MQTT Retained.")
 

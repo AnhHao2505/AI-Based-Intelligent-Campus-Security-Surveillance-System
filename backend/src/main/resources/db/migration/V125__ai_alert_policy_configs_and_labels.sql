@@ -5,6 +5,10 @@
 -- 2) Thêm 3 khoá chính sách cảnh báo trước đây chỉ nằm trong .env / code của AI (display_order 9–11 tiếp nối V116).
 -- 3) Ngưỡng khớp khuôn mặt: chỉ đổi 0.75 -> 0.50 khi giá trị vẫn là mặc định ban đầu của V39 (chưa ai chỉnh).
 --    Môi trường đã được chỉnh trên màn Cấu hình giữ nguyên giá trị của mình.
+-- 4) Khoảng cho phép của ngưỡng khớp khuôn mặt 0.50–0.95 -> 0.45–0.80, theo đánh giá trên camera CAM-002 (14/11/2026):
+--    - 0.45: ngay trên điểm giống nhau cao nhất giữa 2 người khác nhau trong ảnh đăng ký (0.441);
+--    - 0.80: trên điểm khớp đúng người cao nhất đo được qua camera (0.752); cao hơn thì gần như không nhận ra ai.
+--    Bỏ đơn vị "(0.50 - 0.95)" vì màn hình đã hiện dòng giới hạn từ min/max. Giá trị ngoài khoảng mới được kéo về biên.
 
 UPDATE system_configurations SET description = 'Điểm khớp khuôn mặt tối thiểu để xác nhận đúng người (cao hơn thì khắt khe hơn, dễ báo nhầm người lạ)'
 WHERE config_key = 'AI_FACE_MATCH_THRESHOLD';
@@ -45,3 +49,10 @@ ON CONFLICT (config_key) DO NOTHING;
 
 UPDATE system_configurations SET config_value = '0.50'
 WHERE config_key = 'AI_FACE_MATCH_THRESHOLD' AND config_value = '0.75';
+
+UPDATE system_configurations SET min_value = 0.45, max_value = 0.80, unit = NULL
+WHERE config_key = 'AI_FACE_MATCH_THRESHOLD';
+UPDATE system_configurations SET config_value = '0.80'
+WHERE config_key = 'AI_FACE_MATCH_THRESHOLD' AND CAST(config_value AS NUMERIC) > 0.80;
+UPDATE system_configurations SET config_value = '0.45'
+WHERE config_key = 'AI_FACE_MATCH_THRESHOLD' AND CAST(config_value AS NUMERIC) < 0.45;
