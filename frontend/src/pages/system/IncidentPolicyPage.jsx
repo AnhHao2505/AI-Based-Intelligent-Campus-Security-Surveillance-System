@@ -20,6 +20,7 @@ import {
 	ErrorState,
 } from "../../components/ui";
 import { getLevelConfig } from "../../utils/areaHelpers";
+import { escalationAfterStep1Error } from "../../utils/incidentPolicyRules";
 import "../../styles/SystemConfigPage.css";
 
 // Nhãn đầy đủ của loại sự cố = AccessResult của backend, cùng cách gọi với thông báo leo thang
@@ -179,6 +180,13 @@ export default function IncidentPolicyPage() {
 				await updateSeverityRule(item.id, { severity: form.severity, version: item.version });
 				setSuccessMsg("Đã cập nhật luật mức độ sự cố.");
 			} else if (kind === "policy") {
+				// Ràng buộc chéo (ERR_INCPOL_009): kiểm trước khi gửi; backend vẫn kiểm và câu lỗi backend vẫn hiện ở catch
+				const crossError = escalationAfterStep1Error(form);
+				if (crossError) {
+					setSubmitError(crossError);
+					setSaving(false);
+					return;
+				}
 				await updateDispatchPolicy(item.severity, {
 					step1Size: Number(form.step1Size),
 					step1TimeoutSeconds: Number(form.step1TimeoutSeconds),
@@ -399,6 +407,7 @@ export default function IncidentPolicyPage() {
 									type="number"
 									value={form.escalateFmMinutes}
 									onChange={(e) => setForm({ ...form, escalateFmMinutes: e.target.value })}
+									hint="Khi có mời đợt 1: số phút × 60 phải lớn hơn thời gian chờ đợt 1, để cảnh báo được phát cho mọi bảo vệ trước khi báo Quản lý CSVC."
 									required
 								/>
 								<Select

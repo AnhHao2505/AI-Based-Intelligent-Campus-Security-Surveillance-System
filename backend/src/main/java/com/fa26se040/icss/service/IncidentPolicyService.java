@@ -114,6 +114,7 @@ public class IncidentPolicyService {
                 .orElseThrow(() -> new IncidentPolicyException(IncidentPolicyErrorCode.ERR_INCPOL_002, severity));
         checkVersion(policy.getVersion(), req.version());
         validatePolicyRanges(req);
+        validateEscalationAfterStep1(req);
 
         boolean unchanged = Objects.equals(req.step1Size(), policy.getStep1Size().intValue())
                 && Objects.equals(req.step1TimeoutSeconds(), policy.getStep1TimeoutSeconds())
@@ -163,6 +164,23 @@ public class IncidentPolicyService {
                 || req.escalateFmMinutes() > IncidentDispatchPolicy.ESCALATE_FM_MINUTES_MAX) {
             throw new IncidentPolicyException(IncidentPolicyErrorCode.ERR_INCPOL_007,
                     IncidentDispatchPolicy.ESCALATE_FM_MINUTES_MIN, IncidentDispatchPolicy.ESCALATE_FM_MINUTES_MAX);
+        }
+    }
+
+    /**
+     * Ràng buộc chéo (Lucas chốt 14/11/2026, trùng CHECK V124): mức có đợt 1 (step1_size > 0) chạy theo thứ tự mời đợt 1
+     * → hết thời gian chờ / tất cả từ chối → phát cho mọi bảo vệ đang trực → chưa ai nhận thì báo Quản lý CSVC. Hạn báo
+     * Quản lý CSVC tính từ lúc tạo sự cố (IncidentEscalationJob), nên escalate_fm_minutes × 60 phải LỚN HƠN
+     * step1_timeout_seconds; không thì Quản lý CSVC bị báo trước khi phát toàn bộ. step1_size = 0 (không có đợt 1) không áp.
+     */
+    static void validateEscalationAfterStep1(IncidentDispatchPolicyUpdateRequest req) {
+        if (req.step1Size() == 0) {
+            return;
+        }
+        long escalateSeconds = req.escalateFmMinutes() * 60L;
+        if (escalateSeconds <= req.step1TimeoutSeconds()) {
+            throw new IncidentPolicyException(IncidentPolicyErrorCode.ERR_INCPOL_009,
+                    req.escalateFmMinutes(), escalateSeconds, req.step1TimeoutSeconds());
         }
     }
 
