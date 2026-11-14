@@ -130,6 +130,32 @@ public class SystemConfigService {
         return value;
     }
 
+    /**
+     * P-MAP-2: như {@link #getIntWithinBounds} cho số thực (vd WALKING_SPEED_MPS): ngoài min_value / max_value ở DB
+     * (sửa thẳng trong DB) hoặc không phải số hữu hạn -> log WARN + mặc định của ConfigKey.
+     */
+    public double getDoubleWithinBounds(ConfigKey configKey) {
+        double value = getDouble(configKey);
+        double fallback = Double.parseDouble(configKey.getDefaultValue());
+        if (!Double.isFinite(value)) {
+            log.warn("Config key [{}] value [{}] is not finite. Using default: {}", configKey.getKey(), value, fallback);
+            return fallback;
+        }
+        Bounds b = bounds.get(configKey.getKey());
+        if (b == null) {
+            return value;
+        }
+        BigDecimal v = BigDecimal.valueOf(value);
+        boolean belowMin = b.min() != null && v.compareTo(b.min()) < 0;
+        boolean aboveMax = b.max() != null && v.compareTo(b.max()) > 0;
+        if (belowMin || aboveMax) {
+            log.warn("Config key [{}] value [{}] out of range [{} - {}]. Using default: {}",
+                    configKey.getKey(), value, b.min(), b.max(), fallback);
+            return fallback;
+        }
+        return value;
+    }
+
     public String getString(ConfigKey configKey) {
         String value = cache.get(configKey.getKey());
         return value == null || value.isBlank() ? configKey.getDefaultValue() : value.trim();
@@ -559,7 +585,7 @@ public class SystemConfigService {
                 throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực Công khai (PUBLIC)");
             }
             if (level == com.fa26se040.icss.enums.AreaLevel.HIGHLY_CONFIDENTIAL) {
-                throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực Tuyệt mật (HIGHLY_CONFIDENTIAL)");
+                throw new IllegalArgumentException("Không cho phép bảo lãnh đối với khu vực Bảo mật cao (HIGHLY_CONFIDENTIAL)");
             }
             hasValid = true;
         }

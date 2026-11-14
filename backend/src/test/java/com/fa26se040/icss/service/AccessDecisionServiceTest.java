@@ -458,7 +458,7 @@ class AccessDecisionServiceTest {
 
 
     @Test
-    @DisplayName("Hiệu trưởng cấp 3 được gán vào phòng Tuyệt mật → ASSIGNED_PERSONNEL đứng trước ACCESS_LEVEL")
+    @DisplayName("Hiệu trưởng cấp 3 được gán vào phòng Bảo mật cao → ASSIGNED_PERSONNEL đứng trước ACCESS_LEVEL")
     void principalAssignedToOffice_AllowedAssignedPersonnel() {
         User principal = user("HT001", "Hiệu Trưởng");
         principal.setAccessLevel(3);
@@ -600,7 +600,7 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("User cấp 2 vào khu Tuyệt mật, có đơn APPROVED → allow ACCESS_REQUEST")
+    @DisplayName("User cấp 2 vào khu Bảo mật cao, có đơn APPROVED → allow ACCESS_REQUEST")
     void userLevel2_HighlyConfidential_WithApprovedRequest_AllowedAccessRequest() {
         lecturer.setAccessLevel(2);
 
@@ -613,7 +613,7 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("User cấp 3 vào khu Tuyệt mật, không AP / đơn → allow ACCESS_LEVEL (V83 bỏ cờ chỉ định)")
+    @DisplayName("User cấp 3 vào khu Bảo mật cao, không AP / đơn → allow ACCESS_LEVEL (V83 bỏ cờ chỉ định)")
     void userLevel3_HighlyConfidential_NoAssignNoRequest_AllowedAccessLevel() {
         User lv3User = user("LV3_SERVER", "Chuyên gia Level 3");
         lv3User.setAccessLevel(3);
@@ -628,7 +628,7 @@ class AccessDecisionServiceTest {
         lenient().when(areaRepository.findById(serverRoom.getId())).thenReturn(Optional.of(serverRoom));
 
         AccessDecision d = accessDecisionService.checkEntry(lv3User.getId(), serverRoom.getId(), at(10));
-        assertTrue(d.allowed(), "Cấp người ≥ cấp của loại thì vào thẳng, kể cả Tuyệt mật");
+        assertTrue(d.allowed(), "Cấp người ≥ cấp của loại thì vào thẳng, kể cả Bảo mật cao");
         assertEquals(AccessSource.ACCESS_LEVEL, d.source());
     }
 
@@ -794,7 +794,7 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("BR-AC-25 / BR-ES-10 (V83): chế độ sự kiện chỉ mở khu Bảo mật; khu Tuyệt mật có cờ sự kiện vẫn deny")
+    @DisplayName("BR-AC-25 / BR-ES-10 (V83): chế độ sự kiện chỉ mở khu Bảo mật; khu Bảo mật cao có cờ sự kiện vẫn deny")
     void eventMode_OnlyConfidentialArea() {
         student.setAccessLevel(1);
         Area confidential = area("Phòng Lab Sự Kiện", AreaLevel.CONFIDENTIAL);
@@ -1148,7 +1148,7 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("GD-02: Khu Tuyệt mật, GUARD cấp 2 đã tiếp nhận, at = claimedAt + 10' → allow INCIDENT_RESPONSE, sourceRefId = id sự cố")
+    @DisplayName("GD-02: Khu Bảo mật cao, GUARD cấp 2 đã tiếp nhận, at = claimedAt + 10' → allow INCIDENT_RESPONSE, sourceRefId = id sự cố")
     void gd02_level3Area_ClaimedIncident_AllowedIncidentResponse() {
         User g = guard("BV001", "Bảo Vệ A");
         Area serverRoom = area("Phòng Máy Chủ", AreaLevel.HIGHLY_CONFIDENTIAL);
@@ -1178,11 +1178,11 @@ class AccessDecisionServiceTest {
     }
 
     @Test
-    @DisplayName("GUARD cấp 2 (mặc định): vào Bảo mật bằng cấp; vào Tuyệt mật không sự cố → deny, có sự cố đã tiếp nhận → INCIDENT_RESPONSE")
+    @DisplayName("GUARD cấp 2 (mặc định): vào Bảo mật bằng cấp; vào Bảo mật cao không sự cố → deny, có sự cố đã tiếp nhận → INCIDENT_RESPONSE")
     void guardLevel2_ConfidentialByLevel_HighlyConfidentialOnlyByIncident() {
         User g = guard("BV003", "Bảo Vệ C");
         Area lab2 = area("Phòng Lab Bảo Mật", AreaLevel.CONFIDENTIAL);
-        Area serverRoom = area("Phòng Máy Chủ Tuyệt Mật", AreaLevel.HIGHLY_CONFIDENTIAL);
+        Area serverRoom = area("Phòng Máy Chủ Bảo Mật Cao", AreaLevel.HIGHLY_CONFIDENTIAL);
 
         AccessDecision confidential = accessDecisionService.checkEntry(g.getId(), lab2.getId(), CLAIMED_AT.plusMinutes(10));
         assertTrue(confidential.allowed());
@@ -1321,7 +1321,7 @@ class AccessDecisionServiceTest {
 
     // ===================== Sai giờ chỉ xét đơn cùng ngày (giờ VN) + camera DECOMMISSIONED =====================
 
-    /** V83: không còn lý do "chỉ định đích danh"; sinh viên cấp 1 vào lab Tuyệt mật bị từ chối vì thiếu cấp. */
+    /** V83: không còn lý do "chỉ định đích danh"; sinh viên cấp 1 vào lab Bảo mật cao bị từ chối vì thiếu cấp. */
     private static final String LEVEL_DENY = "Cấp độ truy cập không đủ (Khu vực Cấp 3, người dùng Cấp 1)";
 
     // Giả lập đúng điều kiện JPQL findAnyApprovedRequestsForUser (mọi đơn APPROVED của user tại khu, startTime giảm dần)

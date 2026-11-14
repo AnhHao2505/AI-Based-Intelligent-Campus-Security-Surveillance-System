@@ -121,6 +121,6 @@ class AreaControllerAccessLevelTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ERR_AREA_056"))
                 .andExpect(jsonPath("$.message").value(
-                        "Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Tuyệt mật: cấp 3). Muốn đổi cấp, hãy đổi loại khu vực"));
+                        "Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Bảo mật cao: cấp 3). Muốn đổi cấp, hãy đổi loại khu vực"));
     }
 }

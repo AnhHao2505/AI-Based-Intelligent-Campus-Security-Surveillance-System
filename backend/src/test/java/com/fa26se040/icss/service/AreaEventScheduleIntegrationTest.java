@@ -728,7 +728,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
                 .floorId(testFloor.getId())
                 .centerLatitude(10.8418)
                 .centerLongitude(106.8100)
-                .reason("Đổi sang Tuyệt mật để kiểm tra chặn khi còn lịch")
+                .reason("Đổi sang Bảo mật cao để kiểm tra chặn khi còn lịch")
                 .version(areaService.getAreaById(internalArea.getId()).version())
                 .build();
         AreaException exUpdate = assertThrows(AreaException.class, () ->

@@ -1,0 +1,134 @@
+{
+ "schemaVersion": 1,
+ "seedVersion": "2026-11-12-epsilon-1",
+ "generator": "frontend/scripts/export-campus-map.mjs",
+ "precision": {
+  "coordinateDigits": 7,
+  "numberDigits": 3,
+  "costDigits": 9
+ },
+ "graph": {
+  "file": "graph.json",
+  "nodes": 766,
+  "edges": 971
+ },
+ "goldenRoutes": {
+  "file": "golden-routes.json",
+  "cases": 33
+ },
+ "buildings": [
+  {
+   "name": "Tòa Alpha",
+   "aliases": [
+    "Tòa Alpha",
+    "Tòa FPT HCM",
+    "Tòa HCM"
+   ],
+   "floors": [
+    {
+     "floorOrder": 0,
+     "file": "layers/toa-alpha__f0.geojson",
+     "features": 293
+    },
+    {
+     "floorOrder": 1,
+     "file": "layers/toa-alpha__f1.geojson",
+     "features": 195
+    },
+    {
+     "floorOrder": 2,
+     "file": "layers/toa-alpha__f2.geojson",
+     "features": 197
+    }
+   ]
+  },
+  {
+   "name": "Tòa Epsilon",
+   "aliases": [
+    "Tòa Beta",
+    "Tòa Epsilon",
+    "Tòa Espilon",
+    "Tòa Tân Uyên"
+   ],
+   "floors": [
+    {
+     "floorOrder": 0,
+     "file": "layers/toa-epsilon__f0.geojson",
+     "features": 377
+    },
+    {
+     "floorOrder": 1,
+     "file": "layers/toa-epsilon__f1.geojson",
+     "features": 406
+    },
+    {
+     "floorOrder": 2,
+     "file": "layers/toa-epsilon__f2.geojson",
+     "features": 406
+    },
+    {
+     "floorOrder": 3,
+     "file": "layers/toa-epsilon__f3.geojson",
+     "features": 401
+    },
+    {
+     "floorOrder": 4,
+     "file": "layers/toa-epsilon__f4.geojson",
+     "features": 401
+    }
+   ]
+  }
+ ],
+ "files": [
+  {
+   "path": "golden-routes.json",
+   "bytes": 37330,
+   "sha256": "e2bab049dcf46d346bd4d89e5602ca6b4798ab9b8ddf1e539c8c84db7e0ae4c8"
+  },
+  {
+   "path": "graph.json",
+   "bytes": 283176,
+   "sha256": "f528f48ee437c1b2cf6fc8b0cbd94d2405ff06c4ca39db7903803eb031395f25"
+  },
+  {
+   "path": "layers/toa-alpha__f0.geojson",
+   "bytes": 187723,
+   "sha256": "0a0020351342408765405e78954a0a8ba814e63f3e31e20d1eb008be902054d6"
+  },
+  {
+   "path": "layers/toa-alpha__f1.geojson",
+   "bytes": 125170,
+   "sha256": "55d9e0e360c53715ffcd637c0227e252a89f0d7b1dc1333bf14d82b84f2c0364"
+  },
+  {
+   "path": "layers/toa-alpha__f2.geojson",
+   "bytes": 126594,
+   "sha256": "cdc59585cefa763c1ae5af54ef6d6744ead5d0ff903744fe3b7230c430bfd118"
+  },
+  {
+   "path": "layers/toa-epsilon__f0.geojson",
+   "bytes": 244028,
+   "sha256": "7125595e33227a5ddea7bcce8d28cebe76094a2478666623e346f7ef902b8aad"
+  },
+  {
+   "path": "layers/toa-epsilon__f1.geojson",
+   "bytes": 265194,
+   "sha256": "1daf71477abd658fbae02d9342b8430c8a97e3fd496e9a01a666e5df86e3bff1"
+  },
+  {
+   "path": "layers/toa-epsilon__f2.geojson",
+   "bytes": 265487,
+   "sha256": "2d2ed47d5eaf4c1e39d589c24be443130650f4407da0ddb88323b76d8593debc"
+  },
+  {
+   "path": "layers/toa-epsilon__f3.geojson",
+   "bytes": 263064,
+   "sha256": "7de7e16c97bd57ad572c16ac46dbb6e93dfc3a2c536c034ed180089e6a678f1f"
+  },
+  {
+   "path": "layers/toa-epsilon__f4.geojson",
+   "bytes": 263009,
+   "sha256": "144a6846848174ce3f02451291ba9e8283d879fe6b9ba5bb7cfb97c4b660e6fe"
+  }
+ ]
+}

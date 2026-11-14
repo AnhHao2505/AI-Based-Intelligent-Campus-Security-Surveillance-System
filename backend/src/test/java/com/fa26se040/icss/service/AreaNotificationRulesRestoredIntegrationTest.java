@@ -340,7 +340,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
 
     /** BR-TC-09 — nguồn: Step5bAreaTypeChangeTest#tc09_BR_TC_09_pendingKept_fmApproveBlockedByNewLevel */
     @Test
-    @DisplayName("TC-09 (BR-TC-09): đơn nhóm PENDING không bị huỷ khi đổi sang Tuyệt mật, không REQUEST_SYSTEM_CANCELLED; FM duyệt sau đó bị chặn (Tuyệt mật không nhận đơn nhóm), không REQUEST_APPROVED")
+    @DisplayName("TC-09 (BR-TC-09): đơn nhóm PENDING không bị huỷ khi đổi sang Bảo mật cao, không REQUEST_SYSTEM_CANCELLED; FM duyệt sau đó bị chặn (Bảo mật cao không nhận đơn nhóm), không REQUEST_APPROVED")
     void tc09_pendingKept_noCancelNotification_fmApproveBlocked() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
         Area area = newArea(AreaLevel.CONFIDENTIAL);
@@ -373,7 +373,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     void tc10_activeFmsNotified_inactiveFmNot() throws Exception {
         Area area = newArea(AreaLevel.CONFIDENTIAL);
 
-        // V83: Nội bộ -> Liên hệ trước không còn là đổi loại; dùng Bảo mật -> Tuyệt mật
+        // V83: Nội bộ -> Liên hệ trước không còn là đổi loại; dùng Bảo mật -> Bảo mật cao
         MvcResult r = changeType(admin, area, AreaLevel.HIGHLY_CONFIDENTIAL, TYPE_CHANGE_REASON, apiVersion(area));
         assertEquals(200, status(r), describe(r));
 
@@ -382,7 +382,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
                     .filter(n -> area.getId().equals(n.getReferenceId()))
                     .toList();
             assertEquals(1, list.size(), "FM " + activeFm.getEmail() + " phải nhận đúng 1 thông báo AREA_TYPE_CHANGED");
-            assertEquals("Khu vực " + area.getName() + ": Bảo mật → Tuyệt mật. Lý do: " + TYPE_CHANGE_REASON
+            assertEquals("Khu vực " + area.getName() + ": Bảo mật → Bảo mật cao. Lý do: " + TYPE_CHANGE_REASON
                     + ". Số đơn bị huỷ: 0.", list.get(0).getMessage());
         }
         assertTrue(notificationsOf(fmInactive, NotificationType.AREA_TYPE_CHANGED).isEmpty(), "FM bị vô hiệu hoá không nhận");
@@ -496,7 +496,7 @@ class AreaNotificationRulesRestoredIntegrationTest extends Step5bTestSupport {
     void tc11b_failureMidway_rollsBackEverything_noNotification() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();
         Area area = newArea(AreaLevel.CONFIDENTIAL);
-        // V83: đơn cá nhân cấp 1 vượt khoảng cách cấp khi khu thành Tuyệt mật -> hệ thống huỷ cả hai
+        // V83: đơn cá nhân cấp 1 vượt khoảng cách cấp khi khu thành Bảo mật cao -> hệ thống huỷ cả hai
         AccessRequest r1 = newRequest(area, userL1, RequestType.INDIVIDUAL, RequestStatus.APPROVED,
                 now.plusHours(1), now.plusHours(2));
         AccessRequest r2 = newRequest(area, userL1, RequestType.INDIVIDUAL, RequestStatus.APPROVED,

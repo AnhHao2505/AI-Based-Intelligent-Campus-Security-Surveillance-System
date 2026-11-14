@@ -72,7 +72,7 @@ public class AccessDecisionService {
      *   <li>User không tồn tại / inactive / xoá mềm → denied, NONE</li>
      *   <li>Area không tồn tại / inactive / xoá mềm → denied, NONE</li>
      *   <li>Có Assigned Personnel chưa thu hồi, validFrom &lt;= at &lt; validTo (NULL = vô hạn) → allowed, ASSIGNED_PERSONNEL</li>
-     *   <li>user.accessLevel &gt;= cấp của loại khu vực (V83: Công khai 1, Bảo mật 2, Tuyệt mật 3) → allowed, ACCESS_LEVEL</li>
+     *   <li>user.accessLevel &gt;= cấp của loại khu vực (V83: Công khai 1, Bảo mật 2, Bảo mật cao 3) → allowed, ACCESS_LEVEL</li>
      *   <li>Khu Bảo mật có phiên sự kiện phủ at hoặc trong khung lịch sự kiện → allowed, OPEN_EVENT</li>
      *   <li>GUARD đã tiếp nhận sự cố tại area, at nằm trong cửa sổ xử lý sự cố → allowed, INCIDENT_RESPONSE (BR-GD-02/03)</li>
      *   <li>Có đơn APPROVED của area, startTime &lt;= at &lt; endTime, user là requester hoặc member → allowed, ACCESS_REQUEST</li>
@@ -151,7 +151,7 @@ public class AccessDecisionService {
 
         // 4d. Bảo vệ đang xử lý sự cố mình đã tiếp nhận tại khu (BR-GD-02 / BR-GD-03), không cần đơn.
         // Đặt sau bước 4/4b/4c: khu GUARD đã vào được bằng cấp độ vẫn ghi nguồn ACCESS_LEVEL như cũ,
-        // rule này chỉ mở khu GUARD không tự vào được bằng cấp (với cấp mặc định 2 của GUARD: khu Tuyệt mật).
+        // rule này chỉ mở khu GUARD không tự vào được bằng cấp (với cấp mặc định 2 của GUARD: khu Bảo mật cao).
         if (user.getRole() == Role.GUARD) {
             Optional<SecurityIncident> incident = findIncidentCoveringGuard(userId, areaId, at);
             if (incident.isPresent()) {

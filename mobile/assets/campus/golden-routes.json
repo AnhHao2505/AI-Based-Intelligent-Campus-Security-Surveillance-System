@@ -1,0 +1,1501 @@
+{
+ "schemaVersion": 1,
+ "seedVersion": "2026-11-12-epsilon-1",
+ "source": "computeDigitizedRoute (frontend/src/data/campusIndoor3dData.js)",
+ "areaSource": "backend/src/main/resources/db/migration/V120_1__seed_epsilon_areas.sql",
+ "cases": [
+  {
+   "id": "GR-001",
+   "category": "SAME_FLOOR",
+   "start": {
+    "lon": 106.809466,
+    "lat": 10.841569,
+    "building": "Tòa Alpha",
+    "floorOrder": 0,
+    "nodeId": "node-1794307597801"
+   },
+   "end": {
+    "lon": 106.810354,
+    "lat": 10.841507,
+    "building": "Tòa Alpha",
+    "floorOrder": 0,
+    "nodeId": "node-portal-tòahcm-f0-1794441452896-0"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794307597801",
+     "node-1794368056244",
+     "node-1794368057488",
+     "node-1794368059578",
+     "node-1794368061044",
+     "node-1794367139162",
+     "node-1794367141022",
+     "node-1794367165776",
+     "node-1794367171381",
+     "node-1794367175244",
+     "node-portal-tòahcm-f0-1794441452896-0"
+    ],
+    "totalCost": 130.791366196,
+    "totalDistanceMeters": 131,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 90
+   }
+  },
+  {
+   "id": "GR-002",
+   "category": "SAME_FLOOR",
+   "start": {
+    "lon": 106.809755,
+    "lat": 10.841308,
+    "building": "Tòa Alpha",
+    "floorOrder": 1,
+    "nodeId": "node-1794441185020"
+   },
+   "end": {
+    "lon": 106.809714,
+    "lat": 10.841267,
+    "building": "Tòa Alpha",
+    "floorOrder": 1,
+    "nodeId": "node-portal-tòahcm-f1-1794367768726-1"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794441185020",
+     "node-portal-tòahcm-f1-1794367768726-1"
+    ],
+    "totalCost": 6.390110746,
+    "totalDistanceMeters": 6,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 4
+   }
+  },
+  {
+   "id": "GR-003",
+   "category": "SAME_FLOOR",
+   "start": {
+    "lon": 106.809748,
+    "lat": 10.84131,
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "nodeId": "node-1794441919066"
+   },
+   "end": {
+    "lon": 106.810354,
+    "lat": 10.841507,
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "nodeId": "node-portal-tòahcm-f2-1794441453910-2"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794441919066",
+     "node-1794441991636",
+     "node-1794441984226",
+     "node-1794441976919",
+     "node-1794441974222",
+     "node-1794441967578",
+     "node-1794441965140",
+     "node-1794441962848",
+     "node-1794441960556",
+     "node-1794441957152",
+     "node-1794441954960",
+     "node-1794441951925",
+     "node-1794441949281",
+     "node-1794441946456",
+     "node-portal-tòahcm-f2-1794441453910-2"
+    ],
+    "totalCost": 175.412622646,
+    "totalDistanceMeters": 175,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 121
+   }
+  },
+  {
+   "id": "GR-004",
+   "category": "SAME_FLOOR",
+   "start": {
+    "lon": 106.811407,
+    "lat": 10.840348,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "nodeId": "node-1794456827847"
+   },
+   "end": {
+    "lon": 106.8112875,
+    "lat": 10.8404998,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "nodeId": "node-1794466798457"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794456827847",
+     "node-1794457109328",
+     "node-1794457090433",
+     "node-1794457086470",
+     "node-1794457080138",
+     "node-1794457076198",
+     "node-1794457057984",
+     "node-1794457059536",
+     "node-1794457065080",
+     "node-1794457066858",
+     "node-1794466798457"
+    ],
+    "totalCost": 53.795653516,
+    "totalDistanceMeters": 54,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 37
+   }
+  },
+  {
+   "id": "GR-005",
+   "category": "SAME_FLOOR",
+   "start": {
+    "lon": 106.8116097,
+    "lat": 10.8406997,
+    "building": "Tòa Epsilon",
+    "floorOrder": 1,
+    "nodeId": "node-1794462396535"
+   },
+   "end": {
+    "lon": 106.811475,
+    "lat": 10.840364,
+    "building": "Tòa Epsilon",
+    "floorOrder": 1,
+    "nodeId": "node-portal-tòaepsilon-f1-1794456904999-1"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794462396535",
+     "node-1794465229315",
+     "node-1794465319093",
+     "node-1794465226127",
+     "node-1794465224095",
+     "node-1794465208194",
+     "node-1794465210759",
+     "node-1794465203313",
+     "node-1794465196744",
+     "node-1794465193967",
+     "node-1794465188185",
+     "node-1794465182527",
+     "node-1794465178143",
+     "node-1794465152183",
+     "node-1794465152934",
+     "node-1794465170911",
+     "node-portal-tòaepsilon-f1-1794456904999-1"
+    ],
+    "totalCost": 83.801090569,
+    "totalDistanceMeters": 84,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 58
+   }
+  },
+  {
+   "id": "GR-006",
+   "category": "SAME_FLOOR",
+   "start": {
+    "lon": 106.8112174,
+    "lat": 10.8404931,
+    "building": "Tòa Epsilon",
+    "floorOrder": 2,
+    "nodeId": "node-clone-eps-f2-1794464590133"
+   },
+   "end": {
+    "lon": 106.8116097,
+    "lat": 10.8406997,
+    "building": "Tòa Epsilon",
+    "floorOrder": 2,
+    "nodeId": "node-portal-tòaepsilon-f2-1794462400588-2"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-clone-eps-f2-1794464590133",
+     "node-clone-eps-f2-1794465288725",
+     "node-clone-eps-f2-1794465276208",
+     "node-clone-eps-f2-1794465263821",
+     "node-clone-eps-f2-1794465258193",
+     "node-clone-eps-f2-1794465244606",
+     "node-clone-eps-f2-1794465237959",
+     "node-clone-eps-f2-1794465235349",
+     "node-clone-eps-f2-1794465232321",
+     "node-clone-eps-f2-1794465327795",
+     "node-clone-eps-f2-1794465229315",
+     "node-portal-tòaepsilon-f2-1794462400588-2"
+    ],
+    "totalCost": 63.250568238,
+    "totalDistanceMeters": 63,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 44
+   }
+  },
+  {
+   "id": "GR-007",
+   "category": "SAME_FLOOR",
+   "start": {
+    "lon": 106.8112174,
+    "lat": 10.8404931,
+    "building": "Tòa Epsilon",
+    "floorOrder": 3,
+    "nodeId": "node-clone-eps-f3-1794464590133"
+   },
+   "end": {
+    "lon": 106.8116097,
+    "lat": 10.8406997,
+    "building": "Tòa Epsilon",
+    "floorOrder": 3,
+    "nodeId": "node-portal-tòaepsilon-f3-1794462401569-3"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-clone-eps-f3-1794464590133",
+     "node-clone-eps-f3-1794465288725",
+     "node-clone-eps-f3-1794465276208",
+     "node-clone-eps-f3-1794465263821",
+     "node-clone-eps-f3-1794465258193",
+     "node-clone-eps-f3-1794465244606",
+     "node-clone-eps-f3-1794465237959",
+     "node-clone-eps-f3-1794465235349",
+     "node-clone-eps-f3-1794465232321",
+     "node-clone-eps-f3-1794465327795",
+     "node-clone-eps-f3-1794465229315",
+     "node-portal-tòaepsilon-f3-1794462401569-3"
+    ],
+    "totalCost": 63.250568238,
+    "totalDistanceMeters": 63,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 44
+   }
+  },
+  {
+   "id": "GR-008",
+   "category": "SAME_FLOOR",
+   "start": {
+    "lon": 106.8112174,
+    "lat": 10.8404931,
+    "building": "Tòa Epsilon",
+    "floorOrder": 4,
+    "nodeId": "node-clone-eps-f4-1794464590133"
+   },
+   "end": {
+    "lon": 106.8116097,
+    "lat": 10.8406997,
+    "building": "Tòa Epsilon",
+    "floorOrder": 4,
+    "nodeId": "node-portal-tòaepsilon-f4-1794462401157-4"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-clone-eps-f4-1794464590133",
+     "node-clone-eps-f4-1794465288725",
+     "node-clone-eps-f4-1794465276208",
+     "node-clone-eps-f4-1794465263821",
+     "node-clone-eps-f4-1794465258193",
+     "node-clone-eps-f4-1794465244606",
+     "node-clone-eps-f4-1794465237959",
+     "node-clone-eps-f4-1794465235349",
+     "node-clone-eps-f4-1794465232321",
+     "node-clone-eps-f4-1794465327795",
+     "node-clone-eps-f4-1794465229315",
+     "node-portal-tòaepsilon-f4-1794462401157-4"
+    ],
+    "totalCost": 63.250568238,
+    "totalDistanceMeters": 63,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 44
+   }
+  },
+  {
+   "id": "GR-009",
+   "category": "CROSS_FLOOR",
+   "start": {
+    "lon": 106.8098476,
+    "lat": 10.8412174,
+    "building": "Tòa Alpha",
+    "floorOrder": 0,
+    "nodeId": "node-1794367192920"
+   },
+   "end": {
+    "lon": 106.8101975,
+    "lat": 10.8415805,
+    "building": "Tòa Alpha",
+    "floorOrder": 1,
+    "nodeId": "node-1794441293728"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367192920",
+     "node-1794367186789",
+     "node-1794367723424",
+     "node-1794368056244",
+     "node-1794368057488",
+     "node-1794368059578",
+     "node-1794368061044",
+     "node-1794367139162",
+     "node-1794367141022",
+     "node-1794367165776",
+     "node-1794367171381",
+     "node-1794367175244",
+     "node-portal-tòahcm-f0-1794441452896-0",
+     "node-1794441448044",
+     "node-1794441289208",
+     "node-1794441290986",
+     "node-1794441293210",
+     "node-1794441293728",
+     "__door_door-clone-1794365982376-21__"
+    ],
+    "totalCost": 169.841865856,
+    "totalDistanceMeters": 152,
+    "floorsClimbed": 1,
+    "estimatedSeconds": 119
+   }
+  },
+  {
+   "id": "GR-010",
+   "category": "CROSS_FLOOR",
+   "start": {
+    "lon": 106.8098476,
+    "lat": 10.8412174,
+    "building": "Tòa Alpha",
+    "floorOrder": 0,
+    "nodeId": "node-1794367192920"
+   },
+   "end": {
+    "lon": 106.8101975,
+    "lat": 10.8415805,
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "nodeId": "node-1794441952503"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367192920",
+     "node-1794367186789",
+     "node-1794367723424",
+     "node-1794368056244",
+     "node-1794368057488",
+     "node-1794368059578",
+     "node-1794368061044",
+     "node-1794367139162",
+     "node-1794367141022",
+     "node-1794367165776",
+     "node-1794367171381",
+     "node-1794367175244",
+     "node-portal-tòahcm-f0-1794441452896-0",
+     "node-1794441448044",
+     "node-portal-tòahcm-f2-1794441453910-2",
+     "node-1794441946456",
+     "node-1794441949281",
+     "node-1794441951925",
+     "node-1794441952503",
+     "__door_door-clone-1794365994213-21__"
+    ],
+    "totalCost": 187.459999061,
+    "totalDistanceMeters": 151,
+    "floorsClimbed": 2,
+    "estimatedSeconds": 132
+   }
+  },
+  {
+   "id": "GR-011",
+   "category": "CROSS_FLOOR",
+   "start": {
+    "lon": 106.811304,
+    "lat": 10.840527,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "nodeId": "node-1794457066858"
+   },
+   "end": {
+    "lon": 106.8114336,
+    "lat": 10.8407452,
+    "building": "Tòa Epsilon",
+    "floorOrder": 1,
+    "nodeId": "node-1794465244606"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794457066858",
+     "node-1794457065080",
+     "node-1794457059536",
+     "node-1794457057984",
+     "node-1794457051902",
+     "node-1794457043306",
+     "node-1794457039872",
+     "node-1794456934312",
+     "node-1794456931334",
+     "node-1794456851417",
+     "node-portal-tòaepsilon-f1-1794456856631-1",
+     "node-1794465248249",
+     "node-1794465245301",
+     "node-1794465244606"
+    ],
+    "totalCost": 69.398826731,
+    "totalDistanceMeters": 51,
+    "floorsClimbed": 1,
+    "estimatedSeconds": 49
+   }
+  },
+  {
+   "id": "GR-012",
+   "category": "CROSS_FLOOR",
+   "start": {
+    "lon": 106.811304,
+    "lat": 10.840527,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "nodeId": "node-1794457066858"
+   },
+   "end": {
+    "lon": 106.81143,
+    "lat": 10.8407615,
+    "building": "Tòa Epsilon",
+    "floorOrder": 2,
+    "nodeId": "node-clone-eps-f2-1794465245301"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794457066858",
+     "node-1794457065080",
+     "node-1794457059536",
+     "node-1794457057984",
+     "node-1794457051902",
+     "node-1794457043306",
+     "node-1794457039872",
+     "node-1794456934312",
+     "node-1794456931334",
+     "node-1794456851417",
+     "node-portal-tòaepsilon-f1-1794456856631-1",
+     "node-portal-tòaepsilon-f2-1794456856631-2",
+     "node-clone-eps-f2-1794465248249",
+     "node-clone-eps-f2-1794465245301"
+    ],
+    "totalCost": 85.544198179,
+    "totalDistanceMeters": 50,
+    "floorsClimbed": 2,
+    "estimatedSeconds": 62
+   }
+  },
+  {
+   "id": "GR-013",
+   "category": "CROSS_FLOOR",
+   "start": {
+    "lon": 106.811304,
+    "lat": 10.840527,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "nodeId": "node-1794457066858"
+   },
+   "end": {
+    "lon": 106.81143,
+    "lat": 10.8407615,
+    "building": "Tòa Epsilon",
+    "floorOrder": 3,
+    "nodeId": "node-clone-eps-f3-1794465245301"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794457066858",
+     "node-1794457065080",
+     "node-1794457059536",
+     "node-1794457057984",
+     "node-1794457051902",
+     "node-1794457043306",
+     "node-1794457039872",
+     "node-1794456934312",
+     "node-1794456931334",
+     "node-1794456851417",
+     "node-portal-tòaepsilon-f1-1794456856631-1",
+     "node-portal-tòaepsilon-f2-1794456856631-2",
+     "node-portal-tòaepsilon-f3-1794456856631-3",
+     "node-clone-eps-f3-1794465248249",
+     "node-clone-eps-f3-1794465245301"
+    ],
+    "totalCost": 103.544198179,
+    "totalDistanceMeters": 50,
+    "floorsClimbed": 3,
+    "estimatedSeconds": 76
+   }
+  },
+  {
+   "id": "GR-014",
+   "category": "CROSS_FLOOR",
+   "start": {
+    "lon": 106.811304,
+    "lat": 10.840527,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "nodeId": "node-1794457066858"
+   },
+   "end": {
+    "lon": 106.81143,
+    "lat": 10.8407615,
+    "building": "Tòa Epsilon",
+    "floorOrder": 4,
+    "nodeId": "node-clone-eps-f4-1794465245301"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794457066858",
+     "node-1794457065080",
+     "node-1794457059536",
+     "node-1794457057984",
+     "node-1794457051902",
+     "node-1794457043306",
+     "node-1794457039872",
+     "node-1794456934312",
+     "node-1794456931334",
+     "node-1794456851417",
+     "node-portal-tòaepsilon-f1-1794456856631-1",
+     "node-portal-tòaepsilon-f2-1794456856631-2",
+     "node-portal-tòaepsilon-f3-1794456856631-3",
+     "node-portal-tòaepsilon-f4-1794456856631-4",
+     "node-clone-eps-f4-1794465248249",
+     "node-clone-eps-f4-1794465245301"
+    ],
+    "totalCost": 121.544198179,
+    "totalDistanceMeters": 50,
+    "floorsClimbed": 4,
+    "estimatedSeconds": 90
+   }
+  },
+  {
+   "id": "GR-015",
+   "category": "CROSS_BUILDING",
+   "start": {
+    "lon": 106.809466,
+    "lat": 10.841569,
+    "building": "Tòa Alpha",
+    "floorOrder": 0,
+    "nodeId": "node-1794307597801"
+   },
+   "end": {
+    "lon": 106.8112875,
+    "lat": 10.8404998,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "nodeId": "node-1794466798457"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794307597801",
+     "node-1794368056244",
+     "node-1794367723424",
+     "node-1794367186789",
+     "node-1794367192920",
+     "node-1794367194462",
+     "node-1794367196234",
+     "node-1794367197850",
+     "node-1794367200082",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "__door_door-1794449965635__",
+     "__door_door-1794452679320__",
+     "node-1794457080138",
+     "node-1794457076198",
+     "node-1794457057984",
+     "node-1794457059536",
+     "node-1794457065080",
+     "node-1794457066858",
+     "node-1794466798457"
+    ],
+    "totalCost": 332.859836851,
+    "totalDistanceMeters": 333,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 230
+   }
+  },
+  {
+   "id": "GR-016",
+   "category": "CROSS_BUILDING",
+   "start": {
+    "lon": 106.809755,
+    "lat": 10.841308,
+    "building": "Tòa Alpha",
+    "floorOrder": 1,
+    "nodeId": "node-1794441185020"
+   },
+   "end": {
+    "lon": 106.811475,
+    "lat": 10.840364,
+    "building": "Tòa Epsilon",
+    "floorOrder": 1,
+    "nodeId": "node-portal-tòaepsilon-f1-1794456904999-1"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794441185020",
+     "node-portal-tòahcm-f1-1794367768726-1",
+     "node-1794359089818",
+     "node-1794367723424",
+     "node-1794367186789",
+     "node-1794367192920",
+     "node-1794367194462",
+     "node-1794367196234",
+     "node-1794367197850",
+     "node-1794367200082",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "node-1794457090433",
+     "node-1794457225035",
+     "node-1794466638260",
+     "node-1794457187268",
+     "node-1794456888115",
+     "node-portal-tòaepsilon-f1-1794456904999-1"
+    ],
+    "totalCost": 331.876183325,
+    "totalDistanceMeters": 296,
+    "floorsClimbed": 2,
+    "estimatedSeconds": 232
+   }
+  },
+  {
+   "id": "GR-017",
+   "category": "CROSS_BUILDING",
+   "start": {
+    "lon": 106.809748,
+    "lat": 10.84131,
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "nodeId": "node-1794441919066"
+   },
+   "end": {
+    "lon": 106.8116097,
+    "lat": 10.8406997,
+    "building": "Tòa Epsilon",
+    "floorOrder": 2,
+    "nodeId": "node-portal-tòaepsilon-f2-1794462400588-2"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794441919066",
+     "node-portal-tòahcm-f2-1794367778012-2",
+     "node-portal-tòahcm-f1-1794367768726-1",
+     "node-1794359089818",
+     "node-1794367723424",
+     "node-1794367186789",
+     "node-1794367192920",
+     "node-1794367194462",
+     "node-1794367196234",
+     "node-1794367197850",
+     "node-1794367200082",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456938842",
+     "node-1794456932287",
+     "node-1794456931334",
+     "node-1794456851417",
+     "node-portal-tòaepsilon-f1-1794456856631-1",
+     "node-1794465248249",
+     "node-1794465245301",
+     "node-1794465244606",
+     "node-1794465237959",
+     "node-1794465235349",
+     "node-1794465232321",
+     "node-1794465327795",
+     "node-1794465229315",
+     "node-1794462396535",
+     "node-portal-tòaepsilon-f2-1794462400588-2"
+    ],
+    "totalCost": 402.071803029,
+    "totalDistanceMeters": 330,
+    "floorsClimbed": 4,
+    "estimatedSeconds": 284
+   }
+  },
+  {
+   "id": "GR-018",
+   "category": "CROSS_BUILDING",
+   "start": {
+    "lon": 106.809748,
+    "lat": 10.84131,
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "nodeId": "node-1794441919066"
+   },
+   "end": {
+    "lon": 106.8116097,
+    "lat": 10.8406997,
+    "building": "Tòa Epsilon",
+    "floorOrder": 3,
+    "nodeId": "node-portal-tòaepsilon-f3-1794462401569-3"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794441919066",
+     "node-portal-tòahcm-f2-1794367778012-2",
+     "node-portal-tòahcm-f1-1794367768726-1",
+     "node-1794359089818",
+     "node-1794367723424",
+     "node-1794367186789",
+     "node-1794367192920",
+     "node-1794367194462",
+     "node-1794367196234",
+     "node-1794367197850",
+     "node-1794367200082",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456938842",
+     "node-1794456932287",
+     "node-1794456931334",
+     "node-1794456851417",
+     "node-portal-tòaepsilon-f1-1794456856631-1",
+     "node-1794465248249",
+     "node-1794465245301",
+     "node-1794465244606",
+     "node-1794465237959",
+     "node-1794465235349",
+     "node-1794465232321",
+     "node-1794465327795",
+     "node-1794465229315",
+     "node-1794462396535",
+     "node-portal-tòaepsilon-f2-1794462400588-2",
+     "node-portal-tòaepsilon-f3-1794462401569-3"
+    ],
+    "totalCost": 420.071803029,
+    "totalDistanceMeters": 330,
+    "floorsClimbed": 5,
+    "estimatedSeconds": 298
+   }
+  },
+  {
+   "id": "GR-019",
+   "category": "CROSS_BUILDING",
+   "start": {
+    "lon": 106.809748,
+    "lat": 10.84131,
+    "building": "Tòa Alpha",
+    "floorOrder": 2,
+    "nodeId": "node-1794441919066"
+   },
+   "end": {
+    "lon": 106.8116097,
+    "lat": 10.8406997,
+    "building": "Tòa Epsilon",
+    "floorOrder": 4,
+    "nodeId": "node-portal-tòaepsilon-f4-1794462401157-4"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794441919066",
+     "node-portal-tòahcm-f2-1794367778012-2",
+     "node-portal-tòahcm-f1-1794367768726-1",
+     "node-1794359089818",
+     "node-1794367723424",
+     "node-1794367186789",
+     "node-1794367192920",
+     "node-1794367194462",
+     "node-1794367196234",
+     "node-1794367197850",
+     "node-1794367200082",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456938842",
+     "node-1794456932287",
+     "node-1794456931334",
+     "node-1794456851417",
+     "node-portal-tòaepsilon-f1-1794456856631-1",
+     "node-1794465248249",
+     "node-1794465245301",
+     "node-1794465244606",
+     "node-1794465237959",
+     "node-1794465235349",
+     "node-1794465232321",
+     "node-1794465327795",
+     "node-1794465229315",
+     "node-1794462396535",
+     "node-portal-tòaepsilon-f2-1794462400588-2",
+     "node-portal-tòaepsilon-f3-1794462401569-3",
+     "node-portal-tòaepsilon-f4-1794462401157-4"
+    ],
+    "totalCost": 438.071803029,
+    "totalDistanceMeters": 330,
+    "floorsClimbed": 6,
+    "estimatedSeconds": 312
+   }
+  },
+  {
+   "id": "GR-020",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811247,
+    "lat": 10.840506,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "areaName": "KT Điện"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "__door_door-1794449965635__",
+     "__door_door-1794452679320__",
+     "node-1794457080138",
+     "__t___door_door-1794452514914___cor__",
+     "__door_door-1794452514914__"
+    ],
+    "totalCost": 250.30167293,
+    "totalDistanceMeters": 252,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 173
+   }
+  },
+  {
+   "id": "GR-021",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811189,
+    "lat": 10.840561,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "areaName": "P. nghỉ giáo viên"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "__door_door-1794449965635__",
+     "__door_door-1794452679320__",
+     "node-1794457080138",
+     "node-1794457081382",
+     "__door_door-1794452672351__"
+    ],
+    "totalCost": 250.681313782,
+    "totalDistanceMeters": 254,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 175
+   }
+  },
+  {
+   "id": "GR-022",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811645,
+    "lat": 10.840623,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "areaName": "Phòng học 01-01"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "node-1794457090433",
+     "node-1794457225035",
+     "__door_door-1794457161885__",
+     "node-1794457168819",
+     "node-1794456971302",
+     "node-1794456998500",
+     "node-1794457150908",
+     "__door_door-1794451517090__"
+    ],
+    "totalCost": 286.106267072,
+    "totalDistanceMeters": 290,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 200
+   }
+  },
+  {
+   "id": "GR-023",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.81126,
+    "lat": 10.840623,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "areaName": "Phòng học 01-19"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "__door_door-1794449965635__",
+     "__door_door-1794452679320__",
+     "node-1794457080138",
+     "node-1794457076198",
+     "node-1794457057984",
+     "__t___door_door-1794451843911___cor__",
+     "__door_door-1794451843911__"
+    ],
+    "totalCost": 263.314227317,
+    "totalDistanceMeters": 267,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 184
+   }
+  },
+  {
+   "id": "GR-024",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811428,
+    "lat": 10.840678,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "areaName": "Phòng học 01-22"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456938842",
+     "node-1794456932287",
+     "node-1794456931334",
+     "node-1794456934312",
+     "node-1794457039872",
+     "__t___door_door-1794451718266___cor__",
+     "__door_door-1794451718266__"
+    ],
+    "totalCost": 264.435511346,
+    "totalDistanceMeters": 269,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 185
+   }
+  },
+  {
+   "id": "GR-025",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811189,
+    "lat": 10.840431,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "areaName": "Thư viện"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "__door_door-1794449965635__"
+    ],
+    "totalCost": 233.305966717,
+    "totalDistanceMeters": 239,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 165
+   }
+  },
+  {
+   "id": "GR-026",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811269,
+    "lat": 10.840534,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0,
+    "areaName": "Tạp vụ 1"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "__door_door-1794449965635__",
+     "__door_door-1794452679320__",
+     "node-1794457080138",
+     "node-1794457076198",
+     "node-1794457057984",
+     "node-1794457059536",
+     "node-1794457065080",
+     "__door_door-1794461339057__"
+    ],
+    "totalCost": 262.151711228,
+    "totalDistanceMeters": 264,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 182
+   }
+  },
+  {
+   "id": "GR-027",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811281,
+    "lat": 10.840472,
+    "building": "Tòa Epsilon",
+    "floorOrder": 1,
+    "areaName": "Phòng họp"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "node-1794457090433",
+     "node-1794457109328",
+     "node-1794456827847",
+     "node-portal-tòaepsilon-f1-1794456831467-1",
+     "node-1794465178143",
+     "node-1794465152183",
+     "node-1794464615009",
+     "node-1794464602126",
+     "node-1794464597737",
+     "__t___door_door-1794462812021___cor__",
+     "__door_door-1794462812021__"
+    ],
+    "totalCost": 306.032047073,
+    "totalDistanceMeters": 291,
+    "floorsClimbed": 1,
+    "estimatedSeconds": 215
+   }
+  },
+  {
+   "id": "GR-028",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811262,
+    "lat": 10.840505,
+    "building": "Tòa Epsilon",
+    "floorOrder": 2,
+    "areaName": "KT Điện"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "node-1794457090433",
+     "node-1794457109328",
+     "node-1794456827847",
+     "node-portal-tòaepsilon-f1-1794456831467-1",
+     "node-portal-tòaepsilon-f2-1794456831467-2",
+     "node-clone-eps-f2-1794465178143",
+     "node-clone-eps-f2-1794465152183",
+     "node-clone-eps-f2-1794464615009",
+     "node-clone-eps-f2-1794464602126",
+     "node-clone-eps-f2-1794464597737",
+     "node-clone-eps-f2-1794464590133",
+     "node-clone-eps-f2-1794465288725",
+     "__door_door-clone-1794463593663-10__"
+    ],
+    "totalCost": 333.120020256,
+    "totalDistanceMeters": 299,
+    "floorsClimbed": 2,
+    "estimatedSeconds": 234
+   }
+  },
+  {
+   "id": "GR-029",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811407,
+    "lat": 10.840632,
+    "building": "Tòa Epsilon",
+    "floorOrder": 2,
+    "areaName": "Phòng thực hành 2"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456938842",
+     "node-1794456932287",
+     "node-1794456931334",
+     "node-1794456851417",
+     "node-portal-tòaepsilon-f1-1794456856631-1",
+     "node-portal-tòaepsilon-f2-1794456856631-2",
+     "node-clone-eps-f2-1794465248249",
+     "node-clone-eps-f2-1794465245301",
+     "node-clone-eps-f2-1794465244606",
+     "node-clone-eps-f2-1794465258193",
+     "__t___door_door-clone-1794463593663-6___cor__",
+     "__door_door-clone-1794463593663-6__"
+    ],
+    "totalCost": 319.673638961,
+    "totalDistanceMeters": 289,
+    "floorsClimbed": 2,
+    "estimatedSeconds": 227
+   }
+  },
+  {
+   "id": "GR-030",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811281,
+    "lat": 10.840472,
+    "building": "Tòa Epsilon",
+    "floorOrder": 3,
+    "areaName": "Phòng họp"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "node-1794457090433",
+     "node-1794457109328",
+     "node-1794456827847",
+     "node-portal-tòaepsilon-f1-1794456831467-1",
+     "node-portal-tòaepsilon-f2-1794456831467-2",
+     "node-portal-tòaepsilon-f3-1794456831467-3",
+     "node-clone-eps-f3-1794465178143",
+     "node-clone-eps-f3-1794465152183",
+     "node-clone-eps-f3-1794464615009",
+     "node-clone-eps-f3-1794464602126",
+     "node-clone-eps-f3-1794464597737",
+     "__t___door_door-clone-1794463599934-15___cor__",
+     "__door_door-clone-1794463599934-15__"
+    ],
+    "totalCost": 342.661919277,
+    "totalDistanceMeters": 292,
+    "floorsClimbed": 3,
+    "estimatedSeconds": 243
+   }
+  },
+  {
+   "id": "GR-031",
+   "category": "OUTDOOR_TO_AREA",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.811262,
+    "lat": 10.840505,
+    "building": "Tòa Epsilon",
+    "floorOrder": 4,
+    "areaName": "KT Điện"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "node-1794457090433",
+     "node-1794457109328",
+     "node-1794456827847",
+     "node-portal-tòaepsilon-f1-1794456831467-1",
+     "node-portal-tòaepsilon-f2-1794456831467-2",
+     "node-portal-tòaepsilon-f3-1794456831467-3",
+     "node-portal-tòaepsilon-f4-1794456831467-4",
+     "node-clone-eps-f4-1794465178143",
+     "node-clone-eps-f4-1794465152183",
+     "node-clone-eps-f4-1794464615009",
+     "node-clone-eps-f4-1794464602126",
+     "node-clone-eps-f4-1794464597737",
+     "node-clone-eps-f4-1794464590133",
+     "node-clone-eps-f4-1794465288725",
+     "__door_door-clone-1794463603738-10__"
+    ],
+    "totalCost": 369.431733464,
+    "totalDistanceMeters": 299,
+    "floorsClimbed": 4,
+    "estimatedSeconds": 262
+   }
+  },
+  {
+   "id": "GR-032",
+   "category": "OUTDOOR_TO_OUTDOOR",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": 106.8113379,
+    "lat": 10.840496,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794466544256"
+   },
+   "expected": {
+    "reachable": true,
+    "pathNodeIds": [
+     "node-1794367999916",
+     "node-1794367995814",
+     "node-1794367201910",
+     "node-1794307666981",
+     "node-1794367111309",
+     "node-1794395026128",
+     "node-1794395027090",
+     "node-1794457431006",
+     "node-1794456942000",
+     "node-1794456945467",
+     "node-1794456946129",
+     "node-1794457098586",
+     "node-1794457090433",
+     "node-1794457225035",
+     "node-1794457225840",
+     "__door_door-1794457160957__",
+     "node-1794466544256"
+    ],
+    "totalCost": 252.62302002,
+    "totalDistanceMeters": 253,
+    "floorsClimbed": 0,
+    "estimatedSeconds": 174
+   }
+  },
+  {
+   "id": "GR-033",
+   "category": "UNREACHABLE",
+   "start": {
+    "lon": 106.810205,
+    "lat": 10.841255,
+    "building": "OUTDOOR",
+    "floorOrder": 0,
+    "nodeId": "node-1794367999916"
+   },
+   "end": {
+    "lon": null,
+    "lat": null,
+    "building": "Tòa Epsilon",
+    "floorOrder": 0
+   },
+   "note": "Thiếu toạ độ đích",
+   "expected": {
+    "reachable": false,
+    "reasonCode": "INVALID_COORDS",
+    "message": "Thiếu tọa độ điểm đi hoặc điểm đến."
+   }
+  }
+ ]
+}

@@ -107,6 +107,7 @@ import {
 	resolveToolSwitchDraftAction,
 	resolveStudioSelectEntity,
 } from "../../utils/studioToolDraftHelper";
+import { getRouteSettings } from "../../services/systemConfigService";
 import "../../styles/FloorDigitizerStudio.css";
 
 const STUDIO_LIGHT = {
@@ -385,6 +386,21 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 	const [activeNodeType, setActiveNodeType] = useState("NODE");
 	const [portalGroupId, setPortalGroupId] = useState("HCM_STAIR_1");
 	const [chainLastNodeId, setChainLastNodeId] = useState(null);
+
+	// P-MAP-2 (V123): tham số ước tính thời gian lộ trình đọc từ cấu hình; chưa tải được thì computeDigitizedRoute
+	// dùng mặc định. Giữ bằng ref để không đổi danh sách phụ thuộc của handler click bản đồ.
+	const routeSettingsRef = useRef(null);
+	useEffect(() => {
+		let cancelled = false;
+		getRouteSettings()
+			.then((s) => {
+				if (!cancelled && s && Number.isFinite(Number(s.walkingSpeedMps))) routeSettingsRef.current = s;
+			})
+			.catch((err) => console.warn("[Studio] Không tải được tham số ước tính thời gian lộ trình:", err?.message));
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	// Live A* Route Tester & Real-Time Playback Simulation
 	const [testRouteStart, setTestRouteStart] = useState(null);
@@ -2812,6 +2828,8 @@ export default function FloorDigitizerStudio({ isOpen, onClose, onSaved }) {
 						endBuilding: clickBuilding,
 						endFloorOrder: clickFloor,
 						diagnosticsOut: diag,
+						walkingSpeedMps: routeSettingsRef.current?.walkingSpeedMps,
+						floorChangeSeconds: routeSettingsRef.current?.floorChangeSeconds,
 					});
 					setTestRouteResult(res);
 					setTestRouteStart(null);

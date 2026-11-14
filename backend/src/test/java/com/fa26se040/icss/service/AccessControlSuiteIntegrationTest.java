@@ -408,10 +408,10 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     }
 
     // =========================================================================
-    // TC-CE-04: Tuyệt mật: không AP/đơn -> DENIED; AP -> ALLOWED; đơn cá nhân APPROVED -> ALLOWED; L1 -> DENIED
+    // TC-CE-04: Bảo mật cao: không AP/đơn -> DENIED; AP -> ALLOWED; đơn cá nhân APPROVED -> ALLOWED; L1 -> DENIED
     // =========================================================================
     @Test
-    @DisplayName("TC-CE-04 (V83): Tuyệt mật: L3 vào thẳng; L2 không AP/đơn -> DENIED; AP -> ALLOWED; đơn cá nhân APPROVED -> ALLOWED; L1 -> DENIED")
+    @DisplayName("TC-CE-04 (V83): Bảo mật cao: L3 vào thẳng; L2 không AP/đơn -> DENIED; AP -> ALLOWED; đơn cá nhân APPROVED -> ALLOWED; L1 -> DENIED")
     void tc_ce_04() {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime start = now.plusHours(1);
@@ -716,7 +716,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("BR-EV-22 (V83): FM đặt lịch sự kiện: khu Bảo mật -> mở được (qua job kích hoạt); Tuyệt mật / Công khai -> 400 ERR_AREA_022 \"chỉ áp dụng cho khu vực Bảo mật\"")
+    @DisplayName("BR-EV-22 (V83): FM đặt lịch sự kiện: khu Bảo mật -> mở được (qua job kích hoạt); Bảo mật cao / Công khai -> 400 ERR_AREA_022 \"chỉ áp dụng cho khu vực Bảo mật\"")
     void eventMode_onlyConfidentialArea() throws Exception {
         // X-01a: sự kiện chỉ mở qua lịch, BR-EV-22 kiểm ở bước đặt lịch
         OffsetDateTime now = OffsetDateTime.now();
@@ -896,10 +896,10 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
 
     // =========================================================================
     // TC-AA-08 (V83): FM sửa access-rules / preset / đổi loại -> 403; ADMIN sửa access-rules / preset -> 400 (cấp cố định theo loại);
-    // ADMIN đổi loại Bảo mật -> Tuyệt mật -> cấp 3, đổi lại -> cấp 2; cờ chỉ định luôn false
+    // ADMIN đổi loại Bảo mật -> Bảo mật cao -> cấp 3, đổi lại -> cấp 2; cờ chỉ định luôn false
     // =========================================================================
     @Test
-    @DisplayName("TC-AA-08 (V83): FM sửa access-rules/preset/đổi loại -> 403; ADMIN sửa access-rules -> ERR_AREA_056, preset -> ERR_AC_005; đổi loại Bảo mật <-> Tuyệt mật: cấp theo loại, cờ luôn false")
+    @DisplayName("TC-AA-08 (V83): FM sửa access-rules/preset/đổi loại -> 403; ADMIN sửa access-rules -> ERR_AREA_056, preset -> ERR_AC_005; đổi loại Bảo mật <-> Bảo mật cao: cấp theo loại, cờ luôn false")
     void tc_aa_08() throws Exception {
         // 1. FM sửa access-rules -> 403
         String rulesJson = "{\"areaAccessLevel\": 3, \"explicitAuthorizationRequired\": false, \"reason\": \"FM thu sua rules\", \"version\": " + internalArea.getVersion() + "}";
@@ -945,7 +945,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         assertEquals(internalArea.getVersion(), unchanged.getVersion());
         assertEquals(2, areaLevelPresetRepository.findById(AreaLevel.CONFIDENTIAL).orElseThrow().getAreaAccessLevel());
 
-        // 5. ADMIN đổi loại Bảo mật -> Tuyệt mật: cấp 3, cờ false
+        // 5. ADMIN đổi loại Bảo mật -> Bảo mật cao: cấp 3, cờ false
         areaService.update(internalArea.getId(), AreaUpdateRequest.builder()
                 .name(internalArea.getName())
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
@@ -953,7 +953,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .centerLatitude(10.8418)
                 .centerLongitude(106.8100)
                 .version(internalArea.getVersion())
-                .reason("Doi sang loai Tuyet mat")
+                .reason("Doi sang loai Bao mat cao")
                 .build(), adminUser.getEmail());
         Area highly = areaRepository.findById(internalArea.getId()).orElseThrow();
         assertEquals(AreaLevel.HIGHLY_CONFIDENTIAL, highly.getAreaLevel());
@@ -1140,10 +1140,10 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     }
 
     // =========================================================================
-    // TC-AR-10: Nội bộ/Tuyệt mật: nhóm có L1 -> từ chối; L1 tạo đơn cá nhân -> từ chối; key cấu hình: giá trị lạ/rỗng/chứa PUBLIC hoặc HIGHLY -> từ chối; thêm INTERNAL hợp lệ -> có hiệu lực ngay
+    // TC-AR-10: Nội bộ/Bảo mật cao: nhóm có L1 -> từ chối; L1 tạo đơn cá nhân -> từ chối; key cấu hình: giá trị lạ/rỗng/chứa PUBLIC hoặc HIGHLY -> từ chối; thêm INTERNAL hợp lệ -> có hiệu lực ngay
     // =========================================================================
     @Test
-    @DisplayName("TC-AR-10 (V83): Bảo mật: nhóm có L1 -> nhận, sponsored; Tuyệt mật: nhóm -> từ chối; đơn cá nhân L1 vào Bảo mật -> nhận, L1 vào Tuyệt mật / L2 vào Bảo mật -> từ chối; key bảo lãnh: giá trị lạ/rỗng/PUBLIC/HIGHLY/tên loại cũ -> từ chối, chỉ còn CONFIDENTIAL")
+    @DisplayName("TC-AR-10 (V83): Bảo mật: nhóm có L1 -> nhận, sponsored; Bảo mật cao: nhóm -> từ chối; đơn cá nhân L1 vào Bảo mật -> nhận, L1 vào Bảo mật cao / L2 vào Bảo mật -> từ chối; key bảo lãnh: giá trị lạ/rỗng/PUBLIC/HIGHLY/tên loại cũ -> từ chối, chỉ còn CONFIDENTIAL")
     void tc_ar_10() {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime start = now.plusHours(1);
@@ -1157,7 +1157,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         assertEquals(RequestStatus.PENDING, groupResp.status());
         assertTrue(groupResp.members().get(0).sponsored());
 
-        // 2. Nhóm có L1 vào Tuyệt mật (HIGHLY_CONFIDENTIAL) -> Từ chối
+        // 2. Nhóm có L1 vào Bảo mật cao (HIGHLY_CONFIDENTIAL) -> Từ chối
         GroupAccessRequestCreateRequest groupHighly = new GroupAccessRequestCreateRequest(
                 highlyConfidentialArea.getId(), start, end, "Nhom vao Highly", List.of(normalUserL1.getUserCode())
         );
@@ -1165,7 +1165,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 accessRequestService.createGroupRequest(groupHighly, normalUserL3.getEmail())
         );
 
-        // 3. V83 (BR-RQ-01): L1 tạo đơn cá nhân vào Bảo mật -> nhận; L1 vào Tuyệt mật -> 400 vượt khoảng cách cấp;
+        // 3. V83 (BR-RQ-01): L1 tạo đơn cá nhân vào Bảo mật -> nhận; L1 vào Bảo mật cao -> 400 vượt khoảng cách cấp;
         //    L2 vào Bảo mật -> 400 đã đủ cấp
         IndividualAccessRequestCreateRequest indInternal = new IndividualAccessRequestCreateRequest(
                 internalArea.getId(), start.plusHours(4), end.plusHours(4), "L1 ca nhan vao Bao mat"
@@ -1173,7 +1173,7 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
         assertEquals(RequestStatus.PENDING, accessRequestService.createIndividualRequest(indInternal, normalUserL1.getEmail()).status());
         IllegalArgumentException exGap = assertThrows(IllegalArgumentException.class, () ->
                 accessRequestService.createIndividualRequest(new IndividualAccessRequestCreateRequest(
-                        highlyConfidentialArea.getId(), start.plusHours(8), end.plusHours(8), "L1 ca nhan vao Tuyet mat"), normalUserL1.getEmail())
+                        highlyConfidentialArea.getId(), start.plusHours(8), end.plusHours(8), "L1 ca nhan vao Bao mat cao"), normalUserL1.getEmail())
         );
         assertEquals("Chỉ được xin vào khu vực cao hơn cấp của bạn tối đa 1 cấp (khu vực cấp 3, bạn cấp 1)", exGap.getMessage());
         IllegalArgumentException exEnough = assertThrows(IllegalArgumentException.class, () ->
@@ -1216,23 +1216,23 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     // Dropdown: Khu vực cờ tắt, vô hiệu hoá, cấp cao hơn người gửi không xuất hiện; L1 không thấy khu vực Nội bộ nào
     // =========================================================================
     @Test
-    @DisplayName("Dropdown (V83): ?type=INDIVIDUAL chỉ khu cao hơn cấp người gửi trong khoảng cách cấp; ?type=GROUP chỉ khu người gửi tự vào được (Tuyệt mật không nhận đơn nhóm); khu vô hiệu hoá không xuất hiện")
+    @DisplayName("Dropdown (V83): ?type=INDIVIDUAL chỉ khu cao hơn cấp người gửi trong khoảng cách cấp; ?type=GROUP chỉ khu người gửi tự vào được (Bảo mật cao không nhận đơn nhóm); khu vô hiệu hoá không xuất hiện")
     void testDropdown_AvailableAreasFiltering() throws Exception {
-        // 1. Đơn cá nhân: L1 thấy hai khu Bảo mật, không thấy Tuyệt mật (cách 2 cấp); L2 chỉ thấy Tuyệt mật; L3 không thấy khu nào
+        // 1. Đơn cá nhân: L1 thấy hai khu Bảo mật, không thấy Bảo mật cao (cách 2 cấp); L2 chỉ thấy Bảo mật cao; L3 không thấy khu nào
         String l1Individual = dropdown(normalUserL1, "INDIVIDUAL");
         assertTrue(l1Individual.contains(contactArea.getName()) && l1Individual.contains(internalArea.getName()), "L1 thấy khu Bảo mật");
-        assertFalse(l1Individual.contains(highlyConfidentialArea.getName()), "L1 không thấy Tuyệt mật");
+        assertFalse(l1Individual.contains(highlyConfidentialArea.getName()), "L1 không thấy Bảo mật cao");
         String l2Individual = dropdown(normalUserL2, "INDIVIDUAL");
-        assertTrue(l2Individual.contains(highlyConfidentialArea.getName()), "L2 thấy Tuyệt mật");
+        assertTrue(l2Individual.contains(highlyConfidentialArea.getName()), "L2 thấy Bảo mật cao");
         assertFalse(l2Individual.contains(contactArea.getName()) || l2Individual.contains(internalArea.getName()), "L2 đã vào thẳng Bảo mật");
         String l3Individual = dropdown(normalUserL3, "INDIVIDUAL");
         assertFalse(l3Individual.contains(contactArea.getName()) || l3Individual.contains(highlyConfidentialArea.getName()), "L3 vào thẳng mọi khu");
         assertFalse(l1Individual.contains(publicArea.getName()), "Công khai không cần đơn");
 
-        // 2. Đơn nhóm: L2 thấy khu Bảo mật, không thấy Tuyệt mật; L1 không thấy khu nào
+        // 2. Đơn nhóm: L2 thấy khu Bảo mật, không thấy Bảo mật cao; L1 không thấy khu nào
         String l2Group = dropdown(normalUserL2, "GROUP");
         assertTrue(l2Group.contains(contactArea.getName()) && l2Group.contains(internalArea.getName()));
-        assertFalse(l2Group.contains(highlyConfidentialArea.getName()), "Tuyệt mật không nhận đơn nhóm (mặc định)");
+        assertFalse(l2Group.contains(highlyConfidentialArea.getName()), "Bảo mật cao không nhận đơn nhóm (mặc định)");
         String l1Group = dropdown(normalUserL1, "GROUP");
         assertFalse(l1Group.contains(contactArea.getName()) || l1Group.contains(internalArea.getName()), "L1 không tự vào được khu Bảo mật");
 

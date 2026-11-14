@@ -314,7 +314,7 @@ public class AreaService {
      * <ul>
      *   <li>Đơn cá nhân: cấp khu mới − cấp người tạo ≤ ACCESS_REQUEST_MAX_LEVEL_GAP (người tạo đã đủ cấp thì đơn thừa
      *       nhưng vô hại, giữ).</li>
-     *   <li>Đơn nhóm: Tuyệt mật chỉ khi bật đơn nhóm; người tạo phải tự vào được khu mới bằng cấp.</li>
+     *   <li>Đơn nhóm: Bảo mật cao chỉ khi bật đơn nhóm; người tạo phải tự vào được khu mới bằng cấp.</li>
      *   <li>checkRequester = false (đơn PENDING, BR-TC-09): bỏ hai điều kiện về người tạo, giống reviewRequest.</li>
      *   <li>Q1 (BR-RQ-03/04): thành viên sponsored được miễn kiểm cấp khi loại mới cho phép bảo lãnh; loại mới không cho
      *       bảo lãnh → kiểm cấp như thành viên thường, giống reviewRequest; thành viên thường kiểm cấp như cũ.</li>
@@ -328,7 +328,7 @@ public class AreaService {
                                                 boolean checkRequester) {
         boolean group = r.getRequestType() == com.fa26se040.icss.enums.RequestType.GROUP;
         if (group && newLevel == AreaLevel.HIGHLY_CONFIDENTIAL && !groupAllowedInPrivate) {
-            return "khu vực Tuyệt mật không nhận đơn nhóm";
+            return "khu vực Bảo mật cao không nhận đơn nhóm";
         }
         List<String> unqualified = new ArrayList<>();
         List<String> sponsorshipNotAllowed = new ArrayList<>();
@@ -638,7 +638,7 @@ public class AreaService {
      * <ul>
      *   <li>Khu chưa xoá, đang hoạt động, khác Công khai.</li>
      *   <li>Đơn cá nhân: cấp khu &gt; cấp người tạo và cấp khu − cấp người tạo ≤ ACCESS_REQUEST_MAX_LEVEL_GAP.</li>
-     *   <li>Đơn nhóm: khu Tuyệt mật chỉ khi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE; người tạo tự vào được khu bằng cấp
+     *   <li>Đơn nhóm: khu Bảo mật cao chỉ khi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE; người tạo tự vào được khu bằng cấp
      *       (cấp người ≥ cấp khu) để bảo lãnh thành viên thiếu cấp.</li>
      *   <li>Chỉ NORMAL_USER tạo đơn; FM / ADMIN / caller null không lọc theo cấp (chỉ lọc khu và quy tắc đơn nhóm).</li>
      * </ul>
@@ -651,7 +651,7 @@ public class AreaService {
         }
         boolean group = type == com.fa26se040.icss.enums.RequestType.GROUP;
         if (group && !isGroupRequestAllowed(area.getAreaLevel(), groupAllowedInHighlyConfidential)) {
-            return "Khu vực Tuyệt mật (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)";
+            return "Khu vực Bảo mật cao (HIGHLY_CONFIDENTIAL) chỉ cho phép đăng ký truy cập cá nhân (INDIVIDUAL)";
         }
         if (caller == null || caller.getRole() != Role.NORMAL_USER) {
             return null;
@@ -798,7 +798,7 @@ public class AreaService {
 
         resolveActorId(actorEmail);
 
-        // V83 (BR-PR-23): cấp = cấp của loại (Công khai 1, Bảo mật 2, Tuyệt mật 3); cờ chỉ định đích danh luôn false
+        // V83 (BR-PR-23): cấp = cấp của loại (Công khai 1, Bảo mật 2, Bảo mật cao 3); cờ chỉ định đích danh luôn false
         int areaAccessLevel = req.getAreaLevel().level();
 
         com.fa26se040.icss.entity.Floor targetFloor = resolveAndValidateTargetFloor(

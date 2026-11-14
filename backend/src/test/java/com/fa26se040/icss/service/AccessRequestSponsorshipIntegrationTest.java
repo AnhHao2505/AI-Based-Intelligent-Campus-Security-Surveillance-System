@@ -398,7 +398,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
                 highlyArea.getId(),
                 start,
                 end,
-                "Mục đích vào phòng tuyệt mật theo nhóm",
+                "Mục đích vào phòng bảo mật cao theo nhóm",
                 List.of(memberL2.getUserCode())
         );
 
@@ -643,7 +643,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("(k) V83 available-areas theo loại đơn: L1 cá nhân thấy Bảo mật, nhóm không thấy gì; L2 cá nhân thấy Tuyệt mật, nhóm thấy Bảo mật; đổi loại Bảo mật -> Tuyệt mật thì khu chuyển danh sách")
+    @DisplayName("(k) V83 available-areas theo loại đơn: L1 cá nhân thấy Bảo mật, nhóm không thấy gì; L2 cá nhân thấy Bảo mật cao, nhóm thấy Bảo mật; đổi loại Bảo mật -> Bảo mật cao thì khu chuyển danh sách")
     void test_k_available_areas_filters_and_type_change() {
         RequestType ind = RequestType.INDIVIDUAL;
         RequestType grp = RequestType.GROUP;
@@ -656,7 +656,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
         assertThat(ids.apply(creatorL2, ind)).contains(highlyArea.getId()).doesNotContain(contactArea.getId(), internalArea.getId());
         assertThat(ids.apply(creatorL2, grp)).contains(contactArea.getId(), internalArea.getId()).doesNotContain(highlyArea.getId());
 
-        // Đổi loại internalArea sang Tuyệt mật: cấp 3; với L2 chuyển từ danh sách nhóm sang danh sách cá nhân
+        // Đổi loại internalArea sang Bảo mật cao: cấp 3; với L2 chuyển từ danh sách nhóm sang danh sách cá nhân
         areaService.update(internalArea.getId(), AreaUpdateRequest.builder()
                 .name(internalArea.getName())
                 .areaLevel(AreaLevel.HIGHLY_CONFIDENTIAL)
@@ -664,7 +664,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
                 .floor(internalArea.getFloor())
                 .centerLatitude(10.8418)
                 .centerLongitude(106.8100)
-                .reason("Đổi loại sang Tuyệt mật")
+                .reason("Đổi loại sang Bảo mật cao")
                 .version(internalArea.getVersion())
                 .build(), adminUser.getEmail());
 

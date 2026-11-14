@@ -53,8 +53,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, RecordingStreamTokenService.class})
 @TestPropertySource(properties = {
         "app.cors.allowed-origins=http://localhost:5173",
-        "icss.internal.service-key=" + RecordingStreamSecurityTest.KEY,
-        "icss.camera.recording-stream-token-seconds=300"
+        "icss.internal.service-key=" + RecordingStreamSecurityTest.KEY
 })
 class RecordingStreamSecurityTest {
 
@@ -87,6 +86,9 @@ class RecordingStreamSecurityTest {
     private CameraRecordingService cameraRecordingService;
     @MockBean
     private AnnotatedStreamTokenService annotatedStreamTokenService;
+    // V121: RecordingStreamTokenService đọc RECORDING_STREAM_TOKEN_SECONDS qua SystemConfigService
+    @MockBean
+    private com.fa26se040.icss.service.SystemConfigService systemConfigService;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -114,6 +116,7 @@ class RecordingStreamSecurityTest {
 
         when(cameraRecordingService.streamVideo(anyString(), anyString(), any(), anyBoolean()))
                 .thenReturn(ResponseEntity.ok().build());
+        when(systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.RECORDING_STREAM_TOKEN_SECONDS)).thenReturn(300);
     }
 
     @AfterEach
@@ -146,7 +149,10 @@ class RecordingStreamSecurityTest {
     @Test
     @DisplayName("Token hết hạn -> 401 'đã hết hạn'")
     void stream_withExpiredToken_returns401() throws Exception {
-        String expired = new RecordingStreamTokenService(KEY, -10).issue(PATH, "recording").token();
+        // Token cấp 1000 giây trước, hạn 300 giây -> đã hết hạn
+        String expired = new RecordingStreamTokenService(KEY, systemConfigService,
+                java.time.Clock.fixed(java.time.Instant.now().minusSeconds(1000), java.time.ZoneOffset.UTC))
+                .issue(PATH, "recording").token();
 
         mockMvc.perform(get(STREAM).param("path", PATH).param("source", "recording").param("token", expired))
                 .andExpect(status().isUnauthorized())

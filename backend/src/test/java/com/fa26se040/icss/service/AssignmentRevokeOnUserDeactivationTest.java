@@ -244,7 +244,7 @@ class AssignmentRevokeOnUserDeactivationTest extends AbstractIntegrationTest {
     // ================================================================== T2
 
     @Test
-    @DisplayName("T2 (BR-AP-24): kích hoạt lại -> AP vẫn REVOKED, checkEntry vào khu Tuyệt mật từng có AP trả DENIED (user cấp 1)")
+    @DisplayName("T2 (BR-AP-24): kích hoạt lại -> AP vẫn REVOKED, checkEntry vào khu Bảo mật cao từng có AP trả DENIED (user cấp 1)")
     void reactivate_doesNotRestoreAssignment() throws Exception {
         OffsetDateTime now = now();
         User target = user("t2", Role.NORMAL_USER, 1, null, true);
@@ -252,14 +252,14 @@ class AssignmentRevokeOnUserDeactivationTest extends AbstractIntegrationTest {
         AreaAssignedPersonnel active = ap(highly, target, now.minusDays(1), null, false);
 
         AccessDecision before = accessDecisionService.checkEntry(target.getId(), highly.getId(), now.plusMinutes(1));
-        assertTrue(before.allowed(), "Tiền đề: có AP thì vào được khu Tuyệt mật — " + before.reason());
+        assertTrue(before.allowed(), "Tiền đề: có AP thì vào được khu Bảo mật cao — " + before.reason());
 
         toggle(target, false);
         toggle(target, true);
 
         assertRevoked(active, REASON_DEACTIVATED);
         AccessDecision after = accessDecisionService.checkEntry(target.getId(), highly.getId(), now.plusMinutes(1));
-        assertFalse(after.allowed(), "Kích hoạt lại không trả AP, user cấp 1 không vào được khu Tuyệt mật — " + after.reason());
+        assertFalse(after.allowed(), "Kích hoạt lại không trả AP, user cấp 1 không vào được khu Bảo mật cao — " + after.reason());
     }
 
     // ================================================================== T3

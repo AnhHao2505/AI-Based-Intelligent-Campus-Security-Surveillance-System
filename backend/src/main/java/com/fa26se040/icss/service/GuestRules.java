@@ -25,7 +25,7 @@ public class GuestRules {
 
     /** B-04 (Lucas 08/10): ADMIN không làm host khách — chỉ NORMAL_USER và FACILITY_MANAGER mời khách. */
     public static final Set<Role> HOST_ROLES = Set.of(Role.NORMAL_USER, Role.FACILITY_MANAGER);
-    /** BR-GV-04 (V83): chỉ khu Bảo mật nhận khách; Công khai không cần, Tuyệt mật bị chặn. */
+    /** BR-GV-04 (V83): chỉ khu Bảo mật nhận khách; Công khai không cần, Bảo mật cao bị chặn. */
     public static final Set<AreaLevel> GUEST_AREA_LEVELS = Set.of(AreaLevel.CONFIDENTIAL);
 
     private final SystemConfigService systemConfigService;

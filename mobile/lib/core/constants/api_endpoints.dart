@@ -37,6 +37,9 @@ class ApiEndpoints {
   static String get areaMapPins => '$baseUrl/api/areas/map-pins';
   static String areaMapPinsByBuilding(String building) => '$baseUrl/api/areas/map-pins?building=$building';
 
+  // Tham số ước tính thời gian lộ trình (WALKING_SPEED_MPS, FLOOR_CHANGE_SECONDS — V123)
+  static String get routeSettings => '$baseUrl/api/system-configurations/route-settings';
+
   // WebSocket endpoint
   static String get wsSecurity => '${baseUrl.replaceFirst('http', 'ws')}/ws-security';
 

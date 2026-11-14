@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Q1 (BR-RQ-03/04, BR-TC-08): đổi loại khu vực đánh giá đơn nhóm có thành viên bảo lãnh theo cùng nguồn cấu hình
  * ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES với luồng duyệt đơn. Xem trước (BR-TC-03) và PUT dùng chung kết quả.
- * V83: chỉ khu Bảo mật cho bảo lãnh, nên các ca đổi loại CONTACT <-> INTERNAL cũ chuyển thành Bảo mật <-> Tuyệt mật.
+ * V83: chỉ khu Bảo mật cho bảo lãnh, nên các ca đổi loại CONTACT <-> INTERNAL cũ chuyển thành Bảo mật <-> Bảo mật cao.
  */
 class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
 
@@ -97,7 +97,7 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     }
 
     @Test
-    @DisplayName("Q1 (V83): thành viên L1 sponsored, đổi Tuyệt mật -> Bảo mật (loại mới cho bảo lãnh) -> đơn KHÔNG bị huỷ")
+    @DisplayName("Q1 (V83): thành viên L1 sponsored, đổi Bảo mật cao -> Bảo mật (loại mới cho bảo lãnh) -> đơn KHÔNG bị huỷ")
     void sponsoredMemberKeptWhenNewTypeAllowsSponsorship() throws Exception {
         setGroupAllowedInHighly(true);
         Area highlyArea = newArea(AreaLevel.HIGHLY_CONFIDENTIAL);
@@ -110,7 +110,7 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     }
 
     @Test
-    @DisplayName("Q1 (V83): đổi Bảo mật -> Tuyệt mật (cho đơn nhóm, KHÔNG cho bảo lãnh) -> đơn có thành viên L1 sponsored bị huỷ, lý do nêu bảo lãnh + tên thành viên")
+    @DisplayName("Q1 (V83): đổi Bảo mật -> Bảo mật cao (cho đơn nhóm, KHÔNG cho bảo lãnh) -> đơn có thành viên L1 sponsored bị huỷ, lý do nêu bảo lãnh + tên thành viên")
     void sponsoredMemberCancelsWhenNewTypeDisallowsSponsorship() throws Exception {
         setGroupAllowedInHighly(true);
         AccessRequest req = approvedGroupRequest(contactArea, userL3, Map.of(userL1, true));
@@ -125,7 +125,7 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     }
 
     @Test
-    @DisplayName("Q1 (V83): đổi Bảo mật -> Tuyệt mật, thành viên sponsored đã đủ cấp 3 -> đơn KHÔNG bị huỷ (giống reviewRequest)")
+    @DisplayName("Q1 (V83): đổi Bảo mật -> Bảo mật cao, thành viên sponsored đã đủ cấp 3 -> đơn KHÔNG bị huỷ (giống reviewRequest)")
     void sponsoredMemberWithSufficientLevelKeptWhenNewTypeDisallowsSponsorship() throws Exception {
         setGroupAllowedInHighly(true);
         AccessRequest req = approvedGroupRequest(contactArea, userL3, Map.of(userL3b, true));
@@ -139,7 +139,7 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     @Test
     @DisplayName("Q1: cấp mới (HIGHLY, cấp 3) > cấp người gửi L2 -> đơn bị huỷ vì người gửi không đủ cấp")
     void requesterBelowNewLevelCancels() throws Exception {
-        // Cho phép đơn nhóm ở Tuyệt mật để nhánh "không nhận đơn nhóm" không che mất kiểm cấp người gửi
+        // Cho phép đơn nhóm ở Bảo mật cao để nhánh "không nhận đơn nhóm" không che mất kiểm cấp người gửi
         systemConfigService.update(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE.name(), "true", admin.getEmail());
         AccessRequest req = approvedGroupRequest(contactArea, userL2, Map.of(userL1, true));
 
@@ -153,7 +153,7 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     }
 
     @Test
-    @DisplayName("Q1 (V83): thành viên KHÔNG sponsored cấp 2 bị kiểm cấp theo loại mới (Tuyệt mật, cấp 3) -> đơn bị huỷ, lý do không nhắc bảo lãnh")
+    @DisplayName("Q1 (V83): thành viên KHÔNG sponsored cấp 2 bị kiểm cấp theo loại mới (Bảo mật cao, cấp 3) -> đơn bị huỷ, lý do không nhắc bảo lãnh")
     void nonSponsoredLowMemberStillChecked() throws Exception {
         setGroupAllowedInHighly(true);
         AccessRequest req = approvedGroupRequest(contactArea, userL3, Map.of(userL2, false));
@@ -168,12 +168,12 @@ class AreaTypeChangeSponsorshipTest extends Step5bTestSupport {
     }
 
     @Test
-    @DisplayName("Q1 (V83): đổi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE qua SystemConfigService -> xem trước đổi Bảo mật -> Tuyệt mật đổi kết quả ngay, không cần restart")
+    @DisplayName("Q1 (V83): đổi ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE qua SystemConfigService -> xem trước đổi Bảo mật -> Bảo mật cao đổi kết quả ngay, không cần restart")
     void groupConfigChangeTakesEffectImmediately() {
         AccessRequest req = approvedGroupRequest(contactArea, userL3, Map.of(userL3b, false));
 
         setGroupAllowedInHighly(false);
-        assertTrue(previewCancels(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL, req), "Tuyệt mật không nhận đơn nhóm");
+        assertTrue(previewCancels(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL, req), "Bảo mật cao không nhận đơn nhóm");
 
         setGroupAllowedInHighly(true);
         assertFalse(previewCancels(contactArea, AreaLevel.HIGHLY_CONFIDENTIAL, req));

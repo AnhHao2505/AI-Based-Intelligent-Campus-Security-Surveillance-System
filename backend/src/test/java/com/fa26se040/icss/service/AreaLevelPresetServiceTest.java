@@ -53,7 +53,7 @@ class AreaLevelPresetServiceTest {
     }
 
     @Test
-    @DisplayName("V83: danh sách preset đúng 3 loại theo thứ tự Công khai, Bảo mật, Tuyệt mật, cấp 1/2/3, cờ false")
+    @DisplayName("V83: danh sách preset đúng 3 loại theo thứ tự Công khai, Bảo mật, Bảo mật cao, cấp 1/2/3, cờ false")
     void getAllPresets_ReturnsThreeTypesInOrder() {
         User admin = User.builder().id(UUID.randomUUID()).userCode("AD-001").fullName("Quản trị").role(Role.ADMIN).build();
         when(presetRepository.findAll()).thenReturn(List.of(
@@ -80,7 +80,7 @@ class AreaLevelPresetServiceTest {
                 () -> presetService.updatePreset(level, req, "admin@fpt.edu.vn"));
 
         assertEquals(AccessControlErrorCode.ERR_AC_005, ex.getErrorCode());
-        assertEquals("Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Tuyệt mật: cấp 3), không sửa được",
+        assertEquals("Cấp khu vực cố định theo loại (Công khai: cấp 1, Bảo mật: cấp 2, Bảo mật cao: cấp 3), không sửa được",
                 ex.getMessage());
         verifyNoInteractions(presetRepository);
     }
