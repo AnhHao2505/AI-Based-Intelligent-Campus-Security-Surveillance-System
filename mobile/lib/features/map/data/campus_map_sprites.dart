@@ -3,7 +3,9 @@ import 'dart:ui' as ui;
 
 import 'campus_map_overlays.dart';
 
-// Ảnh vẽ bằng Canvas cho lớp symbol của MapLibre (P-MAP-3): biểu tượng cầu thang / thang máy. Mọi ảnh vẽ ở @2x, đăng ký bằng addImage(..., pixelRatio: 2).
+// Ảnh vẽ bằng Canvas cho lớp symbol của MapLibre (P-MAP-3): biểu tượng cầu thang / thang máy và nhãn tên phòng.
+// Style bản đồ không có "glyphs" (campus_map_style.dart) nên không dùng text-field được; chữ được vẽ sẵn thành ảnh,
+// giống web. Mọi ảnh vẽ ở @2x, đăng ký bằng addImage(..., pixelRatio: 2).
 
 /// Tỉ lệ điểm ảnh của mọi ảnh trong file này (web: map.addImage(id, data, { pixelRatio: 2 })).
 const double campusSpritePixelRatio = 2;
@@ -127,4 +129,97 @@ Future<CampusSprite?> renderPortalIcon(String id) {
     default:
       return Future.value(null);
   }
+}
+
+// ------------------------------------------------------------------ nhãn tên phòng
+
+/// Độ dài tối đa tên trên nhãn (web DEFAULT_MAX_LABEL_LENGTH, mapRoomLabelSprites.js:8).
+const int roomLabelMaxLength = 24;
+
+/// Màu chấm cấp khu trên nhãn (web LEVEL_ACCENT_COLORS, mapRoomLabelSprites.js:10-14); cấp khác → màu PUBLIC.
+const Map<String, int> roomLabelAccentColors = {
+  'PUBLIC': 0x16A34A,
+  'CONFIDENTIAL': 0xD97706,
+  'HIGHLY_CONFIDENTIAL': 0xDC2626,
+};
+
+/// Cắt tên dài, thêm một dấu "…" ở cuối (web truncateLabelText, mapRoomLabelSprites.js:19-26).
+String truncateRoomLabel(String text, [int maxLength = roomLabelMaxLength]) {
+  final raw = text.trim();
+  if (raw.isEmpty || maxLength <= 0) return '';
+  final chars = raw.runes.toList();
+  if (chars.length <= maxLength) return raw;
+  if (maxLength == 1) return '…';
+  return '${String.fromCharCodes(chars.take(maxLength - 1))}…';
+}
+
+/// Viên thuốc bo tròn bằng đường cong bậc hai, như drawRoundedPill của web (mapRoomLabelSprites.js:79-92).
+ui.Path _pill(double x, double y, double w, double h, double r) {
+  final radius = [r, w / 2, h / 2].reduce((a, b) => a < b ? a : b);
+  return ui.Path()
+    ..moveTo(x + radius, y)
+    ..lineTo(x + w - radius, y)
+    ..quadraticBezierTo(x + w, y, x + w, y + radius)
+    ..lineTo(x + w, y + h - radius)
+    ..quadraticBezierTo(x + w, y + h, x + w - radius, y + h)
+    ..lineTo(x + radius, y + h)
+    ..quadraticBezierTo(x, y + h, x, y + h - radius)
+    ..lineTo(x, y + radius)
+    ..quadraticBezierTo(x, y, x + radius, y)
+    ..close();
+}
+
+/// Nhãn tên phòng @2x (web createRoomLabelSpriteImageData, mapRoomLabelSprites.js:97-188): viên thuốc nền trắng
+/// (đang chọn: nền tối, viền xanh, bóng xanh), chấm màu theo cấp khu, tên chữ 11 px đậm 600. Tên rỗng → null.
+Future<CampusSprite?> renderRoomLabel({required String name, required String levelCode, required bool selected}) async {
+  final label = truncateRoomLabel(name);
+  if (label.isEmpty) return null;
+
+  const scale = campusSpritePixelRatio;
+  const dotRadius = 3.0, dotGap = 6.0, padX = 9.0, shadowPad = 3.0, pillHeight = 22.0;
+
+  final builder = ui.ParagraphBuilder(ui.ParagraphStyle(fontSize: 11, fontWeight: ui.FontWeight.w600, maxLines: 1))
+    ..pushStyle(ui.TextStyle(color: selected ? _hex(0xFFFFFF) : _hex(0x0F172A)))
+    ..addText(label);
+  final paragraph = builder.build()..layout(const ui.ParagraphConstraints(width: double.infinity));
+  final textWidth = paragraph.maxIntrinsicWidth.ceilToDouble();
+
+  final pillWidth = [36.0, padX + dotRadius * 2 + dotGap + textWidth + padX].reduce((a, b) => a > b ? a : b);
+  final logicalWidth = pillWidth + shadowPad * 2;
+  const logicalHeight = pillHeight + shadowPad * 2;
+  final width = (logicalWidth * scale).round();
+  final height = (logicalHeight * scale).round();
+
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder)..scale(scale, scale);
+
+  final body = _pill(shadowPad, shadowPad, pillWidth, pillHeight, pillHeight / 2);
+  _drawShadow(canvas, body, selected ? _hex(0x2563EB, 0.35) : _hex(0x0F172A, 0.18), 4, 1.5);
+  canvas.drawPath(body, ui.Paint()..color = selected ? _hex(0x0F172A) : _hex(0xFFFFFF, 0.96));
+
+  canvas.drawPath(
+    _pill(shadowPad + 0.5, shadowPad + 0.5, pillWidth - 1, pillHeight - 1, (pillHeight - 1) / 2),
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = selected ? 1.5 : 1
+      ..color = selected ? _hex(0x38BDF8) : _hex(0x0F172A, 0.16),
+  );
+
+  const dotCx = shadowPad + padX + dotRadius;
+  const centerY = shadowPad + pillHeight / 2;
+  final accent = roomLabelAccentColors[roomLabelLevelCode(levelCode)] ?? roomLabelAccentColors['PUBLIC']!;
+  canvas.drawCircle(const ui.Offset(dotCx, centerY), dotRadius, ui.Paint()..color = _hex(accent));
+
+  // textBaseline = "middle" của web: giữa dòng chữ nằm ở centerY + 0.5
+  canvas.drawParagraph(paragraph, ui.Offset(dotCx + dotRadius + dotGap, centerY + 0.5 - paragraph.height / 2));
+  paragraph.dispose();
+
+  return _encode(recorder, width, height);
+}
+
+/// Vẽ nhãn theo id ảnh (roomLabelImageId); không phải id nhãn → null.
+Future<CampusSprite?> renderRoomLabelForImageId(String id) {
+  final parsed = parseRoomLabelImageId(id);
+  if (parsed == null) return Future.value(null);
+  return renderRoomLabel(name: parsed.name, levelCode: parsed.levelCode, selected: parsed.selected);
 }

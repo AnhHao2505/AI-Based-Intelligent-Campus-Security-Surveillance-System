@@ -32,6 +32,7 @@ const String _guardSource = 'campus-guard';
 const String _routeSource = 'campus-route';
 const String _routeFloorsSource = 'campus-route-floors';
 const String _portalsSource = 'campus-portals';
+const String _roomLabelsSource = 'campus-room-labels';
 
 /// Ảnh symbol đã vẽ (PNG), dùng lại khi style nạp lại / mở lại màn; chỉ vẽ một lần cho mỗi id.
 final Map<String, CampusSprite> _spriteCache = {};
@@ -68,6 +69,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
   String? _highlightKey;
   String? _pinsKey;
   String? _portalsKey;
+  String? _labelsKey;
   bool _syncing = false;
 
   /// Ảnh đã addImage vào style hiện tại (maplibre_gl không có hasImage); style nạp lại thì xoá.
@@ -215,6 +217,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     _highlightKey = null;
     _pinsKey = null;
     _portalsKey = null;
+    _labelsKey = null;
     _styleImages.clear();
     const empty = {'type': 'FeatureCollection', 'features': <dynamic>[]};
     try {
@@ -237,7 +240,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           enableInteraction: false,
         );
       }
-      // Cầu thang / thang máy: trên khối 3D, dưới tuyến đường / ghim (CampusMapView.jsx:1447-1485).
+      // Cầu thang / thang máy: trên khối 3D, dưới tên phòng / tuyến đường / ghim (CampusMapView.jsx:1447-1485).
       // Không đặt symbol-height-offset: MapLibre Android chưa hỗ trợ (maplibre_gl 0.28, layer_properties.dart:925-937).
       await map.addGeoJsonSource(_portalsSource, empty);
       await map.addSymbolLayer(
@@ -251,6 +254,23 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           iconOpacity: 0.96,
         ),
         minzoom: 16.5,
+        enableInteraction: false,
+      );
+      // Tên phòng: ảnh nhãn theo khu, khu đang chọn đặt trước (CampusMapView.jsx:1487-1528)
+      await map.addGeoJsonSource(_roomLabelsSource, empty);
+      await map.addSymbolLayer(
+        _roomLabelsSource,
+        'campus-room-labels-layer',
+        const ml.SymbolLayerProperties(
+          iconImage: ['get', 'imageId'],
+          iconSize: ['interpolate', ['linear'], ['zoom'], 16.4, 0.78, 18.2, 0.94, 19.8, 1.05],
+          iconAllowOverlap: false,
+          iconIgnorePlacement: false,
+          iconPadding: 3,
+          symbolSortKey: ['get', 'sortKey'],
+          iconOpacity: 0.98,
+        ),
+        minzoom: 16.4,
         enableInteraction: false,
       );
       await map.addGeoJsonSource(_routeSource, empty);
@@ -353,7 +373,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     if (_styleImages.contains(id)) return;
     var sprite = _spriteCache[id];
     if (sprite == null) {
-      sprite = await renderPortalIcon(id);
+      sprite = id.startsWith(roomLabelImagePrefix) ? await renderRoomLabelForImageId(id) : await renderPortalIcon(id);
       if (sprite == null) return;
       _spriteCache[id] = sprite;
     }
@@ -408,6 +428,27 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         await map.setGeoJsonSource(_portalsSource, portals);
         debugPrint('[MAP] portals ${p.selectedBuilding ?? 'ALL'}/${p.selectedFloorOrder}: '
             '${(portals['features'] as List).length} điểm, ${sw.elapsedMilliseconds} ms');
+      }
+
+      // Tên phòng: dựng lại khi đổi toà / tầng / khu đang chọn / danh sách khu (tải lại từ API)
+      final labelsKey = '$campusKey|${p.selectedArea?.id}|${identityHashCode(p.areaPins)}';
+      if (labelsKey != _labelsKey) {
+        _labelsKey = labelsKey;
+        final sw = Stopwatch()..start();
+        final labels = roomLabelsGeoJson(
+          campus,
+          p.areaPins,
+          building: p.selectedBuilding,
+          floorOrder: p.selectedFloorOrder,
+          selectedAreaId: p.selectedArea?.id,
+        );
+        final built = sw.elapsedMilliseconds;
+        for (final id in roomLabelImageIds(labels)) {
+          await _ensureImage(map, id);
+        }
+        await map.setGeoJsonSource(_roomLabelsSource, labels);
+        debugPrint('[MAP] room labels ${p.selectedBuilding ?? 'ALL'}/${p.selectedFloorOrder}: '
+            '${(labels['features'] as List).length} nhãn, dựng $built ms, tổng ${sw.elapsedMilliseconds} ms');
       }
 
       final highlight = p.highlightRoomId;
