@@ -6,6 +6,8 @@ import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../data/campus_map_data.dart';
+import '../data/campus_map_overlays.dart';
+import '../data/campus_map_sprites.dart';
 import '../data/campus_map_style.dart';
 import '../data/campus_route_planner.dart';
 import '../models/area_pin_model.dart';
@@ -29,6 +31,10 @@ const String _pinsLayer = 'campus-pins-layer';
 const String _guardSource = 'campus-guard';
 const String _routeSource = 'campus-route';
 const String _routeFloorsSource = 'campus-route-floors';
+const String _portalsSource = 'campus-portals';
+
+/// Ảnh symbol đã vẽ (PNG), dùng lại khi style nạp lại / mở lại màn; chỉ vẽ một lần cho mỗi id.
+final Map<String, CampusSprite> _spriteCache = {};
 
 /// Tuyến trên đồ thị (không phải hướng thẳng): đoạn ở tầng đang xem đậm, đoạn ở tầng khác / đoạn đổi tầng mờ.
 const List<Object> _routeGraphFilter = ['!=', ['get', 'direct'], true];
@@ -61,7 +67,11 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
   String? _campusKey;
   String? _highlightKey;
   String? _pinsKey;
+  String? _portalsKey;
   bool _syncing = false;
+
+  /// Ảnh đã addImage vào style hiện tại (maplibre_gl không có hasImage); style nạp lại thì xoá.
+  final Set<String> _styleImages = {};
   bool _syncAgain = false;
 
   @override
@@ -204,8 +214,14 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     _campusKey = null;
     _highlightKey = null;
     _pinsKey = null;
+    _portalsKey = null;
+    _styleImages.clear();
     const empty = {'type': 'FeatureCollection', 'features': <dynamic>[]};
     try {
+      // Ảnh phải có trong style trước khi lớp symbol dùng tới (style mới không giữ ảnh cũ)
+      for (final id in const [portalStairsImageId, portalElevatorImageId]) {
+        await _ensureImage(map, id);
+      }
       for (final l in _campusLayers) {
         await map.addGeoJsonSource('campus-${l.layer}', empty);
         await map.addFillExtrusionLayer(
@@ -221,6 +237,22 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           enableInteraction: false,
         );
       }
+      // Cầu thang / thang máy: trên khối 3D, dưới tuyến đường / ghim (CampusMapView.jsx:1447-1485).
+      // Không đặt symbol-height-offset: MapLibre Android chưa hỗ trợ (maplibre_gl 0.28, layer_properties.dart:925-937).
+      await map.addGeoJsonSource(_portalsSource, empty);
+      await map.addSymbolLayer(
+        _portalsSource,
+        'campus-portals-layer',
+        const ml.SymbolLayerProperties(
+          iconImage: ['get', 'iconImage'],
+          iconSize: ['interpolate', ['linear'], ['zoom'], 16.5, 0.55, 19.5, 0.88],
+          iconAllowOverlap: true,
+          iconIgnorePlacement: false,
+          iconOpacity: 0.96,
+        ),
+        minzoom: 16.5,
+        enableInteraction: false,
+      );
       await map.addGeoJsonSource(_routeSource, empty);
       await map.addLineLayer(
         _routeSource,
@@ -316,6 +348,23 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     if (pending != null) _focusOn(pending.target, pending.zoom);
   }
 
+  /// Đăng ký ảnh [id] vào style hiện tại nếu chưa có. Ảnh vẽ một lần rồi giữ trong [_spriteCache].
+  Future<void> _ensureImage(ml.MapLibreMapController map, String id) async {
+    if (_styleImages.contains(id)) return;
+    var sprite = _spriteCache[id];
+    if (sprite == null) {
+      sprite = await renderPortalIcon(id);
+      if (sprite == null) return;
+      _spriteCache[id] = sprite;
+    }
+    try {
+      await map.addImage(id, sprite.png, false, campusSpritePixelRatio);
+      _styleImages.add(id);
+    } catch (e) {
+      debugPrint('[GuardMapScreen] add image $id: $e');
+    }
+  }
+
   void _scheduleSync() {
     if (!_styleReady) return;
     if (_syncing) {
@@ -348,6 +397,17 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                 const {'type': 'FeatureCollection', 'features': <dynamic>[]},
           );
         }
+      }
+
+      // Cầu thang / thang máy: dựng lại khi đổi toà / tầng
+      final portalsKey = campusKey;
+      if (portalsKey != _portalsKey) {
+        _portalsKey = portalsKey;
+        final sw = Stopwatch()..start();
+        final portals = portalSymbolsGeoJson(campus, building: p.selectedBuilding, floorOrder: p.selectedFloorOrder);
+        await map.setGeoJsonSource(_portalsSource, portals);
+        debugPrint('[MAP] portals ${p.selectedBuilding ?? 'ALL'}/${p.selectedFloorOrder}: '
+            '${(portals['features'] as List).length} điểm, ${sw.elapsedMilliseconds} ms');
       }
 
       final highlight = p.highlightRoomId;
