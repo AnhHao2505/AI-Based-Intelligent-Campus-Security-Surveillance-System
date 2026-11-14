@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart' as ll;
 
 import '../models/area_pin_model.dart';
+import 'campus_map_sprites.dart';
 
 /// Dòng ghi công bắt buộc của OpenStreetMap (giống `attribution` của nguồn tile web, CampusMapView.jsx:104).
 const String osmAttributionText = '© OpenStreetMap contributors';
@@ -57,8 +58,30 @@ String colorHex(Color c) {
   return '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
 }
 
-/// GeoJSON ghim khu: mỗi khu một điểm, thuộc tính màu theo cấp khu (AreaPinModel.levelColor) và cờ đang chọn.
-Map<String, dynamic> pinsGeoJson(List<AreaPinModel> pins, {String? selectedId}) {
+/// Giá trị paint của ghim khu (bán kính / viền): [value] như cũ dưới [roomLabelMinZoom]; từ mức đó trở lên ghim của khu
+/// đang có nhãn trên tầng đang xem (`hasLabel`) và không phải khu đang chọn thì bằng 0 (không vẽ, không nhận chạm),
+/// để nhãn không bị ghim che. Dùng biểu thức paint thay cho filter vì MapLibre chỉ tính `zoom` trong filter ở mức zoom
+/// nguyên (16.4 sẽ thành 17); paint tính liên tục và không phải xoá / thêm lớp.
+List<Object> areaPinHiddenWhenLabelled(Object value) => [
+      'step',
+      ['zoom'],
+      value,
+      roomLabelMinZoom,
+      [
+        'case',
+        [
+          'all',
+          ['get', 'hasLabel'],
+          ['!', ['get', 'selected']],
+        ],
+        0,
+        value,
+      ],
+    ];
+
+/// GeoJSON ghim khu: mỗi khu một điểm, thuộc tính màu theo cấp khu (AreaPinModel.levelColor), cờ đang chọn và cờ
+/// `hasLabel` (khu có nhãn tên phòng trên tầng đang xem: id nằm trong [labelledAreaIds], xem roomLabelAreaIds).
+Map<String, dynamic> pinsGeoJson(List<AreaPinModel> pins, {String? selectedId, Set<String> labelledAreaIds = const {}}) {
   return {
     'type': 'FeatureCollection',
     'features': [
@@ -71,6 +94,7 @@ Map<String, dynamic> pinsGeoJson(List<AreaPinModel> pins, {String? selectedId}) 
             'name': p.name,
             'color': colorHex(p.levelColor),
             'selected': p.id == selectedId,
+            'hasLabel': labelledAreaIds.contains(p.id),
           },
           'geometry': {
             'type': 'Point',

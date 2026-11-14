@@ -28,6 +28,7 @@ const List<({String layer, double opacity})> _campusLayers = [
 
 const String _pinsSource = 'campus-pins';
 const String _pinsLayer = 'campus-pins-layer';
+const String _roomLabelsLayer = 'campus-room-labels-layer';
 const String _guardSource = 'campus-guard';
 const String _routeSource = 'campus-route';
 const String _routeFloorsSource = 'campus-route-floors';
@@ -70,6 +71,9 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
   String? _pinsKey;
   String? _portalsKey;
   String? _labelsKey;
+
+  /// Khu đang có nhãn trên tầng đang xem (cờ hasLabel của ghim); cập nhật cùng nhãn.
+  Set<String> _labelledAreaIds = const {};
   bool _syncing = false;
 
   /// Ảnh đã addImage vào style hiện tại (maplibre_gl không có hasImage); style nạp lại thì xoá.
@@ -261,7 +265,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       await map.addGeoJsonSource(_roomLabelsSource, empty);
       await map.addSymbolLayer(
         _roomLabelsSource,
-        'campus-room-labels-layer',
+        _roomLabelsLayer,
         ml.SymbolLayerProperties(
           iconImage: const ['get', 'imageId'],
           iconSize: roomLabelIconSizeExpression(),
@@ -273,8 +277,8 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           symbolSortKey: ['get', 'sortKey'],
           iconOpacity: 0.98,
         ),
-        minzoom: 16.4,
-        enableInteraction: false,
+        minzoom: roomLabelMinZoom,
+        // Bấm nhãn mở thẻ khu như bấm ghim (_onFeatureTapped)
       );
       await map.addGeoJsonSource(_routeSource, empty);
       await map.addLineLayer(
@@ -334,11 +338,12 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       await map.addCircleLayer(
         _pinsSource,
         _pinsLayer,
-        const ml.CircleLayerProperties(
-          circleColor: ['get', 'color'],
-          circleRadius: ['case', ['get', 'selected'], areaPinMaxRadius, 9],
+        ml.CircleLayerProperties(
+          circleColor: const ['get', 'color'],
+          // Từ zoom nhãn trở lên: ghim của khu đã có nhãn (trừ khu đang chọn) bán kính / viền 0 → ẩn, không che nhãn
+          circleRadius: areaPinHiddenWhenLabelled(const ['case', ['get', 'selected'], areaPinMaxRadius, 9]),
           circleStrokeColor: '#ffffff',
-          circleStrokeWidth: ['case', ['get', 'selected'], areaPinMaxStrokeWidth, 2],
+          circleStrokeWidth: areaPinHiddenWhenLabelled(const ['case', ['get', 'selected'], areaPinMaxStrokeWidth, 2]),
           circlePitchAlignment: 'viewport',
         ),
       );
@@ -450,6 +455,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           await _ensureImage(map, id);
         }
         await map.setGeoJsonSource(_roomLabelsSource, labels);
+        _labelledAreaIds = roomLabelAreaIds(labels);
         debugPrint('[MAP] room labels ${p.selectedBuilding ?? 'ALL'}/${p.selectedFloorOrder}: '
             '${(labels['features'] as List).length} nhãn, dựng $built ms, tổng ${sw.elapsedMilliseconds} ms');
       }
@@ -477,10 +483,11 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       if (selected != null && selected.centerLatitude != 0.0 && !pins.any((x) => x.id == selected.id)) {
         pins.add(selected);
       }
-      final pinsKey = '${pins.map((x) => x.id).join(',')}|${selected?.id}';
+      final pinsKey = '${pins.map((x) => x.id).join(',')}|${selected?.id}|${(_labelledAreaIds.toList()..sort()).join(',')}';
       if (pinsKey != _pinsKey) {
         _pinsKey = pinsKey;
-        await map.setGeoJsonSource(_pinsSource, pinsGeoJson(pins, selectedId: selected?.id));
+        await map.setGeoJsonSource(
+            _pinsSource, pinsGeoJson(pins, selectedId: selected?.id, labelledAreaIds: _labelledAreaIds));
       }
 
       await map.setGeoJsonSource(_guardSource, pointGeoJson(p.guardLocation));
@@ -499,11 +506,9 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
   }
 
   void _onFeatureTapped(dynamic point, ml.LatLng coordinates, String id, String layerId, dynamic annotation) {
-    if (layerId != _pinsLayer) return;
-    final pin = _provider.filteredPins.cast<AreaPinModel?>().firstWhere(
-          (x) => x!.id == id,
-          orElse: () => _provider.selectedArea?.id == id ? _provider.selectedArea : null,
-        );
+    // Ghim và nhãn tên phòng đều mang id khu ở feature id
+    if (layerId != _pinsLayer && layerId != _roomLabelsLayer) return;
+    final pin = findAreaPinById(_provider.areaPins, id, selected: _provider.selectedArea);
     if (pin == null) return;
     _provider.selectArea(pin);
     _focusOn(pin.latLng, 17.8);

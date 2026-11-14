@@ -135,6 +135,8 @@ Map<String, dynamic> roomLabelsGeoJson(
       final selected = matched.id == selectedAreaId;
       features.add({
         'type': 'Feature',
+        // Id của feature = id khu: MapLibre Android trả feature.id() khi bấm (onFeatureTapped), giống lớp ghim
+        'id': matched.id,
         'properties': {
           'id': props?['id'],
           'areaId': matched.id,
@@ -151,6 +153,21 @@ Map<String, dynamic> roomLabelsGeoJson(
     }
   }
   return {'type': 'FeatureCollection', 'features': features};
+}
+
+/// Id các khu đang có nhãn trong [labels] (cờ `hasLabel` của ghim, pinsGeoJson).
+Set<String> roomLabelAreaIds(Map<String, dynamic> labels) => {
+      for (final f in (labels['features'] as List? ?? const []))
+        if ((f as Map)['properties']?['areaId'] is String) f['properties']['areaId'] as String,
+    };
+
+/// Khu ứng với id của feature vừa bấm (ghim hoặc nhãn; nhãn mang id khu ở feature id và `areaId`): tìm trong [pins],
+/// không có thì là [selected] nếu trùng id (ghim tạm của sự cố chưa có trong danh sách); không thấy → null.
+AreaPinModel? findAreaPinById(Iterable<AreaPinModel> pins, String id, {AreaPinModel? selected}) {
+  for (final p in pins) {
+    if (p.id == id) return p;
+  }
+  return selected?.id == id ? selected : null;
 }
 
 /// Các id ảnh nhãn có trong [labels] (để đăng ký ảnh trước khi đẩy GeoJSON lên bản đồ).
