@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../models/area_pin_model.dart';
 import 'campus_floor_resolver.dart';
 import 'campus_map_data.dart';
+import 'campus_map_style.dart';
 
 // Dữ liệu cho lớp biểu tượng cầu thang / thang máy và lớp tên phòng trên bản đồ 3D (P-MAP-3).
 // Không phụ thuộc MapLibre: chỉ dựng GeoJSON từ asset + danh sách khu, để test được không cần bản đồ.
@@ -155,10 +156,15 @@ Map<String, dynamic> roomLabelsGeoJson(
   return {'type': 'FeatureCollection', 'features': features};
 }
 
-/// Id khu cần mở cho một lần chạm: [featureId] là feature MapLibre trả về; [labelIdsAtPoint] là id các nhãn tên phòng
-/// nằm ngay tại điểm chạm. Có nhãn → khu của nhãn (lớp nhãn nằm trên lớp ghim, nhãn đè lên ghim khu khác thì chạm vào
-/// nhãn là chọn khu của nhãn); không có → [featureId].
-String tappedAreaId({required String featureId, Iterable<Object?> labelIdsAtPoint = const []}) {
+/// Id khu cần mở cho một lần chạm: [featureId] là feature MapLibre trả về ở lớp [layerId]; [labelIdsAtPoint] là id các
+/// nhãn tên phòng nằm ngay tại điểm chạm. Chỉ khi chạm rơi vào lớp GHIM KHU ([campusPinsLayerId]) mà có nhãn tại đó
+/// → khu của nhãn (nhãn nằm trên ghim khu). Lớp ghim sự cố nằm trên nhãn nên chạm vào nó luôn là sự cố.
+String tappedAreaId({
+  required String layerId,
+  required String featureId,
+  Iterable<Object?> labelIdsAtPoint = const [],
+}) {
+  if (layerId != campusPinsLayerId) return featureId;
   for (final id in labelIdsAtPoint) {
     if (id != null && id.toString().isNotEmpty) return id.toString();
   }

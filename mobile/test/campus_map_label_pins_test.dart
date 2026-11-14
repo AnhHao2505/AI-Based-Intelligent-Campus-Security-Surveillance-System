@@ -85,6 +85,11 @@ void main() {
       return i;
     }
 
+    test('nhãn → ghim sự cố → vị trí bảo vệ: ghim sự cố ngay trên nhãn, dưới vị trí bảo vệ', () {
+      expect(at(campusIncidentPinLayerId), at(campusRoomLabelsLayerId) + 1);
+      expect(at('campus-guard-halo'), at(campusIncidentPinLayerId) + 1);
+    });
+
     test('tên phòng nằm NGAY TRÊN ghim khu, dưới vị trí bảo vệ', () {
       expect(at('campus-room-labels-layer'), at('campus-pins-layer') + 1);
       expect(at('campus-room-labels-layer'), lessThan(at('campus-guard-halo')));
@@ -116,24 +121,85 @@ void main() {
   group('chạm trúng cả nhãn và ghim', () {
     test('ghim khu A nằm dưới nhãn khu B → chọn khu B của nhãn', () {
       // MapLibre trả ghim 'out' (khu khác), nhưng tại điểm chạm có nhãn của khu 'in-1'
-      final areaId = tappedAreaId(featureId: 'out', labelIdsAtPoint: ['in-1']);
+      final areaId = tappedAreaId(layerId: campusPinsLayerId, featureId: 'out', labelIdsAtPoint: ['in-1']);
       expect(areaId, 'in-1');
       expect(findAreaPinById(pins, areaId)!.name, 'Phòng B');
     });
 
     test('không có nhãn tại điểm chạm → khu của ghim; id rỗng / null bị bỏ qua', () {
-      expect(tappedAreaId(featureId: 'out'), 'out');
-      expect(tappedAreaId(featureId: 'out', labelIdsAtPoint: [null, '']), 'out');
-      expect(tappedAreaId(featureId: 'out', labelIdsAtPoint: [null, 'in-0']), 'in-0');
+      expect(tappedAreaId(layerId: campusPinsLayerId, featureId: 'out'), 'out');
+      expect(tappedAreaId(layerId: campusPinsLayerId, featureId: 'out', labelIdsAtPoint: [null, '']), 'out');
+      expect(tappedAreaId(layerId: campusPinsLayerId, featureId: 'out', labelIdsAtPoint: [null, 'in-0']), 'in-0');
     });
 
     test('nhãn thật của tầng: id feature nhãn đưa vào tappedAreaId → đúng khu của nhãn', () {
       for (final f in labelsAlphaG()['features'] as List) {
         final label = f as Map;
-        final areaId = tappedAreaId(featureId: 'out', labelIdsAtPoint: [label['id']]);
+        final areaId = tappedAreaId(layerId: campusPinsLayerId, featureId: 'out', labelIdsAtPoint: [label['id']]);
         expect(areaId, label['properties']['areaId']);
         expect(findAreaPinById(pins, areaId)!.id, label['properties']['areaId']);
       }
+    });
+  });
+
+  group('ghim sự cố tách lớp riêng', () {
+    final temp = AreaPinModel(
+      id: 'incident_target',
+      name: 'Vị trí sự cố (CAM-006)',
+      areaLevel: 'RESTRICTED',
+      centerLatitude: room0.point[1],
+      centerLongitude: room0.point[0],
+      isActive: true,
+    );
+
+    test('ghim tạm sự cố không còn trong GeoJSON ghim khu; nằm ở nguồn ghim sự cố', () {
+      final split = splitIncidentPin(pins, selected: temp, incidentAreaId: 'incident_target');
+      expect(split.incident, same(temp));
+      expect(split.areas.map((p) => p.id), isNot(contains('incident_target')));
+      expect(propsById(pinsGeoJson(split.areas)).keys, isNot(contains('incident_target')));
+      final incidentFc = pinsGeoJson([?split.incident], selectedId: split.incident?.id);
+      expect(propsById(incidentFc).keys, ['incident_target']);
+      expect(propsById(incidentFc)['incident_target']!['selected'], isTrue, reason: 'giữ hình ghim đang chọn như trước');
+    });
+
+    test('sự cố ở khu có thật: ghim khu đó chỉ vẽ ở lớp sự cố, không vẽ 2 lần', () {
+      final split = splitIncidentPin(pins, selected: pins[1], incidentAreaId: 'in-1');
+      expect(split.incident!.id, 'in-1');
+      expect(split.areas.map((p) => p.id), ['in-0', 'out']);
+    });
+
+    test('không có sự cố: khu đang chọn ngoài danh sách vẫn thêm vào ghim khu như trước', () {
+      final split = splitIncidentPin(pins.take(2).toList(), selected: pins[2]);
+      expect(split.incident, isNull);
+      expect(split.areas.map((p) => p.id), ['in-0', 'in-1', 'out']);
+      expect(splitIncidentPin(pins, selected: pins[0], incidentAreaId: 'khac').incident, isNull);
+    });
+
+    test('chạm trúng cả ghim sự cố và nhãn → chọn sự cố', () {
+      final areaId = tappedAreaId(
+        layerId: campusIncidentPinLayerId,
+        featureId: 'incident_target',
+        labelIdsAtPoint: ['in-0'],
+      );
+      expect(areaId, 'incident_target');
+      expect(findAreaPinById(pins, areaId, selected: temp), same(temp));
+      // Chạm vào nhãn (lớp nhãn) → khu của nhãn; chạm vào ghim khu có nhãn đè → khu của nhãn
+      expect(tappedAreaId(layerId: campusRoomLabelsLayerId, featureId: 'in-0'), 'in-0');
+      expect(tappedAreaId(layerId: campusPinsLayerId, featureId: 'out', labelIdsAtPoint: ['in-0']), 'in-0');
+    });
+
+    test('provider: mở sự cố → nhớ khu sự cố; chọn khu khác / đóng thẻ → hết', () async {
+      final provider = MapProvider(ApiClient(), campusRepository: _DiskCampusRepository(campus));
+      await provider.loadCampusMap();
+      provider.focusIncident(temp);
+      expect(provider.incidentAreaId, 'incident_target');
+      provider.selectArea(temp);
+      expect(provider.incidentAreaId, 'incident_target', reason: 'bấm lại chính ghim sự cố vẫn là sự cố');
+      provider.selectArea(pins[0]);
+      expect(provider.incidentAreaId, isNull);
+      provider.focusIncident(temp);
+      provider.selectArea(null);
+      expect(provider.incidentAreaId, isNull);
     });
   });
 
