@@ -44,7 +44,10 @@ class IncidentDispatchPolicyCrossCheckIntegrationTest extends AbstractIntegratio
     @Autowired private JdbcTemplate jdbcTemplate;
 
     private User admin;
-    private final Map<IncidentSeverity, int[]> originals = new EnumMap<>(IncidentSeverity.class);
+    private final Map<IncidentSeverity, PolicyValues> originals = new EnumMap<>(IncidentSeverity.class);
+
+    /** Giá trị gốc của một mức: 3 cột đợt 1 / báo FM và cờ báo FM ngay. */
+    private record PolicyValues(int step1Size, int step1TimeoutSeconds, int escalateFmMinutes, boolean notifyFmImmediately) {}
 
     @BeforeAll
     void setUp() {
@@ -58,16 +61,19 @@ class IncidentDispatchPolicyCrossCheckIntegrationTest extends AbstractIntegratio
                 .isActive(true)
                 .build());
         for (IncidentDispatchPolicy p : dispatchPolicyRepository.findAll()) {
-            originals.put(p.getSeverity(), new int[]{p.getStep1Size(), p.getStep1TimeoutSeconds(), p.getEscalateFmMinutes()});
+            originals.put(p.getSeverity(), new PolicyValues(p.getStep1Size(), p.getStep1TimeoutSeconds(),
+                    p.getEscalateFmMinutes(), Boolean.TRUE.equals(p.getNotifyFmImmediately())));
         }
     }
 
     @AfterEach
     void restorePolicies() {
-        // Ghi lại thẳng bằng SQL (giá trị gốc thoả CHECK), không qua @Version của entity
+        // Ghi lại thẳng bằng SQL đủ 4 cột (giá trị gốc thoả CHECK), không qua @Version của entity.
+        // Thiếu notify_fm_immediately thì DB test dùng chung bị bẩn, test seed của lớp khác fail.
         originals.forEach((severity, v) -> jdbcTemplate.update(
-                "UPDATE incident_dispatch_policies SET step1_size = ?, step1_timeout_seconds = ?, escalate_fm_minutes = ? "
-                        + "WHERE severity = ?", v[0], v[1], v[2], severity.name()));
+                "UPDATE incident_dispatch_policies SET step1_size = ?, step1_timeout_seconds = ?, escalate_fm_minutes = ?, "
+                        + "notify_fm_immediately = ? WHERE severity = ?",
+                v.step1Size(), v.step1TimeoutSeconds(), v.escalateFmMinutes(), v.notifyFmImmediately(), severity.name()));
     }
 
     @AfterAll
@@ -80,9 +86,11 @@ class IncidentDispatchPolicyCrossCheckIntegrationTest extends AbstractIntegratio
         return "Bearer " + jwtTokenProvider.generateToken(admin);
     }
 
-    private static String body(int size, int timeout, int escalate, long version) {
+    /** Body PUT; cờ báo FM ngay giữ theo giá trị gốc của mức đang PUT để test chỉ đổi 3 cột cần kiểm. */
+    private String body(IncidentSeverity severity, int size, int timeout, int escalate, long version) {
         return "{\"step1Size\":" + size + ",\"step1TimeoutSeconds\":" + timeout + ",\"escalateFmMinutes\":" + escalate
-                + ",\"notifyFmImmediately\":false,\"version\":" + version + "}";
+                + ",\"notifyFmImmediately\":" + originals.get(severity).notifyFmImmediately()
+                + ",\"version\":" + version + "}";
     }
 
     private Integer auditCount(String severity) {
@@ -99,7 +107,7 @@ class IncidentDispatchPolicyCrossCheckIntegrationTest extends AbstractIntegratio
 
         mockMvc.perform(put("/api/incident-dispatch-policies/MEDIUM").header("Authorization", bearer())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(2, 120, 1, before.getVersion())))
+                        .content(body(IncidentSeverity.MEDIUM, 2, 120, 1, before.getVersion())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("ERR_INCPOL_009"))
                 .andExpect(jsonPath("$.message").value(
@@ -120,13 +128,13 @@ class IncidentDispatchPolicyCrossCheckIntegrationTest extends AbstractIntegratio
 
         mockMvc.perform(put("/api/incident-dispatch-policies/MEDIUM").header("Authorization", bearer())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(1, 60, 1, version)))
+                        .content(body(IncidentSeverity.MEDIUM, 1, 60, 1, version)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("ERR_INCPOL_009"));
 
         mockMvc.perform(put("/api/incident-dispatch-policies/MEDIUM").header("Authorization", bearer())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(1, 31, 1, version)))
+                        .content(body(IncidentSeverity.MEDIUM, 1, 31, 1, version)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.step1TimeoutSeconds").value(31))
                 .andExpect(jsonPath("$.data.escalateFmMinutes").value(1));
@@ -139,7 +147,7 @@ class IncidentDispatchPolicyCrossCheckIntegrationTest extends AbstractIntegratio
 
         mockMvc.perform(put("/api/incident-dispatch-policies/CRITICAL").header("Authorization", bearer())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(0, 600, 1, version)))
+                        .content(body(IncidentSeverity.CRITICAL, 0, 600, 1, version)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.step1TimeoutSeconds").value(600));
     }
@@ -178,7 +186,6 @@ class IncidentDispatchPolicyCrossCheckIntegrationTest extends AbstractIntegratio
         assertThat(rows).isEqualTo(1);
 
         IncidentDispatchPolicy reloaded = dispatchPolicyRepository.findById(IncidentSeverity.MEDIUM).orElseThrow();
-        int[] original = originals.get(IncidentSeverity.MEDIUM);
-        assertThat(reloaded.getEscalateFmMinutes()).isEqualTo(original[2]);
+        assertThat(reloaded.getEscalateFmMinutes()).isEqualTo(originals.get(IncidentSeverity.MEDIUM).escalateFmMinutes());
     }
 }
