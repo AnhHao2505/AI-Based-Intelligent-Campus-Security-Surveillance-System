@@ -33,6 +33,7 @@ import CameraSurveillanceTab from "../../components/camera/CameraSurveillanceTab
 import { formatImageUrl } from "../../utils/roiUtils";
 import CameraAccessLogsTab from "../../components/camera/CameraAccessLogsTab";
 import CameraHealthLogs from "../../components/camera/CameraHealthLogs";
+import "../../styles/cameraShared.css";
 import "../../styles/CameraDetailPage.css";
 import {
 	Modal,

@@ -1,16 +1,18 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Save, Loader2, ExternalLink } from "lucide-react";
+import { MapPin, Save, Loader2, ExternalLink, Crosshair } from "lucide-react";
 import { formatLocation } from "../../utils/formatLocation";
 import Select from "../ui/Select";
 
 export default function CameraGeneralTab({
-	camera,
 	generalForm,
 	setGeneralForm,
 	availableAreas = [],
 	saving,
 	onSubmit,
+	isAdmin = true,
+	onPickAreaOnMap = null,
+	isPickingAreaOnMap = false,
 }) {
 	const navigate = useNavigate();
 
@@ -30,6 +32,7 @@ export default function CameraGeneralTab({
 						}
 						placeholder="Nhập tên nhận diện của camera..."
 						required
+						disabled={!isAdmin}
 					/>
 				</div>
 
@@ -63,6 +66,7 @@ export default function CameraGeneralTab({
 								setGeneralForm({ ...generalForm, areaId: e.target.value })
 							}
 							required
+							disabled={!isAdmin}
 							options={[
 								{ value: "", label: "-- Chọn khu vực --", disabled: true },
 								...availableAreas.map((area) => ({
@@ -76,47 +80,65 @@ export default function CameraGeneralTab({
 							]}
 						/>
 
-						<button
-							type="button"
-							onClick={() => navigate("/admin/areas")}
-							style={{
-								background: "transparent",
-								border: "1px solid var(--theme-border)",
-								color: "var(--theme-info)",
-								borderRadius: "4px",
-								padding: "0.6rem 1rem",
-								fontSize: "0.85rem",
-								cursor: "pointer",
-								display: "inline-flex",
-								alignItems: "center",
-								gap: "0.4rem",
-								whiteSpace: "nowrap",
-							}}
-						>
-							<ExternalLink size={14} />
-							<span>Đến danh sách khu vực</span>
-						</button>
+						{onPickAreaOnMap && isAdmin ? (
+							<button
+								type="button"
+								className={`cam-pick-3d-btn ${isPickingAreaOnMap ? "cam-pick-3d-btn--active" : ""}`}
+								onClick={onPickAreaOnMap}
+								title="Click chọn trực tiếp khối phòng 3D trên bản đồ khuôn viên"
+							>
+								<Crosshair size={14} />
+								<span>
+									{isPickingAreaOnMap
+										? "Đang chọn trên bản đồ..."
+										: "Chọn trên bản đồ 3D"}
+								</span>
+							</button>
+						) : (
+							<button
+								type="button"
+								onClick={() => navigate("/admin/areas")}
+								style={{
+									background: "transparent",
+									border: "1px solid var(--theme-border)",
+									color: "var(--theme-info)",
+									borderRadius: "4px",
+									padding: "0.6rem 1rem",
+									fontSize: "0.85rem",
+									cursor: "pointer",
+									display: "inline-flex",
+									alignItems: "center",
+									gap: "0.4rem",
+									whiteSpace: "nowrap",
+								}}
+							>
+								<ExternalLink size={14} />
+								<span>Đến danh sách khu vực</span>
+							</button>
+						)}
 					</div>
 				</div>
 			</div>
 
-			<div className="form-actions">
-				<button
-					type="submit"
-					className="btn-save"
-					disabled={saving}
-				>
-					{saving ? (
-						<Loader2
-							className="animate-spin"
-							size={16}
-						/>
-					) : (
-						<Save size={16} />
-					)}
-					<span>Lưu thông tin</span>
-				</button>
-			</div>
+			{isAdmin && (
+				<div className="form-actions">
+					<button
+						type="submit"
+						className="btn-save"
+						disabled={saving}
+					>
+						{saving ? (
+							<Loader2
+								className="animate-spin"
+								size={16}
+							/>
+						) : (
+							<Save size={16} />
+						)}
+						<span>Lưu thông tin</span>
+					</button>
+				</div>
+			)}
 		</form>
 	);
 }

@@ -3,7 +3,6 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
 	LayoutDashboard,
 	MapPin,
-	Video,
 	ShieldAlert,
 	KeyRound,
 	ClipboardCheck,
@@ -145,7 +144,6 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 
 		if (isAdmin) {
 			items.push(
-				{ to: "/cameras", label: "Quản lý camera", Icon: Video },
 				{ to: "/recordings", label: "Kho lưu trữ ghi hình", Icon: Film },
 			);
 		}

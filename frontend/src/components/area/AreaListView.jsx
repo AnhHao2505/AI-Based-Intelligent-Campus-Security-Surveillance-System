@@ -12,10 +12,13 @@ import {
 	X,
 	RotateCcw,
 	AlertCircle,
+	ChevronDown,
+	ChevronRight,
 } from "lucide-react";
 import { LoadingState, EmptyState, ErrorState } from "../ui";
 import { getLevelConfig } from "../../utils/areaHelpers";
 import { formatLocation } from "../../utils/formatLocation";
+import { toggleCollapsedSectionMap } from "../../utils/campusCameraHelpers";
 
 const formatEventUntil = (openUntil) => {
 	if (!openUntil) return "";
@@ -72,6 +75,7 @@ export default function AreaListView({
 	floorAreas = [],
 	selectedAreaId,
 	cameraCounts = {},
+	cameraStatsByArea = {},
 	isAdmin = false,
 	isFacilityManager = false,
 	onSelectArea,
@@ -92,6 +96,7 @@ export default function AreaListView({
 	const navigate = useNavigate();
 	const [searchFilter, setSearchFilter] = useState("");
 	const [selectedLevelFilter, setSelectedLevelFilter] = useState("ALL");
+	const [collapsedSections, setCollapsedSections] = useState({});
 
 	// Đếm số lượng khu vực theo từng cấp độ bảo mật cho thanh pill bộ lọc
 	const levelCounts = useMemo(() => {
@@ -147,18 +152,15 @@ export default function AreaListView({
 		return (
 			<div
 				key={area.id}
-				role="button"
-				tabIndex={0}
-				aria-label={`Khu vực ${area.name}, ${levelConfig.name}`}
 				className={`zone-item-row ${isSelected ? "zone-item-row--selected" : ""}`}
-				onClick={() => onSelectArea(area.id)}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						onSelectArea(area.id);
-					}
-				}}
 			>
+				<button
+					type="button"
+					className="zone-item-row__hit-area"
+					aria-label={`Khu vực ${area.name}, ${levelConfig.name}`}
+					aria-pressed={isSelected}
+					onClick={() => onSelectArea(area.id)}
+				/>
 				{/* Bên trái: Tên khu vực và Vị trí tòa/tầng */}
 				<div className="zone-item-row__info">
 					<div className="zone-item-row__title-wrap">
@@ -269,28 +271,36 @@ export default function AreaListView({
 						)}
 					</div>
 
-					{/* Badge số camera (chính xác giao diện ảnh 1: camera icon + số) */}
-					<button
-						type="button"
-						className={`zone-item-row__cam-pill ${
+					{/* Badge số camera */}
+					{(() => {
+						const areaCamStats = cameraStatsByArea[area.id];
+						const hasOffline = Boolean(areaCamStats?.offlineCount > 0);
+						const camTooltip =
 							camCount > 0
-								? "zone-item-row__cam-pill--has-cams"
-								: "zone-item-row__cam-pill--no-cams"
-						}`}
-						onClick={(e) => {
-							e.stopPropagation();
-							onOpenCamerasModal(area);
-						}}
-						title={
-							camCount > 0
-								? `${camCount} camera trong khu vực — bấm để xem`
-								: "Chưa có camera — bấm để liên kết"
-						}
-						aria-label={`${camCount} camera trong khu vực ${area.name}`}
-					>
-						{camCount > 0 ? <Cctv size={13} /> : <VideoOff size={13} />}
-						<span>{camCount}</span>
-					</button>
+								? `${camCount} camera (${areaCamStats?.onlineCount ?? 0} Online · ${areaCamStats?.offlineCount ?? 0} Offline) — bấm để xem`
+								: "Chưa có camera — bấm để thêm hoặc xem";
+						return (
+							<button
+								type="button"
+								className={`zone-item-row__cam-pill ${
+									camCount > 0
+										? hasOffline
+											? "zone-item-row__cam-pill--warn"
+											: "zone-item-row__cam-pill--has-cams"
+										: "zone-item-row__cam-pill--no-cams"
+								}`}
+								onClick={(e) => {
+									e.stopPropagation();
+									onOpenCamerasModal(area);
+								}}
+								title={camTooltip}
+								aria-label={`${camCount} camera trong khu vực ${area.name}`}
+							>
+								{camCount > 0 ? <Cctv size={13} /> : <VideoOff size={13} />}
+								<span>{camCount}</span>
+							</button>
+						);
+					})()}
 				</div>
 			</div>
 		);
@@ -545,6 +555,7 @@ export default function AreaListView({
 										});
 
 									if (areasInSection.length === 0) return null;
+									const isCollapsed = Boolean(collapsedSections[section.key]);
 
 									return (
 										<section
@@ -552,23 +563,43 @@ export default function AreaListView({
 											className="area-level-section"
 										>
 											<div className="area-level-section__header">
-												<div className="area-level-section__title-group">
-													<span
-														className="area-level-section__dot"
-														style={{ backgroundColor: section.dotColor }}
-													/>
-													<h2 className="area-level-section__title">
-														{section.title}
-													</h2>
-													<span className="area-level-section__count">
-														({areasInSection.length})
+												<button
+													type="button"
+													className="area-level-section__toggle"
+													aria-expanded={!isCollapsed}
+													onClick={() =>
+														setCollapsedSections((prev) =>
+															toggleCollapsedSectionMap(prev, section.key),
+														)
+													}
+												>
+													<div className="area-level-section__title-group">
+														<span
+															className="area-level-section__dot"
+															style={{ backgroundColor: section.dotColor }}
+														/>
+														<h2 className="area-level-section__title">
+															{section.title}
+														</h2>
+														<span className="area-level-section__count">
+															({areasInSection.length})
+														</span>
+													</div>
+													<span className="area-level-section__chevron">
+														{isCollapsed ? (
+															<ChevronRight size={14} />
+														) : (
+															<ChevronDown size={14} />
+														)}
 													</span>
-												</div>
+												</button>
 											</div>
 
-											<div className="area-compact-list">
-												{areasInSection.map(renderAreaRow)}
-											</div>
+											{!isCollapsed && (
+												<div className="area-compact-list">
+													{areasInSection.map(renderAreaRow)}
+												</div>
+											)}
 										</section>
 									);
 								})}
@@ -582,26 +613,47 @@ export default function AreaListView({
 										);
 
 									if (otherAreas.length === 0) return null;
+									const isOtherCollapsed = Boolean(collapsedSections.OTHER);
 
 									return (
 										<section className="area-level-section">
 											<div className="area-level-section__header">
-												<div className="area-level-section__title-group">
-													<span
-														className="area-level-section__dot"
-														style={{ backgroundColor: "#94a3b8" }}
-													/>
-													<h2 className="area-level-section__title">
-														Khu vực khác
-													</h2>
-													<span className="area-level-section__count">
-														({otherAreas.length})
+												<button
+													type="button"
+													className="area-level-section__toggle"
+													aria-expanded={!isOtherCollapsed}
+													onClick={() =>
+														setCollapsedSections((prev) =>
+															toggleCollapsedSectionMap(prev, "OTHER"),
+														)
+													}
+												>
+													<div className="area-level-section__title-group">
+														<span
+															className="area-level-section__dot"
+															style={{ backgroundColor: "#94a3b8" }}
+														/>
+														<h2 className="area-level-section__title">
+															Khu vực khác
+														</h2>
+														<span className="area-level-section__count">
+															({otherAreas.length})
+														</span>
+													</div>
+													<span className="area-level-section__chevron">
+														{isOtherCollapsed ? (
+															<ChevronRight size={14} />
+														) : (
+															<ChevronDown size={14} />
+														)}
 													</span>
+												</button>
+											</div>
+											{!isOtherCollapsed && (
+												<div className="area-compact-list">
+													{otherAreas.map(renderAreaRow)}
 												</div>
-											</div>
-											<div className="area-compact-list">
-												{otherAreas.map(renderAreaRow)}
-											</div>
+											)}
 										</section>
 									);
 								})()}

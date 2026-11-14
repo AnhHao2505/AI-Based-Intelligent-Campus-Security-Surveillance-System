@@ -62,6 +62,14 @@ import {
 	registerRoomLabelSprites,
 	ensureRoomLabelSpriteImage,
 } from "../../utils/mapRoomLabelSprites";
+import {
+	registerCameraBadgeSprites,
+	ensureCameraBadgeSpriteImage,
+} from "../../utils/mapCameraBadgeSprites";
+import {
+	buildCameraMapMarkersGeoJSON,
+	extractCameraAreaInfo,
+} from "../../utils/campusCameraHelpers";
 import "../../styles/CampusMapView.css";
 
 // FPT University HCMC Campus default center framing both Tòa Alpha & Tòa Epsilon
@@ -81,6 +89,7 @@ const MAP_LIGHT = {
 };
 
 const INTERACTIVE_3D_LAYERS = [
+	"campus-3d-camera-badges-layer",
 	"campus-3d-rooms-layer",
 	"campus-3d-slabs-layer",
 	"campus-3d-walls-layer",
@@ -164,7 +173,15 @@ export default function CampusMapView({
 	areas = [],
 	selectedAreaId,
 	cameraCounts = {},
+	cameras = [],
+	cameraStatsByArea = {},
+	selectedCameraId = null,
 	onSelectArea,
+	onSelectCameraBadge = null,
+	pickingCameraArea = false,
+	onCancelPickCameraArea = null,
+	onAreaPickedForCamera = null,
+	rightDrawerContent = null,
 	isAdmin = false,
 	isFacilityManager = false,
 	onAreaUpdated,
@@ -303,6 +320,30 @@ export default function CampusMapView({
 		isAdmin,
 		floorGapStep,
 	]);
+
+	const cameraBadgesGeoJSON = useMemo(
+		() =>
+			buildCameraMapMarkersGeoJSON({
+				cameras,
+				areas,
+				store: geometryStore,
+				selectedBuilding: activeBuilding3d,
+				activeFloorOrder: activeFloorOrder3d,
+				selectedAreaId,
+				selectedCameraId,
+				floorElevationStep: floorGapStep,
+			}),
+		[
+			cameras,
+			areas,
+			geometryStore,
+			activeBuilding3d,
+			activeFloorOrder3d,
+			selectedAreaId,
+			selectedCameraId,
+			floorGapStep,
+		],
+	);
 
 	const handleChangeFloorGapStep = useCallback(
 		(nextStep) => {
@@ -460,7 +501,9 @@ export default function CampusMapView({
 		handleSelect3dBuilding,
 	]);
 
-	// Tự động resize map khi sidebar trái thu gọn / mở rộng
+	const hasRightDrawer = Boolean(rightDrawerContent);
+
+	// Tự động resize map khi sidebar trái hoặc drawer phải thu gọn / mở rộng
 	useEffect(() => {
 		const timer = setTimeout(() => {
 			if (mapRef.current) {
@@ -468,7 +511,7 @@ export default function CampusMapView({
 			}
 		}, 250);
 		return () => clearTimeout(timer);
-	}, [isLeftSidebarCollapsed]);
+	}, [isLeftSidebarCollapsed, hasRightDrawer]);
 
 	// Tự động điền dữ liệu tòa nhà / tầng ban đầu khi mở chế độ tạo (chỉ chạy khi chuyển false -> true, tránh ghi đè khi đổi tầng/phòng)
 	const prevIsCreatingRef = useRef(false);
@@ -802,6 +845,20 @@ export default function CampusMapView({
 		(e) => {
 			const features = e?.features || [];
 			setHoverCursor(features.length > 0 ? "pointer" : "grab");
+			const camBadgeFeat = features.find(
+				(f) => f.layer?.id === "campus-3d-camera-badges-layer",
+			);
+			if (camBadgeFeat?.properties && e?.point) {
+				const bp = camBadgeFeat.properties;
+				setHoveredRoom({
+					x: e.point.x,
+					y: e.point.y,
+					isOccupied: true,
+					title: `${bp.areaName || "Khu vực"} · ${bp.total} Camera`,
+					subtitle: `${bp.onlineCount || 0} Online · ${bp.offlineCount || 0} Offline — Bấm để xem`,
+				});
+				return;
+			}
 			const roomFeat = features.find(
 				(f) => f.layer?.id === "campus-3d-rooms-layer" && !f.properties?.isGhost,
 			);
@@ -815,17 +872,30 @@ export default function CampusMapView({
 				const levelCfg = areaLevelCode ? getLevelConfig(areaLevelCode) : null;
 				const emptySub = isEditingCoords
 					? "Nhấp để chuyển khu vực tới block này"
-					: isAdmin
-						? "Nhấp để tạo Khu vực"
-						: "Chưa gán khu vực";
+					: pickingCameraArea
+						? "Phòng chưa gắn khu vực"
+						: isAdmin
+							? "Nhấp để tạo Khu vực"
+							: "Chưa gán khu vực";
+				let occupiedSub =
+					levelCfg?.badgeLabel || levelCfg?.name || "Đã gán Khu vực";
+				if (p.matchedAreaId) {
+					const st = cameraStatsByArea?.[p.matchedAreaId];
+					const totalCams = st?.total ?? cameraCounts?.[p.matchedAreaId] ?? 0;
+					if (pickingCameraArea) {
+						occupiedSub = "Nhấp để gán camera vào khu vực này";
+					} else if (totalCams > 0) {
+						const offlineTxt =
+							st?.offlineCount > 0 ? ` · ${st.offlineCount} Offline` : "";
+						occupiedSub = `${occupiedSub} · ${totalCams} Camera${offlineTxt}`;
+					}
+				}
 				setHoveredRoom({
 					x: e.point.x,
 					y: e.point.y,
 					isOccupied: Boolean(p.matchedAreaId),
 					title: p.matchedAreaName || "Phòng trống",
-					subtitle: p.matchedAreaId
-						? levelCfg?.badgeLabel || levelCfg?.name || "Đã gán Khu vực"
-						: emptySub,
+					subtitle: p.matchedAreaId ? occupiedSub : emptySub,
 				});
 				return;
 			}
@@ -862,13 +932,24 @@ export default function CampusMapView({
 			}
 			setHoveredRoom(null);
 		},
-		[isAdmin, isEditingCoords, activeBuilding3d, activeFloorOrder3d],
+		[
+			isAdmin,
+			isEditingCoords,
+			pickingCameraArea,
+			cameraStatsByArea,
+			cameraCounts,
+			activeBuilding3d,
+			activeFloorOrder3d,
+		],
 	);
 
 	// Interactive 3D Map Click: Create/Rebind chỉ nhận block ROOM trống; Click block ROOM trống ở chế độ xem (ADMIN) tự mở Tạo khu vực
 	const handleMapClick = useCallback(
 		(e) => {
 			const features = e?.features || [];
+			const clickedCamBadge = features.find(
+				(f) => f.layer?.id === "campus-3d-camera-badges-layer",
+			);
 			const clickedRoomFeature = features.find(
 				(f) => f.layer?.id === "campus-3d-rooms-layer",
 			);
@@ -886,6 +967,27 @@ export default function CampusMapView({
 					f.layer?.id === "campus-3d-ghost-slabs-layer",
 			);
 			const roomProps = clickedRoomFeature?.properties;
+
+			if (pickingCameraArea) {
+				if (roomProps?.matchedAreaId) {
+					const picked = areas.find((a) => a.id === roomProps.matchedAreaId);
+					if (picked) {
+						onAreaPickedForCamera?.(picked);
+					}
+				}
+				return;
+			}
+
+			if (clickedCamBadge?.properties?.areaId && onSelectCameraBadge) {
+				const badgeAreaId = clickedCamBadge.properties.areaId;
+				const areaCameras =
+					cameraStatsByArea?.[badgeAreaId]?.cameras ||
+					cameras.filter(
+						(cam) => extractCameraAreaInfo(cam)?.areaId === badgeAreaId,
+					);
+				onSelectCameraBadge(badgeAreaId, areaCameras);
+				return;
+			}
 
 			if (isCreatingArea) {
 				if (!clickedRoomFeature || !roomProps) {
@@ -1037,6 +1139,12 @@ export default function CampusMapView({
 		[
 			isCreatingArea,
 			isEditingCoords,
+			pickingCameraArea,
+			areas,
+			cameras,
+			cameraStatsByArea,
+			onAreaPickedForCamera,
+			onSelectCameraBadge,
 			isAdmin,
 			editingAreaId,
 			allDbFloors,
@@ -1051,7 +1159,7 @@ export default function CampusMapView({
 
 	return (
 		<div
-			className={`campus-map-layout ${railCollapsed || (hideRail && !isCreatingArea) ? "campus-map-layout--expanded" : ""} ${isCreatingArea ? "campus-map-layout--create" : ""}`}
+			className={`campus-map-layout ${railCollapsed || (hideRail && !isCreatingArea && !hasRightDrawer) ? "campus-map-layout--expanded" : ""} ${isCreatingArea ? "campus-map-layout--create" : ""} ${hasRightDrawer && !isCreatingArea ? "campus-map-layout--camera-inspector" : ""}`}
 		>
 			{/* LEFT: MAIN MAPLIBRE CANVAS */}
 			<div className="campus-map-card">
@@ -1264,9 +1372,32 @@ export default function CampusMapView({
 					<div className="campus-coord-toast">{coordSuccess}</div>
 				)}
 
+				{pickingCameraArea && (
+					<div className="campus-coord-editor" role="status">
+						<div className="campus-coord-editor__info">
+							<Crosshair size={14} className="text-blue" />
+							<span className="campus-coord-editor__title">
+								Chọn khu vực 3D cho Camera
+							</span>
+							<span className="campus-coord-editor__coords">
+								Click vào một khối phòng 3D đã có khu vực trên bản đồ
+							</span>
+						</div>
+						<div className="campus-coord-editor__actions">
+							<button
+								type="button"
+								className="campus-coord-btn campus-coord-btn--ghost"
+								onClick={onCancelPickCameraArea}
+							>
+								Huỷ chọn
+							</button>
+						</div>
+					</div>
+				)}
+
 				{/* Map Viewport */}
 				<div
-					className={`campus-map-viewport ${compactLabels ? "campus-map-viewport--compact" : ""} ${isEditingCoords ? "campus-map-viewport--editing" : ""}`}
+					className={`campus-map-viewport ${compactLabels ? "campus-map-viewport--compact" : ""} ${isEditingCoords || pickingCameraArea ? "campus-map-viewport--editing" : ""}`}
 				>
 					<MapGL
 						ref={mapRef}
@@ -1276,9 +1407,11 @@ export default function CampusMapView({
 							if (!map) return;
 							registerPortalMapImages(map);
 							registerRoomLabelSprites(map, roomLabelsGeoJSON);
+							registerCameraBadgeSprites(map, cameraBadgesGeoJSON);
 							map.on?.("styleimagemissing", (ev) => {
 								ensurePortalMapImage(map, ev.id);
 								ensureRoomLabelSpriteImage(map, ev.id);
+								ensureCameraBadgeSpriteImage(map, ev.id);
 							});
 							map.setLight?.(MAP_LIGHT);
 						}}
@@ -1494,6 +1627,43 @@ export default function CampusMapView({
 							/>
 						</Source>
 
+						<Source
+							id="campus-3d-camera-badges-src"
+							type="geojson"
+							data={cameraBadgesGeoJSON}
+						>
+							<Layer
+								id="campus-3d-camera-badges-layer"
+								type="symbol"
+								minzoom={16.4}
+								layout={{
+									"icon-image": ["get", "spriteId"],
+									"icon-size": [
+										"interpolate",
+										["linear"],
+										["zoom"],
+										16.4,
+										0.75,
+										18.2,
+										0.92,
+										19.8,
+										1.02,
+									],
+									"icon-allow-overlap": true,
+									"icon-ignore-placement": false,
+									"symbol-height-anchor": "ground",
+									"symbol-height-offset": [
+										"coalesce",
+										["get", "heightOffset"],
+										1.0,
+									],
+								}}
+								paint={{
+									"icon-opacity": 0.98,
+								}}
+							/>
+						</Source>
+
 						{/* Nhãn Tòa Nhà (Overview & chuyển nhanh giữa các tòa trên bản đồ) */}
 						{buildingLabelsGeoJSON.features.map((bFeat) => {
 							const { id, building, name, floorCount, areaCount, isFocused } =
@@ -1553,50 +1723,31 @@ export default function CampusMapView({
 
 				{/* Floating Colour Legend */}
 				<div className="campus-map-legend">
-					{isAdmin ? (
-						<>
-							<div className="campus-map-legend__item">
-								<span className="campus-map-legend__dot campus-map-legend__dot--public" />
-								<span>{AREA_LEVEL_CONFIG.PUBLIC.badgeLabel}</span>
-							</div>
-							<div className="campus-map-legend__item">
-								<span className="campus-map-legend__dot campus-map-legend__dot--contact" />
-								<span>{AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel}</span>
-							</div>
-							<div className="campus-map-legend__item">
-								<span className="campus-map-legend__dot campus-map-legend__dot--private" />
-								<span>{AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}</span>
-							</div>
-							<div className="campus-map-legend__item">
-								<span className="campus-map-legend__dot campus-map-legend__dot--empty-room" />
-								<span>Phòng trống</span>
-							</div>
-						</>
-					) : (
-						<>
-							<div className="campus-map-legend__item">
-								<span
-									className="campus-map-legend__dot"
-									style={{ background: "#475569" }}
-								/>
-								<span>Khu vực hoạt động</span>
-							</div>
-							<div className="campus-map-legend__item">
-								<span
-									className="campus-map-legend__dot"
-									style={{ background: "#2563eb" }}
-								/>
-								<span>Đang chọn</span>
-							</div>
-						</>
-					)}
+					<div className="campus-map-legend__item">
+						<span className="campus-map-legend__dot campus-map-legend__dot--public" />
+						<span>{AREA_LEVEL_CONFIG.PUBLIC.badgeLabel}</span>
+					</div>
+					<div className="campus-map-legend__item">
+						<span className="campus-map-legend__dot campus-map-legend__dot--contact" />
+						<span>{AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel}</span>
+					</div>
+					<div className="campus-map-legend__item">
+						<span className="campus-map-legend__dot campus-map-legend__dot--private" />
+						<span>{AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}</span>
+					</div>
+					<div className="campus-map-legend__item">
+						<span className="campus-map-legend__dot campus-map-legend__dot--empty-room" />
+						<span>Phòng trống</span>
+					</div>
 				</div>
 			</div>
 
-			{/* RIGHT RAIL: AREAS LIST & DETAILS OR CREATE PANEL */}
-			{(!hideRail || isCreatingArea) && (
+			{/* RIGHT RAIL: AREAS LIST & DETAILS, CREATE PANEL OR CAMERA INSPECTOR */}
+			{(!hideRail || isCreatingArea || hasRightDrawer) && (
 				<div className="campus-rail">
-					{isCreatingArea ? (
+					{!isCreatingArea && hasRightDrawer ? (
+						rightDrawerContent
+					) : isCreatingArea ? (
 						<div className="campus-rail-card campus-rail-card--create">
 							<div className="campus-rail-header">
 								<span className="campus-rail-title">Thêm khu vực</span>

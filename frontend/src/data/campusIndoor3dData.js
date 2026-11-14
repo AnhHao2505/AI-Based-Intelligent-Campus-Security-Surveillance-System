@@ -2840,12 +2840,6 @@ export function buildVector3dLayers({
 				fillColor = "#cbd5e1";
 			} else if (isStudio) {
 				fillColor = "#38bdf8";
-			} else if (viewRole === "FACILITY_MANAGER") {
-				fillColor = isSelected
-					? "#f97316"
-					: isPreviewRoom || matchedArea
-						? "#475569"
-						: "#94a3b8";
 			} else if (isSelected) {
 				fillColor = "#2563eb";
 			} else if (isPreviewRoom) {

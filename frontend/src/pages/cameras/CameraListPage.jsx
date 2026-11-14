@@ -29,6 +29,7 @@ import {
 	Select,
 } from "../../components/ui";
 import { formatLocation } from "../../utils/formatLocation";
+import "../../styles/cameraShared.css";
 import "../../styles/CameraListPage.css";
 
 const STATUS_LABELS = {

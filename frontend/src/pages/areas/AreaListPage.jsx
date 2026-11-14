@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
 	Plus,
@@ -11,6 +11,8 @@ import {
 	Layers,
 	Cctv,
 	VideoOff,
+	Video,
+	MapPin,
 	Search,
 	AlertTriangle,
 	Info,
@@ -21,15 +23,24 @@ import {
 import { toast } from "sonner";
 import AreaAssignedPersonnelModal from "../../components/area/AreaAssignedPersonnelModal";
 import AreaListView from "../../components/area/AreaListView";
+import CameraWorkspaceSidebar from "../../components/area/CameraWorkspaceSidebar";
 import CampusMapView from "../../components/area/CampusMapView";
 import FloorDigitizerStudio from "../../components/area/FloorDigitizerStudio";
+import CameraInspectorDrawer from "../../components/camera/CameraInspectorDrawer";
+import CameraCreateModal from "../../components/CameraCreateModal";
 import ErrorBoundary from "../../components/common/ErrorBoundary";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
-import { LoadingState, ErrorState, DialogPanel } from "../../components/ui";
+import {
+	LoadingState,
+	ErrorState,
+	DialogPanel,
+	Modal,
+	Button,
+} from "../../components/ui";
 import ReasonTextarea from "../../components/ui/ReasonTextarea";
 import "../../components/ui/Button.css";
 import {
-	getAreas,
+	getAllAreas,
 	getDependencies,
 	updateArea,
 	deactivateArea,
@@ -38,6 +49,17 @@ import {
 	getTypeChangePreview,
 } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
+import {
+	fetchCameras,
+	decommissionCamera,
+	reactivateCamera,
+	deleteCamera,
+} from "../../services/cameraService";
+import {
+	buildCameraStatsByArea,
+	extractCameraAreaInfo,
+	fetchAllPaginatedPages,
+} from "../../utils/campusCameraHelpers";
 import {
 	DEFAULT_BUILDINGS_META,
 	matchesBuilding,
@@ -78,16 +100,41 @@ export default function AreaListPage() {
 	const reasonLimits = useReasonLimits();
 	const { user } = useAuth();
 	const isAdmin = user?.role === "ADMIN";
-	const navigate = useNavigate();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const isFacilityManager = user?.role === "FACILITY_MANAGER";
 
-	// Split-View: Danh sách bên trái + Bản đồ khuôn viên bên phải
+	// Split-View: Danh sách bên trái (Khu vực / Camera) + Bản đồ khuôn viên bên phải
 	const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
+	const [leftSidebarMode, setLeftSidebarMode] = useState(() =>
+		searchParams.get("tab") === "cameras" ? "CAMERAS" : "AREAS",
+	);
 	const [isCreatingOnMap, setIsCreatingOnMap] = useState(false);
 	const [rebindingAreaId, setRebindingAreaId] = useState(null);
 	const [digitizerStudioOpen, setDigitizerStudioOpen] = useState(false);
 
+	// Unified Camera Management states (Option 1 merge)
+	const [cameras, setCameras] = useState([]);
+	const [camerasLoading, setCamerasLoading] = useState(true);
+	const [camerasError, setCamerasError] = useState(null);
+	const [selectedCameraId, setSelectedCameraId] = useState(
+		() => searchParams.get("cameraId") || null,
+	);
+	const [selectedCameraInitialTab, setSelectedCameraInitialTab] = useState(
+		() => searchParams.get("cameraTab") || "general",
+	);
+	const [isCreateCameraOpen, setIsCreateCameraOpen] = useState(false);
+	const [createCameraDefaultAreaId, setCreateCameraDefaultAreaId] =
+		useState("");
+	const [cameraActionLoadingId, setCameraActionLoadingId] = useState(null);
+	const [sidebarDecommissionTarget, setSidebarDecommissionTarget] =
+		useState(null);
+	const [sidebarDeleteTarget, setSidebarDeleteTarget] = useState(null);
+	const [pickingCameraArea, setPickingCameraArea] = useState(false);
+	const [pickedAreaOverride, setPickedAreaOverride] = useState(null);
+
 	const handleStartCreateOnMap = () => {
+		setSelectedCameraId(null);
+		setPickingCameraArea(false);
 		setIsCreatingOnMap(true);
 	};
 
@@ -221,17 +268,16 @@ export default function AreaListPage() {
 
 	const rowRefs = useRef({});
 
-	// Fetch all data
+	// Fetch all data (multi-page respecting backend size <= 100 limit)
 	const fetchData = useCallback(async (keepSelectedId = null) => {
 		setLoading(true);
 		setPageError(null);
 		try {
-			const [areasRes, buildingsRes] = await Promise.all([
-				getAreas({ size: 100, isActive: true }),
+			const [areaList, buildingsRes] = await Promise.all([
+				getAllAreas({ isActive: true }),
 				getBuildings().catch(() => []),
 			]);
 
-			const areaList = areasRes?.content || areasRes || [];
 			setAreas(Array.isArray(areaList) ? areaList : []);
 			setBuildingsList(Array.isArray(buildingsRes) ? buildingsRes : []);
 
@@ -418,39 +464,120 @@ export default function AreaListPage() {
 		return areas.find((a) => a.id === selectedAreaId) || null;
 	}, [areas, selectedAreaId]);
 
-	// Automatically pre-fetch camera counts for all loaded areas so count is ready before clicking any card
-	useEffect(() => {
-		if (!areas || areas.length === 0) return;
-		let active = true;
-
-		const missingAreas = areas.filter((a) => cameraCounts[a.id] === undefined);
-		if (missingAreas.length === 0) return;
-
-		Promise.all(
-			missingAreas.map(async (a) => {
-				try {
-					const res = await getAreaCameras(a.id);
-					const count =
-						res?.cameras?.length ?? (Array.isArray(res) ? res.length : 0);
-					return { id: a.id, count };
-				} catch {
-					return { id: a.id, count: 0 };
-				}
-			}),
-		).then((results) => {
-			if (active) {
-				const countsMap = {};
-				results.forEach(({ id, count }) => {
-					countsMap[id] = count;
-				});
-				setCameraCounts((prev) => ({ ...prev, ...countsMap }));
-			}
+	// Area lookup map for camera resolution
+	const areaById = useMemo(() => {
+		const map = new Map();
+		areas.forEach((a) => {
+			if (a?.id != null) map.set(a.id, a);
 		});
+		return map;
+	}, [areas]);
 
-		return () => {
-			active = false;
-		};
-	}, [areas, cameraCounts]);
+	// Unified Camera fetch & stats (Option 1 merge)
+	const fetchAllCameras = useCallback(async () => {
+		setCamerasLoading(true);
+		setCamerasError(null);
+		try {
+			const list = await fetchAllPaginatedPages(
+				(page, size) =>
+					fetchCameras({
+						page,
+						size,
+						sort: "cameraCode,asc",
+					}),
+				{ pageSize: 200 },
+			);
+			setCameras(Array.isArray(list) ? list : []);
+		} catch (err) {
+			console.error("Error fetching workspace cameras:", err);
+			setCamerasError(getErrorMessage(err));
+		} finally {
+			setCamerasLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		fetchAllCameras();
+	}, [fetchAllCameras]);
+
+	const { statsByArea: cameraStatsByArea, countsByArea: derivedCameraCounts } =
+		useMemo(() => buildCameraStatsByArea(cameras), [cameras]);
+
+	const mergedCameraCounts = useMemo(() => {
+		const counts = { ...cameraCounts };
+		if (!camerasLoading && !camerasError) {
+			areas.forEach((a) => {
+				if (a?.id != null) {
+					counts[a.id] = derivedCameraCounts[a.id] ?? 0;
+				}
+			});
+		}
+		Object.entries(derivedCameraCounts).forEach(([areaId, count]) => {
+			counts[areaId] = count;
+		});
+		return counts;
+	}, [areas, cameraCounts, derivedCameraCounts, camerasLoading, camerasError]);
+
+	const syncCameraUrlParams = useCallback(
+		(nextMode, nextCameraId, nextCameraTab) => {
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					if (nextMode === "CAMERAS") {
+						next.set("tab", "cameras");
+					} else {
+						next.delete("tab");
+					}
+					if (nextCameraId) {
+						next.set("cameraId", String(nextCameraId));
+						if (nextCameraTab && nextCameraTab !== "general") {
+							next.set("cameraTab", nextCameraTab);
+						} else {
+							next.delete("cameraTab");
+						}
+					} else {
+						next.delete("cameraId");
+						next.delete("cameraTab");
+					}
+					return next;
+				},
+				{ replace: true },
+			);
+		},
+		[setSearchParams],
+	);
+
+	const urlTab = searchParams.get("tab");
+	const urlCameraId = searchParams.get("cameraId");
+	const urlCameraTab = searchParams.get("cameraTab");
+	const prevUrlRef = useRef({ tab: null, cameraId: null, cameraTab: null });
+	useEffect(() => {
+		const prev = prevUrlRef.current;
+		if (urlTab !== prev.tab) {
+			if (urlTab === "cameras") {
+				setLeftSidebarMode("CAMERAS");
+			} else if (prev.tab === "cameras" && !urlTab) {
+				setLeftSidebarMode("AREAS");
+			}
+		}
+		if (urlCameraId !== prev.cameraId || urlCameraTab !== prev.cameraTab) {
+			if (urlCameraId) {
+				setSelectedCameraId(urlCameraId);
+				setSelectedCameraInitialTab(urlCameraTab || "general");
+			} else if (prev.cameraId) {
+				setSelectedCameraId(null);
+			}
+		}
+		prevUrlRef.current = { tab: urlTab, cameraId: urlCameraId, cameraTab: urlCameraTab };
+	}, [urlTab, urlCameraId, urlCameraTab]);
+
+	const handleSwitchLeftSidebarMode = useCallback(
+		(nextMode) => {
+			setLeftSidebarMode(nextMode);
+			syncCameraUrlParams(nextMode, selectedCameraId, selectedCameraInitialTab);
+		},
+		[selectedCameraId, selectedCameraInitialTab, syncCameraUrlParams],
+	);
 
 	const handleSyncMapFilter = useCallback((nextBuilding, nextFloor) => {
 		setSelectedBuilding(nextBuilding || "ALL");
@@ -459,7 +586,7 @@ export default function AreaListPage() {
 	}, []);
 
 	// Area selection
-	const handleSelectArea = (areaId) => {
+	const handleSelectArea = useCallback((areaId) => {
 		setSelectedAreaId(areaId);
 		if (rowRefs.current[areaId]) {
 			rowRefs.current[areaId].scrollIntoView({
@@ -467,7 +594,174 @@ export default function AreaListPage() {
 				block: "nearest",
 			});
 		}
-	};
+	}, []);
+
+	const handleFocusAreaOnMap = useCallback(
+		(areaId) => {
+			if (!areaId) return;
+			const targetArea = areaById.get(areaId);
+			if (targetArea) {
+				if (targetArea.building) {
+					setSelectedBuilding(targetArea.building);
+				}
+				if (targetArea.floor) {
+					setSelectedFloor(targetArea.floor);
+				}
+			}
+			setSelectedAreaId(areaId);
+		},
+		[areaById],
+	);
+
+	const handleSelectCamera = useCallback(
+		(camera, preferredTab = "general") => {
+			if (!camera) {
+				setSelectedCameraId(null);
+				setPickingCameraArea(false);
+				setPickedAreaOverride(null);
+				syncCameraUrlParams(leftSidebarMode, null, null);
+				return;
+			}
+			setIsCreatingOnMap(false);
+			setRebindingAreaId(null);
+			setPickingCameraArea(false);
+			setPickedAreaOverride(null);
+			setSelectedCameraId(camera.id);
+			setSelectedCameraInitialTab(preferredTab || "general");
+
+			const areaInfo = extractCameraAreaInfo(camera, areaById);
+			const matchedArea = areaInfo.areaId
+				? areaById.get(areaInfo.areaId)
+				: null;
+			if (matchedArea) {
+				if (matchedArea.building) setSelectedBuilding(matchedArea.building);
+				if (matchedArea.floor) setSelectedFloor(matchedArea.floor);
+				setSelectedAreaId(matchedArea.id);
+			}
+			syncCameraUrlParams(leftSidebarMode, camera.id, preferredTab || "general");
+		},
+		[areaById, leftSidebarMode, syncCameraUrlParams],
+	);
+
+	const handleCloseCameraInspector = useCallback(() => {
+		setSelectedCameraId(null);
+		setPickingCameraArea(false);
+		setPickedAreaOverride(null);
+		syncCameraUrlParams(leftSidebarMode, null, null);
+	}, [leftSidebarMode, syncCameraUrlParams]);
+
+	const handleSelectCameraBadge = useCallback(
+		(areaId, areaCameras = []) => {
+			handleSelectArea(areaId);
+			if (Array.isArray(areaCameras) && areaCameras.length === 1) {
+				handleSelectCamera(areaCameras[0], "general");
+				return;
+			}
+			const matchedArea = areaById.get(areaId);
+			if (matchedArea) {
+				handleOpenCamerasModal(matchedArea);
+			}
+		},
+		[areaById, handleOpenCamerasModal, handleSelectArea, handleSelectCamera],
+	);
+
+	const handleOpenCreateCameraModal = useCallback(
+		(defaultAreaId = "") => {
+			setCreateCameraDefaultAreaId(
+				defaultAreaId
+					? String(defaultAreaId)
+					: selectedAreaId
+						? String(selectedAreaId)
+						: "",
+			);
+			setIsCreateCameraOpen(true);
+		},
+		[selectedAreaId],
+	);
+
+	const handleToggleSidebarCameraStatus = useCallback(
+		async (cam) => {
+			if (!isAdmin || !cam?.id) return;
+			const isActive = cam.status === "ACTIVE" || !cam.status;
+			if (isActive) {
+				setSidebarDecommissionTarget(cam);
+				return;
+			}
+			setCameraActionLoadingId(cam.id);
+			try {
+				await reactivateCamera(cam.id);
+				toast.success(
+					`Đã kích hoạt lại camera "${cam.name || cam.cameraCode}"`,
+				);
+				await fetchAllCameras();
+			} catch (err) {
+				toast.error(
+					err?.response?.data?.message ||
+						"Không thể kích hoạt lại camera này",
+				);
+			} finally {
+				setCameraActionLoadingId(null);
+			}
+		},
+		[fetchAllCameras, isAdmin],
+	);
+
+	const handleConfirmSidebarDecommission = useCallback(async () => {
+		if (!sidebarDecommissionTarget?.id) return;
+		const target = sidebarDecommissionTarget;
+		setCameraActionLoadingId(target.id);
+		try {
+			await decommissionCamera(target.id);
+			toast.success(
+				`Đã ngưng hoạt động camera "${target.name || target.cameraCode}"`,
+			);
+			setSidebarDecommissionTarget(null);
+			await fetchAllCameras();
+		} catch (err) {
+			toast.error(
+				err?.response?.data?.message ||
+					"Không thể ngưng hoạt động camera này",
+			);
+		} finally {
+			setCameraActionLoadingId(null);
+		}
+	}, [fetchAllCameras, sidebarDecommissionTarget]);
+
+	const handleConfirmSidebarDelete = useCallback(async () => {
+		if (!sidebarDeleteTarget?.id) return;
+		const target = sidebarDeleteTarget;
+		setCameraActionLoadingId(target.id);
+		try {
+			await deleteCamera(target.id);
+			toast.success(`Đã xóa camera "${target.name || target.cameraCode}"`);
+			if (String(selectedCameraId || "") === String(target.id)) {
+				handleCloseCameraInspector();
+			}
+			setSidebarDeleteTarget(null);
+			await fetchAllCameras();
+		} catch (err) {
+			toast.error(
+				err?.response?.data?.message || "Không thể xóa camera này",
+			);
+		} finally {
+			setCameraActionLoadingId(null);
+		}
+	}, [
+		fetchAllCameras,
+		handleCloseCameraInspector,
+		selectedCameraId,
+		sidebarDeleteTarget,
+	]);
+
+	const handleAreaPickedForCamera = useCallback((pickedArea) => {
+		if (!pickedArea?.id) return;
+		setPickedAreaOverride({
+			id: String(pickedArea.id),
+			name: pickedArea.name || "",
+		});
+		setPickingCameraArea(false);
+		toast.success(`Đã chọn khu vực "${pickedArea.name}" cho camera.`);
+	}, []);
 
 	const handleOpenEditModal = (targetArea = null) => {
 		const areaToEdit = targetArea || selectedArea;
@@ -686,8 +980,7 @@ export default function AreaListPage() {
 		setDeactivatedLoading(true);
 		setDeactivatedError(null);
 		try {
-			const res = await getAreas({ size: 100, isActive: false });
-			const list = res?.content || res || [];
+			const list = await getAllAreas({ isActive: false });
 			setDeactivatedAreas(Array.isArray(list) ? list : []);
 		} catch (err) {
 			console.error("Failed to load deactivated areas:", err);
@@ -788,31 +1081,76 @@ export default function AreaListPage() {
 							/>
 							<span>Thêm khu vực</span>
 						</button>
+
+						<button
+							type="button"
+							className="zone-toolbar__studio-btn"
+							onClick={() => handleOpenCreateCameraModal()}
+							title="Thêm thiết bị camera mới"
+						>
+							<Video
+								size={16}
+								strokeWidth={2.2}
+							/>
+							<span>+ Thêm camera</span>
+						</button>
 					</div>
 				</div>
 			)}
 
-			{/* MAIN CONTENT: SPLIT-VIEW (MAP + AREA LIST) FOR BOTH ADMIN & FM */}
+			{/* MAIN CONTENT: SPLIT-VIEW (MAP + AREA/CAMERA LIST) FOR BOTH ADMIN & FM */}
 			<div
 				className={`zone-split-layout ${isLeftSidebarCollapsed ? "zone-split-layout--sidebar-collapsed" : ""}`}
 			>
 				<aside
 					className={`zone-split-sidebar ${isLeftSidebarCollapsed ? "zone-split-sidebar--collapsed" : ""}`}
 				>
-					{loading && <LoadingState text="Đang tải dữ liệu khu vực..." />}
+					<div
+						className="zone-mode-switcher"
+						role="tablist"
+						aria-label="Chế độ quản lý bên trái"
+					>
+						<button
+							type="button"
+							role="tab"
+							aria-selected={leftSidebarMode === "AREAS"}
+							className={`zone-mode-switcher__btn ${leftSidebarMode === "AREAS" ? "zone-mode-switcher__btn--active" : ""}`}
+							onClick={() => handleSwitchLeftSidebarMode("AREAS")}
+						>
+							<MapPin size={14} />
+							<span>Khu vực</span>
+							<span className="zone-mode-switcher__count">{areas.length}</span>
+						</button>
+						<button
+							type="button"
+							role="tab"
+							aria-selected={leftSidebarMode === "CAMERAS"}
+							className={`zone-mode-switcher__btn ${leftSidebarMode === "CAMERAS" ? "zone-mode-switcher__btn--active" : ""}`}
+							onClick={() => handleSwitchLeftSidebarMode("CAMERAS")}
+						>
+							<Video size={14} />
+							<span>Camera</span>
+							<span className="zone-mode-switcher__count">{cameras.length}</span>
+						</button>
+					</div>
 
-					{!loading && pageError && (
+					{leftSidebarMode === "AREAS" && loading && (
+						<LoadingState text="Đang tải dữ liệu khu vực..." />
+					)}
+
+					{leftSidebarMode === "AREAS" && !loading && pageError && (
 						<ErrorState
 							message={pageError}
 							onRetry={() => fetchData(selectedAreaId)}
 						/>
 					)}
 
-					{!loading && !pageError && (
+					{leftSidebarMode === "AREAS" && !loading && !pageError && (
 						<AreaListView
 							floorAreas={floorAreas}
 							selectedAreaId={selectedAreaId}
-							cameraCounts={cameraCounts}
+							cameraCounts={mergedCameraCounts}
+							cameraStatsByArea={cameraStatsByArea}
 							isAdmin={isAdmin}
 							isFacilityManager={isFacilityManager}
 							onSelectArea={(id) => handleSelectArea(id, false)}
@@ -838,6 +1176,25 @@ export default function AreaListPage() {
 							onOpenRestoreModal={openRestoreModal}
 						/>
 					)}
+
+					{leftSidebarMode === "CAMERAS" && (
+						<CameraWorkspaceSidebar
+							cameras={cameras}
+							areas={areas}
+							loading={camerasLoading}
+							error={camerasError}
+							onRetry={fetchAllCameras}
+							selectedCameraId={selectedCameraId}
+							onSelectCamera={(cam) => handleSelectCamera(cam, "general")}
+							selectedBuilding={selectedBuilding}
+							selectedFloor={selectedFloor}
+							isAdmin={isAdmin}
+							onOpenCreateCamera={() => handleOpenCreateCameraModal()}
+							onToggleCameraStatus={handleToggleSidebarCameraStatus}
+							onDeleteCamera={(cam) => setSidebarDeleteTarget(cam)}
+							actionLoadingId={cameraActionLoadingId}
+						/>
+					)}
 				</aside>
 
 				<section className="zone-split-map">
@@ -845,7 +1202,37 @@ export default function AreaListPage() {
 						<CampusMapView
 							areas={areas}
 							selectedAreaId={selectedAreaId}
-							cameraCounts={cameraCounts}
+							cameraCounts={mergedCameraCounts}
+							cameraStatsByArea={cameraStatsByArea}
+							cameras={cameras}
+							selectedCameraId={selectedCameraId}
+							onSelectCameraBadge={handleSelectCameraBadge}
+							pickingCameraArea={pickingCameraArea}
+							onCancelPickCameraArea={() => setPickingCameraArea(false)}
+							onAreaPickedForCamera={handleAreaPickedForCamera}
+							rightDrawerContent={
+								selectedCameraId ? (
+									<CameraInspectorDrawer
+										cameraId={selectedCameraId}
+										initialTab={selectedCameraInitialTab}
+										availableAreas={areas}
+										isAdmin={isAdmin}
+										onClose={handleCloseCameraInspector}
+										onCameraMutated={fetchAllCameras}
+										onCameraDeleted={() => {
+											handleCloseCameraInspector();
+											fetchAllCameras();
+										}}
+										onFocusAreaOnMap={handleFocusAreaOnMap}
+										onRequestPickAreaOnMap={() => setPickingCameraArea(true)}
+										isPickingAreaOnMap={pickingCameraArea}
+										pickedAreaOverride={pickedAreaOverride}
+										onConsumePickedAreaOverride={() =>
+											setPickedAreaOverride(null)
+										}
+									/>
+								) : null
+							}
 							isAdmin={isAdmin}
 							isFacilityManager={isFacilityManager}
 							onSelectArea={(id) => handleSelectArea(id, false)}
@@ -865,7 +1252,7 @@ export default function AreaListPage() {
 								setIsCreatingOnMap(false);
 								await fetchData(newArea.id);
 							}}
-							hideRail={true}
+							hideRail={!selectedCameraId}
 							isLeftSidebarCollapsed={isLeftSidebarCollapsed}
 							onToggleLeftSidebar={() =>
 								setIsLeftSidebarCollapsed((prev) => !prev)
@@ -1466,22 +1853,18 @@ export default function AreaListPage() {
 															{opStatus}
 														</span>
 
-														{!isFacilityManager && (
-															<button
-																type="button"
-																className="area-camera-detail-btn"
-																onClick={() => {
-																	setCamerasModalOpen(false);
-																	navigate(
-																		`/cameras/${cam.id}?tab=surveillance`,
-																	);
-																}}
-																title="Xem chi tiết camera và cấu hình ROI"
-															>
-																<span>Xem chi tiết</span>
-																<ExternalLink size={13} />
-															</button>
-														)}
+														<button
+															type="button"
+															className="area-camera-detail-btn"
+															onClick={() => {
+																setCamerasModalOpen(false);
+																handleSelectCamera(cam, "surveillance");
+															}}
+															title="Xem chi tiết camera và cấu hình ROI"
+														>
+															<span>Xem chi tiết</span>
+															<ExternalLink size={13} />
+														</button>
 													</div>
 												</div>
 											);
@@ -1516,26 +1899,38 @@ export default function AreaListPage() {
 								<span>
 									{isFacilityManager
 										? "Danh sách các thiết bị camera giám sát thuộc khu vực này."
-										: "Camera được gán hoặc chuyển khu vực trong trang Quản lý Camera."}
+										: "Gán, thêm hoặc mở inspector camera trực tiếp trong không gian 3D."}
 								</span>
 							</div>
 
 							<div
 								style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
 							>
-								{!isFacilityManager && (
+								{isAdmin && camerasModalArea?.id && (
 									<button
 										type="button"
 										className="area-camera-modal-mgmt-link"
 										onClick={() => {
+											const targetAreaId = camerasModalArea.id;
 											setCamerasModalOpen(false);
-											navigate("/cameras");
+											handleOpenCreateCameraModal(targetAreaId);
 										}}
 									>
-										<ExternalLink size={14} />
-										<span>Quản lý Camera</span>
+										<Plus size={14} />
+										<span>Thêm camera</span>
 									</button>
 								)}
+								<button
+									type="button"
+									className="area-camera-modal-mgmt-link"
+									onClick={() => {
+										setCamerasModalOpen(false);
+										handleSwitchLeftSidebarMode("CAMERAS");
+									}}
+								>
+									<Video size={14} />
+									<span>Mở tab Camera</span>
+								</button>
 							</div>
 						</div>
 					</div>
@@ -1549,6 +1944,92 @@ export default function AreaListPage() {
 				area={assignedPersonnelModalArea}
 				isFacilityManager={isFacilityManager}
 			/>
+
+			{/* Create Camera Modal in-workspace (ADMIN ONLY) */}
+			{isAdmin && (
+				<CameraCreateModal
+					isOpen={isCreateCameraOpen}
+					onClose={() => setIsCreateCameraOpen(false)}
+					onSuccess={async (created) => {
+						await fetchAllCameras();
+						if (created?.id) {
+							handleSelectCamera(created, "general");
+						}
+					}}
+					defaultAreaId={createCameraDefaultAreaId}
+				/>
+			)}
+
+			{/* Sidebar quick-action confirm modal: Decommission Camera */}
+			{sidebarDecommissionTarget && (
+				<Modal
+					isOpen={Boolean(sidebarDecommissionTarget)}
+					onClose={() => setSidebarDecommissionTarget(null)}
+					title="Ngưng hoạt động camera"
+					maxWidth="420px"
+				>
+					<div className="cam-confirm-body">
+						<p>
+							Bạn có chắc chắn muốn ngưng hoạt động camera{" "}
+							<strong>
+								{sidebarDecommissionTarget.name ||
+									sidebarDecommissionTarget.cameraCode}
+							</strong>
+							? Camera sẽ tạm ngừng stream và giám sát AI.
+						</p>
+						<div className="cam-confirm-actions">
+							<Button
+								variant="ghost"
+								onClick={() => setSidebarDecommissionTarget(null)}
+							>
+								Hủy
+							</Button>
+							<Button
+								variant="danger"
+								disabled={Boolean(cameraActionLoadingId)}
+								onClick={handleConfirmSidebarDecommission}
+							>
+								Ngưng hoạt động
+							</Button>
+						</div>
+					</div>
+				</Modal>
+			)}
+
+			{/* Sidebar quick-action confirm modal: Delete Camera */}
+			{sidebarDeleteTarget && (
+				<Modal
+					isOpen={Boolean(sidebarDeleteTarget)}
+					onClose={() => setSidebarDeleteTarget(null)}
+					title="Xóa camera vĩnh viễn"
+					maxWidth="420px"
+				>
+					<div className="cam-confirm-body">
+						<p>
+							Bạn có chắc chắn muốn xóa camera{" "}
+							<strong>
+								{sidebarDeleteTarget.name || sidebarDeleteTarget.cameraCode}
+							</strong>
+							? Hành động này không thể hoàn tác.
+						</p>
+						<div className="cam-confirm-actions">
+							<Button
+								variant="ghost"
+								onClick={() => setSidebarDeleteTarget(null)}
+							>
+								Hủy
+							</Button>
+							<Button
+								variant="danger"
+								disabled={Boolean(cameraActionLoadingId)}
+								onClick={handleConfirmSidebarDelete}
+							>
+								Xóa camera
+							</Button>
+						</div>
+					</div>
+				</Modal>
+			)}
 
 			{/* Standalone 3D Floor Plan Digitizer Studio (ADMIN Dev Tool ONLY) */}
 			{isAdmin && digitizerStudioOpen && (

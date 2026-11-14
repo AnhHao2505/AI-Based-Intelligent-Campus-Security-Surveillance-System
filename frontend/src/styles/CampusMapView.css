@@ -1139,6 +1139,19 @@
   }
 }
 
+/* Camera Inspector Drawer right rail inside Campus 3D Workspace */
+.campus-map-layout--camera-inspector:not(.campus-map-layout--expanded) {
+  grid-template-columns: minmax(0, 1fr) 460px;
+  gap: 12px;
+  width: 100%;
+}
+
+@media (max-width: 1280px) {
+  .campus-map-layout--camera-inspector:not(.campus-map-layout--expanded) {
+    grid-template-columns: minmax(0, 1fr) 380px;
+  }
+}
+
 /* Floating Guide Pill for Area Creation */
 .campus-create-guide-pill {
   position: absolute;

@@ -1,32 +1,38 @@
 import { useState, useEffect } from "react";
 import { X, Loader } from "lucide-react";
 import { createCamera } from "../services/cameraService";
-import { getAreas } from "../services/areaService";
+import { getAllAreas } from "../services/areaService";
+import "../styles/cameraShared.css";
 import "../styles/CameraCreateModal.css";
 import { formatLocation } from "../utils/formatLocation";
 import Select from "./ui/Select";
 
-export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
+export default function CameraCreateModal({
+	isOpen,
+	onClose,
+	onSuccess,
+	onCreated,
+	defaultAreaId = "",
+}) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 	const [availableAreas, setAvailableAreas] = useState([]);
 	const [formData, setFormData] = useState({
 		name: "",
-		areaId: "",
+		areaId: defaultAreaId || "",
 	});
 
 	useEffect(() => {
 		if (isOpen) {
-			setFormData({ name: "", areaId: "" });
+			setFormData({ name: "", areaId: defaultAreaId || "" });
 			setError(null);
-			getAreas({ size: 200, isActive: true })
-				.then((res) => {
-					const list = res?.content || res?.areas || (Array.isArray(res) ? res : []);
-					setAvailableAreas(list);
+			getAllAreas({ isActive: true })
+				.then((list) => {
+					setAvailableAreas(Array.isArray(list) ? list : []);
 				})
 				.catch((err) => console.error("Failed to load areas:", err));
 		}
-	}, [isOpen]);
+	}, [isOpen, defaultAreaId]);
 
 	if (!isOpen) return null;
 
@@ -47,7 +53,8 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 
 		try {
 			const response = await createCamera(payload);
-			onSuccess(response);
+			onSuccess?.(response);
+			onCreated?.(response);
 			onClose();
 		} catch (err) {
 			console.error("Failed to create camera:", err);
