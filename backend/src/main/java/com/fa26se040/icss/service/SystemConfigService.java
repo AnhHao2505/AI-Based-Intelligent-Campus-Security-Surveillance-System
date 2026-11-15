@@ -34,12 +34,25 @@ import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SystemConfigService {
+
+    /** Khoá cấu hình runtime của AI (trừ giờ ngoài giờ): đổi khoá nào trong tập này thì đồng bộ ngay xuống AI. */
+    static final Set<String> AI_RUNTIME_KEYS = Set.of(
+            ConfigKey.AI_FACE_MATCH_THRESHOLD.getKey(),
+            ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS.getKey(),
+            ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS.getKey(),
+            ConfigKey.AI_ACCESS_CHECK_TIMEOUT_SECONDS.getKey(),
+            ConfigKey.AI_ACCESS_DECISION_CACHE_TTL.getKey(),
+            ConfigKey.AI_ACCESS_DENY_CACHE_TTL.getKey(),
+            ConfigKey.AI_IDENTITY_GRACE_SECONDS.getKey(),
+            ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS.getKey(),
+            ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS.getKey());
 
     private final SystemConfigurationRepository systemConfigurationRepository;
     private final SystemConfigurationChangeLogRepository changeLogRepository;
@@ -271,8 +284,7 @@ public class SystemConfigService {
                 public void afterCommit() {
                     if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
                         syncAfterHourToAi();
-                    } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)
-                            || "AI_ACCESS_CHECK_TIMEOUT_SECONDS".equals(key) || "AI_ACCESS_DECISION_CACHE_TTL".equals(key) || "AI_ACCESS_DENY_CACHE_TTL".equals(key)) {
+                    } else if (AI_RUNTIME_KEYS.contains(key)) {
                         syncAiRuntimeConfig();
                     }
                 }
@@ -291,8 +303,7 @@ public class SystemConfigService {
         } else {
             if ("AI_AFTER_HOUR_START".equals(key) || "AI_AFTER_HOUR_END".equals(key)) {
                 syncAfterHourToAi();
-            } else if ("AI_TRACK_MAX_INACTIVE_SECONDS".equals(key) || "AI_UNKNOWN_ALERT_COOLDOWN_SECONDS".equals(key) || "AI_FACE_MATCH_THRESHOLD".equals(key)
-                    || "AI_ACCESS_CHECK_TIMEOUT_SECONDS".equals(key) || "AI_ACCESS_DECISION_CACHE_TTL".equals(key) || "AI_ACCESS_DENY_CACHE_TTL".equals(key)) {
+            } else if (AI_RUNTIME_KEYS.contains(key)) {
                 syncAiRuntimeConfig();
             }
         }
@@ -354,13 +365,10 @@ public class SystemConfigService {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            Map<String, Object> body = new HashMap<>();
-            body.put("max_inactive_seconds", getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS));
-            body.put("unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS));
-            body.put("face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD));
-            body.put("access_check_timeout_seconds", getDouble(ConfigKey.AI_ACCESS_CHECK_TIMEOUT_SECONDS));
-            body.put("access_decision_cache_ttl", getDouble(ConfigKey.AI_ACCESS_DECISION_CACHE_TTL));
-            body.put("access_deny_cache_ttl", getDouble(ConfigKey.AI_ACCESS_DENY_CACHE_TTL));
+            // Cùng nội dung với bản gửi qua MQTT (trừ giờ ngoài giờ: đi endpoint after-hour riêng)
+            Map<String, Object> body = new HashMap<>(getAiRuntimeConfigMap());
+            body.remove("after_hour_start");
+            body.remove("after_hour_end");
             aiRestTemplate.postForObject(aiServiceUrl + "/api/v1/system-config/ai-runtime",
                     new HttpEntity<>(body, headers), Map.class);
             log.info("Synced AI runtime config to AI service: {}", body);
@@ -386,6 +394,9 @@ public class SystemConfigService {
         map.put("access_check_timeout_seconds", getDouble(ConfigKey.AI_ACCESS_CHECK_TIMEOUT_SECONDS));
         map.put("access_decision_cache_ttl", getDouble(ConfigKey.AI_ACCESS_DECISION_CACHE_TTL));
         map.put("access_deny_cache_ttl", getDouble(ConfigKey.AI_ACCESS_DENY_CACHE_TTL));
+        map.put("identity_grace_seconds", getDouble(ConfigKey.AI_IDENTITY_GRACE_SECONDS));
+        map.put("unauthorized_alert_cooldown", getInt(ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS));
+        map.put("suspicious_motion_cooldown", getInt(ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS));
         return map;
     }
 

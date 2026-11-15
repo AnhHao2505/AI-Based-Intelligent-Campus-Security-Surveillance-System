@@ -272,6 +272,29 @@ class SystemConfigServiceTest {
         assertEquals(1.5, map.get("access_check_timeout_seconds"));
         assertEquals(30.0, map.get("access_decision_cache_ttl"));
         assertEquals(5.0, map.get("access_deny_cache_ttl"));
-        assertEquals(0.75, map.get("face_match_threshold"));
+        assertEquals(0.50, map.get("face_match_threshold"));
+    }
+
+    @Test
+    @DisplayName("V125: getAiRuntimeConfigMap chứa 3 khoá chính sách cảnh báo mới với giá trị mặc định")
+    void testGetAiRuntimeConfigMap_ContainsAlertPolicyKeys() {
+        when(systemConfigurationRepository.findAll()).thenReturn(List.of());
+        systemConfigService.initCache();
+
+        var map = systemConfigService.getAiRuntimeConfigMap();
+        assertEquals(1.5, map.get("identity_grace_seconds"));
+        assertEquals(30, map.get("unauthorized_alert_cooldown"));
+        assertEquals(5, map.get("suspicious_motion_cooldown"));
+    }
+
+    @Test
+    @DisplayName("V125: mọi khoá AI runtime (trừ giờ ngoài giờ) đều kích hoạt đồng bộ xuống AI")
+    void testAiRuntimeKeys_CoverAllRuntimeConfigKeys() {
+        for (ConfigKey k : ConfigKey.values()) {
+            String key = k.getKey();
+            boolean isAi = key.startsWith("AI_");
+            boolean isAfterHour = key.equals("AI_AFTER_HOUR_START") || key.equals("AI_AFTER_HOUR_END");
+            assertEquals(isAi && !isAfterHour, SystemConfigService.AI_RUNTIME_KEYS.contains(key), key);
+        }
     }
 }

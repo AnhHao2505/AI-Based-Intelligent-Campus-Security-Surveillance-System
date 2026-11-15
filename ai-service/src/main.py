@@ -360,67 +360,25 @@ class AIRuntimeConfigRequest(BaseModel):
     access_check_timeout_seconds: Optional[float] = None
     access_decision_cache_ttl: Optional[float] = None
     access_deny_cache_ttl: Optional[float] = None
+    # V125: chính sách cảnh báo
+    identity_grace_seconds: Optional[float] = None
+    unauthorized_alert_cooldown: Optional[float] = None
+    suspicious_motion_cooldown: Optional[float] = None
 
 @app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])
 async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
-    if req.max_inactive_seconds is not None:
-        if req.max_inactive_seconds < 1.0 or req.max_inactive_seconds > 60.0:
-            raise HTTPException(status_code=400, detail="max_inactive_seconds must be between 1.0 and 60.0")
-        settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS = req.max_inactive_seconds
-        if default_pipeline:
-            default_pipeline.analysis_engine.max_inactive_seconds = req.max_inactive_seconds
-        with active_workers_lock:
-            workers = list(active_workers.values())
-        for worker in workers:
-            worker.update_runtime_config(max_inactive_seconds=req.max_inactive_seconds)
+    # Dùng chung với đường MQTT (EdgeMqttAgent._handle_system_config). Khoảng min/max do Backend kiểm khi admin lưu;
+    # ở đây chỉ chặn giá trị vô nghĩa, và kiểm tất cả trước khi áp để không áp dở dang.
+    from .pipeline.runtime_config import apply_runtime_config, current_runtime_config, parse_runtime_config
+    payload = req.model_dump(exclude_none=True)
+    _, errors = parse_runtime_config(payload)
+    if errors:
+        raise HTTPException(status_code=400, detail="; ".join(errors))
 
-    if req.unknown_alert_cooldown is not None:
-        if req.unknown_alert_cooldown < 5.0 or req.unknown_alert_cooldown > 300.0:
-            raise HTTPException(status_code=400, detail="unknown_alert_cooldown must be between 5.0 and 300.0")
-        settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS = req.unknown_alert_cooldown
-        if default_pipeline:
-            default_pipeline.analysis_engine.unknown_alert_cooldown = req.unknown_alert_cooldown
-        with active_workers_lock:
-            workers = list(active_workers.values())
-        for worker in workers:
-            worker.update_runtime_config(unknown_alert_cooldown=req.unknown_alert_cooldown)
-
-    if req.face_match_threshold is not None:
-        if req.face_match_threshold < 0.1 or req.face_match_threshold > 1.0:
-            raise HTTPException(status_code=400, detail="face_match_threshold must be between 0.1 and 1.0")
-        settings.FACE_MATCH_THRESHOLD = req.face_match_threshold
-
-    # M3: Timeout check-entry và TTL cache quyền
-    if req.access_check_timeout_seconds is not None:
-        if req.access_check_timeout_seconds < 0.5 or req.access_check_timeout_seconds > 10.0:
-            raise HTTPException(status_code=400, detail="access_check_timeout_seconds must be between 0.5 and 10.0")
-        settings.ACCESS_CHECK_TIMEOUT_SECONDS = req.access_check_timeout_seconds
-
-    if req.access_decision_cache_ttl is not None:
-        if req.access_decision_cache_ttl < 1.0 or req.access_decision_cache_ttl > 600.0:
-            raise HTTPException(status_code=400, detail="access_decision_cache_ttl must be between 1.0 and 600.0")
-        settings.ACCESS_DECISION_CACHE_TTL = req.access_decision_cache_ttl
-
-    if req.access_deny_cache_ttl is not None:
-        if req.access_deny_cache_ttl < 1.0 or req.access_deny_cache_ttl > 600.0:
-            raise HTTPException(status_code=400, detail="access_deny_cache_ttl must be between 1.0 and 600.0")
-        settings.ACCESS_DENY_CACHE_TTL = req.access_deny_cache_ttl
-
-    logger.info(
-        f"✅ Cập nhật cấu hình runtime AI: max_inactive_seconds={settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS}s, "
-        f"cooldown={settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS}s, threshold={settings.FACE_MATCH_THRESHOLD}, "
-        f"timeout={settings.ACCESS_CHECK_TIMEOUT_SECONDS}s, decision_ttl={settings.ACCESS_DECISION_CACHE_TTL}s, "
-        f"deny_ttl={settings.ACCESS_DENY_CACHE_TTL}s"
-    )
-    return {
-        "success": True,
-        "max_inactive_seconds": settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS,
-        "unknown_alert_cooldown": settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS,
-        "face_match_threshold": settings.FACE_MATCH_THRESHOLD,
-        "access_check_timeout_seconds": settings.ACCESS_CHECK_TIMEOUT_SECONDS,
-        "access_decision_cache_ttl": settings.ACCESS_DECISION_CACHE_TTL,
-        "access_deny_cache_ttl": settings.ACCESS_DENY_CACHE_TTL
-    }
+    with active_workers_lock:
+        workers = list(active_workers.values())
+    apply_runtime_config(payload, default_pipeline, workers)
+    return {"success": True, **current_runtime_config()}
 
 @app.post("/api/v1/cameras/configure", dependencies=[Depends(require_service_key)])
 async def configure_camera(req: ROIConfigRequest):
@@ -547,7 +505,8 @@ async def process_face_registration(
 
     try:
         detector = default_pipeline.face_detector if default_pipeline else face_detector
-        faces = detector.detect_in_image(img)
+        reg_max_dim = getattr(detector, "registration_max_dim", getattr(settings, "FACE_REGISTRATION_MAX_DIM", 640))
+        faces = detector.detect_in_image(img, max_dim=reg_max_dim)
         face_count = len(faces)
 
         if not faces:
@@ -559,12 +518,14 @@ async def process_face_registration(
         landmarks = None
         faces.sort(key=lambda f: f.score, reverse=True)
         fx1, fy1, fx2, fy2 = faces[0].bbox.to_int_xyxy()
-        ih, iw, _ = img.shape
+        ih, iw = img.shape[:2]
         fx1, fy1 = max(0, fx1), max(0, fy1)
         fx2, fy2 = min(iw, fx2), min(ih, fy2)
         face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
         if faces[0].landmarks:
-            landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in faces[0].landmarks]
+            # Căn mặt trên ẢNH GỐC với điểm mốc tuyệt đối (đồng bộ với lúc nhận diện trên camera)
+            landmarks = list(faces[0].landmarks)
+            face_crop = img
 
         vector_512 = face_embedder.extract_embedding(face_crop, landmarks=landmarks)
     except HTTPException:

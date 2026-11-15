@@ -33,17 +33,21 @@ def warmup_pipeline_models(pipeline) -> bool:
         except Exception as e:
             logger.warning(f"⚠️ [Warmup] Lỗi khi warm-up YOLO model: {e}")
 
-    # 2. Warm-up YuNet Face Detector
+    # 2. Warm-up SCRFD Face Detector
     face_detector = getattr(pipeline, "face_detector", None)
     if face_detector:
         try:
             if hasattr(face_detector, "detect_in_image"):
                 face_detector.detect_in_image(dummy_frame)
+                # Làm nóng đúng kích thước input cố định mà crop người dùng khi chạy thật
+                fixed = int(getattr(face_detector, "fixed_input_size", 0) or 0)
+                if fixed > 0:
+                    face_detector.detect_in_image(np.zeros((fixed // 2, fixed // 2, 3), dtype=np.uint8))
             elif hasattr(face_detector, "detect"):
                 face_detector.detect(dummy_frame)
             warmed_count += 1
         except Exception as e:
-            logger.warning(f"⚠️ [Warmup] Lỗi khi warm-up YuNet FaceDetector: {e}")
+            logger.warning(f"⚠️ [Warmup] Lỗi khi warm-up FaceDetector (SCRFD/YuNet): {e}")
 
     # 3. Warm-up ArcFace Face Embedder
     # VideoPipeline giữ embedder trong face_matcher.embedder (không có thuộc tính face_embedder riêng).

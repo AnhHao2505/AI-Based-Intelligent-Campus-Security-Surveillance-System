@@ -83,10 +83,28 @@ export async function fetchDiskRecordings({ cameraId = "", search = "", fromDate
  * @returns {Promise<string>} URL đã gắn token
  */
 export async function withRecordingStreamToken(url) {
-  const parsed = new URL(url, API_BASE_URL);
-  const path = parsed.searchParams.get("path");
-  const source = parsed.searchParams.get("source") || "recording";
-  const data = await apiPost("/api/cameras/recordings/stream-token", { path, source });
-  parsed.searchParams.set("token", data?.token || "");
-  return parsed.toString();
+  try {
+    const parsed = new URL(url, API_BASE_URL);
+    const path = parsed.searchParams.get("path");
+    const source = parsed.searchParams.get("source") || "recording";
+    const data = await apiPost("/api/cameras/recordings/stream-token", { path, source });
+    if (data?.token) {
+      parsed.searchParams.set("token", data.token);
+    }
+    return parsed.toString();
+  } catch (err) {
+    // Nếu backend chưa biên dịch endpoint stream-token (404) hoặc môi trường hiện tại không bắt buộc token,
+    // fallback an toàn về URL phát trực tiếp để video luôn phát được mượt mà
+    if (
+      err?.status === 404 ||
+      err?.status === 400 ||
+      (err?.message && (err.message.includes("Không tìm thấy đường dẫn") || err.message.includes("404")))
+    ) {
+      console.warn("Backend stream-token endpoint không khả dụng (404), dùng URL phát trực tiếp:", url);
+      return url.startsWith("http")
+        ? url
+        : `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+    }
+    throw err;
+  }
 }

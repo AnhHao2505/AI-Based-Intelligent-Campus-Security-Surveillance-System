@@ -66,9 +66,17 @@ class Settings(BaseSettings):
         default=os.path.join(AI_SERVICE_DIR, "models", "yolo26n.pt") if os.path.exists(os.path.join(AI_SERVICE_DIR, "models", "yolo26n.pt")) else "yolo26n.pt",
         validation_alias="MODEL_YOLO_PATH"
     )
+    MODEL_SCRFD_PATH: str = Field(
+        default=os.path.join(AI_SERVICE_DIR, "models", "scrfd_2.5g_bnkps.onnx"),
+        validation_alias="MODEL_SCRFD_PATH"
+    )
     MODEL_YUNET_PATH: str = Field(
         default=os.path.join(AI_SERVICE_DIR, "models", "face_detection_yunet.onnx"),
         validation_alias="MODEL_YUNET_PATH"
+    )
+    MODEL_FACE_DETECTOR_PATH: str = Field(
+        default=os.path.join(AI_SERVICE_DIR, "models", "scrfd_2.5g_bnkps.onnx"),
+        validation_alias="MODEL_FACE_DETECTOR_PATH"
     )
     MODEL_ARCFACE_PATH: str = Field(
         default=os.path.join(AI_SERVICE_DIR, "models", "w600k_r50.onnx"),
@@ -85,6 +93,9 @@ class Settings(BaseSettings):
     FACE_MATCH_THRESHOLD: float = Field(default=0.50, validation_alias="FACE_MATCH_THRESHOLD")
     FACE_REVERIFY_SCORE_THRESHOLD: float = Field(default=0.82, validation_alias="FACE_REVERIFY_SCORE_THRESHOLD")
     FACE_REVERIFY_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="FACE_REVERIFY_MIN_INTERVAL_SECONDS")
+    # Danh tính kế thừa chỉ bị gỡ khi quét lại ra điểm cao nhất DƯỚI mức này (rõ là người khác) 2 lần.
+    # Đo trên CAM-002 (14/11/2026): người sai cao nhất 0.308 (99% < 0.27); người thật nghiêng mặt thường 0.30-0.50.
+    FACE_REVOKE_MAX_SCORE: float = Field(default=0.30, validation_alias="FACE_REVOKE_MAX_SCORE")
     FACE_SCAN_THROTTLING_ENABLED: bool = Field(default=True, validation_alias="FACE_SCAN_THROTTLING_ENABLED")
     FACE_SCAN_INITIAL_INTERVAL: float = Field(default=0.05, validation_alias="FACE_SCAN_INITIAL_INTERVAL")
     FACE_SCAN_INITIAL_WINDOW_SECONDS: float = Field(default=2.0, validation_alias="FACE_SCAN_INITIAL_WINDOW_SECONDS")
@@ -93,6 +104,10 @@ class Settings(BaseSettings):
     FACE_CROP_UPSCALE_THRESHOLD: int = Field(default=160, validation_alias="FACE_CROP_UPSCALE_THRESHOLD")
     # Crop nửa trên cơ thể có cạnh dài > giá trị này thì thu nhỏ trước khi chạy YuNet (camera độ phân giải cao). 0 = tắt
     FACE_CROP_MAX_DIM: int = Field(default=480, validation_alias="FACE_CROP_MAX_DIM")
+    # SCRFD: đệm mọi ảnh <= cạnh này về đúng kích thước vuông cố định (ONNX CUDA chậm ~5 lần khi input đổi cỡ). 0 = tắt
+    FACE_DETECT_FIXED_INPUT: int = Field(default=480, validation_alias="FACE_DETECT_FIXED_INPUT")
+    # Ảnh đăng ký khuôn mặt có cạnh dài > giá trị này thì tự động thu nhỏ về ngưỡng này trước khi đưa vào SCRFD. 0 = tắt
+    FACE_REGISTRATION_MAX_DIM: int = Field(default=640, validation_alias="FACE_REGISTRATION_MAX_DIM")
     FACE_MIN_LAPLACIAN_VARIANCE: float = Field(default=15.0, validation_alias="FACE_MIN_LAPLACIAN_VARIANCE")
     ANALYSIS_MAX_FPS: float = Field(default=30.0, validation_alias="ANALYSIS_MAX_FPS")
     UPPER_BODY_CROP_RATIO: float = 0.60
@@ -107,6 +122,8 @@ class Settings(BaseSettings):
     DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS: float = Field(default=30.0, validation_alias="DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS")
     ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS: float = Field(default=1.5, validation_alias="ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS")
     CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS: float = 3.0
+    # V125: khoảng cách tối thiểu giữa 2 cảnh báo vật chuyển động lạ trên cùng camera (sửa được trên màn Cấu hình)
+    SUSPICIOUS_MOTION_COOLDOWN_SECONDS: float = Field(default=5.0, validation_alias="SUSPICIOUS_MOTION_COOLDOWN_SECONDS")
     MAX_MOTION_TRACK_HOLD_SECONDS: float = Field(default=1.0, validation_alias="MAX_MOTION_TRACK_HOLD_SECONDS")
     MOTION_GATING_HEARTBEAT_SECONDS: float = Field(default=4.0, validation_alias="MOTION_GATING_HEARTBEAT_SECONDS")
     MIN_MOTION_AREA: int = Field(default=3000, validation_alias="MIN_MOTION_AREA")

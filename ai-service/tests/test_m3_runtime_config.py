@@ -91,7 +91,7 @@ def test_face_matcher_reads_settings_at_invocation_time():
     settings.ACCESS_DENY_CACHE_TTL = 5.0
 
 def test_edge_agent_handle_system_config_validation():
-    """Kiểm tra EdgeAgent nhận và kiểm tra kiểu/khoảng giá trị của 3 khóa mới, bỏ qua giá trị sai."""
+    """Kiểm tra EdgeAgent nhận 3 khóa mới và bỏ qua giá trị vô nghĩa (khoảng min/max do Backend kiểm khi lưu)."""
     agent = EdgeMqttAgent(mqtt_client_wrapper=MagicMock(), storage=MagicMock(), active_workers={})
     settings.ACCESS_CHECK_TIMEOUT_SECONDS = 1.5
     settings.ACCESS_DECISION_CACHE_TTL = 30.0
@@ -107,10 +107,10 @@ def test_edge_agent_handle_system_config_validation():
     assert settings.ACCESS_DECISION_CACHE_TTL == 60.0
     assert settings.ACCESS_DENY_CACHE_TTL == 10.0
 
-    # Payload sai khoảng giá trị: timeout < 0.5 hoặc > 10.0 -> bỏ qua, giữ nguyên 2.5
+    # Giá trị không dương -> bỏ qua, giữ nguyên
     agent._handle_system_config({
-        "access_check_timeout_seconds": 0.1,
-        "access_decision_cache_ttl": 9999.0,
+        "access_check_timeout_seconds": 0,
+        "access_decision_cache_ttl": -1.0,
         "access_deny_cache_ttl": -5.0
     })
     assert settings.ACCESS_CHECK_TIMEOUT_SECONDS == 2.5
@@ -148,15 +148,17 @@ def test_main_update_ai_runtime_config_endpoint():
     assert res["access_deny_cache_ttl"] == 8.0
     assert settings.ACCESS_CHECK_TIMEOUT_SECONDS == 3.0
 
-    # Không hợp lệ: timeout > 10.0 -> HTTPException 400
+    # Không hợp lệ: timeout không dương -> HTTPException 400
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(update_ai_runtime_config(AIRuntimeConfigRequest(access_check_timeout_seconds=15.0)))
+        asyncio.run(update_ai_runtime_config(AIRuntimeConfigRequest(access_check_timeout_seconds=-1.0)))
     assert exc_info.value.status_code == 400
 
-    # Không hợp lệ: decision TTL < 1.0 -> HTTPException 400
+    # Không hợp lệ: ngưỡng khớp mặt > 1 -> HTTPException 400, và không áp dở dang khoá hợp lệ đi kèm
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(update_ai_runtime_config(AIRuntimeConfigRequest(access_decision_cache_ttl=0.2)))
+        asyncio.run(update_ai_runtime_config(AIRuntimeConfigRequest(
+            access_decision_cache_ttl=45.0, face_match_threshold=1.5)))
     assert exc_info.value.status_code == 400
+    assert settings.ACCESS_DECISION_CACHE_TTL == 120.0
 
     # Reset
     settings.ACCESS_CHECK_TIMEOUT_SECONDS = 1.5

@@ -156,15 +156,23 @@ class CameraStreamWorker:
 
     def update_roi(self, polygons: Optional[List[Any]] = None,
                    after_hour_start: Optional[str] = None, after_hour_end: Optional[str] = None):
-        """Cập nhật cấu hình ROI cho worker đang chạy"""
+        """
+        Cập nhật cấu hình ROI / giờ ban đêm cho worker đang chạy.
+        polygons=None  -> GIỮ NGUYÊN ROI hiện tại (chỉ đổi giờ ban đêm). Trước đây None xoá ROI, khiến đồng bộ
+                          giờ ban đêm biến cả khung hình thành vùng giám sát.
+        polygons=[]    -> xoá ROI chủ động -> giám sát toàn khung hình (tính năng "camera không vẽ ROI").
+        """
         if self.pipeline:
-            self.pipeline.set_roi_config(polygons=polygons)
+            if polygons is not None:
+                self.pipeline.set_roi_config(polygons=polygons)
             if after_hour_start:
                 self.pipeline.analysis_engine.after_hour_start = after_hour_start
             if after_hour_end:
                 self.pipeline.analysis_engine.after_hour_end = after_hour_end
-            poly_count = len(polygons) if polygons else 0
-            logger.info(f"Đã cập nhật ROI ({poly_count} polygons) cho Stream Worker [{self.camera_code}].")
+            if polygons is not None:
+                logger.info(f"Đã cập nhật ROI ({len(polygons)} polygons) cho Stream Worker [{self.camera_code}].")
+            else:
+                logger.info(f"Đã cập nhật giờ ban đêm cho Stream Worker [{self.camera_code}] (giữ nguyên ROI).")
 
     def update_runtime_config(
         self,

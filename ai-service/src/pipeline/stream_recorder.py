@@ -529,14 +529,24 @@ class StreamRecorder:
             self.frames_in_segment = 0
 
             try:
-                if os.name == "nt" and hasattr(cv2, "CAP_MSMF"):
-                    self.writer = cv2.VideoWriter(
-                        self.temp_file_path,
-                        cv2.CAP_MSMF,
-                        cv2.VideoWriter_fourcc(*"avc1"),
-                        self.fps,
-                        self.frame_size,
-                    )
+                # 1. Ưu tiên FourCC avc1 chuẩn FFMPEG / OpenH264 (tương thích 100% trình duyệt web)
+                self.writer = cv2.VideoWriter(
+                    self.temp_file_path,
+                    cv2.VideoWriter_fourcc(*"avc1"),
+                    self.fps,
+                    self.frame_size,
+                )
+                # 2. Thử qua Windows Media Foundation nếu FFMPEG chưa mở được
+                if self.writer is None or not self.writer.isOpened():
+                    if os.name == "nt" and hasattr(cv2, "CAP_MSMF"):
+                        self.writer = cv2.VideoWriter(
+                            self.temp_file_path,
+                            cv2.CAP_MSMF,
+                            cv2.VideoWriter_fourcc(*"avc1"),
+                            self.fps,
+                            self.frame_size,
+                        )
+                # 3. Fallback cuối cùng
                 if self.writer is None or not self.writer.isOpened():
                     self.writer = cv2.VideoWriter(
                         self.temp_file_path,

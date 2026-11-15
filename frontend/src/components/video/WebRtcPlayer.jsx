@@ -61,9 +61,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		streamPath = "cam01",
 		cameraCode = "CAM-001",
 		cameraName = "Cổng chính",
-		resolution = "1080p",
-		fps = "30 FPS",
-		isRecording = true,
+		resolution = null,
+		fps = null,
+		isRecording = false,
+		showLiveTag = false,
+		showRecTag = false,
 		host = "localhost:8889",
 		aiHost = typeof window !== "undefined" && window.location.hostname
 			? `${window.location.hostname}:8000`
@@ -392,37 +394,41 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				</div>
 
 				<div className="cctv-osd-top-right">
-					<div className="cctv-indicator-group">
-						<span
-							className={`cctv-tag cctv-tag--live ${status === "live" ? "active" : "idle"}`}
-						>
-							<span className="cctv-dot cctv-dot--green" />
-							LIVE
-						</span>
+					{(showLiveTag || (isRecording && showRecTag) || enableTrackingToggle) && (
+						<div className="cctv-indicator-group">
+							{showLiveTag && (
+								<span
+									className={`cctv-tag cctv-tag--live ${status === "live" ? "active" : "idle"}`}
+								>
+									<span className="cctv-dot cctv-dot--green" />
+									LIVE
+								</span>
+							)}
 
-						{isRecording && (
-							<span className="cctv-tag cctv-tag--rec">
-								<span className="cctv-dot cctv-dot--red" />
-								REC
-							</span>
-						)}
+							{isRecording && showRecTag && (
+								<span className="cctv-tag cctv-tag--rec">
+									<span className="cctv-dot cctv-dot--red" />
+									REC
+								</span>
+							)}
 
-						{enableTrackingToggle && (
-							<button
-								type="button"
-								className={`cctv-tag cctv-tag--tracking ${showTracking ? "active" : ""}`}
-								onClick={handleToggleTracking}
-								title={
-									showTracking
-										? "Đang bật AI Tracking (Bounding Box, Track ID, Face & ROI). Bấm để chuyển về luồng gốc."
-										: "Bấm để bật AI Tracking (hiển thị Bounding Box, Track ID, Face & ROI)"
-								}
-							>
-								<span className={`cctv-dot ${showTracking ? "cctv-dot--cyan" : "cctv-dot--idle"}`} />
-								{showTracking ? "TRACKING: ON" : "TRACKING"}
-							</button>
-						)}
-					</div>
+							{enableTrackingToggle && (
+								<button
+									type="button"
+									className={`cctv-tag cctv-tag--tracking ${showTracking ? "active" : ""}`}
+									onClick={handleToggleTracking}
+									title={
+										showTracking
+											? "Đang bật AI Tracking (Bounding Box, Track ID, Face & ROI). Bấm để chuyển về luồng gốc."
+											: "Bấm để bật AI Tracking (hiển thị Bounding Box, Track ID, Face & ROI)"
+									}
+								>
+									<span className={`cctv-dot ${showTracking ? "cctv-dot--cyan" : "cctv-dot--idle"}`} />
+									{showTracking ? "TRACKING: ON" : "TRACKING"}
+								</button>
+							)}
+						</div>
+					)}
 
 					<span className="cctv-clock-text">{liveClock}</span>
 
@@ -442,10 +448,18 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			<div className="cctv-osd-bottom-bar">
 				<div className="cctv-osd-bottom-left">
 					<span className="cctv-spec-code">{displayCamCode}</span>
-					<span className="cctv-spec-divider">•</span>
-					<span className="cctv-spec-item">{resolution}</span>
-					<span className="cctv-spec-divider">•</span>
-					<span className="cctv-spec-item">{fps}</span>
+					{resolution && (
+						<>
+							<span className="cctv-spec-divider">•</span>
+							<span className="cctv-spec-item">{resolution}</span>
+						</>
+					)}
+					{fps && (
+						<>
+							<span className="cctv-spec-divider">•</span>
+							<span className="cctv-spec-item">{fps}</span>
+						</>
+					)}
 					{showTracking && streamToken && !trackingError && (
 						<>
 							<span className="cctv-spec-divider">•</span>

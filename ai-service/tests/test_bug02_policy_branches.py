@@ -25,26 +25,26 @@ def create_matcher():
     return matcher
 
 
-def test_check_camera_access_retries_once_on_timeout():
-    """Nhánh 1: check_camera_access retry 1 lần khi timeout; lần 2 thành công thì trả về kết quả"""
+def test_check_camera_access_calls_backend_once_on_timeout():
+    """
+    Nhánh 1 (đã đổi, trước đây retry 1 lần): check-entry chỉ gọi Backend ĐÚNG 1 LẦN. Retry sau timeout làm
+    trường hợp xấu nhất lên ~3.1s (vượt ngân sách cảnh báo 3s NFR-01) và có thể ghi trùng nhật ký ra vào.
+    Timeout -> dùng ngay fallback: khu hạn chế không có cache thì Fail-Closed với lý do "Backend không phản hồi".
+    """
     matcher = create_matcher()
 
     mock_resp = MagicMock()
     mock_resp.status_code = 200
-    mock_resp.json.return_value = {
-        "data": {
-            "allowed": True,
-            "reason": "Quyền hợp lệ từ Backend",
-            "areaName": "Cổng chính"
-        }
-    }
+    mock_resp.json.return_value = {"data": {"allowed": True, "reason": "Không được dùng tới", "areaName": "X"}}
 
     with patch("requests.post", side_effect=[requests.exceptions.Timeout("Timeout attempt 1"), mock_resp]) as mock_post:
-        allowed, reason, area, *rest = matcher.check_camera_access("CAM-GATE-01", "SE123456", skip_cache=True)
-        assert mock_post.call_count == 2, f"Phải retry đúng 1 lần (tổng 2 lần gọi), thực tế gọi: {mock_post.call_count}"
-        assert allowed is True
-        assert "Quyền hợp lệ từ Backend" in reason
-        assert area == "Cổng chính"
+        t0 = time.perf_counter()
+        allowed, reason, area, *rest = matcher.check_camera_access("CAM-SERVER-01", "SE123456", skip_cache=True)
+        elapsed = time.perf_counter() - t0
+        assert mock_post.call_count == 1, f"Chỉ được gọi Backend 1 lần, thực tế gọi: {mock_post.call_count}"
+        assert allowed is False
+        assert "Backend không phản hồi" in reason
+        assert elapsed < 0.1, "Không còn nghỉ 0.1s chờ lần thử lại"
 
 
 def test_check_camera_access_falls_back_to_stale_cache_on_persistent_failure():

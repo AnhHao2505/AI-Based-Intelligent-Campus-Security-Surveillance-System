@@ -90,6 +90,9 @@ class FaceDetectionResult:
     access_checked: bool = False
     access_source: Optional[str] = None
     is_inherited: bool = False
+    # Thời điểm khuôn mặt được khớp ra danh tính này (cùng đồng hồ với current_time của pipeline).
+    # Engine dùng để chờ quyết định quyền tính từ lúc nhận ra mặt, không chỉ từ lúc vào ROI.
+    matched_at: Optional[float] = None
 
 @dataclass
 class TrackedPerson:
@@ -110,6 +113,10 @@ class TrackedPerson:
     face_detected: bool = False
     face_info: Optional[FaceDetectionResult] = None
     last_face_match_time: float = 0.0
+    # Lần gần nhất bắt đầu quét lại mặt (có khớp hay không): giãn cách quét lại tính theo mốc này
+    last_reverify_attempt_time: float = 0.0
+    # Số lần quét lại danh tính kế thừa ra điểm rõ là người khác (< FACE_REVOKE_MAX_SCORE)
+    inherited_mismatch_count: int = 0
     
     # Cờ trạng thái đã bắn thông báo
     alert_unauthorized_sent: bool = False

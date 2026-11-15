@@ -45,3 +45,26 @@ def test_registration_no_face_keeps_400():
          patch.object(main_mod, "face_detector", detector):
         resp = _post(client)
     assert resp.status_code == 400
+
+
+def test_registration_calls_detect_in_image_with_max_dim():
+    """Quy trình đăng ký khuôn mặt phải truyền max_dim=640 vào detect_in_image để tránh bẫy mặt to của SCRFD"""
+    client = TestClient(main_mod.app)
+    detector = MagicMock()
+    detector.registration_max_dim = 640
+    detected_face = MagicMock()
+    detected_face.score = 0.95
+    detected_face.bbox.to_int_xyxy.return_value = (10, 10, 100, 100)
+    detected_face.landmarks = [(20, 30), (50, 30), (35, 45), (25, 60), (45, 60)]
+    detector.detect_in_image.return_value = [detected_face]
+    embedder = MagicMock(session=object())
+    embedder.extract_embedding.return_value = [0.1] * 512
+
+    with patch.object(main_mod, "face_embedder", embedder), \
+         patch.object(main_mod, "default_pipeline", None), \
+         patch.object(main_mod, "face_detector", detector):
+        resp = _post(client)
+
+    assert resp.status_code == 200
+    detector.detect_in_image.assert_called_once()
+    assert detector.detect_in_image.call_args[1].get("max_dim") == 640
