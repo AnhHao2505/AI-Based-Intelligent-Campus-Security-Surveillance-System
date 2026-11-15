@@ -90,6 +90,9 @@ class FaceDetectionResult:
     access_checked: bool = False
     access_source: Optional[str] = None
     is_inherited: bool = False
+    # Thời điểm khuôn mặt được khớp ra danh tính này (cùng đồng hồ với current_time của pipeline).
+    # Engine dùng để chờ quyết định quyền tính từ lúc nhận ra mặt, không chỉ từ lúc vào ROI.
+    matched_at: Optional[float] = None
 
 @dataclass
 class TrackedPerson:

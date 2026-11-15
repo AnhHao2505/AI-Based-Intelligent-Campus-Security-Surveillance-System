@@ -381,6 +381,7 @@ class EdgeMqttAgent:
             default_pipe.analysis_engine.after_hour_end = settings.DEFAULT_AFTER_HOUR_END
             default_pipe.analysis_engine.max_inactive_seconds = settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS
             default_pipe.analysis_engine.unknown_alert_cooldown = settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS
+            default_pipe.analysis_engine.access_grace_period = getattr(settings, "ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS", 1.5)
 
         for worker in list(self.active_workers.values()):
             if hasattr(worker, "update_runtime_config"):
@@ -388,9 +389,11 @@ class EdgeMqttAgent:
                     max_inactive_seconds=settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS,
                     unknown_alert_cooldown=settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS,
                 )
-            if (ah_start or ah_end) and getattr(worker, "pipeline", None):
-                worker.pipeline.analysis_engine.after_hour_start = settings.DEFAULT_AFTER_HOUR_START
-                worker.pipeline.analysis_engine.after_hour_end = settings.DEFAULT_AFTER_HOUR_END
+            if getattr(worker, "pipeline", None):
+                if ah_start or ah_end:
+                    worker.pipeline.analysis_engine.after_hour_start = settings.DEFAULT_AFTER_HOUR_START
+                    worker.pipeline.analysis_engine.after_hour_end = settings.DEFAULT_AFTER_HOUR_END
+                worker.pipeline.analysis_engine.access_grace_period = getattr(settings, "ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS", 1.5)
 
         logger.info("✅ [EdgeAgent] Đã đồng bộ cấu hình hệ thống AI qua MQTT Retained.")
 

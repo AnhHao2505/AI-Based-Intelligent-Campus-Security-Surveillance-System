@@ -1050,7 +1050,10 @@ class VideoPipeline:
                                 # POINT-08b: Reset cảnh báo vi phạm
                                 existing.alert_unauthorized_sent = False
                                 existing.alert_unknown_sent = False
-                                existing.track_unauthorized_alert_time = 0.0
+                                # Cooldown cảnh báo vi phạm theo track nằm ở engine (track_last_unauthorized_alert_time),
+                                # không phải thuộc tính trên person: xoá đúng chỗ engine đọc để B không bị chặn bởi
+                                # cooldown 30s còn lại của A.
+                                self.analysis_engine.track_last_unauthorized_alert_time.pop(track_id, None)
 
                                 # POINT-08c: Đổi danh tính A -> B: Ghi EXIT(A) rồi ENTRY(B) tuần tự trong MỘT task
                                 need_exit = getattr(existing, "roi_entry_logged", False)
@@ -1076,7 +1079,10 @@ class VideoPipeline:
                                             need_exit,
                                             need_entry
                                         )
-                                    existing.roi_entry_logged = False
+                                    # Đang trong ROI: ENTRY(B) do chính _handle_identity_switch gửi (sau EXIT(A)) -> đánh dấu đã ghi
+                                    # để engine không gửi thêm một ENTRY(B) thứ hai, có thể tới Backend trước EXIT(A).
+                                    # Ngoài ROI: chưa ghi ENTRY(B), engine tự ghi khi B bước vào ROI.
+                                    existing.roi_entry_logged = bool(need_entry)
                                     identity_switched = True
 
                             face_result.matched_code = code
@@ -1084,6 +1090,7 @@ class VideoPipeline:
                             face_result.is_active = is_active
                             face_result.role = role
                             face_result.score = score
+                            face_result.matched_at = current_time
 
                             if existing:
                                 existing.last_face_match_time = current_time
