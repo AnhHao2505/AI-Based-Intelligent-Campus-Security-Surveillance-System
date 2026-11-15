@@ -93,6 +93,9 @@ class FaceDetectionResult:
     # Thời điểm khuôn mặt được khớp ra danh tính này (cùng đồng hồ với current_time của pipeline).
     # Engine dùng để chờ quyết định quyền tính từ lúc nhận ra mặt, không chỉ từ lúc vào ROI.
     matched_at: Optional[float] = None
+    # Thời điểm khuôn mặt này qua bộ lọc chất lượng (đủ lớn, không mờ) và được gắn vào track.
+    # Engine dùng để biết có nên giữ thêm (hold) trước khi chốt UNKNOWN hay không.
+    seen_at: Optional[float] = None
 
 @dataclass
 class TrackedPerson:
@@ -123,6 +126,9 @@ class TrackedPerson:
     alert_unknown_sent: bool = False
     alert_after_hours_sent: bool = False
     is_inherited_identity: bool = False
+    # Thời điểm đã chốt cảnh báo KHÔNG danh tính (UNKNOWN_PERSON / PERSON_INTRUSION người lạ) cho người này.
+    # Trong unknown_alert_cooldown kể từ mốc này, danh tính nhận ra muộn không sinh thêm cảnh báo thứ hai.
+    unknown_verdict_time: Optional[float] = None
     
     # Vòng đời trạng thái an ninh (Sticky Security State)
     has_entered_roi: bool = False

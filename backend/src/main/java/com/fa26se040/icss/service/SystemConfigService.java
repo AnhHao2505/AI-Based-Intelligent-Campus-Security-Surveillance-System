@@ -53,6 +53,7 @@ public class SystemConfigService {
             ConfigKey.AI_IDENTITY_GRACE_SECONDS.getKey(),
             ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS.getKey(),
             ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS.getKey(),
+            ConfigKey.AI_IDENTITY_HOLD_SECONDS.getKey(),
             ConfigKey.RECORDING_RETENTION_HOURS.getKey());
 
     private final SystemConfigurationRepository systemConfigurationRepository;
@@ -399,6 +400,7 @@ public class SystemConfigService {
         map.put("unauthorized_alert_cooldown", getInt(ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS));
         map.put("suspicious_motion_cooldown", getInt(ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS));
         map.put("recording_retention_hours", getDouble(ConfigKey.RECORDING_RETENTION_HOURS));
+        map.put("identity_hold_seconds", getDouble(ConfigKey.AI_IDENTITY_HOLD_SECONDS));
         return map;
     }
 

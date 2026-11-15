@@ -34,6 +34,8 @@ RUNTIME_FIELDS: Dict[str, Tuple[str, Optional[Tuple[str, str]]]] = {
     "suspicious_motion_cooldown": ("SUSPICIOUS_MOTION_COOLDOWN_SECONDS", ("pipeline", "_suspicious_motion_cooldown")),
     # V126: thời hạn lưu trữ video ghi hình (giờ)
     "recording_retention_hours": ("RECORDING_RETENTION_HOURS", None),
+    # V127: thời gian giữ thêm (hold) khi đang thấy mặt nhưng chưa khớp, trước khi chốt cảnh báo người lạ
+    "identity_hold_seconds": ("ACCESS_RESOLUTION_HOLD_SECONDS", ("engine", "identity_hold_seconds")),
 }
 
 

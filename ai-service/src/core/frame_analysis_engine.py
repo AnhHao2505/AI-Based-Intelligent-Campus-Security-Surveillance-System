@@ -62,6 +62,9 @@ class FrameAnalysisEngine:
         self.camera_unknown_min_interval = camera_unknown_min_interval if camera_unknown_min_interval is not None else getattr(settings, 'CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS', 3.0)
         self.access_grace_period = access_grace_period if access_grace_period is not None else getattr(settings, 'ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS', 1.5)
         self.unauthorized_alert_cooldown = unauthorized_alert_cooldown if unauthorized_alert_cooldown is not None else getattr(settings, 'DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS', 30.0)
+        # Hold buffer: hết access_grace_period mà vẫn đang thấy mặt đủ chất lượng nhưng chưa khớp -> chờ thêm tối đa
+        # identity_hold_seconds trước khi chốt UNKNOWN (cấu hình AI_IDENTITY_HOLD_SECONDS trên màn Cấu hình hệ thống).
+        self.identity_hold_seconds = getattr(settings, 'ACCESS_RESOLUTION_HOLD_SECONDS', 1.0)
         self.active_tracks: Dict[int, TrackedPerson] = {}
         self.pending_faces: Dict[int, FaceDetectionResult] = {}
         self.last_unknown_alert_time: Dict[str, float] = {}  # camera_code -> timestamp
@@ -148,6 +151,35 @@ class FrameAnalysisEngine:
             return False
         wait = float(getattr(settings, "ACCESS_CHECK_TIMEOUT_SECONDS", 1.5)) + 0.2
         return (current_time - matched_at) < wait
+
+    def _has_usable_face_since(self, person: TrackedPerson, since: float) -> bool:
+        """Từ mốc `since` (lúc vào ROI) đã có khuôn mặt qua bộ lọc chất lượng gắn vào track này chưa."""
+        if not (person.face_detected and person.face_info):
+            return False
+        seen_at = getattr(person.face_info, "seen_at", None)
+        return seen_at is not None and seen_at >= since
+
+    def _unknown_verdict_active(self, person: TrackedPerson, current_time: float) -> bool:
+        """Người này đã bị chốt cảnh báo không danh tính và còn trong unknown_alert_cooldown."""
+        t = getattr(person, "unknown_verdict_time", None)
+        return t is not None and (current_time - t) < self.unknown_alert_cooldown
+
+    def _absorb_late_identity(self, person: TrackedPerson, matched_code: Optional[str], camera_code: str) -> None:
+        """
+        Một lượt vào ROI chỉ có một cảnh báo: đã chốt UNKNOWN / PERSON_INTRUSION (người lạ) mà sau đó mới nhận ra mặt
+        -> KHÔNG phát cảnh báo thứ hai. Đánh dấu đã cảnh báo, cooldown tính từ lúc chốt cảnh báo đầu
+        (hết cooldown thì người vẫn còn đó có thể bị cảnh báo lại như bình thường).
+        """
+        verdict_t = person.unknown_verdict_time
+        person.alert_unauthorized_sent = True
+        self.track_last_unauthorized_alert_time[person.track_id] = verdict_t
+        if matched_code:
+            prev = self.user_last_unauthorized_alert_time.get(matched_code)
+            self.user_last_unauthorized_alert_time[matched_code] = verdict_t if prev is None else max(prev, verdict_t)
+        logger.info(
+            f"🔒 [FrameAnalysisEngine:{camera_code}] Track #{person.track_id}: đã chốt cảnh báo người lạ trước đó, "
+            f"nhận ra {matched_code} muộn -> không phát thêm cảnh báo"
+        )
 
     def _set_security_display_state(
         self,
@@ -357,6 +389,7 @@ class FrameAnalysisEngine:
                         person.alert_unauthorized_sent = old_p.alert_unauthorized_sent
                         person.alert_unknown_sent = old_p.alert_unknown_sent
                         person.alert_after_hours_sent = old_p.alert_after_hours_sent
+                        person.unknown_verdict_time = getattr(old_p, "unknown_verdict_time", None)
                         person.first_seen_time = old_p.first_seen_time
                         person.has_entered_roi = getattr(old_p, "has_entered_roi", False)
                         person.roi_first_entered_time = getattr(old_p, "roi_first_entered_time", None)
@@ -458,6 +491,7 @@ class FrameAnalysisEngine:
                             f"Track #{person.track_id} ({evt_type}), Vị trí: {location_display}"
                         )
                         person.alert_unknown_sent = True
+                        person.unknown_verdict_time = current_time
                         self.last_unknown_alert_time[camera_code] = current_time
                         self.track_last_unknown_alert_time[person.track_id] = current_time
 
@@ -484,7 +518,11 @@ class FrameAnalysisEngine:
                             "duration": 0.0
                         })
                         person.roi_entry_logged = True
-                    elif (current_time - roi_start) >= self.access_grace_period:
+                    elif (current_time - roi_start) >= self.access_grace_period and not (
+                        # Đang giữ (hold) chờ khớp mặt: chưa ghi ENTRY "UNKNOWN", khớp được thì ghi đúng mã người
+                        (current_time - roi_start) < self.access_grace_period + self.identity_hold_seconds
+                        and self._has_usable_face_since(person, roi_start)
+                    ):
                         roi_access_events.append({
                             "user_code": "UNKNOWN",
                             "roi_label": person.entered_roi_label or matched_label or "Vùng giám sát",
@@ -573,6 +611,9 @@ class FrameAnalysisEngine:
                         user_unauth_cooldown_ok = (last_unauth_user_ts is None) or ((current_time - last_unauth_user_ts) >= self.unauthorized_alert_cooldown)
 
                         should_alert_unauth = (not person.alert_unauthorized_sent) if (last_unauth_track_ts is None and last_unauth_user_ts is None) else (track_unauth_cooldown_ok and user_unauth_cooldown_ok)
+                        if should_alert_unauth and self._unknown_verdict_active(person, current_time):
+                            self._absorb_late_identity(person, matched_code, camera_code)
+                            should_alert_unauth = False
                         if should_alert_unauth:
                             clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
                             if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
@@ -660,6 +701,19 @@ class FrameAnalysisEngine:
                                     self._set_security_display_state(person, "VERIFYING", camera_code, "Đang xác thực trong ROI")
                                     continue
 
+                            # Hold buffer: hết grace mà ĐANG thấy mặt đủ chất lượng (chưa khớp) -> chờ thêm tối đa
+                            # identity_hold_seconds để mặt rõ hơn, tránh chốt UNKNOWN rồi 1s sau lại cảnh báo theo danh tính.
+                            # Không thấy mặt nào dùng được (quay lưng, che mặt) -> chốt UNKNOWN ngay khi hết grace.
+                            # Rời ROI trong lúc giữ -> nhánh Early Exit phát UNKNOWN ngay (trạng thái vẫn là VERIFYING).
+                            if (
+                                not is_identity_resolved
+                                and not is_access_checked
+                                and elapsed_in_roi < self.access_grace_period + self.identity_hold_seconds
+                                and self._has_usable_face_since(person, roi_start)
+                            ):
+                                self._set_security_display_state(person, "VERIFYING", camera_code, "Đang chờ khớp khuôn mặt")
+                                continue
+
                             last_camera_ts = self.last_unknown_alert_time.get(camera_code)
                             camera_interval_ok = (last_camera_ts is None) or ((current_time - last_camera_ts) >= self.camera_unknown_min_interval)
                             if camera_interval_ok:
@@ -686,6 +740,7 @@ class FrameAnalysisEngine:
                                     f"Track #{person.track_id} ({event_type}), Vị trí: {location_display}"
                                 )
                                 person.alert_unknown_sent = True
+                                person.unknown_verdict_time = current_time
                                 self.last_unknown_alert_time[camera_code] = current_time
                                 self.track_last_unknown_alert_time[person.track_id] = current_time
                                 if after_hours:
@@ -709,6 +764,8 @@ class FrameAnalysisEngine:
                                     person.alert_unknown_sent = False
                                 else:
                                     self._set_security_display_state(person, "UNAUTHORIZED", camera_code, "Từ chối truy cập / Không có quyền")
+                                    if not person.alert_unauthorized_sent and self._unknown_verdict_active(person, current_time):
+                                        self._absorb_late_identity(person, person.face_info.matched_code, camera_code)
                                     if not person.alert_unauthorized_sent:
                                         matched_code = person.face_info.matched_code
                                         matched_name = getattr(person.face_info, "matched_name", matched_code)

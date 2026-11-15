@@ -368,6 +368,8 @@ class AIRuntimeConfigRequest(BaseModel):
     suspicious_motion_cooldown: Optional[float] = None
     # V126: thời hạn lưu trữ video ghi hình (giờ)
     recording_retention_hours: Optional[float] = None
+    # V127: thời gian giữ thêm trước khi chốt cảnh báo người lạ (giây)
+    identity_hold_seconds: Optional[float] = None
 
 @app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])
 async def update_ai_runtime_config(req: AIRuntimeConfigRequest):

@@ -531,6 +531,7 @@ class VideoPipeline:
         existing.inherited_mismatch_count = 0
         existing.alert_unknown_sent = False
         existing.alert_unauthorized_sent = False
+        existing.unknown_verdict_time = None
         existing.roi_entry_logged = False
         logger.warning(
             f"🕵️ [VideoPipeline:{self.camera_code}] Track #{existing.track_id}: danh tính kế thừa [{old_code}] "
@@ -1102,6 +1103,7 @@ class VideoPipeline:
                                 # POINT-08b: Reset cảnh báo vi phạm
                                 existing.alert_unauthorized_sent = False
                                 existing.alert_unknown_sent = False
+                                existing.unknown_verdict_time = None
                                 # Cooldown cảnh báo vi phạm theo track nằm ở engine (track_last_unauthorized_alert_time),
                                 # không phải thuộc tính trên person: xoá đúng chỗ engine đọc để B không bị chặn bởi
                                 # cooldown 30s còn lại của A.
@@ -1198,6 +1200,8 @@ class VideoPipeline:
                             )
                             self._maybe_revoke_inherited_identity(existing, is_reverifying, face_result, last_sc)
 
+                        # Mặt đã qua lọc kích thước và độ mờ: engine dùng mốc này để quyết định có giữ thêm (hold) trước khi chốt UNKNOWN
+                        face_result.seen_at = current_time
                         self.analysis_engine.associate_face(track_id, face_result)
                 else:
                     track_stats["drop_no_face"] += 1
