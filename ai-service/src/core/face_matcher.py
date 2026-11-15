@@ -285,52 +285,52 @@ class FaceMatcher:
         import requests
         from ..utils.http_client import get_http_session
         last_error = None
-        for attempt in range(2):  # Thử lần đầu + retry đúng 1 lần
-            try:
-                if hasattr(requests.post, "mock_calls") or hasattr(requests.post, "assert_called"):
-                    post_fn = requests.post
+        # Gọi Backend ĐÚNG 1 LẦN (không retry sau timeout): retry làm trường hợp xấu nhất lên ~3.1s (2 x timeout
+        # + 0.1s), vượt ngân sách cảnh báo 3s (NFR-01), và có thể làm Backend ghi trùng nhật ký VÀO/RA khi lần
+        # đầu thật ra đã được xử lý nhưng trả lời chậm. Lỗi kết nối nhanh (keep-alive cũ, backend vừa restart)
+        # vẫn được urllib3 Retry của session dùng chung (utils/http_client.py) thử lại tự động.
+        try:
+            if hasattr(requests.post, "mock_calls") or hasattr(requests.post, "assert_called"):
+                post_fn = requests.post
+            else:
+                post_fn = (getattr(self, "session", None) or get_http_session()).post
+
+            resp = post_fn(
+                endpoint,
+                json=payload,
+                headers=headers,
+                timeout=timeout
+            )
+            if resp.status_code == 200:
+                res_json = resp.json()
+                data = res_json.get("data", {})
+                allowed = bool(data.get("allowed", False))
+                reason = data.get("reason", "Xét duyệt từ Backend")
+                area_name = data.get("areaName")
+                raw_source = data.get("source")
+                source = str(raw_source).strip().upper() if raw_source else None
+                deny_reason = data.get("denyReason")
+
+                # Tự động loại bỏ khỏi Face RAM Cache nếu Backend phản hồi người dùng không tồn tại / đã bị xoá
+                reason_lower = (reason or "").lower()
+                if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+                    logger.info(f"🗑️ [FaceMatcher] Tài khoản [{user_code}] đã bị xoá hoặc không tồn tại trên hệ thống -> Loại bỏ ngay khỏi Face RAM Cache.")
+                    self.cache.remove_face(user_code)
+                    with self._access_cache_lock:
+                        self.access_cache.pop(cache_key, None)
                 else:
-                    post_fn = (getattr(self, "session", None) or get_http_session()).post
+                    ttl = decision_ttl if allowed else deny_ttl
+                    with self._access_cache_lock:
+                        self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl, source, deny_reason)
 
-                resp = post_fn(
-                    endpoint,
-                    json=payload,
-                    headers=headers,
-                    timeout=timeout
-                )
-                if resp.status_code == 200:
-                    res_json = resp.json()
-                    data = res_json.get("data", {})
-                    allowed = bool(data.get("allowed", False))
-                    reason = data.get("reason", "Xét duyệt từ Backend")
-                    area_name = data.get("areaName")
-                    raw_source = data.get("source")
-                    source = str(raw_source).strip().upper() if raw_source else None
-                    deny_reason = data.get("denyReason")
-
-                    # Tự động loại bỏ khỏi Face RAM Cache nếu Backend phản hồi người dùng không tồn tại / đã bị xoá
-                    reason_lower = (reason or "").lower()
-                    if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
-                        logger.info(f"🗑️ [FaceMatcher] Tài khoản [{user_code}] đã bị xoá hoặc không tồn tại trên hệ thống -> Loại bỏ ngay khỏi Face RAM Cache.")
-                        self.cache.remove_face(user_code)
-                        with self._access_cache_lock:
-                            self.access_cache.pop(cache_key, None)
-                    else:
-                        ttl = decision_ttl if allowed else deny_ttl
-                        with self._access_cache_lock:
-                            self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl, source, deny_reason)
-
-                    logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}, source={source}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
-                    return allowed, reason, area_name, source, deny_reason
-                else:
-                    last_error = f"HTTP {resp.status_code}"
-                    logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code} (lần {attempt + 1})")
-            except Exception as e:
-                last_error = str(e)
-                logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Backend để xét checkEntry cho {user_code} (lần {attempt + 1}): {e}")
-
-            if attempt == 0:
-                time.sleep(0.1)
+                logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}, source={source}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
+                return allowed, reason, area_name, source, deny_reason
+            else:
+                last_error = f"HTTP {resp.status_code}"
+                logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code}")
+        except Exception as e:
+            last_error = str(e)
+            logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Backend để xét checkEntry cho {user_code}: {e}")
 
         # 3. Fallback Chính sách BUG-02 khi Backend lỗi / timeout (Lucas K8):
         # (ii) Stale-if-error: nếu có quyết định cũ trong access_cache (kể cả hết TTL)

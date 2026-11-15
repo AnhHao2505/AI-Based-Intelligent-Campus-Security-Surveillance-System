@@ -91,7 +91,7 @@ def test_face_matcher_reads_settings_at_invocation_time():
     settings.ACCESS_DENY_CACHE_TTL = 5.0
 
 def test_edge_agent_handle_system_config_validation():
-    """Kiểm tra EdgeAgent nhận và kiểm tra kiểu/khoảng giá trị của 3 khóa mới, bỏ qua giá trị sai."""
+    """Kiểm tra EdgeAgent nhận 3 khóa mới và bỏ qua giá trị vô nghĩa (khoảng min/max do Backend kiểm khi lưu)."""
     agent = EdgeMqttAgent(mqtt_client_wrapper=MagicMock(), storage=MagicMock(), active_workers={})
     settings.ACCESS_CHECK_TIMEOUT_SECONDS = 1.5
     settings.ACCESS_DECISION_CACHE_TTL = 30.0
@@ -107,10 +107,10 @@ def test_edge_agent_handle_system_config_validation():
     assert settings.ACCESS_DECISION_CACHE_TTL == 60.0
     assert settings.ACCESS_DENY_CACHE_TTL == 10.0
 
-    # Payload sai khoảng giá trị: timeout < 0.5 hoặc > 10.0 -> bỏ qua, giữ nguyên 2.5
+    # Giá trị không dương -> bỏ qua, giữ nguyên
     agent._handle_system_config({
-        "access_check_timeout_seconds": 0.1,
-        "access_decision_cache_ttl": 9999.0,
+        "access_check_timeout_seconds": 0,
+        "access_decision_cache_ttl": -1.0,
         "access_deny_cache_ttl": -5.0
     })
     assert settings.ACCESS_CHECK_TIMEOUT_SECONDS == 2.5
@@ -132,6 +132,8 @@ def test_edge_agent_handle_system_config_validation():
     settings.ACCESS_DECISION_CACHE_TTL = 30.0
     settings.ACCESS_DENY_CACHE_TTL = 5.0
 
+
+
 def test_main_update_ai_runtime_config_endpoint():
     """Kiểm tra endpoint /api/v1/system-config/ai-runtime nhận diện các khóa mới và validate."""
     import asyncio
@@ -148,17 +150,70 @@ def test_main_update_ai_runtime_config_endpoint():
     assert res["access_deny_cache_ttl"] == 8.0
     assert settings.ACCESS_CHECK_TIMEOUT_SECONDS == 3.0
 
-    # Không hợp lệ: timeout > 10.0 -> HTTPException 400
+    # Không hợp lệ: timeout không dương -> HTTPException 400
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(update_ai_runtime_config(AIRuntimeConfigRequest(access_check_timeout_seconds=15.0)))
+        asyncio.run(update_ai_runtime_config(AIRuntimeConfigRequest(access_check_timeout_seconds=-1.0)))
     assert exc_info.value.status_code == 400
 
-    # Không hợp lệ: decision TTL < 1.0 -> HTTPException 400
+    # Không hợp lệ: ngưỡng khớp mặt > 1 -> HTTPException 400, và không áp dở dang khoá hợp lệ đi kèm
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(update_ai_runtime_config(AIRuntimeConfigRequest(access_decision_cache_ttl=0.2)))
+        asyncio.run(update_ai_runtime_config(AIRuntimeConfigRequest(
+            access_decision_cache_ttl=45.0, face_match_threshold=1.5)))
     assert exc_info.value.status_code == 400
+    assert settings.ACCESS_DECISION_CACHE_TTL == 120.0
 
     # Reset
     settings.ACCESS_CHECK_TIMEOUT_SECONDS = 1.5
     settings.ACCESS_DECISION_CACHE_TTL = 30.0
     settings.ACCESS_DENY_CACHE_TTL = 5.0
+
+
+def test_recording_retention_config_and_time_based_deletion():
+    """V126: Kiểm tra cập nhật thời hạn lưu trữ video và xoá MinIO dựa theo thời gian (giờ)."""
+    import asyncio
+    from datetime import datetime, timezone, timedelta
+    from src.integration.storage_service import StorageService
+
+    # 1. Cập nhật qua AIRuntimeConfigRequest
+    req = AIRuntimeConfigRequest(recording_retention_hours=2.0)
+    res = asyncio.run(update_ai_runtime_config(req))
+    assert res["success"] is True
+    assert res["recording_retention_hours"] == 2.0
+    assert settings.RECORDING_RETENTION_HOURS == 2.0
+
+    # 2. Cập nhật qua EdgeMqttAgent (_handle_system_config)
+    agent = EdgeMqttAgent(mqtt_client_wrapper=MagicMock(), storage=MagicMock(), active_workers={})
+    agent._handle_system_config({"recording_retention_hours": 1.5})
+    assert settings.RECORDING_RETENTION_HOURS == 1.5
+
+    # 3. Test StorageService.enforce_recording_retention xoá theo thời gian
+    storage = StorageService()
+    storage.is_connected = True
+    storage.client = MagicMock()
+
+    now = datetime.now(timezone.utc)
+    # Giả lập 3 object: 1 cái 3 giờ trước (quá 1.5h -> xoá), 1 cái 2 giờ trước (quá 1.5h -> xoá), 1 cái 30 phút trước (giữ)
+    obj_old1 = MagicMock()
+    obj_old1.object_name = "CAM-01/old_1.mp4"
+    obj_old1.last_modified = now - timedelta(hours=3)
+
+    obj_old2 = MagicMock()
+    obj_old2.object_name = "CAM-01/old_2.mp4"
+    obj_old2.last_modified = now - timedelta(hours=2)
+
+    obj_recent = MagicMock()
+    obj_recent.object_name = "CAM-01/recent.mp4"
+    obj_recent.last_modified = now - timedelta(minutes=30)
+
+    storage.client.list_objects.return_value = [obj_old1, obj_old2, obj_recent]
+
+    deleted = storage.enforce_recording_retention("CAM-01")
+    assert "CAM-01/old_1.mp4" in deleted
+    assert "CAM-01/old_2.mp4" in deleted
+    assert "CAM-01/recent.mp4" not in deleted
+    assert storage.client.remove_object.call_count == 2
+
+    # Reset
+    settings.RECORDING_RETENTION_HOURS = 0.5
+
+

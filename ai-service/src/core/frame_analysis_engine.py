@@ -137,6 +137,18 @@ class FrameAnalysisEngine:
 
         return None
 
+    def _within_identity_grace(self, person: TrackedPerson, current_time: float) -> bool:
+        """
+        Người VỪA được khớp mặt mà quyết định quyền chưa về: chờ thêm tối đa ACCESS_CHECK_TIMEOUT_SECONDS + 0.2s
+        tính từ lúc khớp mặt (check-entry gọi 1 lần, hết timeout thì có kết quả fallback). Tránh cảnh báo
+        UNAUTHORIZED/INTRUSION sai cho người có quyền chỉ vì được nhận ra sau khi grace 1.5s từ lúc vào ROI đã hết.
+        """
+        matched_at = getattr(person.face_info, "matched_at", None) if person.face_info else None
+        if matched_at is None:
+            return False
+        wait = float(getattr(settings, "ACCESS_CHECK_TIMEOUT_SECONDS", 1.5)) + 0.2
+        return (current_time - matched_at) < wait
+
     def _set_security_display_state(
         self,
         person: TrackedPerson,
@@ -540,7 +552,10 @@ class FrameAnalysisEngine:
                     elif is_public_area and not after_hours:
                         # Khu vực Cấp 1 (Công khai - PUBLIC): Ban ngày tất cả mọi người vẫn vào bình thường -> KHÔNG cảnh báo UNAUTHORIZED_PERSON!
                         self._set_security_display_state(person, "AUTHORIZED", camera_code, "Có thẩm quyền hợp lệ")
-                    elif not getattr(person.face_info, "access_checked", False) and (current_time - (person.roi_enter_time if person.roi_enter_time is not None else current_time)) < self.access_grace_period:
+                    elif not getattr(person.face_info, "access_checked", False) and (
+                        (current_time - (person.roi_enter_time if person.roi_enter_time is not None else current_time)) < self.access_grace_period
+                        or self._within_identity_grace(person, current_time)
+                    ):
                         # BUG-02: Grace period cho người đã xác định danh tính nhưng access_checked == False
                         # để cho Backend phản hồi kiểm tra quyền truy cập, tránh bắn cảnh báo vi phạm giả.
                         self._set_security_display_state(person, "VERIFYING", camera_code, "Đang xác thực trong ROI")

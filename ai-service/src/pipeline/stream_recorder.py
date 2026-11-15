@@ -529,14 +529,24 @@ class StreamRecorder:
             self.frames_in_segment = 0
 
             try:
-                if os.name == "nt" and hasattr(cv2, "CAP_MSMF"):
-                    self.writer = cv2.VideoWriter(
-                        self.temp_file_path,
-                        cv2.CAP_MSMF,
-                        cv2.VideoWriter_fourcc(*"avc1"),
-                        self.fps,
-                        self.frame_size,
-                    )
+                # 1. Ưu tiên FourCC avc1 chuẩn FFMPEG / OpenH264 (tương thích 100% trình duyệt web)
+                self.writer = cv2.VideoWriter(
+                    self.temp_file_path,
+                    cv2.VideoWriter_fourcc(*"avc1"),
+                    self.fps,
+                    self.frame_size,
+                )
+                # 2. Thử qua Windows Media Foundation nếu FFMPEG chưa mở được
+                if self.writer is None or not self.writer.isOpened():
+                    if os.name == "nt" and hasattr(cv2, "CAP_MSMF"):
+                        self.writer = cv2.VideoWriter(
+                            self.temp_file_path,
+                            cv2.CAP_MSMF,
+                            cv2.VideoWriter_fourcc(*"avc1"),
+                            self.fps,
+                            self.frame_size,
+                        )
+                # 3. Fallback cuối cùng
                 if self.writer is None or not self.writer.isOpened():
                     self.writer = cv2.VideoWriter(
                         self.temp_file_path,
@@ -700,18 +710,22 @@ class StreamRecorder:
 
                 success = storage_service.upload_video_file(file_path, bucket, obj_name)
                 if success:
-                    get_security_mqtt_client().publish_recording_event(telemetry_payload)
                     try:
                         os.remove(file_path)
                         logger.debug(f"🗑️ [Recorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")
                     except Exception as ex:
                         logger.warning(f"Không thể xóa file tạm {file_path}: {ex}")
 
-                    deleted_keys = storage_service.enforce_recording_retention(camera_code, max_segments=30)
+                    deleted_keys = storage_service.enforce_recording_retention(camera_code)
+                    if deleted_keys:
+                        telemetry_payload["deleted_storage_keys"] = deleted_keys
+                    get_security_mqtt_client().publish_recording_event(telemetry_payload)
+
                     for del_key in (deleted_keys or []):
                         get_security_mqtt_client().publish_recording_event({
                             "event_type": "RECORDING_DELETED",
                             "camera_code": camera_code,
+                            "storage_key": del_key,
                             "object_key": del_key,
                         })
                 else:

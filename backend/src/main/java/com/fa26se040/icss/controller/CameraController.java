@@ -23,6 +23,8 @@ import com.fa26se040.icss.service.CameraRecordingService;
 import com.fa26se040.icss.service.AnnotatedStreamTokenService;
 import com.fa26se040.icss.service.RecordingStreamTokenService;
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 
 import java.io.IOException;
 import java.util.List;
@@ -202,8 +204,9 @@ public class CameraController {
     }
 
     /**
-     * BE-03: thẻ &lt;video&gt; không gửi được header Authorization nên endpoint này để permitAll ở SecurityConfig,
-     * nhưng bắt buộc query {@code token} do {@link #issueRecordingStreamToken} cấp (thiếu / sai / hết hạn → 401).
+     * BE-03 & Security Fix: Stream video ghi hình định kỳ hoặc bằng chứng sự cố an ninh.
+     * Bắt buộc có token hợp lệ được cấp bởi {@link #issueRecordingStreamToken}.
+     * Token được ràng buộc bảo mật với danh tính và thẩm quyền (ADMIN / GUARD / FACILITY_MANAGER).
      */
     @GetMapping("/recordings/stream")
     public ResponseEntity<org.springframework.core.io.Resource> streamRecording(
@@ -211,20 +214,46 @@ public class CameraController {
             @RequestParam(required = false, defaultValue = "recording") String source,
             @RequestParam(required = false, defaultValue = "false") boolean download,
             @RequestParam(required = false) String token,
-            @RequestHeader HttpHeaders headers) throws IOException {
-        recordingStreamTokenService.verify(path, source, token);
-        log.debug("REST request to stream recording: {}, source: {}", path, source);
+            @RequestHeader HttpHeaders headers,
+            Authentication authentication) throws IOException {
+        recordingStreamTokenService.verify(path, source, token, authentication);
+        log.debug("REST request to stream recording: {}, source: {}, actor: {}",
+                path, source, authentication != null ? authentication.getName() : "token-bearer");
         return cameraRecordingService.streamVideo(path, source, headers, download);
     }
 
-    /** BE-03: token ngắn hạn mở một file ghi hình; cùng vai trò với GET /recordings (ADMIN, GUARD). */
+    /**
+     * BE-03 & Security Fix: Cấp token ngắn hạn mở tệp ghi hình an ninh.
+     * Chỉ người dùng có thẩm quyền (ADMIN, GUARD) mới được phép gọi.
+     * Token sinh ra được gắn chữ ký số HMAC-SHA256 kèm danh tính và vai trò người gọi.
+     */
     @PostMapping("/recordings/stream-token")
     @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
     public ResponseEntity<ApiResponse<RecordingStreamTokenService.TokenResponse>> issueRecordingStreamToken(
-            @Valid @RequestBody RecordingStreamTokenRequest request) {
+            @Valid @RequestBody RecordingStreamTokenRequest request,
+            Authentication authentication) {
+        String userEmail = authentication != null ? authentication.getName() : "system";
+        String userRole = extractAuthorizedRole(authentication);
+
         RecordingStreamTokenService.TokenResponse response =
-                recordingStreamTokenService.issue(request.path(), request.source());
-        return ResponseEntity.ok(ApiResponse.success(response, "Cấp token xem video ghi hình thành công"));
+                recordingStreamTokenService.issue(request.path(), request.source(), userEmail, userRole);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cấp token xem video ghi hình an ninh thành công"));
+    }
+
+    private String extractAuthorizedRole(Authentication authentication) {
+        if (authentication == null || authentication.getAuthorities() == null) {
+            return "GUARD";
+        }
+        for (GrantedAuthority ga : authentication.getAuthorities()) {
+            String auth = ga.getAuthority();
+            if (auth != null) {
+                String role = auth.startsWith("ROLE_") ? auth.substring(5) : auth;
+                if (RecordingStreamTokenService.ALLOWED_AUTHORITIES.contains(role)) {
+                    return role;
+                }
+            }
+        }
+        return "GUARD";
     }
 
     @PostMapping("/{cameraCode}/annotated-stream-token")

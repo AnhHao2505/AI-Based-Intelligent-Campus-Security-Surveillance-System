@@ -2,6 +2,7 @@ package com.fa26se040.icss.consumer;
 
 import com.fa26se040.icss.dto.camera.RecordingCompletedEventDto;
 import com.fa26se040.icss.service.CameraRecordingService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +39,17 @@ public class CameraRecordingMqttConsumer implements IMqttMessageListener {
             return;
         }
         try {
-            RecordingCompletedEventDto dto = objectMapper.readValue(trimmed, RecordingCompletedEventDto.class);
+            JsonNode root = objectMapper.readTree(trimmed);
+            if (root.has("event_type") && "RECORDING_DELETED".equalsIgnoreCase(root.get("event_type").asText())) {
+                String key = root.has("storage_key") ? root.get("storage_key").asText()
+                        : (root.has("object_key") ? root.get("object_key").asText() : null);
+                if (key != null && !key.isBlank()) {
+                    cameraRecordingService.markRecordingDeletedByStorageKey(key);
+                }
+                return;
+            }
+
+            RecordingCompletedEventDto dto = objectMapper.treeToValue(root, RecordingCompletedEventDto.class);
             if (dto == null) {
                 return;
             }

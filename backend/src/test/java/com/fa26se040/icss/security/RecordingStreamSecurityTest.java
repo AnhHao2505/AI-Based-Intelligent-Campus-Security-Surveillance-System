@@ -209,4 +209,33 @@ class RecordingStreamSecurityTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @DisplayName("Bảo vệ xin token, người dùng khác cố tình mở link -> 403 Forbidden chặn xem chéo")
+    void stream_crossUserAccess_isForbidden() throws Exception {
+        String json = mockMvc.perform(post(TOKEN).header("Authorization", "Bearer GUARD")
+                        .contentType(MediaType.APPLICATION_JSON).content(body(PATH, "recording")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = objectMapper.readTree(json).path("data").path("token").asText();
+
+        // Tài khoản khác (ví dụ: NORMAL_USER) mở link đó -> 403 Forbidden
+        mockMvc.perform(get(STREAM).header("Authorization", "Bearer NORMAL_USER")
+                        .param("path", PATH).param("source", "recording").param("token", token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Token bị can thiệp sửa đổi role/user -> 401 Unauthorized")
+    void stream_tamperedToken_returnsUnauthorized() throws Exception {
+        String json = mockMvc.perform(post(TOKEN).header("Authorization", "Bearer GUARD")
+                        .contentType(MediaType.APPLICATION_JSON).content(body(PATH, "recording")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = objectMapper.readTree(json).path("data").path("token").asText();
+
+        String tampered = token.replace("GUARD", "ADMIN");
+        mockMvc.perform(get(STREAM).param("path", PATH).param("source", "recording").param("token", tampered))
+                .andExpect(status().isUnauthorized());
+    }
 }

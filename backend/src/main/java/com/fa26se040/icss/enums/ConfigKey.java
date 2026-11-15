@@ -26,7 +26,8 @@ public enum ConfigKey {
     // V83 (BR-AL-24): FM và ADMIN tạo mới mặc định cấp 3; tài khoản đang có không đổi
     ACCESS_LEVEL_DEFAULT_FACILITY_MANAGER("ACCESS_LEVEL_DEFAULT_FACILITY_MANAGER", "3"),
     ACCESS_LEVEL_DEFAULT_ADMIN("ACCESS_LEVEL_DEFAULT_ADMIN", "3"),
-    AI_FACE_MATCH_THRESHOLD("AI_FACE_MATCH_THRESHOLD", "0.75"),
+    // V125: mặc định 0.50 theo đánh giá trên camera thật (0.75 khiến người đã đăng ký gần như không bao giờ được nhận ra)
+    AI_FACE_MATCH_THRESHOLD("AI_FACE_MATCH_THRESHOLD", "0.50"),
     AI_AFTER_HOUR_START("AI_AFTER_HOUR_START", "22:00"),
     AI_AFTER_HOUR_END("AI_AFTER_HOUR_END", "06:00"),
     AI_TRACK_MAX_INACTIVE_SECONDS("AI_TRACK_MAX_INACTIVE_SECONDS", "10.0"),
@@ -34,6 +35,10 @@ public enum ConfigKey {
     AI_ACCESS_CHECK_TIMEOUT_SECONDS("AI_ACCESS_CHECK_TIMEOUT_SECONDS", "1.5"),
     AI_ACCESS_DECISION_CACHE_TTL("AI_ACCESS_DECISION_CACHE_TTL", "30.0"),
     AI_ACCESS_DENY_CACHE_TTL("AI_ACCESS_DENY_CACHE_TTL", "5.0"),
+    // V125: chính sách cảnh báo của AI, trước đây chỉ nằm trong .env / code
+    AI_IDENTITY_GRACE_SECONDS("AI_IDENTITY_GRACE_SECONDS", "1.5"),
+    AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS("AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS", "30"),
+    AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS("AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS", "5"),
     // V115 (EV-N1, EV-N2): bỏ EVENT_MODE_MAX_HOURS, EVENT_MODE_WINDOW_DAYS, EVENT_MODE_BUDGET_HOURS,
     // EVENT_MODE_MAX_SCHEDULES_PER_AREA (không còn trần giờ / ngân sách / số lịch chờ)
     EVENT_MODE_MIN_MINUTES("EVENT_MODE_MIN_MINUTES", "15"),
@@ -78,6 +83,8 @@ public enum ConfigKey {
     // V121: thời hạn token xem video ghi hình / live có chú thích (giây), đọc mỗi lần cấp token
     RECORDING_STREAM_TOKEN_SECONDS("RECORDING_STREAM_TOKEN_SECONDS", "300"),
     ANNOTATED_STREAM_TOKEN_SECONDS("ANNOTATED_STREAM_TOKEN_SECONDS", "60"),
+    // V126 (Checklist 6.1): thời hạn lưu trữ video ghi hình camera định kỳ (giờ), mặc định 0.5 giờ = 30 phút
+    RECORDING_RETENTION_HOURS("RECORDING_RETENTION_HOURS", "0.5"),
     // V123 (P-MAP-2, MM-05): ước tính thời gian di chuyển trên bản đồ (web + app bảo vệ)
     WALKING_SPEED_MPS("WALKING_SPEED_MPS", "1.45"),
     FLOOR_CHANGE_SECONDS("FLOOR_CHANGE_SECONDS", "14"),
