@@ -23,4 +23,8 @@ public class CameraListResponse {
     private String areaName;
     private String building;
     private String floor;
+    private Double mapLongitude;
+    private Double mapLatitude;
+    private String mapBuilding;
+    private Integer mapFloorOrder;
 }

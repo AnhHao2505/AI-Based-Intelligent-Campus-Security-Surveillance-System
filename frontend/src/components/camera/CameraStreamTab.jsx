@@ -371,7 +371,7 @@ export default function CameraStreamTab({
 					disabled={
 						testingConnection || saving || startingStream || stoppingStream
 					}
-					title="Kiểm tra tín hiệu cổng RTSP và đo độ trễ mạng"
+					title="Kiểm tra tín hiệu cổng RTSP"
 				>
 					{testingConnection ? (
 						<>

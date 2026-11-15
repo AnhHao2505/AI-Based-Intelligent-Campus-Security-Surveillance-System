@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from "../api/apiClient";
+import { fetchAllPaginatedPages } from "../utils/campusCameraHelpers";
 
 /**
  * Lấy danh sách Area có phân trang và bộ lọc
@@ -24,6 +25,17 @@ export async function getAreas(params = {}) {
 
 	const queryString = query.toString();
 	return apiGet(`/api/areas${queryString ? `?${queryString}` : ""}`);
+}
+
+/**
+ * Tải đầy đủ tất cả các trang Area, tuân thủ giới hạn size <= 100 của AreaController.
+ */
+export async function getAllAreas(params = {}) {
+	const pageSize = Math.min(Math.max(1, Number(params.size) || 100), 100);
+	return fetchAllPaginatedPages(
+		(page, size) => getAreas({ ...params, page, size }),
+		{ pageSize },
+	);
 }
 
 /**

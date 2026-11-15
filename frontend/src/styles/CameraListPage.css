@@ -302,64 +302,7 @@
   white-space: nowrap;
 }
 
-/* Badges */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.775rem;
-  font-weight: 600;
-}
-
-/* Device status badges */
-.badge-active {
-  background: var(--theme-success-bg);
-  color: var(--theme-success-text);
-  border: 1px solid var(--theme-success-border);
-}
-
-.badge-decommissioned {
-  background: var(--theme-danger-bg);
-  color: var(--theme-danger-text);
-  border: 1px solid var(--theme-danger-border);
-}
-
-/* Operational status badges */
-.op-badge-online {
-  background: var(--theme-info-bg);
-  color: var(--theme-info-text);
-  border: 1px solid var(--theme-info-border);
-}
-
-.op-badge-offline {
-  background: var(--theme-bg-surface-elevated);
-  color: var(--theme-text-secondary);
-  border: 1px solid var(--theme-border);
-}
-
-.op-badge-error {
-  background: var(--theme-warning-bg);
-  color: var(--theme-warning-text);
-  border: 1px solid var(--theme-warning-border);
-  animation: pulse-glow 2s infinite alternate;
-}
-
-.badge-dot {
-  font-size: 0.6rem;
-  line-height: 1;
-}
-
-@keyframes pulse-glow {
-  0% {
-    box-shadow: 0 0 4px rgba(245, 158, 11, 0.2);
-  }
-
-  100% {
-    box-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
-  }
-}
+/* Shared badges (.status-badge, .badge-*, .op-badge-*) moved to cameraShared.css */
 
 .text-right {
   text-align: right;

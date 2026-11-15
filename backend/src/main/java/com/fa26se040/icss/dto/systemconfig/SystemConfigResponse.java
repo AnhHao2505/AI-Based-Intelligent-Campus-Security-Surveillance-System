@@ -20,6 +20,7 @@ public record SystemConfigResponse(
     String configGroup,
     Integer displayOrder,
     String description,
+    String tooltip,
     Boolean editable,
     OffsetDateTime updatedAt,
     String updatedByEmail,
@@ -31,11 +32,19 @@ public record SystemConfigResponse(
                                 String description, Boolean editable, OffsetDateTime updatedAt,
                                 String updatedByEmail, String updatedByName) {
         this(configKey, configValue, dataType, minValue, maxValue, unit, configGroup, displayOrder, description,
-                editable, updatedAt, updatedByEmail, updatedByName, null);
+                null, editable, updatedAt, updatedByEmail, updatedByName, null);
+    }
+
+    public SystemConfigResponse(String configKey, String configValue, String dataType, BigDecimal minValue,
+                                BigDecimal maxValue, String unit, String configGroup, Integer displayOrder,
+                                String description, String tooltip, Boolean editable, OffsetDateTime updatedAt,
+                                String updatedByEmail, String updatedByName) {
+        this(configKey, configValue, dataType, minValue, maxValue, unit, configGroup, displayOrder, description,
+                tooltip, editable, updatedAt, updatedByEmail, updatedByName, null);
     }
 
     public SystemConfigResponse withEventAdjustments(List<EventNightAdjustment> adjustments) {
         return new SystemConfigResponse(configKey, configValue, dataType, minValue, maxValue, unit, configGroup,
-                displayOrder, description, editable, updatedAt, updatedByEmail, updatedByName, adjustments);
+                displayOrder, description, tooltip, editable, updatedAt, updatedByEmail, updatedByName, adjustments);
     }
 }

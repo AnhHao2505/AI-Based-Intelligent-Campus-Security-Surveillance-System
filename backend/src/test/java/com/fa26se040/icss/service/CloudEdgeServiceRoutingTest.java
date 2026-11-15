@@ -14,7 +14,6 @@ import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
-import com.fa26se040.icss.repository.CameraHealthLogRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.CameraStreamConfigurationRepository;
 import com.fa26se040.icss.repository.FaceDataRepository;
@@ -55,13 +54,13 @@ class CloudEdgeServiceRoutingTest {
     @Mock
     private CameraStreamConfigurationRepository streamConfigRepo;
     @Mock
-    private CameraHealthLogRepository healthLogRepo;
-    @Mock
     private CameraService cameraService;
     @Mock
     private MediaMtxService mediaMtxService;
     @Mock
     private EdgeMqttControlService edgeMqttControlService;
+    @Mock
+    private EdgeStatusService edgeStatusService;
     @Mock
     private MinioStorageService minioStorageService;
     @Mock
@@ -124,12 +123,14 @@ class CloudEdgeServiceRoutingTest {
     @DisplayName("1. Happy Path (Cloud-Edge Stream Lifecycle): Khi MQTT kết nối và không cấu hình local aiServiceUrl, startStream chỉ dùng MQTT Retained Config (0 gọi HTTP vào Edge)")
     void startStream_inCloudEdgeMode_publishesMqttConfigWithoutHttpCall() {
         CameraStreamLifecycleService lifecycleService = new CameraStreamLifecycleService(
-                cameraRepository, streamConfigRepo, healthLogRepo, cameraService, mediaMtxService, restTemplate
+                cameraRepository, streamConfigRepo, cameraService, mediaMtxService, restTemplate
         );
         ReflectionTestUtils.setField(lifecycleService, "edgeMqttControlService", edgeMqttControlService);
+        ReflectionTestUtils.setField(lifecycleService, "edgeStatusService", edgeStatusService);
         ReflectionTestUtils.setField(lifecycleService, "aiServiceUrl", "");
 
         when(edgeMqttControlService.isConnected()).thenReturn(true);
+        when(edgeStatusService.hasActiveOnlineEdge()).thenReturn(true);
         when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
         when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
         when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://admin:pass@192.168.1.105:554/cam/realmonitor");
@@ -196,10 +197,12 @@ class CloudEdgeServiceRoutingTest {
                 cameraRepository, streamConfigRepo, rtspHandshakeChecker
         );
         ReflectionTestUtils.setField(connService, "edgeMqttControlService", edgeMqttControlService);
+        ReflectionTestUtils.setField(connService, "edgeStatusService", edgeStatusService);
         ReflectionTestUtils.setField(connService, "aiServiceUrl", "");
         ReflectionTestUtils.setField(connService, "defaultTimeoutMs", 5000);
 
         when(edgeMqttControlService.isConnected()).thenReturn(true);
+        when(edgeStatusService.hasActiveOnlineEdge()).thenReturn(true);
         when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
         when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
 

@@ -73,7 +73,7 @@ public class CameraController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CameraDetailResponse>> getDetail(@PathVariable UUID id) {
         log.info("REST request to get camera detail for id: {}", id);
         CameraDetailResponse detail = cameraService.getCameraDetail(id);
@@ -120,16 +120,6 @@ public class CameraController {
         return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình stream thành công"));
     }
 
-    @GetMapping("/{id}/health-logs")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<ApiResponse<Page<CameraHealthLogResponse>>> healthLogs(
-            @PathVariable UUID id,
-            @PageableDefault(size = 10) Pageable pageable) {
-        log.info("REST request to get health logs for camera: {}", id);
-        Page<CameraHealthLogResponse> logs = cameraService.getHealthLogs(id, pageable);
-        return ResponseEntity.ok(ApiResponse.success(logs, "Lấy nhật ký hoạt động camera thành công"));
-    }
-
     @PostMapping("/{id}/snapshot")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CameraSnapshotResponse>> captureSnapshot(@PathVariable UUID id) {
@@ -172,6 +162,24 @@ public class CameraController {
         log.info("REST request to update ROI geometry for camera: {}", id);
         CameraDetailResponse response = cameraService.updateRoiGeometry(id, request);
         return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật cấu hình vùng giám sát ROI thành công"));
+    }
+
+    @PatchMapping("/{id}/map-location")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<CameraDetailResponse>> updateMapLocation(
+            @PathVariable UUID id,
+            @Valid @RequestBody CameraMapLocationRequest request) {
+        log.info("REST request to update map location for camera: {}", id);
+        CameraDetailResponse response = cameraService.updateMapLocation(id, request);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật vị trí camera trên bản đồ thành công"));
+    }
+
+    @DeleteMapping("/{id}/map-location")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<CameraDetailResponse>> clearMapLocation(@PathVariable UUID id) {
+        log.info("REST request to clear map location for camera: {}", id);
+        CameraDetailResponse response = cameraService.clearMapLocation(id);
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã gỡ vị trí camera khỏi bản đồ"));
     }
 
     @PostMapping("/stream/cloud-relay")

@@ -271,33 +271,28 @@ export default function CameraAccessLogsTab({ camera }) {
 
   return (
     <div className="camera-access-logs-tab">
-      {/* Filter Pills with Counts & Reload Button */}
-      <div className="access-filter-pills-row">
-        <div className="access-filter-pills-group">
-          {FILTER_CONFIG.map((filter) => {
-            const Icon = filter.icon;
-            const count = getStatCount(filter.key);
-            const isActive = activeFilter === filter.key;
-
-            return (
-              <button
-                key={filter.key}
-                type="button"
-                className={`access-filter-pill ${isActive ? "access-filter-pill--active" : ""}`}
-                onClick={() => {
-                  setActiveFilter(filter.key);
-                  setPage(0);
-                }}
-                style={{
-                  "--filter-color": filter.color,
-                }}
-              >
-                {Icon && <Icon size={14} className="filter-pill-icon" />}
-                <span className="filter-pill-label">{filter.label}</span>
-                <span className="filter-pill-badge">{count}</span>
-              </button>
-            );
-          })}
+      {/* Search + Refresh Bar */}
+      <div className="access-toolbar-search-row">
+        <div className="access-search-box">
+          <Search size={15} className="search-icon" />
+          <input
+            type="text"
+            placeholder="Tìm theo họ tên hoặc mã người dùng (VD: SE170123)..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              onClick={() => setSearchTerm("")}
+              title="Xóa tìm kiếm"
+              aria-label="Xóa tìm kiếm"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         <button
@@ -315,26 +310,34 @@ export default function CameraAccessLogsTab({ camera }) {
         </button>
       </div>
 
-      {/* Search Input Bar */}
-      <div className="access-search-box">
-        <Search size={16} className="search-icon" />
-        <input
-          type="text"
-          placeholder="Tìm theo họ tên hoặc mã người dùng (VD: SE170123, Nguyen Van A)..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-        />
-        {searchTerm && (
-          <button
-            type="button"
-            className="search-clear-btn"
-            onClick={() => setSearchTerm("")}
-            title="Xóa tìm kiếm"
-          >
-            ✕
-          </button>
-        )}
+      {/* Filter Chips Wrap Grid (no horizontal overflow in narrow drawer) */}
+      <div className="access-filter-pills-group" role="tablist" aria-label="Lọc theo loại sự kiện">
+        {FILTER_CONFIG.map((filter) => {
+          const Icon = filter.icon;
+          const count = getStatCount(filter.key);
+          const isActive = activeFilter === filter.key;
+
+          return (
+            <button
+              key={filter.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              className={`access-filter-pill ${isActive ? "access-filter-pill--active" : ""}`}
+              onClick={() => {
+                setActiveFilter(filter.key);
+                setPage(0);
+              }}
+              style={{
+                "--filter-color": filter.color,
+              }}
+            >
+              {Icon && <Icon size={13} className="filter-pill-icon" />}
+              <span className="filter-pill-label">{filter.label}</span>
+              <span className="filter-pill-badge">{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Timeline Feed Container */}
