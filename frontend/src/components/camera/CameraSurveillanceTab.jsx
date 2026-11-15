@@ -139,7 +139,7 @@ export default function CameraSurveillanceTab({
 								autoPlay={true}
 								onStatusChange={setPlayerStatus}
 							/>
-							{showRoiOverlay && totalRoiCount > 0 && (
+							{showRoiOverlay && totalRoiCount > 0 && playerStatus === "live" && (
 								<div
 									style={{
 										position: "absolute",
@@ -168,10 +168,10 @@ export default function CameraSurveillanceTab({
 								<span>
 									{totalRoiCount > 0
 										? `Khung lưới 16:9 — ${totalRoiCount} vùng giám sát (Camera đang Offline)`
-										: "Khung lưới 16:9 — Chưa cấu hình vùng ROI (Camera đang Offline)"}
+										: "Khung lưới 16:9 — Chưa cấu hình vùng ROI (cần ít nhất 1 vùng)"}
 								</span>
 							</div>
-							{showRoiOverlay && totalRoiCount > 0 && (
+							{showRoiOverlay && totalRoiCount > 0 && playerStatus === "live" && (
 								<div
 									style={{
 										position: "absolute",
@@ -194,7 +194,7 @@ export default function CameraSurveillanceTab({
 							<Layers size={14} />
 							{totalRoiCount > 0
 								? `${totalRoiCount} vùng giám sát`
-								: "Chế độ: Nhận diện AI toàn khung hình"}
+								: "Chưa có vùng ROI (cần 1–10 vùng)"}
 						</span>
 					</div>
 				</div>

@@ -6,6 +6,11 @@ import React, {
 	forwardRef,
 } from "react";
 import { getAnnotatedStreamToken, toggleCloudRelay } from "../../services/cameraService";
+import {
+	formatWhepHttpError,
+	hasDecodedVideoFrame,
+	resolveWhepFailureTransition,
+} from "../../utils/webrtcState";
 import "../../styles/WebRtcPlayer.css";
 
 const ENV_CLOUD_WHEP_BASE = import.meta.env.VITE_CLOUD_WHEP_BASE_URL || "";
@@ -109,10 +114,14 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		isTrackingActive: () => showTracking,
 		toggleTracking: (val) => setShowTracking(val !== undefined ? val : (p) => !p),
 	}));
-	const [retryCount, setRetryCount] = useState(0);
+	const [connectAttempt, setConnectAttempt] = useState(0);
+	const consecutiveFailuresRef = useRef(0);
+	const hadLiveFrameRef = useRef(false);
 
 	useEffect(() => {
-		setRetryCount(0);
+		consecutiveFailuresRef.current = 0;
+		hadLiveFrameRef.current = false;
+		setConnectAttempt(0);
 		setTrackingError(false);
 		setStreamToken(null);
 	}, [streamPath, host, cameraCode, enabled]);
@@ -185,18 +194,63 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	useEffect(() => {
 		if (!enabled) {
 			setStatus("offline");
+			setErrorMsg("");
 			if (onStatusChange) onStatusChange("offline");
 			return;
 		}
 
 		let isMounted = true;
 		let peerConnection = null;
+		let retryTimerId = null;
+		let frameWatchdogTimerId = null;
+		const abortController = new AbortController();
+
+		const clearTimers = () => {
+			if (retryTimerId) {
+				clearTimeout(retryTimerId);
+				retryTimerId = null;
+			}
+			if (frameWatchdogTimerId) {
+				clearTimeout(frameWatchdogTimerId);
+				frameWatchdogTimerId = null;
+			}
+		};
+
+		const markLiveIfDecoded = () => {
+			if (!isMounted) return false;
+			if (!hasDecodedVideoFrame(videoRef.current)) return false;
+			clearTimers();
+			consecutiveFailuresRef.current = 0;
+			hadLiveFrameRef.current = true;
+			setErrorMsg("");
+			setStatus("live");
+			if (onStatusChange) onStatusChange("live");
+			return true;
+		};
+
+		const scheduleReconnect = (reasonMessage) => {
+			if (!isMounted || retryTimerId) return;
+			clearTimers();
+			const transition = resolveWhepFailureTransition({
+				consecutiveFailures: consecutiveFailuresRef.current,
+				hadLiveFrame: hadLiveFrameRef.current,
+			});
+			consecutiveFailuresRef.current = transition.nextFailures;
+			setStatus(transition.status);
+			setErrorMsg(reasonMessage || "Mất kết nối luồng video");
+			if (onStatusChange) onStatusChange(transition.status);
+			retryTimerId = setTimeout(() => {
+				retryTimerId = null;
+				if (isMounted) {
+					setConnectAttempt((prev) => prev + 1);
+				}
+			}, transition.retryDelayMs);
+		};
 
 		async function startWebRTC() {
-			if (retryCount === 0) {
+			if (consecutiveFailuresRef.current === 0 && !hadLiveFrameRef.current) {
 				setStatus("connecting");
 			}
-			setErrorMsg("");
 
 			try {
 				peerConnection = new RTCPeerConnection({
@@ -209,14 +263,13 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 
 				peerConnection.addTransceiver("video", { direction: "recvonly" });
 
-				const markLive = () => {
-					if (!isMounted) return;
-					setStatus("live");
-					setRetryCount(0);
-					if (onStatusChange) onStatusChange("live");
-				};
-
 				peerConnection.ontrack = (event) => {
+					if (!isMounted) return;
+					if (event.track) {
+						event.track.onended = () => {
+							scheduleReconnect("Nguồn phát video từ camera vừa ngừng truyền");
+						};
+					}
 					if (videoRef.current) {
 						if (event.streams && event.streams[0]) {
 							videoRef.current.srcObject = event.streams[0];
@@ -227,9 +280,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						if (playPromise !== undefined) {
 							playPromise
 								.then(() => {
-									if (videoRef.current && videoRef.current.videoWidth > 0) {
-										markLive();
-									}
+									markLiveIfDecoded();
 								})
 								.catch((e) => {
 									console.debug("Tự động phát video đang chờ sẵn:", e);
@@ -238,31 +289,35 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					}
 				};
 
+				const startNoFrameWatchdog = () => {
+					if (frameWatchdogTimerId || !isMounted) return;
+					frameWatchdogTimerId = setTimeout(() => {
+						frameWatchdogTimerId = null;
+						if (!isMounted) return;
+						if (!hasDecodedVideoFrame(videoRef.current)) {
+							scheduleReconnect("Đã kết nối WebRTC nhưng chưa giải mã được khung hình (kiểm tra codec H.264)");
+						} else {
+							markLiveIfDecoded();
+						}
+					}, 5000);
+				};
+
 				peerConnection.onconnectionstatechange = () => {
 					if (!isMounted) return;
 					const state = peerConnection.connectionState;
 					if (state === "connected") {
-						if (
-							videoRef.current &&
-							(videoRef.current.videoWidth > 0 || !videoRef.current.paused)
-						) {
-							markLive();
-						} else {
-							setTimeout(() => {
-								if (
-									isMounted &&
-									peerConnection?.connectionState === "connected"
-								) {
-									markLive();
-								}
-							}, 1500);
+						if (!markLiveIfDecoded()) {
+							startNoFrameWatchdog();
 						}
-					} else if (state === "disconnected" || state === "failed") {
-						setStatus("offline");
-						if (onStatusChange) onStatusChange("offline");
-						setTimeout(() => {
-							if (isMounted) setRetryCount((prev) => prev + 1);
-						}, 1500);
+					} else if (state === "disconnected" || state === "failed" || state === "closed") {
+						scheduleReconnect("Kết nối WebRTC tới MediaMTX bị gián đoạn");
+					}
+				};
+
+				peerConnection.oniceconnectionstatechange = () => {
+					if (!isMounted) return;
+					if (peerConnection.iceConnectionState === "failed") {
+						scheduleReconnect("Không thể thiết lập kết nối mạng WebRTC (ICE failed)");
 					}
 				};
 
@@ -276,28 +331,23 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						"Content-Type": "application/sdp",
 					},
 					body: offer.sdp,
+					signal: abortController.signal,
 				});
 
 				if (!response.ok) {
-					throw new Error(
-						`Kênh ${streamPath} không phản hồi (${response.status})`,
-					);
+					const errText = await response.text().catch(() => "");
+					throw new Error(formatWhepHttpError(response.status, errText));
 				}
 
 				const answerSdp = await response.text();
+				if (!isMounted) return;
 				await peerConnection.setRemoteDescription({
 					type: "answer",
 					sdp: answerSdp,
 				});
 			} catch (err) {
-				if (isMounted) {
-					setStatus("offline");
-					setErrorMsg(err.message || "Mất kết nối luồng video");
-					if (onStatusChange) onStatusChange("offline");
-					setTimeout(() => {
-						if (isMounted) setRetryCount((prev) => prev + 1);
-					}, 2000);
-				}
+				if (err?.name === "AbortError" || !isMounted) return;
+				scheduleReconnect(err?.message || "Mất kết nối luồng video");
 			}
 		}
 
@@ -305,11 +355,22 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 
 		return () => {
 			isMounted = false;
+			clearTimers();
+			abortController.abort();
 			if (peerConnection) {
 				peerConnection.close();
 			}
 		};
-	}, [streamPath, host, retryCount, enabled]);
+	}, [streamPath, host, connectAttempt, enabled]);
+
+	const handleVideoReady = () => {
+		if (!hasDecodedVideoFrame(videoRef.current)) return;
+		consecutiveFailuresRef.current = 0;
+		hadLiveFrameRef.current = true;
+		setErrorMsg("");
+		setStatus("live");
+		if (onStatusChange) onStatusChange("live");
+	};
 
 	return (
 		<div
@@ -322,16 +383,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				playsInline
 				className={`cctv-video-element ${status === "live" && !showTracking ? "active" : ""}`}
 				style={{ display: showTracking ? "none" : undefined }}
-				onPlaying={() => {
-					setStatus("live");
-					setRetryCount(0);
-					if (onStatusChange) onStatusChange("live");
-				}}
-				onLoadedData={() => {
-					setStatus("live");
-					setRetryCount(0);
-					if (onStatusChange) onStatusChange("live");
-				}}
+				onPlaying={handleVideoReady}
+				onLoadedData={handleVideoReady}
+				onResize={handleVideoReady}
 			/>
 
 			{/* Luồng AI Tracking Annotation trực tiếp (YOLO11, ByteTrack, Khuôn mặt & Vùng ROI) */}
@@ -473,6 +527,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 									? "[ ĐANG KẾT NỐI... ]"
 									: "[ MẤT TÍN HIỆU ]"}
 						</div>
+						{enabled && errorMsg && (
+							<div className="cctv-offline-reason">{errorMsg}</div>
+						)}
 					</div>
 				</div>
 			)}

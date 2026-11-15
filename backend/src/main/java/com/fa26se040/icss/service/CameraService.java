@@ -132,6 +132,10 @@ public class CameraService {
                         .name(c.getName())
                         .status(c.getStatus())
                         .operationalStatus(c.getOperationalStatus())
+                        .mapLongitude(c.getMapLongitude())
+                        .mapLatitude(c.getMapLatitude())
+                        .mapBuilding(c.getMapBuilding())
+                        .mapFloorOrder(c.getMapFloorOrder())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -144,6 +148,8 @@ public class CameraService {
         return mapToDetailResponse(camera);
     }
 
+    private static final long STREAM_STARTUP_GRACE_SECONDS = 25L;
+
     /**
      * Tự động kiểm tra trạng thái luồng video từ MediaMTX và cập nhật operational_status cho các camera đang ACTIVE
      */
@@ -152,7 +158,7 @@ public class CameraService {
     public void syncLiveOperationalStatuses() {
         try {
             java.util.Map<String, Boolean> liveStatuses = mediaMtxService.getLivePathStatuses();
-            if (liveStatuses == null || liveStatuses.isEmpty()) {
+            if (liveStatuses == null) {
                 return;
             }
 
@@ -171,7 +177,7 @@ public class CameraService {
                 OperationalStatus newStatus;
                 if (isReady) {
                     newStatus = OperationalStatus.ONLINE;
-                } else if (hasPathInMediaMtx && currentStatus == OperationalStatus.ONLINE) {
+                } else if (hasPathInMediaMtx && currentStatus == OperationalStatus.ONLINE && isWithinStreamStartupGrace(cam)) {
                     newStatus = OperationalStatus.ONLINE;
                 } else {
                     newStatus = OperationalStatus.OFFLINE;
@@ -194,6 +200,13 @@ public class CameraService {
         }
     }
 
+    private boolean isWithinStreamStartupGrace(Camera camera) {
+        if (camera == null || camera.getUpdatedAt() == null) {
+            return false;
+        }
+        return !camera.getUpdatedAt().isBefore(OffsetDateTime.now().minusSeconds(STREAM_STARTUP_GRACE_SECONDS));
+    }
+
     public CameraDetailResponse updateCamera(UUID id, UpdateCameraRequest request) {
         log.info("Updating camera basic details for id: {}", id);
         Camera camera = cameraRepository.findById(id)
@@ -208,6 +221,53 @@ public class CameraService {
             }
             camera.setArea(area);
         }
+
+        Camera saved = cameraRepository.save(camera);
+        return mapToDetailResponse(saved);
+    }
+
+    /**
+     * Cập nhật tọa độ icon camera trên bản đồ 2D (tách biệt với area_id và roi_geometry).
+     */
+    public CameraDetailResponse updateMapLocation(UUID id, CameraMapLocationRequest request) {
+        log.info("Updating map location for camera id: {}", id);
+        Camera camera = cameraRepository.findById(id)
+                .filter(c -> c.getDeletedAt() == null)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+
+        Double lng = request.getLongitude();
+        Double lat = request.getLatitude();
+        if (lng == null || lat == null || !Double.isFinite(lng) || !Double.isFinite(lat)
+                || lng < -180.0 || lng > 180.0 || lat < -90.0 || lat > 90.0) {
+            throw new IllegalArgumentException("Tọa độ bản đồ không hợp lệ");
+        }
+
+        String building = request.getBuilding() != null && !request.getBuilding().isBlank()
+                ? request.getBuilding().trim()
+                : null;
+
+        camera.setMapLongitude(lng);
+        camera.setMapLatitude(lat);
+        camera.setMapBuilding(building);
+        camera.setMapFloorOrder(request.getFloorOrder());
+
+        Camera saved = cameraRepository.save(camera);
+        return mapToDetailResponse(saved);
+    }
+
+    /**
+     * Gỡ tọa độ icon camera khỏi bản đồ (không xóa camera).
+     */
+    public CameraDetailResponse clearMapLocation(UUID id) {
+        log.info("Clearing map location for camera id: {}", id);
+        Camera camera = cameraRepository.findById(id)
+                .filter(c -> c.getDeletedAt() == null)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+
+        camera.setMapLongitude(null);
+        camera.setMapLatitude(null);
+        camera.setMapBuilding(null);
+        camera.setMapFloorOrder(null);
 
         Camera saved = cameraRepository.save(camera);
         return mapToDetailResponse(saved);
@@ -602,6 +662,10 @@ public class CameraService {
                 .areaName(hasActiveArea ? area.getName() : null)
                 .building(hasActiveArea ? area.getBuilding() : null)
                 .floor(hasActiveArea ? area.getFloor() : null)
+                .mapLongitude(camera.getMapLongitude())
+                .mapLatitude(camera.getMapLatitude())
+                .mapBuilding(camera.getMapBuilding())
+                .mapFloorOrder(camera.getMapFloorOrder())
                 .build();
     }
 
@@ -629,6 +693,10 @@ public class CameraService {
                 .roiGeometry(camera.getRoiGeometry())
                 .assignedArea(assignedArea)
                 .assignedAreas(assignedArea != null ? List.of(assignedArea) : List.of())
+                .mapLongitude(camera.getMapLongitude())
+                .mapLatitude(camera.getMapLatitude())
+                .mapBuilding(camera.getMapBuilding())
+                .mapFloorOrder(camera.getMapFloorOrder())
                 .build();
     }
 

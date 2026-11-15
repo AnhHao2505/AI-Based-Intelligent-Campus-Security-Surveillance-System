@@ -231,4 +231,22 @@ class CameraStreamLifecycleServiceTest {
         verify(mediaMtxService, never()).syncCameraPath(anyString(), anyString());
         verify(cameraRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("MediaMTX NOT_READY sau khi sync: startStream dọn path, giữ OFFLINE và trả success=false")
+    void startStream_WhenMediaMtxNotReady_ShouldRollbackPathAndStayOffline() {
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.NOT_READY);
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertNotNull(response);
+        assertFalse(response.isSuccess());
+        assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
+        verify(mediaMtxService).deleteCameraPath("CAM-001");
+        verify(restTemplate, never()).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(), eq(Map.class));
+        verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+    }
 }

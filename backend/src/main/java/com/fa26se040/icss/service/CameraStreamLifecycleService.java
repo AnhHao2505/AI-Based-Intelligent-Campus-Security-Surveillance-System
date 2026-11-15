@@ -103,6 +103,23 @@ public class CameraStreamLifecycleService {
                 mediaMtxService.syncCameraPath(camera.getCameraCode(), mainRtspUrl);
             }
 
+            MediaMtxService.PathReadinessState readiness = mediaMtxService.awaitPathReady(camera.getCameraCode(), 3000L);
+            if (readiness == MediaMtxService.PathReadinessState.NOT_READY) {
+                mediaMtxService.deleteCameraPath(camera.getCameraCode());
+                camera.setOperationalStatus(OperationalStatus.OFFLINE);
+                camera.setUpdatedAt(OffsetDateTime.now());
+                cameraRepository.save(camera);
+                log.warn("❌ [MediaMTX] Camera [{}] chưa sẵn sàng sau khi kết nối RTSP -> giữ OFFLINE", camera.getCameraCode());
+                return CameraStreamLifecycleResponse.builder()
+                        .success(false)
+                        .cameraId(camera.getId())
+                        .cameraCode(camera.getCameraCode())
+                        .operationalStatus(OperationalStatus.OFFLINE)
+                        .message("MediaMTX chưa nhận được luồng video từ camera. Kiểm tra thiết bị phát RTSP, đường dẫn hoặc tài khoản.")
+                        .timestamp(OffsetDateTime.now())
+                        .build();
+            }
+
             if (aiServiceUrl != null && !aiServiceUrl.isBlank()) {
                 try {
                     String streamStartUrl = aiServiceUrl + "/api/v1/stream/start";

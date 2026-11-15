@@ -13,10 +13,13 @@ export default function CameraCreateModal({
 	onSuccess,
 	onCreated,
 	defaultAreaId = "",
+	defaultBuilding = "ALL",
+	defaultFloor = "ALL",
 }) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 	const [availableAreas, setAvailableAreas] = useState([]);
+	const [placeOnMapAfterCreate, setPlaceOnMapAfterCreate] = useState(true);
 	const [formData, setFormData] = useState({
 		name: "",
 		areaId: defaultAreaId || "",
@@ -25,14 +28,39 @@ export default function CameraCreateModal({
 	useEffect(() => {
 		if (isOpen) {
 			setFormData({ name: "", areaId: defaultAreaId || "" });
+			setPlaceOnMapAfterCreate(true);
 			setError(null);
 			getAllAreas({ isActive: true })
 				.then((list) => {
-					setAvailableAreas(Array.isArray(list) ? list : []);
+					const items = Array.isArray(list) ? list : [];
+					items.sort((a, b) => {
+						const locA = `${a.building || ""} ${a.floor || ""} ${a.name || ""}`;
+						const locB = `${b.building || ""} ${b.floor || ""} ${b.name || ""}`;
+						return locA.localeCompare(locB, "vi");
+					});
+					setAvailableAreas(items);
+					if (!defaultAreaId && defaultBuilding && defaultBuilding !== "ALL") {
+						const matched = items.find((a) => {
+							const bOk =
+								String(a.building || "").toLowerCase().includes(String(defaultBuilding).toLowerCase()) ||
+								String(defaultBuilding).toLowerCase().includes(String(a.building || "").toLowerCase());
+							const fOk =
+								!defaultFloor ||
+								defaultFloor === "ALL" ||
+								String(a.floor || "").toLowerCase() === String(defaultFloor).toLowerCase();
+							return bOk && fOk;
+						});
+						if (matched?.id) {
+							setFormData((prev) => ({
+								...prev,
+								areaId: prev.areaId || matched.id,
+							}));
+						}
+					}
 				})
 				.catch((err) => console.error("Failed to load areas:", err));
 		}
-	}, [isOpen, defaultAreaId]);
+	}, [isOpen, defaultAreaId, defaultBuilding, defaultFloor]);
 
 	if (!isOpen) return null;
 
@@ -53,8 +81,8 @@ export default function CameraCreateModal({
 
 		try {
 			const response = await createCamera(payload);
-			onSuccess?.(response);
-			onCreated?.(response);
+			onSuccess?.(response, { placeOnMap: placeOnMapAfterCreate });
+			onCreated?.(response, { placeOnMap: placeOnMapAfterCreate });
 			onClose();
 		} catch (err) {
 			console.error("Failed to create camera:", err);
@@ -136,6 +164,27 @@ export default function CameraCreateModal({
 							>
 								Mỗi camera phải được gán vào một khu vực đang hoạt động. Bạn có thể thay đổi sau.
 							</span>
+						</div>
+
+						<div className="form-group col-span-2">
+							<label
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "0.5rem",
+									cursor: "pointer",
+									fontSize: "0.85rem",
+									fontWeight: 600,
+								}}
+							>
+								<input
+									type="checkbox"
+									checked={placeOnMapAfterCreate}
+									onChange={(e) => setPlaceOnMapAfterCreate(e.target.checked)}
+									style={{ width: "auto" }}
+								/>
+								<span>Đặt vị trí icon trên bản đồ ngay sau khi tạo</span>
+							</label>
 						</div>
 					</div>
 

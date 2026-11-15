@@ -1494,11 +1494,11 @@
   min-height: 620px;
   overflow: hidden;
   color: var(--theme-text-primary);
-  /* UI-1 A4: khuôn trang dùng chung */
+  /* UI-1 A4: khuôn trang mở rộng toàn màn hình cho bản đồ không gian */
   width: 100%;
-  max-width: var(--page-max-width);
-  margin: 0 auto;
-  padding: 16px 20px;
+  max-width: 100%;
+  margin: 0;
+  padding: 10px 14px;
   box-sizing: border-box;
   transition: height 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -2547,10 +2547,20 @@
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border-radius: 4px;
+  border-radius: 8px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   transition: all 0.15s ease;
+}
+
+.area-camera-item--clickable {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.area-camera-item--clickable:hover {
+  border-color: var(--brand-blue, #034ea2);
 }
 
 .area-camera-item:hover {
@@ -3248,8 +3258,8 @@
    -------------------------------------------------------------------------- */
 .zone-split-layout {
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 310px minmax(0, 1fr);
+  gap: 12px;
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
@@ -3523,12 +3533,11 @@
 .zone-level-filter-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 6px;
   padding: 8px 12px 6px;
   border-bottom: 1px solid var(--theme-border, #e2e8f0);
   background: var(--theme-bg-surface, #ffffff);
-  overflow-x: auto;
-  scrollbar-width: none;
   flex-shrink: 0;
 }
 
@@ -3545,8 +3554,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
-  border-radius: 3px;
+  padding: 4px 8px;
+  border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--theme-text-muted, #94a3b8);
@@ -4182,8 +4191,39 @@
 
 /* Camera Sidebar Scope Toggle & Rows */
 .cam-sidebar-scope-bar {
-  padding: 4px 12px 2px;
+  padding: 4px 12px 4px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cam-sidebar-fov-toggle {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cam-sidebar-fov-toggle:hover {
+  border-color: #10b981;
+  color: #047857;
+}
+
+.cam-sidebar-fov-toggle--active {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
 }
 
 .cam-sidebar-scope-chip {

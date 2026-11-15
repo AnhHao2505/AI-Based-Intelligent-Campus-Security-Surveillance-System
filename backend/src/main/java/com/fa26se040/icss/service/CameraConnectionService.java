@@ -121,12 +121,25 @@ public class CameraConnectionService {
 
         try {
             com.fa26se040.icss.util.RtspCheckResult result = rtspHandshakeChecker.check(host, port, path, timeout);
+            if (!result.isReachable() && result.getStatusCode() == 401 && username != null && !username.isBlank()) {
+                com.fa26se040.icss.util.RtspCheckResult authResult =
+                        rtspHandshakeChecker.check(host, port, path, username, password, timeout);
+                if (authResult != null) {
+                    result = authResult;
+                }
+            }
             if (result.isReachable()) {
+                String msg = "Kết nối thành công tới cổng RTSP (Độ trễ: " + result.getLatencyMs() + "ms)";
+                if (result.getWarningMessage() != null && !result.getWarningMessage().isBlank()) {
+                    msg = msg + " — " + result.getWarningMessage();
+                }
                 return TestConnectionResponse.builder()
                         .success(true)
                         .operationalStatus(OperationalStatus.ONLINE)
                         .latencyMs(result.getLatencyMs())
-                        .message("Kết nối thành công tới cổng RTSP (Độ trễ: " + result.getLatencyMs() + "ms)")
+                        .videoCodec(result.getVideoCodec())
+                        .warning(result.getWarningMessage())
+                        .message(msg)
                         .build();
             } else {
                 String errMsg = result.getErrorMessage() != null ? result.getErrorMessage() : "Không nhận được phản hồi từ camera";

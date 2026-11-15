@@ -273,9 +273,17 @@ export function buildCameraMapMarkersGeoJSON({
 			}
 		}
 
-		// Slight southward offset so camera badge sits cleanly beside the room name sprite
+		// Slight southward offset only if it remains inside the matched room polygon
+		const candidateLat = anchorLat - 0.000014;
+		const staysInsideRoom =
+			!matchedRoom?.ring ||
+			isPointInPolygonWithHoles(
+				[anchorLng, candidateLat],
+				matchedRoom.ring,
+				matchedRoom.holes || [],
+			);
 		const badgeLng = anchorLng;
-		const badgeLat = anchorLat - 0.000016;
+		const badgeLat = staysInsideRoom ? candidateLat : anchorLat;
 		const containsSelectedCamera = Boolean(
 			selectedCameraId &&
 				stats.cameras.some((cam) => cam.id === selectedCameraId),

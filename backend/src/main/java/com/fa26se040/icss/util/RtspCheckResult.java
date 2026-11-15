@@ -17,4 +17,6 @@ public class RtspCheckResult {
     private String statusText;
     private RtspConnectionErrorCode errorCode;
     private String errorMessage;
+    private String videoCodec;
+    private String warningMessage;
 }

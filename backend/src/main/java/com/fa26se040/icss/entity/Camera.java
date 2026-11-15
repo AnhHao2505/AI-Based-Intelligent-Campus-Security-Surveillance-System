@@ -60,6 +60,18 @@ public class Camera {
     @Column(name = "roi_geometry", columnDefinition = "jsonb")
     private RoiGeometry roiGeometry;
 
+    @Column(name = "map_longitude")
+    private Double mapLongitude;
+
+    @Column(name = "map_latitude")
+    private Double mapLatitude;
+
+    @Column(name = "map_building", length = 100)
+    private String mapBuilding;
+
+    @Column(name = "map_floor_order")
+    private Integer mapFloorOrder;
+
     @OneToOne(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private CameraStreamConfiguration streamConfiguration;
 

@@ -162,6 +162,24 @@ public class CameraController {
         return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật cấu hình vùng giám sát ROI thành công"));
     }
 
+    @PatchMapping("/{id}/map-location")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<CameraDetailResponse>> updateMapLocation(
+            @PathVariable UUID id,
+            @Valid @RequestBody CameraMapLocationRequest request) {
+        log.info("REST request to update map location for camera: {}", id);
+        CameraDetailResponse response = cameraService.updateMapLocation(id, request);
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật vị trí camera trên bản đồ thành công"));
+    }
+
+    @DeleteMapping("/{id}/map-location")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<CameraDetailResponse>> clearMapLocation(@PathVariable UUID id) {
+        log.info("REST request to clear map location for camera: {}", id);
+        CameraDetailResponse response = cameraService.clearMapLocation(id);
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã gỡ vị trí camera khỏi bản đồ"));
+    }
+
     @PostMapping("/stream/cloud-relay")
     @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
     public ResponseEntity<ApiResponse<String>> toggleCloudRelay(

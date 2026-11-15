@@ -289,4 +289,55 @@ class CameraServiceTest {
         verify(cameraRepository, never()).save(any());
         verify(minioStorageService, never()).uploadRoiReferenceSnapshot(any(), anyString());
     }
+
+    @Test
+    @DisplayName("SyncLiveStatus: Camera ONLINE nhưng MediaMTX ready=false quá thời gian khởi tạo -> chuyển OFFLINE và dừng AI worker")
+    void testSyncLiveOperationalStatuses_unreadyPathPastGraceWindow_marksOffline() {
+        testCamera.setStatus(CameraStatus.ACTIVE);
+        testCamera.setOperationalStatus(OperationalStatus.ONLINE);
+        testCamera.setUpdatedAt(java.time.OffsetDateTime.now().minusSeconds(60));
+
+        when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
+        when(mediaMtxService.getLivePathStatuses()).thenReturn(Map.of("cam-001", false));
+        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+
+        cameraService.syncLiveOperationalStatuses();
+
+        assertEquals(OperationalStatus.OFFLINE, testCamera.getOperationalStatus());
+        verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+    }
+
+    @Test
+    @DisplayName("SyncLiveStatus: Camera ONLINE trong 25s đầu sau khi bật stream vẫn được giữ ONLINE để chờ MediaMTX kéo luồng")
+    void testSyncLiveOperationalStatuses_unreadyPathWithinGraceWindow_staysOnline() {
+        testCamera.setStatus(CameraStatus.ACTIVE);
+        testCamera.setOperationalStatus(OperationalStatus.ONLINE);
+        testCamera.setUpdatedAt(java.time.OffsetDateTime.now().minusSeconds(5));
+
+        when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
+        when(mediaMtxService.getLivePathStatuses()).thenReturn(Map.of("cam-001", false));
+        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+
+        cameraService.syncLiveOperationalStatuses();
+
+        assertEquals(OperationalStatus.ONLINE, testCamera.getOperationalStatus());
+        verify(cameraRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("SyncLiveStatus: MediaMTX trả về 0 path (emptyMap) khi camera đã ONLINE quá grace -> chuyển OFFLINE")
+    void testSyncLiveOperationalStatuses_emptyMediaMtxPathsPastGrace_marksOffline() {
+        testCamera.setStatus(CameraStatus.ACTIVE);
+        testCamera.setOperationalStatus(OperationalStatus.ONLINE);
+        testCamera.setUpdatedAt(java.time.OffsetDateTime.now().minusSeconds(60));
+
+        when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
+        when(mediaMtxService.getLivePathStatuses()).thenReturn(Collections.emptyMap());
+        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+
+        cameraService.syncLiveOperationalStatuses();
+
+        assertEquals(OperationalStatus.OFFLINE, testCamera.getOperationalStatus());
+        verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+    }
 }

@@ -3,13 +3,8 @@ import {
 	Search,
 	X,
 	Video,
-	Power,
-	PowerOff,
-	Trash2,
 	Plus,
 	MapPin,
-	Filter,
-	Loader2,
 } from "lucide-react";
 import { LoadingState, ErrorState } from "../ui";
 import { formatLocation } from "../../utils/formatLocation";
@@ -30,17 +25,13 @@ export default function CameraWorkspaceSidebar({
 	selectedFloor = "ALL",
 	isAdmin = false,
 	onOpenCreateCamera,
-	onToggleCameraStatus,
-	onDeleteCamera,
-	actionLoadingId = null,
+	fovPlacements = {},
+	cameraMapPlacements = null,
 }) {
+	const activePlacements = cameraMapPlacements || fovPlacements;
 	const [search, setSearch] = useState("");
 	const [opStatusFilter, setOpStatusFilter] = useState("ALL");
 	const [statusFilter, setStatusFilter] = useState("ALL");
-	const [scopeToMapFilter, setScopeToMapFilter] = useState(false);
-
-	const hasMapScope =
-		selectedBuilding !== "ALL" || selectedFloor !== "ALL";
 
 	const areaById = useMemo(() => {
 		const map = new Map();
@@ -60,7 +51,7 @@ export default function CameraWorkspaceSidebar({
 				opStatusFilter,
 				selectedBuilding,
 				selectedFloor,
-				scopeToMapFilter: hasMapScope && scopeToMapFilter,
+				scopeToMapFilter: false,
 			}),
 		[
 			cameras,
@@ -70,8 +61,6 @@ export default function CameraWorkspaceSidebar({
 			opStatusFilter,
 			selectedBuilding,
 			selectedFloor,
-			hasMapScope,
-			scopeToMapFilter,
 		],
 	);
 
@@ -184,24 +173,6 @@ export default function CameraWorkspaceSidebar({
 				)}
 			</div>
 
-			{/* Map Filter Scope Toggle when Building/Floor is filtered on 3D map */}
-			{hasMapScope && (
-				<div className="cam-sidebar-scope-bar">
-					<button
-						type="button"
-						className={`cam-sidebar-scope-chip ${scopeToMapFilter ? "cam-sidebar-scope-chip--active" : ""}`}
-						onClick={() => setScopeToMapFilter((v) => !v)}
-					>
-						<Filter size={11} />
-						<span>
-							{scopeToMapFilter
-								? `Đang lọc theo: ${selectedBuilding === "ALL" ? "" : selectedBuilding}${selectedFloor !== "ALL" ? ` · ${selectedFloor}` : ""}`
-								: "Đang hiện toàn trường — Bấm để lọc theo tầng bản đồ"}
-						</span>
-					</button>
-				</div>
-			)}
-
 			{/* Camera List Content */}
 			<div className="zone-sidebar-content">
 				{loading && <LoadingState size="sm" text="Đang tải danh sách camera..." />}
@@ -248,7 +219,6 @@ export default function CameraWorkspaceSidebar({
 								resolvedArea?.building || info.building,
 								resolvedArea?.floor || info.floor,
 							);
-							const isBusy = actionLoadingId === cam.id;
 
 							return (
 								<div
@@ -306,39 +276,19 @@ export default function CameraWorkspaceSidebar({
 										className="zone-item-row__meta"
 										onClick={(e) => e.stopPropagation()}
 									>
-										{isAdmin && (
-											<div className="zone-item-row__actions">
-												<button
-													type="button"
-													className="zone-item-row__action-btn"
-													onClick={() => onToggleCameraStatus?.(cam)}
-													disabled={isBusy}
-													title={isDecommissioned ? "Kích hoạt lại" : "Tắt camera"}
-													aria-label={
-														isDecommissioned
-															? `Kích hoạt lại ${cam.name}`
-															: `Tắt ${cam.name}`
-													}
-												>
-													{isBusy ? (
-														<Loader2 size={12} className="animate-spin" />
-													) : isDecommissioned ? (
-														<Power size={13} />
-													) : (
-														<PowerOff size={13} />
-													)}
-												</button>
-												<button
-													type="button"
-													className="zone-item-row__action-btn zone-item-row__action-btn--danger"
-													onClick={() => onDeleteCamera?.(cam)}
-													disabled={isBusy}
-													title="Xóa camera"
-													aria-label={`Xóa camera ${cam.name}`}
-												>
-													<Trash2 size={13} />
-												</button>
-											</div>
+										{activePlacements?.[cam.id] && (
+											<span
+												className="cam-sidebar-code-chip"
+												style={{
+													background: "rgba(16, 185, 129, 0.12)",
+													color: "#047857",
+													borderColor: "rgba(16, 185, 129, 0.3)",
+												}}
+												title="Đã đặt vị trí trên bản đồ"
+											>
+												<MapPin size={10} style={{ display: "inline", marginRight: 2 }} />
+												Map
+											</span>
 										)}
 									</div>
 								</div>

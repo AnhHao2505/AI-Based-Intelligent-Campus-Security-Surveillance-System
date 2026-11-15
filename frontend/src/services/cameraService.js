@@ -154,6 +154,27 @@ export function updateRoiGeometry(cameraId, roiGeometry, snapshotMeta) {
 	});
 }
 
+export function updateCameraMapLocation(
+	cameraId,
+	{ longitude, latitude, building = null, floorOrder = null },
+) {
+	return request(`/api/cameras/${cameraId}/map-location`, {
+		method: "PATCH",
+		body: JSON.stringify({
+			longitude,
+			latitude,
+			building,
+			floorOrder,
+		}),
+	});
+}
+
+export function clearCameraMapLocation(cameraId) {
+	return request(`/api/cameras/${cameraId}/map-location`, {
+		method: "DELETE",
+	});
+}
+
 /**
  * Lấy token xác thực ngắn hạn để mở luồng video live-annotated từ AI Service.
  */

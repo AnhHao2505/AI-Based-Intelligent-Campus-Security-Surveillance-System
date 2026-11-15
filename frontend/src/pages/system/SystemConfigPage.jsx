@@ -11,6 +11,7 @@ import {
 	Bell,
 	SlidersHorizontal,
 	Info,
+	HelpCircle,
 	Cpu,
 	UserPlus,
 } from "lucide-react";
@@ -38,7 +39,10 @@ import { useReasonLimits } from "../../hooks/useReasonLimits";
 /** Nhóm con trong một tab cấu hình, theo tiền tố config_key (UI-AUDIT #33). */
 const CONFIG_SUBGROUPS = {
 	SECURITY: [
-		{ title: "Leo thang sự cố", prefixes: ["INCIDENT_ESCALATE_", "INCIDENT_ESCALATION_"] },
+		{
+			title: "Leo thang sự cố",
+			prefixes: ["INCIDENT_ESCALATE_", "INCIDENT_ESCALATION_"],
+		},
 		// V90 (K7): bật mời theo đợt, load score, chu kỳ job lời mời, mức độ mặc định
 		{ title: "Phân phối sự cố", prefixes: ["DISPATCH_", "INCIDENT_SEVERITY_"] },
 		{ title: "Bảo vệ xử lý sự cố", prefixes: ["GUARD_INCIDENT_"] },
@@ -47,7 +51,10 @@ const CONFIG_SUBGROUPS = {
 		{ title: "Tra cứu thành viên", prefixes: ["SECURITY_MEMBER_LOOKUP_"] },
 		{ title: "Lý do thao tác", prefixes: ["REASON_"] },
 		// V121: thời hạn token xem video ghi hình / live có chú thích
-		{ title: "Liên kết xem camera", prefixes: ["RECORDING_STREAM_", "ANNOTATED_STREAM_"] },
+		{
+			title: "Liên kết xem camera",
+			prefixes: ["RECORDING_STREAM_", "ANNOTATED_STREAM_"],
+		},
 		// V123 (P-MAP-2): ước tính thời gian lộ trình trên bản đồ
 		{ title: "Bản đồ tuần tra", prefixes: ["WALKING_SPEED_", "FLOOR_CHANGE_"] },
 	],
@@ -56,7 +63,8 @@ const CONFIG_SUBGROUPS = {
 /** EV-N8: một dòng kết quả "khu · tên: giờ cũ → mới / đã huỷ / đã tắt". */
 function describeNightAdjustment(a) {
 	const head = `${a.areaName}${a.title ? ` · ${a.title}` : ""}: ${a.startAt ? formatDateTime(a.startAt) : "?"} → ${formatDateTime(a.oldEndAt)}`;
-	if (a.outcome === "TRIMMED") return `${head} — giờ kết thúc mới ${formatDateTime(a.newEndAt)}`;
+	if (a.outcome === "TRIMMED")
+		return `${head} — giờ kết thúc mới ${formatDateTime(a.newEndAt)}`;
 	if (a.outcome === "CANCELLED") return `${head} — đã huỷ lịch`;
 	return `${head} — đã tắt sự kiện đang mở`;
 }
@@ -178,7 +186,11 @@ export default function SystemConfigPage() {
 				`Cập nhật cấu hình "${confirmModalConfig.description || key}" thành công!`,
 			);
 			// EV-N8: chỉ có khi lưu AI_AFTER_HOUR_START / AI_AFTER_HOUR_END
-			setNightAdjustments(Array.isArray(updated?.eventAdjustments) ? updated.eventAdjustments : null);
+			setNightAdjustments(
+				Array.isArray(updated?.eventAdjustments)
+					? updated.eventAdjustments
+					: null,
+			);
 
 			setConfigs((prev) =>
 				prev.map((c) => (c.configKey === key ? updated : c)),
@@ -322,7 +334,9 @@ export default function SystemConfigPage() {
 					<Button
 						variant="outline"
 						icon={History}
-						onClick={() => navigate("/admin/accounts?tab=LOG&group=SYSTEM_CONFIG")}
+						onClick={() =>
+							navigate("/admin/accounts?tab=LOG&group=SYSTEM_CONFIG")
+						}
 					>
 						Xem nhật ký thay đổi
 					</Button>
@@ -342,19 +356,28 @@ export default function SystemConfigPage() {
 
 			{/* EV-N8: lưu giờ ban đêm -> các lịch / sự kiện hệ thống đã cắt / huỷ / tắt */}
 			{nightAdjustments && (
-				<div className="syscfg-alert" role="status">
-					<Info size={18} className="syscfg-alert__icon" />
+				<div
+					className="syscfg-alert"
+					role="status"
+				>
+					<Info
+						size={18}
+						className="syscfg-alert__icon"
+					/>
 					<div className="syscfg-alert__text">
 						{nightAdjustments.length === 0 ? (
 							"Không có lịch hoặc sự kiện nào bị ảnh hưởng bởi khung ban đêm mới."
 						) : (
 							<>
 								<strong>
-									Hệ thống đã điều chỉnh {nightAdjustments.length} lịch / sự kiện theo khung ban đêm mới:
+									Hệ thống đã điều chỉnh {nightAdjustments.length} lịch / sự
+									kiện theo khung ban đêm mới:
 								</strong>
 								<ul className="syscfg-adjust-list">
 									{nightAdjustments.map((a) => (
-										<li key={`${a.target}-${a.targetId}`}>{describeNightAdjustment(a)}</li>
+										<li key={`${a.target}-${a.targetId}`}>
+											{describeNightAdjustment(a)}
+										</li>
 									))}
 								</ul>
 							</>
@@ -377,7 +400,10 @@ export default function SystemConfigPage() {
 			{loading ? (
 				<LoadingState text="Đang tải cấu hình hệ thống..." />
 			) : loadError ? (
-				<ErrorState message={loadError} onRetry={fetchConfigs} />
+				<ErrorState
+					message={loadError}
+					onRetry={fetchConfigs}
+				/>
 			) : configs.length === 0 ? (
 				<EmptyState title="Chưa có tham số cấu hình nào" />
 			) : (
@@ -416,10 +442,20 @@ export default function SystemConfigPage() {
 												color: "var(--theme-info-text)",
 											}}
 										>
-											<Info size={18} className="syscfg-alert__icon" />
+											<Info
+												size={18}
+												className="syscfg-alert__icon"
+											/>
 											<span className="syscfg-alert__text">
-												Luật mức độ sự cố, chính sách phân phối theo mức và danh mục vị trí trực được quản lý ở{" "}
-												<Link to="/admin/incident-policies" style={{ color: "var(--theme-info-text)", fontWeight: 600 }}>
+												Luật mức độ sự cố, chính sách phân phối theo mức và danh
+												mục vị trí trực được quản lý ở{" "}
+												<Link
+													to="/admin/incident-policies"
+													style={{
+														color: "var(--theme-info-text)",
+														fontWeight: 600,
+													}}
+												>
 													màn Chính sách sự cố
 												</Link>
 												.
@@ -427,7 +463,10 @@ export default function SystemConfigPage() {
 										</div>
 									)}
 									{splitIntoSubgroups(groupKey, groupItems).map((sub) => (
-										<div key={sub.title || "all"} className="syscfg-group-section">
+										<div
+											key={sub.title || "all"}
+											className="syscfg-group-section"
+										>
 											{sub.title && (
 												<div className="syscfg-group-header">
 													<h2 className="syscfg-group-header__title">
@@ -450,14 +489,28 @@ export default function SystemConfigPage() {
 															className="syscfg-item-card"
 														>
 															<div className="syscfg-item">
-																{/* Top: Description and Key */}
+																{/* Top: Description and Help Tooltip */}
 																<div className="syscfg-item__top">
 																	<div className="syscfg-item__meta">
 																		<h3
 																			className="syscfg-item__description"
 																			id={`syscfg-desc-${cfg.configKey}`}
 																		>
-																			{cfg.description}
+																			<span>{cfg.description}</span>
+																			{cfg.tooltip && (
+																				<span
+																					className="syscfg-help-wrapper"
+																					data-tooltip={cfg.tooltip}
+																					tabIndex={0}
+																					role="img"
+																					aria-label={cfg.tooltip}
+																				>
+																					<HelpCircle
+																						size={14}
+																						className="syscfg-help-icon"
+																					/>
+																				</span>
+																			)}
 																		</h3>
 																	</div>
 
@@ -491,7 +544,11 @@ export default function SystemConfigPage() {
 																				role="switch"
 																				aria-checked={currentValue === "true"}
 																				aria-labelledby={`syscfg-desc-${cfg.configKey}`}
-																				title={currentValue === "true" ? "Đang cho phép, bấm để cấm" : "Đang cấm, bấm để cho phép"}
+																				title={
+																					currentValue === "true"
+																						? "Đang cho phép, bấm để cấm"
+																						: "Đang cấm, bấm để cho phép"
+																				}
 																			>
 																				<span className="syscfg-toggle__switch" />
 																			</button>
@@ -504,14 +561,13 @@ export default function SystemConfigPage() {
 																	) : (
 																		<div className="syscfg-input-wrapper">
 																			<Input
-										type={
-											cfg.unit === "HH:mm"
-												? "time"
-												:
-											cfg.dataType === "INTEGER" ||
-																					cfg.dataType === "DECIMAL"
-																						? "number"
-																						: "text"
+																				type={
+																					cfg.unit === "HH:mm"
+																						? "time"
+																						: cfg.dataType === "INTEGER" ||
+																							  cfg.dataType === "DECIMAL"
+																							? "number"
+																							: "text"
 																				}
 																				value={currentValue}
 																				onChange={(e) =>
@@ -570,7 +626,8 @@ export default function SystemConfigPage() {
 																</div>
 
 																{/* Rules Hint: Min / Max constraints */}
-																{(cfg.minValue != null || cfg.maxValue != null) && (
+																{(cfg.minValue != null ||
+																	cfg.maxValue != null) && (
 																	<div className="syscfg-item__hint">
 																		<Info size={12} />
 																		<span>
@@ -578,7 +635,8 @@ export default function SystemConfigPage() {
 																			{cfg.minValue != null
 																				? `tối thiểu ${cfg.minValue}`
 																				: ""}
-																			{cfg.minValue != null && cfg.maxValue != null
+																			{cfg.minValue != null &&
+																			cfg.maxValue != null
 																				? " — "
 																				: ""}
 																			{cfg.maxValue != null
@@ -599,7 +657,8 @@ export default function SystemConfigPage() {
 																			{cfg.updatedByName && (
 																				<>
 																					{" "}
-																					bởi <strong>{cfg.updatedByName}</strong>
+																					bởi{" "}
+																					<strong>{cfg.updatedByName}</strong>
 																				</>
 																			)}
 																		</span>
@@ -637,7 +696,10 @@ export default function SystemConfigPage() {
 						size="sm"
 						message={historyError}
 						onRetry={() =>
-							handleOpenHistory({ configKey: historyConfigKey, description: historyConfigName })
+							handleOpenHistory({
+								configKey: historyConfigKey,
+								description: historyConfigName,
+							})
 						}
 					/>
 				) : historyLogs.length === 0 ? (
@@ -689,7 +751,12 @@ export default function SystemConfigPage() {
 											</span>
 										</td>
 										<td>
-											<span style={{ fontSize: "12.5px", color: "var(--theme-text-primary)" }}>
+											<span
+												style={{
+													fontSize: "12.5px",
+													color: "var(--theme-text-primary)",
+												}}
+											>
 												{log.reason || "—"}
 											</span>
 										</td>
@@ -707,10 +774,18 @@ export default function SystemConfigPage() {
 					isOpen={Boolean(confirmModalConfig)}
 					onClose={() => setConfirmModalConfig(null)}
 					title="Xác nhận cập nhật cấu hình"
-					subtitle={confirmModalConfig.description || confirmModalConfig.configKey}
+					subtitle={
+						confirmModalConfig.description || confirmModalConfig.configKey
+					}
 					size="md"
 					footer={
-						<div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "flex-end",
+								gap: "8px",
+							}}
+						>
 							<Button
 								variant="secondary"
 								onClick={() => setConfirmModalConfig(null)}
@@ -728,10 +803,15 @@ export default function SystemConfigPage() {
 						</div>
 					}
 				>
-					<div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+					<div
+						style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+					>
 						{confirmError && (
 							<div className="syscfg-alert syscfg-alert--error">
-								<AlertCircle size={18} className="syscfg-alert__icon" />
+								<AlertCircle
+									size={18}
+									className="syscfg-alert__icon"
+								/>
 								<span className="syscfg-alert__text">{confirmError}</span>
 							</div>
 						)}
@@ -744,12 +824,16 @@ export default function SystemConfigPage() {
 								border: "1px solid var(--theme-border)",
 							}}
 						>
-							<div><strong>Tham số:</strong> {confirmModalConfig.configKey}</div>
-							<div style={{ marginTop: "4px" }}>
-								<strong>Giá trị hiện tại:</strong> {confirmModalConfig.configValue}
+							<div>
+								<strong>Tham số:</strong> {confirmModalConfig.configKey}
 							</div>
 							<div style={{ marginTop: "4px" }}>
-								<strong>Giá trị mới:</strong> {editedValues[confirmModalConfig.configKey]}
+								<strong>Giá trị hiện tại:</strong>{" "}
+								{confirmModalConfig.configValue}
+							</div>
+							<div style={{ marginTop: "4px" }}>
+								<strong>Giá trị mới:</strong>{" "}
+								{editedValues[confirmModalConfig.configKey]}
 							</div>
 						</div>
 						<div>

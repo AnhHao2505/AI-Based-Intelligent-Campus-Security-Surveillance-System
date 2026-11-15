@@ -13,6 +13,7 @@ import MapGL, {
 	Source,
 	Layer,
 } from "react-map-gl/maplibre";
+import { MercatorCoordinate } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../../utils/initMapLibreWorker";
 import {
@@ -43,6 +44,7 @@ import {
 	DEFAULT_BUILDINGS_META,
 	EXPLODED_FLOOR_STEP_OPTIONS,
 	FLOOR_ELEVATION_STEP,
+	FLOOR_SLAB_HEIGHT,
 	OPENFREEMAP_STYLE_URL,
 	loadGeometryStore,
 	buildVector3dLayers,
@@ -67,6 +69,10 @@ import {
 	ensureCameraBadgeSpriteImage,
 } from "../../utils/mapCameraBadgeSprites";
 import {
+	buildCameraFovMapGeoJson,
+	projectEventToFloorLngLat,
+} from "../../utils/cameraFovGeometry";
+import {
 	buildCameraMapMarkersGeoJSON,
 	extractCameraAreaInfo,
 } from "../../utils/campusCameraHelpers";
@@ -89,7 +95,7 @@ const MAP_LIGHT = {
 };
 
 const INTERACTIVE_3D_LAYERS = [
-	"campus-3d-camera-badges-layer",
+	"campus-2d-camera-pins-layer",
 	"campus-3d-rooms-layer",
 	"campus-3d-slabs-layer",
 	"campus-3d-walls-layer",
@@ -181,6 +187,14 @@ export default function CampusMapView({
 	pickingCameraArea = false,
 	onCancelPickCameraArea = null,
 	onAreaPickedForCamera = null,
+	fovPlacements = {},
+	showAllFovs = true,
+	pickingCameraLocation = false,
+	onCancelPickCameraLocation = null,
+	onCameraLocationPicked = null,
+	onSelectCameraPin = null,
+	onUpdateCameraFov = null,
+	onCommitCameraLocation = null,
 	rightDrawerContent = null,
 	isAdmin = false,
 	isFacilityManager = false,
@@ -344,6 +358,42 @@ export default function CampusMapView({
 			floorGapStep,
 		],
 	);
+
+	const draggingPinRef = useRef(null);
+
+	const cameraMapLayers = useMemo(
+		() =>
+			buildCameraFovMapGeoJson({
+				cameras,
+				placementsById: fovPlacements,
+				building: activeBuilding3d === "ALL" ? null : activeBuilding3d,
+				floorOrder:
+					activeFloorOrder3d === "ALL" ? null : Number(activeFloorOrder3d),
+				selectedCameraId,
+				floorElevationStep: floorGapStep,
+				floorSlabHeight: FLOOR_SLAB_HEIGHT,
+			}),
+		[
+			cameras,
+			fovPlacements,
+			activeBuilding3d,
+			activeFloorOrder3d,
+			selectedCameraId,
+			floorGapStep,
+		],
+	);
+
+	const cameraPinsGeoJSON = useMemo(
+		() => ({ type: "FeatureCollection", features: cameraMapLayers.pinFeatures }),
+		[cameraMapLayers.pinFeatures],
+	);
+
+	useEffect(() => {
+		const map = mapRef.current?.getMap?.() || mapRef.current;
+		if (!map) return;
+		registerCameraBadgeSprites(map, cameraBadgesGeoJSON);
+		registerCameraBadgeSprites(map, cameraPinsGeoJSON);
+	}, [cameraBadgesGeoJSON, cameraPinsGeoJSON]);
 
 	const handleChangeFloorGapStep = useCallback(
 		(nextStep) => {
@@ -841,21 +891,106 @@ export default function CampusMapView({
 		}
 	}, [editingArea, draftRoomMeta, draftCoords, onAreaUpdated, onRebindAreaDone]);
 
+	const handleMapMouseDown = useCallback(
+		(e) => {
+			if (!isAdmin || pickingCameraLocation) return;
+			const map = mapRef.current?.getMap?.() || mapRef.current;
+			const features = e?.features || [];
+			const pinFeat = features.find(
+				(f) => f.layer?.id === "campus-2d-camera-pins-layer",
+			);
+			if (pinFeat?.properties?.cameraId) {
+				const camId = pinFeat.properties.cameraId;
+				const placement = fovPlacements?.[camId];
+				if (!placement) return;
+				e?.preventDefault?.();
+				draggingPinRef.current = {
+					mode: "move",
+					cameraId: camId,
+					building: placement.building ?? null,
+					floorOrder: placement.floorOrder ?? null,
+					origin: { lng: Number(placement.lng), lat: Number(placement.lat) },
+					latestCoords: null,
+				};
+				map?.dragPan?.disable?.();
+				setHoverCursor("grabbing");
+			}
+		},
+		[fovPlacements, isAdmin, pickingCameraLocation],
+	);
+
+	const handleMapMouseUp = useCallback(() => {
+		const drag = draggingPinRef.current;
+		if (!drag) return;
+		draggingPinRef.current = null;
+		const map = mapRef.current?.getMap?.() || mapRef.current;
+		map?.dragPan?.enable?.();
+		setHoverCursor("grab");
+		if (drag.mode === "move" && drag.latestCoords) {
+			onCommitCameraLocation?.(drag.cameraId, {
+				lng: drag.latestCoords.lng,
+				lat: drag.latestCoords.lat,
+				building: drag.building,
+				floorOrder: drag.floorOrder,
+			});
+		}
+	}, [onCommitCameraLocation]);
+
 	const handleMapMouseMove = useCallback(
 		(e) => {
+			if (draggingPinRef.current && e?.lngLat) {
+				const drag = draggingPinRef.current;
+				const map = mapRef.current?.getMap?.() || mapRef.current;
+				const resolvedOrder = Number.isFinite(Number(drag.floorOrder))
+					? Number(drag.floorOrder)
+					: 0;
+				const pinHeightMeters = resolvedOrder * floorGapStep + FLOOR_SLAB_HEIGHT + 0.32;
+				const projected =
+					projectEventToFloorLngLat(
+						map,
+						e,
+						pinHeightMeters,
+						MercatorCoordinate,
+					) || { lng: e.lngLat.lng, lat: e.lngLat.lat };
+				drag.latestCoords = projected;
+				onUpdateCameraFov?.(drag.cameraId, {
+					lng: projected.lng,
+					lat: projected.lat,
+				});
+				setHoverCursor("grabbing");
+				if (e?.point) {
+					setHoveredRoom({
+						x: e.point.x,
+						y: e.point.y,
+						isOccupied: true,
+						title: "Đang dời vị trí camera",
+						subtitle: "Thả chuột để lưu vị trí mới",
+					});
+				}
+				return;
+			}
 			const features = e?.features || [];
+			if (pickingCameraLocation) {
+				setHoverCursor("crosshair");
+				return;
+			}
 			setHoverCursor(features.length > 0 ? "pointer" : "grab");
-			const camBadgeFeat = features.find(
-				(f) => f.layer?.id === "campus-3d-camera-badges-layer",
+			const camPinFeat = features.find(
+				(f) => f.layer?.id === "campus-2d-camera-pins-layer",
 			);
-			if (camBadgeFeat?.properties && e?.point) {
-				const bp = camBadgeFeat.properties;
+			if (camPinFeat?.properties && e?.point) {
+				const cp = camPinFeat.properties;
+				setHoverCursor(isAdmin ? "grab" : "pointer");
 				setHoveredRoom({
 					x: e.point.x,
 					y: e.point.y,
 					isOccupied: true,
-					title: `${bp.areaName || "Khu vực"} · ${bp.total} Camera`,
-					subtitle: `${bp.onlineCount || 0} Online · ${bp.offlineCount || 0} Offline — Bấm để xem`,
+					title: `${cp.cameraName || "Camera"} (${cp.cameraCode || ""})`,
+					subtitle: isAdmin
+						? "Giữ & kéo để dời vị trí · Bấm để xem cấu hình"
+						: cp.statusKey === "ok"
+							? "ONLINE"
+							: "OFFLINE",
 				});
 				return;
 			}
@@ -936,10 +1071,13 @@ export default function CampusMapView({
 			isAdmin,
 			isEditingCoords,
 			pickingCameraArea,
+			pickingCameraLocation,
+			onUpdateCameraFov,
 			cameraStatsByArea,
 			cameraCounts,
 			activeBuilding3d,
 			activeFloorOrder3d,
+			floorGapStep,
 		],
 	);
 
@@ -947,6 +1085,9 @@ export default function CampusMapView({
 	const handleMapClick = useCallback(
 		(e) => {
 			const features = e?.features || [];
+			const clickedCamPin = features.find(
+				(f) => f.layer?.id === "campus-2d-camera-pins-layer",
+			);
 			const clickedCamBadge = features.find(
 				(f) => f.layer?.id === "campus-3d-camera-badges-layer",
 			);
@@ -968,24 +1109,42 @@ export default function CampusMapView({
 			);
 			const roomProps = clickedRoomFeature?.properties;
 
-			if (pickingCameraArea) {
-				if (roomProps?.matchedAreaId) {
-					const picked = areas.find((a) => a.id === roomProps.matchedAreaId);
-					if (picked) {
-						onAreaPickedForCamera?.(picked);
-					}
-				}
+			if (pickingCameraLocation && isAdmin) {
+				if (!e?.lngLat) return;
+				const map = mapRef.current?.getMap?.() || mapRef.current;
+				const pickedBuilding =
+					activeBuilding3d !== "ALL"
+						? activeBuilding3d
+						: roomProps?.building || null;
+				const pickedFloorOrder =
+					activeFloorOrder3d !== "ALL"
+						? Number(activeFloorOrder3d)
+						: roomProps?.floorOrder != null
+							? Number(roomProps.floorOrder)
+							: null;
+				const floorHeightMeters =
+					(Number.isFinite(pickedFloorOrder) ? pickedFloorOrder : 0) *
+						floorGapStep +
+					FLOOR_SLAB_HEIGHT +
+					0.32;
+				const lngLat =
+					projectEventToFloorLngLat(
+						map,
+						e,
+						floorHeightMeters,
+						MercatorCoordinate,
+					) || e.lngLat;
+				onCameraLocationPicked?.({
+					lng: lngLat.lng,
+					lat: lngLat.lat,
+					building: pickedBuilding,
+					floorOrder: pickedFloorOrder,
+				});
 				return;
 			}
 
-			if (clickedCamBadge?.properties?.areaId && onSelectCameraBadge) {
-				const badgeAreaId = clickedCamBadge.properties.areaId;
-				const areaCameras =
-					cameraStatsByArea?.[badgeAreaId]?.cameras ||
-					cameras.filter(
-						(cam) => extractCameraAreaInfo(cam)?.areaId === badgeAreaId,
-					);
-				onSelectCameraBadge(badgeAreaId, areaCameras);
+			if (clickedCamPin?.properties?.cameraId && onSelectCameraPin) {
+				onSelectCameraPin(clickedCamPin.properties.cameraId);
 				return;
 			}
 
@@ -1147,6 +1306,7 @@ export default function CampusMapView({
 			onSelectCameraBadge,
 			isAdmin,
 			editingAreaId,
+			floorGapStep,
 			allDbFloors,
 			activeBuilding3d,
 			activeFloorOrder3d,
@@ -1395,9 +1555,30 @@ export default function CampusMapView({
 					</div>
 				)}
 
+				{pickingCameraLocation && (
+					<div className="campus-coord-editor" role="status">
+						<div className="campus-coord-editor__head">
+							<Crosshair size={14} />
+							<strong>Đặt vị trí camera</strong>
+						</div>
+						<p className="campus-coord-editor__hint">
+							Click điểm bất kỳ (phòng, hành lang) để ghim vị trí.
+						</p>
+						<div className="campus-coord-editor__actions">
+							<button
+								type="button"
+								className="campus-coord-btn campus-coord-btn--ghost"
+								onClick={onCancelPickCameraLocation}
+							>
+								Huỷ
+							</button>
+						</div>
+					</div>
+				)}
+
 				{/* Map Viewport */}
 				<div
-					className={`campus-map-viewport ${compactLabels ? "campus-map-viewport--compact" : ""} ${isEditingCoords || pickingCameraArea ? "campus-map-viewport--editing" : ""}`}
+					className={`campus-map-viewport ${compactLabels ? "campus-map-viewport--compact" : ""} ${isEditingCoords || pickingCameraArea || pickingCameraLocation ? "campus-map-viewport--editing" : ""}`}
 				>
 					<MapGL
 						ref={mapRef}
@@ -1408,6 +1589,7 @@ export default function CampusMapView({
 							registerPortalMapImages(map);
 							registerRoomLabelSprites(map, roomLabelsGeoJSON);
 							registerCameraBadgeSprites(map, cameraBadgesGeoJSON);
+							registerCameraBadgeSprites(map, cameraPinsGeoJSON);
 							map.on?.("styleimagemissing", (ev) => {
 								ensurePortalMapImage(map, ev.id);
 								ensureRoomLabelSpriteImage(map, ev.id);
@@ -1417,8 +1599,11 @@ export default function CampusMapView({
 						}}
 						onZoomEnd={(e) => setMapZoom(e.viewState.zoom)}
 						onClick={handleMapClick}
+						onMouseDown={handleMapMouseDown}
+						onMouseUp={handleMapMouseUp}
 						onMouseMove={handleMapMouseMove}
 						onMouseLeave={() => {
+							handleMapMouseUp();
 							setHoverCursor("grab");
 							setHoveredRoom(null);
 						}}
@@ -1627,39 +1812,32 @@ export default function CampusMapView({
 							/>
 						</Source>
 
+						{/* 2D Free-placed Camera Pin Icons */}
 						<Source
-							id="campus-3d-camera-badges-src"
+							id="campus-2d-camera-pins-src"
 							type="geojson"
-							data={cameraBadgesGeoJSON}
+							data={cameraPinsGeoJSON}
 						>
 							<Layer
-								id="campus-3d-camera-badges-layer"
+								id="campus-2d-camera-pins-layer"
 								type="symbol"
-								minzoom={16.4}
 								layout={{
 									"icon-image": ["get", "spriteId"],
 									"icon-size": [
 										"interpolate",
 										["linear"],
 										["zoom"],
-										16.4,
-										0.75,
-										18.2,
+										15.5,
+										0.72,
+										18,
 										0.92,
-										19.8,
-										1.02,
+										20,
+										1.05,
 									],
 									"icon-allow-overlap": true,
-									"icon-ignore-placement": false,
+									"icon-ignore-placement": true,
 									"symbol-height-anchor": "ground",
-									"symbol-height-offset": [
-										"coalesce",
-										["get", "heightOffset"],
-										1.0,
-									],
-								}}
-								paint={{
-									"icon-opacity": 0.98,
+									"symbol-height-offset": ["get", "pinElevation"],
 								}}
 							/>
 						</Source>

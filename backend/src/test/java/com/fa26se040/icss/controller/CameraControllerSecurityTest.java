@@ -28,11 +28,15 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringJUnitWebConfig(CameraControllerSecurityTest.TestSecurityConfig.class)
@@ -169,6 +173,72 @@ class CameraControllerSecurityTest {
 
         authenticateWithRole("ADMIN");
         mockMvc.perform(get("/api/cameras/{id}", cameraId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("4. Map Location Security: FACILITY_MANAGER bị chặn PATCH/DELETE (403) nhưng vẫn xem được tọa độ qua GET /api/cameras (200); ADMIN được phép PATCH/DELETE (200)")
+    void mapLocationEndpoints_rbacVerification() throws Exception {
+        java.util.UUID cameraId = java.util.UUID.randomUUID();
+        com.fa26se040.icss.dto.camera.CameraDetailResponse detail =
+                com.fa26se040.icss.dto.camera.CameraDetailResponse.builder()
+                        .id(cameraId)
+                        .cameraCode("CAM-019")
+                        .mapLongitude(108.26105)
+                        .mapLatitude(15.96885)
+                        .mapBuilding("Tòa Epsilon")
+                        .mapFloorOrder(2)
+                        .build();
+        when(cameraService.updateMapLocation(eq(cameraId), any())).thenReturn(detail);
+        when(cameraService.clearMapLocation(cameraId)).thenReturn(
+                com.fa26se040.icss.dto.camera.CameraDetailResponse.builder()
+                        .id(cameraId)
+                        .cameraCode("CAM-019")
+                        .build()
+        );
+        com.fa26se040.icss.dto.camera.CameraSimpleResponse simpleItem =
+                com.fa26se040.icss.dto.camera.CameraSimpleResponse.builder()
+                        .id(cameraId)
+                        .cameraCode("CAM-019")
+                        .name("ADAD")
+                        .mapLongitude(108.26105)
+                        .mapLatitude(15.96885)
+                        .mapBuilding("Tòa Epsilon")
+                        .mapFloorOrder(2)
+                        .build();
+        when(cameraService.getAllActiveSimple()).thenReturn(List.of(simpleItem));
+
+        String body = """
+                {
+                  "longitude": 108.26105,
+                  "latitude": 15.96885,
+                  "building": "Tòa Epsilon",
+                  "floorOrder": 2
+                }
+                """;
+
+        authenticateWithRole("FACILITY_MANAGER");
+        mockMvc.perform(patch("/api/cameras/{id}/map-location", cameraId)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(delete("/api/cameras/{id}/map-location", cameraId))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/cameras/all-simple"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].mapLongitude").value(108.26105))
+                .andExpect(jsonPath("$.data[0].mapFloorOrder").value(2));
+
+        authenticateWithRole("ADMIN");
+        mockMvc.perform(patch("/api/cameras/{id}/map-location", cameraId)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mapLongitude").value(108.26105));
+
+        mockMvc.perform(delete("/api/cameras/{id}/map-location", cameraId))
                 .andExpect(status().isOk());
     }
 }

@@ -55,7 +55,16 @@ export default function CameraInspectorDrawer({
 	isPickingAreaOnMap = false,
 	pickedAreaOverride = null,
 	onConsumePickedAreaOverride,
+	fovPlacement = null,
+	mapPlacement = null,
+	isPickingLocationOnMap = false,
+	onRequestPickLocationOnMap,
+	onUpdateFov,
+	onRemoveFov,
+	onRemoveMapLocation,
 }) {
+	const activePlacement = mapPlacement || fovPlacement;
+	const handleRemoveLocation = onRemoveMapLocation || onRemoveFov;
 	const [activeTab, setActiveTab] = useState(
 		VALID_TABS.includes(initialTab) ? initialTab : "general",
 	);
@@ -193,7 +202,12 @@ export default function CameraInspectorDrawer({
 				toast.success("Đã bật Stream trực tiếp. Camera chuyển sang ONLINE.");
 				onCameraMutated?.();
 			} else {
+				setCamera((prev) => ({
+					...prev,
+					operationalStatus: res?.operationalStatus || "OFFLINE",
+				}));
 				toast.error(res?.message || "Không thể kết nối Stream trực tiếp.");
+				onCameraMutated?.();
 			}
 		} catch (err) {
 			toast.error(err?.message || "Không thể kết nối Stream trực tiếp.");
@@ -487,8 +501,10 @@ export default function CameraInspectorDrawer({
 								saving={saving}
 								onSubmit={handleGeneralSubmit}
 								isAdmin={isAdmin}
-								onPickAreaOnMap={isAdmin ? onRequestPickAreaOnMap : null}
-								isPickingAreaOnMap={isPickingAreaOnMap}
+								mapPlacement={activePlacement}
+								isPickingLocationOnMap={isPickingLocationOnMap}
+								onPickLocationOnMap={isAdmin ? onRequestPickLocationOnMap : null}
+								onRemoveMapLocation={handleRemoveLocation}
 							/>
 						)}
 

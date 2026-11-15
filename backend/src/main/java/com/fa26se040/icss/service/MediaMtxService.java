@@ -175,16 +175,25 @@ public class MediaMtxService {
         return cameraCode.toLowerCase().replaceAll("[^a-z0-9_-]", "").trim();
     }
 
+    public enum PathReadinessState {
+        READY,
+        NOT_READY,
+        UNAVAILABLE
+    }
+
     @SuppressWarnings("unchecked")
     public Map<String, Boolean> getLivePathStatuses() {
-        Map<String, Boolean> statusMap = new HashMap<>();
         if (mediaMtxApiUrl == null || mediaMtxApiUrl.isBlank()) {
-            return statusMap;
+            return null;
         }
+        Map<String, Boolean> statusMap = new HashMap<>();
         try {
             String listUrl = mediaMtxApiUrl + "/v3/paths/list";
             Map<String, Object> resp = restTemplate.getForObject(listUrl, Map.class);
-            if (resp != null && resp.containsKey("items")) {
+            if (resp == null) {
+                return null;
+            }
+            if (resp.containsKey("items")) {
                 Object itemsObj = resp.get("items");
                 if (itemsObj instanceof java.util.List<?> itemsList) {
                     for (Object itemObj : itemsList) {
@@ -198,9 +207,42 @@ public class MediaMtxService {
                     }
                 }
             }
+            return statusMap;
         } catch (Exception e) {
             log.debug("MediaMTX paths list check failed: {}", e.getMessage());
+            return null;
         }
-        return statusMap;
+    }
+
+    /**
+     * Chờ tối đa timeoutMs để MediaMTX kéo thành công track video từ nguồn RTSP (ready=true).
+     */
+    public PathReadinessState awaitPathReady(String cameraCode, long timeoutMs) {
+        if (cameraCode == null || cameraCode.trim().isEmpty()
+                || mediaMtxApiUrl == null || mediaMtxApiUrl.isBlank()) {
+            return PathReadinessState.UNAVAILABLE;
+        }
+        String pathName = formatPathName(cameraCode);
+        long deadline = System.currentTimeMillis() + Math.max(0L, timeoutMs);
+
+        while (true) {
+            Map<String, Boolean> statuses = getLivePathStatuses();
+            if (statuses == null) {
+                return PathReadinessState.UNAVAILABLE;
+            }
+            if (Boolean.TRUE.equals(statuses.get(pathName))
+                    || Boolean.TRUE.equals(statuses.get(pathName + "_main"))) {
+                return PathReadinessState.READY;
+            }
+            if (System.currentTimeMillis() >= deadline) {
+                return PathReadinessState.NOT_READY;
+            }
+            try {
+                Thread.sleep(250L);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return PathReadinessState.NOT_READY;
+            }
+        }
     }
 }
