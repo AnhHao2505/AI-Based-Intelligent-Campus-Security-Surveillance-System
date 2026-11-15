@@ -219,6 +219,9 @@ MINIO_KMS_SECRET_KEY=<set-in-env>
 # --- Audit đăng nhập (H1): khoá HMAC băm chuỗi đăng nhập sai không khớp tài khoản (>= 32 ký tự, bắt buộc) ---
 # Tự sinh bằng: openssl rand -hex 32
 APP_SECURITY_AUDITHASHKEY=<set-in-env>
+
+# --- Mã hoá mật khẩu camera (DEF-13): khoá AES-256-GCM (>= 32 ký tự, bắt buộc, giữ nguyên giữa các lần triển khai) ---
+APP_SECURITY_CAMERA_SECRET=<set-in-env>
 ```
 
 > **Khoá băm audit (`APP_SECURITY_AUDITHASHKEY`)** — bắt buộc ở mọi môi trường chạy backend (dev, demo, cloud); thiếu hoặc
@@ -226,6 +229,12 @@ APP_SECURITY_AUDITHASHKEY=<set-in-env>
 > `openssl rand -hex 32` (64 ký tự hex), đặt vào `.env` / biến môi trường của server, không commit. Giữ nguyên khoá giữa
 > các lần triển khai: đổi khoá thì mã băm trong nhật ký cũ không còn so khớp được với mã băm mới (vẫn đọc được, chỉ không
 > gom chung lần thử của cùng một chuỗi trước và sau khi đổi).
+
+> **Khoá mã hoá camera (`APP_SECURITY_CAMERA_SECRET`)** — bắt buộc ở mọi môi trường chạy backend; thiếu hoặc ngắn hơn
+> 32 ký tự thì backend dừng ngay khi khởi động (thông báo nêu tên biến, không in giá trị). Khác khoá audit, khoá này
+> **PHẢI giữ đúng giá trị đã mã hoá dữ liệu camera đang có** (tiền tố `ENC_GCM:` trong DB): đổi giá trị thì mật khẩu
+> camera đã lưu không giải mã được, phải nhập lại từng camera. Chỉ môi trường có DB mới (chưa có camera) mới sinh khoá
+> mới bằng `openssl rand -hex 32`. Đặt vào `.env` / biến môi trường của server, không commit.
 
 ### 5.2. Cấu hình trên Raspberry Pi / Edge Device (File `ai-service/.env`)
 ```properties
