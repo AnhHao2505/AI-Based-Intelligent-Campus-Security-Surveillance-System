@@ -434,7 +434,9 @@ class VideoPipeline:
                         f_crop = frame[fy1:fy2, fx1:fx2]
                         if f_crop.size > 0:
                             lm = face_res.landmarks if getattr(face_res, "landmarks", None) else None
-                            m = self.face_matcher.match_face(f_crop, landmarks=lm)
+                            # Điểm mốc là toạ độ tuyệt đối trên frame -> căn mặt trên frame gốc (trước đây truyền f_crop
+                            # kèm toạ độ tuyệt đối nên phép căn lệch hẳn)
+                            m = self.face_matcher.match_face(frame if lm else f_crop, landmarks=lm)
                             if m:
                                 code, name, score, is_active, role = m
                                 face_res.matched_code = code
@@ -961,9 +963,10 @@ class VideoPipeline:
                             # Mặt bị mờ do chuyển động -> Bỏ qua, không xóa danh tính cũ và không phá vỡ grace period
                             continue
 
-                        crop_landmarks = None
-                        if face_result.landmarks:
-                            crop_landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in face_result.landmarks]
+                        # Căn mặt trên FRAME GỐC với điểm mốc tuyệt đối (giống InsightFace norm_crop): cắt sát khung mặt
+                        # trước rồi mới căn sẽ để lại viền đen trong ảnh 112x112 đưa vào ArcFace.
+                        align_src = frame if face_result.landmarks else face_crop
+                        align_landmarks = face_result.landmarks if face_result.landmarks else None
 
                         # Tầng 2: ArcFace Throttling (0.2s/lần trong ROI để chống bão CPU)
                         match = None
@@ -977,9 +980,9 @@ class VideoPipeline:
                         if can_run_arcface:
                             self._track_arcface_times[track_id] = current_time
                             match = self.face_matcher.match_face(
-                                face_crop,
+                                align_src,
                                 threshold=settings.FACE_MATCH_THRESHOLD,
-                                landmarks=crop_landmarks
+                                landmarks=align_landmarks
                             )
                         if match:
                             if len(match) >= 5:

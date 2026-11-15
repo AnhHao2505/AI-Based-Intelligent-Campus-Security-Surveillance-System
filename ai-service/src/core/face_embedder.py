@@ -160,14 +160,40 @@ class FaceEmbedder:
         except Exception as e:
             logger.warning(f"⚠️ Không thể tự động tải mô hình ArcFace: {e}")
 
+    @staticmethod
+    def _similarity_lstsq(src: np.ndarray, dst: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Phép biến đổi tương tự (xoay + co giãn đều + tịnh tiến) bình phương tối thiểu trên CẢ 5 điểm (Umeyama),
+        đúng như InsightFace norm_crop. Không dùng RANSAC: với mặt đeo kính / nhìn từ trên xuống, RANSAC hay loại
+        bớt điểm mốc (đo thực tế: chỉ giữ 3/5 điểm) -> góc căn lệch, thay đổi theo từng khung hình.
+        """
+        n = src.shape[0]
+        mu_s, mu_d = src.mean(axis=0), dst.mean(axis=0)
+        s_c, d_c = src - mu_s, dst - mu_d
+        var_s = (s_c ** 2).sum() / n
+        if var_s < 1e-9:
+            return None
+        cov = d_c.T @ s_c / n
+        U, D, Vt = np.linalg.svd(cov)
+        S = np.eye(2)
+        if np.linalg.det(U) * np.linalg.det(Vt) < 0:
+            S[1, 1] = -1
+        R = U @ S @ Vt
+        scale = float((D * np.diag(S)).sum() / var_s)
+        t = mu_d - scale * (R @ mu_s)
+        return np.hstack([scale * R, t.reshape(2, 1)]).astype(np.float32)
+
     def align_face(
         self,
         face_image: np.ndarray,
         landmarks: Optional[Union[np.ndarray, List[Tuple[float, float]]]] = None
     ) -> np.ndarray:
         """
-        Căn chỉnh khuôn mặt (Face Alignment) về chuẩn 112x112 sử dụng 5 điểm mốc (Affine Transformation).
-        Nếu không có landmarks hoặc biến đổi thất bại, fallback về cv2.resize thông thường.
+        Căn chỉnh khuôn mặt về chuẩn 112x112 bằng 5 điểm mốc (biến đổi tương tự bình phương tối thiểu).
+        `landmarks` là toạ độ TRONG `face_image`. Nên truyền ẢNH GỐC (cả khung hình) + điểm mốc tuyệt đối: mẫu
+        112x112 của ArcFace rộng hơn khung mặt, cắt sát khung mặt trước rồi mới căn sẽ để lại viền đen (đo thực tế
+        ~14% ảnh), thứ ArcFace chưa từng thấy khi huấn luyện.
+        Không có landmarks hoặc biến đổi thất bại -> fallback cv2.resize.
         """
         if face_image is None or face_image.size == 0:
             return np.zeros((112, 112, 3), dtype=np.uint8)
@@ -176,11 +202,11 @@ class FaceEmbedder:
             try:
                 pts = np.array(landmarks, dtype=np.float32)
                 if pts.shape == (5, 2):
-                    M, _ = cv2.estimateAffinePartial2D(pts, ARCFACE_CANONICAL_5PTS)
+                    M = self._similarity_lstsq(pts, ARCFACE_CANONICAL_5PTS)
                     if M is not None:
                         scale = np.sqrt(M[0, 0]**2 + M[0, 1]**2)
-                        # Đảm bảo ma trận Affine không bị suy biến, phóng đại quá mức hay lật ngược
-                        if 0.05 <= scale <= 10.0:
+                        # Đảm bảo ma trận không suy biến, phóng đại quá mức hay lật ngược (hỗ trợ ảnh lớn tới 8K)
+                        if 0.005 <= scale <= 20.0:
                             return cv2.warpAffine(face_image, M, (112, 112), borderValue=0.0)
             except Exception as ex:
                 logger.debug(f"[FaceEmbedder] Không thể warpAffine landmarks: {ex}")
@@ -204,13 +230,13 @@ class FaceEmbedder:
         # 2. Xử lý qua Deep Learning ArcFace ONNX nếu session đã sẵn sàng
         if self.session is not None:
             try:
-                # ArcFace yêu cầu định dạng RGB, float32, chuẩn hóa (x - 127.5) / 128.0, định dạng NCHW (1, 3, 112, 112)
+                # ArcFace (InsightFace) yêu cầu RGB, float32, chuẩn hóa (x - 127.5) / 127.5, định dạng NCHW (1, 3, 112, 112)
                 if len(aligned.shape) == 2:
                     rgb = cv2.cvtColor(aligned, cv2.COLOR_GRAY2RGB)
                 else:
                     rgb = cv2.cvtColor(aligned, cv2.COLOR_BGR2RGB)
 
-                input_blob = (rgb.astype(np.float32) - 127.5) / 128.0
+                input_blob = (rgb.astype(np.float32) - 127.5) / 127.5
                 input_blob = np.transpose(input_blob, (2, 0, 1))[np.newaxis, :]
 
                 # Chạy Inference qua ONNX Runtime

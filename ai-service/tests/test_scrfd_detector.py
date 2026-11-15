@@ -257,6 +257,28 @@ class TestSCRFDDetector(unittest.TestCase):
         self.assertEqual(len(res), 1)
         self.assertIsNone(res[0].landmarks)
 
+    def test_align_face_supports_large_portrait_eye_distance(self):
+        """Mặt rất lớn trong ảnh 4K/8K (khoảng cách 2 mắt > 700px) vẫn phải căn chỉnh Umeyama thành công, không bị rơi về resize"""
+        from src.core.face_embedder import ARCFACE_CANONICAL_5PTS
+        embedder = FaceEmbedder()
+        # Giả lập 5 điểm mốc với khoảng cách 2 mắt = 800px trên ảnh 4K 3840x2160
+        pts = [
+            (1500.0, 1000.0),
+            (2300.0, 1000.0),
+            (1900.0, 1400.0),
+            (1600.0, 1800.0),
+            (2200.0, 1800.0)
+        ]
+        img = np.full((2160, 3840, 3), 128, dtype=np.uint8)
+        aligned = embedder.align_face(img, landmarks=pts)
+        self.assertEqual(aligned.shape, (112, 112, 3))
+        # Xác nhận phép biến đổi lstsq đã được áp dụng (scale ~ 0.048 lọt vào ngưỡng [0.005, 20.0])
+        M = embedder._similarity_lstsq(np.array(pts, dtype=np.float32), ARCFACE_CANONICAL_5PTS)
+        self.assertIsNotNone(M)
+        scale = np.sqrt(M[0, 0]**2 + M[0, 1]**2)
+        self.assertLess(scale, 0.05)
+        self.assertGreaterEqual(scale, 0.005)
+
     def test_detect_yunet_handles_grayscale_image(self):
         """_detect_yunet không bị crash ValueError khi ảnh đầu vào có shape (H, W)"""
         from unittest.mock import MagicMock

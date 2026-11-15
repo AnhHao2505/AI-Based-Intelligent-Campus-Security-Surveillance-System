@@ -64,7 +64,8 @@ def _split_minio_url(url: str):
 
 def _embed_like_registration(img, detector, embedder):
     """Giống hệt /api/v1/faces/process-registration (main.py)."""
-    faces = detector.detect_in_image(img)
+    reg_max_dim = getattr(detector, "registration_max_dim", getattr(settings, "FACE_REGISTRATION_MAX_DIM", 640))
+    faces = detector.detect_in_image(img, max_dim=reg_max_dim)
     if not faces:
         return None, 0
     faces.sort(key=lambda f: f.score, reverse=True)
@@ -75,7 +76,9 @@ def _embed_like_registration(img, detector, embedder):
     face_crop = img[fy1:fy2, fx1:fx2] if (fx2 > fx1 and fy2 > fy1) else img
     landmarks = None
     if faces[0].landmarks:
-        landmarks = [(pt[0] - fx1, pt[1] - fy1) for pt in faces[0].landmarks]
+        # Căn mặt trên ảnh gốc với điểm mốc tuyệt đối, giống /api/v1/faces/process-registration
+        landmarks = list(faces[0].landmarks)
+        face_crop = img
     vec = np.array(embedder.extract_embedding(face_crop, landmarks=landmarks), dtype=np.float32)
     return vec, len(faces)
 
@@ -86,6 +89,8 @@ def main():
     ap.add_argument("--broken-threshold", type=float, default=0.5,
                     help="Cos trung bình với người khác vượt ngưỡng này thì coi là vector hỏng (mặc định 0.5)")
     ap.add_argument("--codes", nargs="*", help="Chỉ xử lý các mã này (bỏ qua bước tự phát hiện)")
+    ap.add_argument("--all", action="store_true",
+                    help="Tạo lại vector cho TẤT CẢ người có ảnh gốc (vd sau khi đổi cách căn mặt / đổi model)")
     args = ap.parse_args()
 
     embedder = get_shared_face_embedder()
@@ -113,7 +118,9 @@ def main():
         old /= np.linalg.norm(old, axis=1, keepdims=True) + 1e-12
         avg_cos = _avg_cos_to_others(old)
 
-        if args.codes:
+        if args.all:
+            targets = [i for i in range(len(rows)) if urls[i]]
+        elif args.codes:
             wanted = {c.strip().upper() for c in args.codes}
             targets = [i for i, c in enumerate(codes) if c.upper() in wanted]
         else:
