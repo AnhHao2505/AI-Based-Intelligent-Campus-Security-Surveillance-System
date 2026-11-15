@@ -36,6 +36,8 @@ RUNTIME_FIELDS: Dict[str, Tuple[str, Optional[Tuple[str, str]]]] = {
     "recording_retention_hours": ("RECORDING_RETENTION_HOURS", None),
     # V127: thời gian giữ thêm (hold) khi đang thấy mặt nhưng chưa khớp, trước khi chốt cảnh báo người lạ
     "identity_hold_seconds": ("ACCESS_RESOLUTION_HOLD_SECONDS", ("engine", "identity_hold_seconds")),
+    # V128: khoảng cách tối thiểu giữa 2 cảnh báo người lạ trên cùng một camera
+    "camera_unknown_min_interval": ("CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS", ("engine", "camera_unknown_min_interval")),
 }
 
 

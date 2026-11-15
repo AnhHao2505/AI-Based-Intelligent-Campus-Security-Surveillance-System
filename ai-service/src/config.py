@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS: float = Field(default=30.0, validation_alias="DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS")
     ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS: float = Field(default=1.5, validation_alias="ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS")
     ACCESS_RESOLUTION_HOLD_SECONDS: float = Field(default=1.0, validation_alias="ACCESS_RESOLUTION_HOLD_SECONDS")
-    CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS: float = 3.0
+    CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS")
     # V125: khoảng cách tối thiểu giữa 2 cảnh báo vật chuyển động lạ trên cùng camera (sửa được trên màn Cấu hình)
     SUSPICIOUS_MOTION_COOLDOWN_SECONDS: float = Field(default=5.0, validation_alias="SUSPICIOUS_MOTION_COOLDOWN_SECONDS")
     MAX_MOTION_TRACK_HOLD_SECONDS: float = Field(default=1.0, validation_alias="MAX_MOTION_TRACK_HOLD_SECONDS")

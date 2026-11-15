@@ -41,6 +41,8 @@ public enum ConfigKey {
     AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS("AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS", "5"),
     // V127: giữ thêm trước khi chốt cảnh báo người lạ khi đang thấy mặt nhưng chưa khớp
     AI_IDENTITY_HOLD_SECONDS("AI_IDENTITY_HOLD_SECONDS", "1.0"),
+    // V128: khoảng cách tối thiểu giữa 2 cảnh báo người lạ trên cùng một camera (trước đây ghi cứng 3.0 trong AI)
+    AI_CAMERA_UNKNOWN_MIN_INTERVAL_SECONDS("AI_CAMERA_UNKNOWN_MIN_INTERVAL_SECONDS", "3"),
     // V115 (EV-N1, EV-N2): bỏ EVENT_MODE_MAX_HOURS, EVENT_MODE_WINDOW_DAYS, EVENT_MODE_BUDGET_HOURS,
     // EVENT_MODE_MAX_SCHEDULES_PER_AREA (không còn trần giờ / ngân sách / số lịch chờ)
     EVENT_MODE_MIN_MINUTES("EVENT_MODE_MIN_MINUTES", "15"),

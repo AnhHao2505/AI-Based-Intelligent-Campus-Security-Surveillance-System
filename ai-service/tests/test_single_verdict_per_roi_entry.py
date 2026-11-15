@@ -180,3 +180,61 @@ def test_runtime_config_applies_identity_hold_seconds():
         assert settings.ACCESS_RESOLUTION_HOLD_SECONDS == 2.0
     finally:
         settings.ACCESS_RESOLUTION_HOLD_SECONDS = old
+
+
+def _frames(engine, times, tracks, **kw):
+    collected = []
+    for t in times:
+        _, alerts, _ = engine.process_frame(detected_tracks=tracks, camera_code=CAM, current_time=t, **kw)
+        collected += [(a.track_id, a.event_type) for a in alerts]
+    return collected
+
+
+def test_unverified_person_vanishing_inside_roi_fires_unknown_once():
+    # Đi thẳng qua cửa nằm trong ROI: điểm chân không ra khỏi ROI, track biến mất khi chưa xác thực
+    engine = _engine()
+    assert _frames(engine, (0.0, 0.5), [(1, BBOX)]) == []
+    assert _frames(engine, (1.0, 1.9), []) == [], "Chưa quá thời gian coasting thì chưa kết luận biến mất"
+    assert _frames(engine, (2.1,), []) == [(1, "UNKNOWN_PERSON")]
+    assert _frames(engine, (3.0, 6.0, 9.0, 11.0), []) == [], "Chỉ cảnh báo một lần"
+
+
+def test_vanished_duplicate_box_overlapping_visible_person_is_not_alerted():
+    # Hai box lệch nhau của cùng một người (không bị lọc box kép trong frame); box thừa biến mất, người thật vẫn đứng đó
+    engine = _engine()
+    other = BoundingBox(65, 50, 115, 150)
+    _frames(engine, (0.0, 0.5), [(1, BBOX), (2, other)])
+    alerts = _frames(engine, (1.0, 1.6, 2.2, 3.0), [(1, BBOX)])
+    assert alerts == [(1, "UNKNOWN_PERSON")], "Chỉ người đang thấy bị cảnh báo, box thừa biến mất thì không"
+
+
+def test_track_reappearing_after_vanish_alert_inherits_verdict():
+    engine = _engine()
+    _frames(engine, (0.0, 0.5), [(1, BBOX)])
+    assert _frames(engine, (2.1,), []) == [(1, "UNKNOWN_PERSON")]
+    # ByteTrack cấp ID mới khi người xuất hiện lại gần chỗ cũ: kế thừa cảnh báo đã chốt, không báo lại
+    assert _frames(engine, (2.4, 3.0, 4.5), [(7, BBOX)]) == []
+    engine.associate_face(7, _face(4.6, code="U009", authorized=False, checked=True))
+    assert _frames(engine, (4.6, 5.0), [(7, BBOX)]) == []
+
+
+def test_vanish_in_public_area_during_daytime_is_not_alerted():
+    engine = _engine()
+    _frames(engine, (0.0, 0.5), [(1, BBOX)], is_public_area=True)
+    assert _frames(engine, (2.1, 3.0), [], is_public_area=True) == []
+
+
+def test_runtime_config_applies_camera_unknown_min_interval():
+    class _Pipe:
+        def __init__(self):
+            self.analysis_engine = _engine()
+
+    pipe = _Pipe()
+    old = settings.CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS
+    try:
+        values, errors = apply_runtime_config({"camera_unknown_min_interval": 7}, pipe, [])
+        assert errors == []
+        assert pipe.analysis_engine.camera_unknown_min_interval == 7.0
+        assert settings.CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS == 7.0
+    finally:
+        settings.CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS = old
