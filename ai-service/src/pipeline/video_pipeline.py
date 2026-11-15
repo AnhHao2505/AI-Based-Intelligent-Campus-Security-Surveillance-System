@@ -480,6 +480,67 @@ class VideoPipeline:
         )
         return annotated_frame, active_persons, alerts
 
+    def _is_reverify_due(self, existing, current_time: float) -> bool:
+        """
+        Track đã có danh tính: có quét lại mặt ở frame này không (Điểm 8).
+        - Danh tính kế thừa (chưa xác thực trên chính track này): quét mọi frame tới khi xác thực hoặc gỡ.
+        - Còn lại: chỉ khi điểm cao nhất từng đạt < FACE_REVERIFY_SCORE_THRESHOLD và đã qua
+          FACE_REVERIFY_MIN_INTERVAL_SECONDS kể từ lần KHỚP gần nhất lẫn lần THỬ quét lại gần nhất.
+          Trước đây chỉ tính từ lần khớp, nên lần thử không khớp (mặt nghiêng, quay đi) khiến người đó bị quét
+          ở MỌI frame cho tới khi khớp lại.
+        """
+        face_info = existing.face_info
+        if getattr(existing, "is_inherited_identity", False) or (face_info and getattr(face_info, "is_inherited", False)):
+            return True
+        prev_score = getattr(face_info, "score", 0.0) or 0.0
+        if prev_score >= getattr(settings, "FACE_REVERIFY_SCORE_THRESHOLD", 0.82):
+            return False
+        last_match_t = getattr(existing, "last_face_match_time", 0.0) or existing.first_seen_time
+        last_attempt_t = getattr(existing, "last_reverify_attempt_time", 0.0) or 0.0
+        interval = getattr(settings, "FACE_REVERIFY_MIN_INTERVAL_SECONDS", 3.0)
+        if (current_time - max(last_match_t, last_attempt_t)) < interval:
+            return False
+        existing.last_reverify_attempt_time = current_time
+        return True
+
+    def _maybe_revoke_inherited_identity(self, existing, is_reverifying: bool, face_result, best_score: float) -> bool:
+        """
+        Track nhận danh tính KẾ THỪA (từ track vừa mất dấu gần đó) mà 2 lần quét lại ra điểm RÕ LÀ NGƯỜI KHÁC
+        (điểm cao nhất < FACE_REVOKE_MAX_SCORE) -> gỡ danh tính, xử lý như người lạ.
+        Điểm từ FACE_REVOKE_MAX_SCORE tới dưới ngưỡng khớp là vùng mơ hồ (người thật nghiêng mặt, mờ): không tính,
+        không reset bộ đếm. Điểm <= 0 (không tính được vector) cũng không tính.
+        Danh tính tự nhận diện trên chính track này (không kế thừa) không bao giờ bị gỡ ở đây.
+        """
+        if not (is_reverifying and existing is not None and existing.face_info is not None
+                and existing.face_info.matched_code):
+            return False
+        inherited = getattr(existing, "is_inherited_identity", False) or getattr(existing.face_info, "is_inherited", False)
+        if not inherited:
+            return False
+        revoke_max = float(getattr(settings, "FACE_REVOKE_MAX_SCORE", 0.30))
+        if best_score <= 0.0 or best_score >= revoke_max:
+            return False
+        existing.inherited_mismatch_count = getattr(existing, "inherited_mismatch_count", 0) + 1
+        if existing.inherited_mismatch_count < 2:
+            return False
+
+        old_code = existing.face_info.matched_code
+        existing.face_info = face_result  # kết quả không khớp -> không còn danh tính
+        existing.face_detected = True
+        existing.is_inherited_identity = False
+        existing.inherited_mismatch_count = 0
+        existing.alert_unknown_sent = False
+        existing.alert_unauthorized_sent = False
+        existing.roi_entry_logged = False
+        logger.warning(
+            f"🕵️ [VideoPipeline:{self.camera_code}] Track #{existing.track_id}: danh tính kế thừa [{old_code}] "
+            f"2 lần ra điểm rõ là người khác (< {revoke_max:.2f}) -> gỡ danh tính, xử lý như người lạ"
+        )
+        self.analysis_engine._set_security_display_state(
+            existing, "UNKNOWN", self.camera_code, f"Danh tính kế thừa {old_code} không khớp khuôn mặt"
+        )
+        return True
+
     def _is_face_blurry(self, face_crop: np.ndarray) -> bool:
         """
         Kiểm tra ảnh mặt có bị mờ (motion blur / defocus) qua phương sai Laplacian (P0-02).
@@ -888,17 +949,7 @@ class VideoPipeline:
                     )
 
                 # Điểm 8: Kiểm tra điều kiện Re-verification / Face Quality Upgrade
-                prev_score = getattr(existing.face_info, "score", 0.0) or 0.0
-                last_match_t = getattr(existing, "last_face_match_time", 0.0) or existing.first_seen_time
-                reverify_threshold = getattr(settings, "FACE_REVERIFY_SCORE_THRESHOLD", 0.82)
-                reverify_interval = getattr(settings, "FACE_REVERIFY_MIN_INTERVAL_SECONDS", 3.0)
-
-                is_inherited = getattr(existing, "is_inherited_identity", False) or (existing.face_info and getattr(existing.face_info, "is_inherited", False))
-
-                # Chỉ re-verify nếu là track kế thừa (chưa xác thực độc lập trên track này), hoặc score ban đầu mấp mé (< threshold) và đã qua chu kỳ interval
-                if is_inherited:
-                    is_reverifying = True
-                elif prev_score < reverify_threshold and (current_time - last_match_t) >= reverify_interval:
+                if self._is_reverify_due(existing, current_time):
                     is_reverifying = True
                 else:
                     continue
@@ -1012,6 +1063,7 @@ class VideoPipeline:
                                     existing.pending_reverify_count = 0
                                     # Đã xác thực khuôn mặt độc lập trên track này -> Xóa cờ kế thừa!
                                     existing.is_inherited_identity = False
+                                    existing.inherited_mismatch_count = 0
                                     if existing.face_info:
                                         existing.face_info.is_inherited = False
                                     # Chỉ cập nhật điểm nếu điểm mới cao hơn điểm cũ
@@ -1144,6 +1196,7 @@ class VideoPipeline:
                             logger.debug(
                                 f"❓ [VideoPipeline:{self.camera_code}] [FaceMatcher] Track #{track_id} -> Không khớp khuôn mặt trong CSDL (UNKNOWN)"
                             )
+                            self._maybe_revoke_inherited_identity(existing, is_reverifying, face_result, last_sc)
 
                         self.analysis_engine.associate_face(track_id, face_result)
                 else:

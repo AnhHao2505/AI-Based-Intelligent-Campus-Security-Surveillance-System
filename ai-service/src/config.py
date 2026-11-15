@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     FACE_MATCH_THRESHOLD: float = Field(default=0.50, validation_alias="FACE_MATCH_THRESHOLD")
     FACE_REVERIFY_SCORE_THRESHOLD: float = Field(default=0.82, validation_alias="FACE_REVERIFY_SCORE_THRESHOLD")
     FACE_REVERIFY_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="FACE_REVERIFY_MIN_INTERVAL_SECONDS")
+    # Danh tính kế thừa chỉ bị gỡ khi quét lại ra điểm cao nhất DƯỚI mức này (rõ là người khác) 2 lần.
+    # Đo trên CAM-002 (14/11/2026): người sai cao nhất 0.308 (99% < 0.27); người thật nghiêng mặt thường 0.30-0.50.
+    FACE_REVOKE_MAX_SCORE: float = Field(default=0.30, validation_alias="FACE_REVOKE_MAX_SCORE")
     FACE_SCAN_THROTTLING_ENABLED: bool = Field(default=True, validation_alias="FACE_SCAN_THROTTLING_ENABLED")
     FACE_SCAN_INITIAL_INTERVAL: float = Field(default=0.05, validation_alias="FACE_SCAN_INITIAL_INTERVAL")
     FACE_SCAN_INITIAL_WINDOW_SECONDS: float = Field(default=2.0, validation_alias="FACE_SCAN_INITIAL_WINDOW_SECONDS")
