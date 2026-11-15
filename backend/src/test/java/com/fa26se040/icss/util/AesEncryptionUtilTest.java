@@ -3,6 +3,13 @@ package com.fa26se040.icss.util;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.env.MutablePropertySources;
+import org.springframework.core.env.PropertySource;
+import org.springframework.core.env.PropertySourcesPropertyResolver;
+import org.springframework.core.io.ClassPathResource;
+
+import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,6 +36,22 @@ class AesEncryptionUtilTest {
             IllegalStateException ex = assertThrows(IllegalStateException.class, () -> new AesEncryptionUtil(missing));
             assertEquals(EXPECTED_MESSAGE, ex.getMessage());
         }
+    }
+
+    @Test
+    @DisplayName("DEF-13: application.yml without APP_SECURITY_CAMERA_SECRET resolves to empty and gives the same message")
+    void absentEnvVariableGivesSameMessage() throws IOException {
+        // Chỉ nạp application.yml thật (không có biến môi trường / .env): mô phỏng máy chưa khai báo biến.
+        MutablePropertySources sources = new MutablePropertySources();
+        for (PropertySource<?> source : new YamlPropertySourceLoader()
+                .load("application.yml", new ClassPathResource("application.yml"))) {
+            sources.addLast(source);
+        }
+        String resolved = new PropertySourcesPropertyResolver(sources).getProperty("app.security.camera-secret");
+
+        assertEquals("", resolved);
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> new AesEncryptionUtil(resolved));
+        assertEquals(EXPECTED_MESSAGE, ex.getMessage());
     }
 
     @Test
