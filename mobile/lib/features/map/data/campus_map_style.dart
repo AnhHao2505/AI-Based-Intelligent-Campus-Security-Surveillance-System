@@ -57,6 +57,48 @@ String colorHex(Color c) {
   return '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
 }
 
+/// Lớp ghim khu, lớp tên phòng, lớp ghim sự cố — ba lớp nhận chạm để mở thẻ khu (guard_map_screen.dart).
+const String campusPinsLayerId = 'campus-pins-layer';
+const String campusRoomLabelsLayerId = 'campus-room-labels-layer';
+const String campusIncidentPinLayerId = 'campus-incident-pin-layer';
+
+/// Thứ tự các lớp bản đồ do app thêm, từ dưới lên (guard_map_screen.dart _onStyleLoaded thêm đúng thứ tự này và ghi
+/// log đối chiếu): khối 3D → cầu thang → tuyến đường → ghim khu → TÊN PHÒNG → GHIM SỰ CỐ → vị trí bảo vệ. Tên phòng
+/// nằm ngay trên ghim khu để ghim không che chữ; ghim sự cố trên tên phòng để nhãn không che; vị trí bảo vệ trên cùng.
+const List<String> campusLayerOrder = [
+  'campus-slab-layer',
+  'campus-room-layer',
+  'campus-wall-layer',
+  'campus-portals-layer',
+  'campus-route-outline',
+  'campus-route-line',
+  'campus-route-direct',
+  'campus-route-floors-layer',
+  campusPinsLayerId,
+  campusRoomLabelsLayerId,
+  campusIncidentPinLayerId,
+  'campus-guard-halo',
+  'campus-guard-dot',
+];
+
+/// Chia ghim cần vẽ: [incident] = khu đang chọn nếu nó là khu của sự cố đang mở ([incidentAreaId], kể cả ghim tạm
+/// chưa có trong danh sách khu) → vẽ ở lớp ghim sự cố; [areas] = ghim khu theo toà / tầng ([filtered]), bỏ ghim sự cố
+/// (không vẽ 2 lần), thêm khu đang chọn khác nếu nó không nằm trong [filtered] (như trước). Khu không có toạ độ bị bỏ.
+({List<AreaPinModel> areas, AreaPinModel? incident}) splitIncidentPin(
+  List<AreaPinModel> filtered, {
+  AreaPinModel? selected,
+  String? incidentAreaId,
+}) {
+  final hasCoords = selected != null && selected.centerLatitude != 0.0;
+  final incident = hasCoords && incidentAreaId != null && selected.id == incidentAreaId ? selected : null;
+  final areas = [
+    for (final p in filtered)
+      if (p.id != incident?.id) p,
+  ];
+  if (incident == null && hasCoords && !areas.any((x) => x.id == selected.id)) areas.add(selected);
+  return (areas: areas, incident: incident);
+}
+
 /// GeoJSON ghim khu: mỗi khu một điểm, thuộc tính màu theo cấp khu (AreaPinModel.levelColor) và cờ đang chọn.
 Map<String, dynamic> pinsGeoJson(List<AreaPinModel> pins, {String? selectedId}) {
   return {

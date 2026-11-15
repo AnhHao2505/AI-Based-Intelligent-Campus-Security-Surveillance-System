@@ -102,10 +102,18 @@ class IncidentProvider extends ChangeNotifier {
 
   // ═══════════════ WEBSOCKET INITIALIZATION ═══════════════
 
+  /// Tăng mỗi lần disconnectStomp(): initStomp() đang chờ đọc user mà phiên đã bị ngắt thì không kết nối (DEF-16).
+  int _stompSession = 0;
+
   void initStomp({String? building}) async {
+    final session = _stompSession;
     // Đã đăng nhập và bắt đầu nhận cảnh báo → xin quyền hiển thị thông báo hệ thống (Android 13+ / iOS).
     LocalNotificationService.instance.requestPermission();
     final currentUser = await StorageHelper.getUser();
+    if (session != _stompSession) {
+      debugPrint('[STOMP] initStomp cancelled: disconnected while reading user');
+      return;
+    }
     stompService.connect(
       building: building,
       guardId: currentUser?.id,
@@ -116,8 +124,20 @@ class IncidentProvider extends ChangeNotifier {
   }
 
   void disconnectStomp() {
+    _stompSession++;
     stompService.disconnect();
     _clearOffers();
+  }
+
+  /// Đăng xuất: xoá dữ liệu sự cố của phiên cũ — lời mời, hàng đợi cảnh báo, sự cố đang xử lý, các câu báo.
+  void clearSessionData() {
+    _debounceSortTimer?.cancel();
+    _clearOffers();
+    _alertQueue.clear();
+    _activeIncident = null;
+    _peerClaimNotice = null;
+    _errorMessage = null;
+    notifyListeners();
   }
 
   /// Lấy danh sách sự cố đang active từ backend khi mở app

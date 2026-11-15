@@ -155,6 +155,13 @@ class ShiftProvider with ChangeNotifier {
     }
   }
 
+  /// Đăng xuất: bỏ ca của phiên cũ để màn hình / GuardDutyWatcher không còn thấy ca đang trực (DEF-16).
+  void clearSession() {
+    _shifts = [];
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   void clearError() {
     _errorMessage = null;
     notifyListeners();

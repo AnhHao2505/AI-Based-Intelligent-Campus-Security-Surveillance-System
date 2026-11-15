@@ -16,7 +16,9 @@ public enum IncidentPolicyErrorCode {
     ERR_INCPOL_005("ERR_INCPOL_005", HttpStatus.BAD_REQUEST, "Số bảo vệ được mời ở đợt 1 phải từ {min} đến {max}"),
     ERR_INCPOL_006("ERR_INCPOL_006", HttpStatus.BAD_REQUEST, "Thời gian chờ đợt 1 phải từ {min} đến {max} giây"),
     ERR_INCPOL_007("ERR_INCPOL_007", HttpStatus.BAD_REQUEST, "Thời gian chờ trước khi báo Quản lý CSVC phải từ {min} đến {max} phút"),
-    ERR_INCPOL_008("ERR_INCPOL_008", HttpStatus.BAD_REQUEST, "Không thể ngừng sử dụng vị trí trực mặc định {code}");
+    ERR_INCPOL_008("ERR_INCPOL_008", HttpStatus.BAD_REQUEST, "Không thể ngừng sử dụng vị trí trực mặc định {code}"),
+    ERR_INCPOL_009("ERR_INCPOL_009", HttpStatus.BAD_REQUEST,
+            "Thời gian chờ trước khi báo Quản lý CSVC ({minutes} phút = {seconds} giây) phải lớn hơn thời gian chờ đợt 1 ({timeout} giây)");
 
     private final String code;
     private final HttpStatus httpStatus;
