@@ -99,6 +99,9 @@ class CameraControllerSecurityTest {
     @Autowired
     private CameraRecordingService recordingService;
 
+    @Autowired
+    private CameraService cameraService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -150,5 +153,22 @@ class CameraControllerSecurityTest {
 
         mockMvc.perform(get("/api/cameras/recordings"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("3. Security Access (403 vs 200): GET /api/cameras/{id} bị chặn với FACILITY_MANAGER (403) và cho phép ADMIN (200)")
+    void getCameraById_facilityManagerForbidden_adminAllowed() throws Exception {
+        java.util.UUID cameraId = java.util.UUID.randomUUID();
+        when(cameraService.getCameraDetail(cameraId)).thenReturn(
+                com.fa26se040.icss.dto.camera.CameraDetailResponse.builder().id(cameraId).cameraCode("CAM-001").build()
+        );
+
+        authenticateWithRole("FACILITY_MANAGER");
+        mockMvc.perform(get("/api/cameras/{id}", cameraId))
+                .andExpect(status().isForbidden());
+
+        authenticateWithRole("ADMIN");
+        mockMvc.perform(get("/api/cameras/{id}", cameraId))
+                .andExpect(status().isOk());
     }
 }

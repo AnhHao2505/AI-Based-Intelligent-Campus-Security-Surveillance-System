@@ -4,6 +4,8 @@ import com.fa26se040.icss.dto.camera.CameraDetailResponse;
 import com.fa26se040.icss.dto.camera.CameraStreamConfigRequest;
 import com.fa26se040.icss.dto.camera.CameraStreamConfigResponse;
 import com.fa26se040.icss.dto.camera.CreateCameraRequest;
+import com.fa26se040.icss.dto.camera.RoiGeometry;
+import com.fa26se040.icss.dto.camera.RoiUpdateRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
@@ -12,7 +14,6 @@ import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.repository.AreaRepository;
-import com.fa26se040.icss.repository.CameraHealthLogRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.CameraStreamConfigurationRepository;
 import com.fa26se040.icss.util.AesEncryptionUtil;
@@ -42,9 +43,6 @@ class CameraServiceTest {
 
     @Mock
     private CameraStreamConfigurationRepository cameraStreamConfigurationRepository;
-
-    @Mock
-    private CameraHealthLogRepository cameraHealthLogRepository;
 
     @Mock
     private MediaMtxService mediaMtxService;
@@ -185,7 +183,6 @@ class CameraServiceTest {
         verify(mediaMtxService, never()).syncCameraPathStrict(any(), any());
         verify(mediaMtxService, never()).syncCameraPath(any(), any());
         verify(rtspHandshakeChecker, never()).check(any(), anyInt(), any(), anyInt());
-        verify(cameraHealthLogRepository, never()).save(any());
 
         verify(aesEncryptionUtil).encrypt("Secret123");
         verify(cameraStreamConfigurationRepository).save(any());
@@ -239,5 +236,57 @@ class CameraServiceTest {
         assertEquals(CameraErrorCode.ERR_CAM_002, ex.getErrorCode());
         verify(cameraRepository, never()).save(any());
         verify(mediaMtxService, never()).deleteCameraPath(anyString());
+    }
+
+    @Test
+    @DisplayName("ROI (Hạng mục 3): updateRoiGeometry lưu polygon hợp lệ khi snapshotBase64 == null, không gọi MinIO upload")
+    void testUpdateRoiGeometry_withoutSnapshot_savesPolygonsWithoutMinio() {
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+        when(cameraRepository.save(any(Camera.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
+                .label("Khu vực cấm")
+                .vertices(List.of(
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(java.math.BigDecimal.valueOf(0.1)).y(java.math.BigDecimal.valueOf(0.1)).build(),
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(java.math.BigDecimal.valueOf(0.9)).y(java.math.BigDecimal.valueOf(0.1)).build(),
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(java.math.BigDecimal.valueOf(0.9)).y(java.math.BigDecimal.valueOf(0.9)).build()
+                ))
+                .build();
+        RoiUpdateRequest req = new RoiUpdateRequest();
+        req.setRoiGeometry(RoiGeometry.builder().polygons(List.of(polygon)).build());
+        req.setSnapshotBase64(null);
+
+        CameraDetailResponse response = cameraService.updateRoiGeometry(testCameraId, req);
+
+        assertNotNull(response);
+        assertNotNull(response.getRoiGeometry());
+        assertEquals(1, response.getRoiGeometry().getPolygons().size());
+        verify(roiGeometryValidator).validate(any(RoiGeometry.class));
+        verify(minioStorageService, never()).uploadRoiReferenceSnapshot(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("ROI (Hạng mục 3 - Error): updateRoiGeometry từ chối polygon ngoài [0, 1] bằng ERR_ROI_* và không lưu DB")
+    void testUpdateRoiGeometry_invalidPolygon_throwsErrRoiAndDoesNotSave() {
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+        doThrow(new CameraException(CameraErrorCode.ERR_ROI_003))
+                .when(roiGeometryValidator).validate(any(RoiGeometry.class));
+
+        RoiGeometry.RoiPolygon invalidPolygon = RoiGeometry.RoiPolygon.builder()
+                .label("Out of bounds")
+                .vertices(List.of(
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(java.math.BigDecimal.valueOf(-0.2)).y(java.math.BigDecimal.valueOf(0.1)).build(),
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(java.math.BigDecimal.valueOf(1.2)).y(java.math.BigDecimal.valueOf(0.1)).build(),
+                        RoiGeometry.RoiPolygon.Vertex.builder().x(java.math.BigDecimal.valueOf(0.5)).y(java.math.BigDecimal.valueOf(0.9)).build()
+                ))
+                .build();
+        RoiUpdateRequest req = new RoiUpdateRequest();
+        req.setRoiGeometry(RoiGeometry.builder().polygons(List.of(invalidPolygon)).build());
+
+        CameraException ex = assertThrows(CameraException.class,
+                () -> cameraService.updateRoiGeometry(testCameraId, req));
+        assertEquals(CameraErrorCode.ERR_ROI_003, ex.getErrorCode());
+        verify(cameraRepository, never()).save(any());
+        verify(minioStorageService, never()).uploadRoiReferenceSnapshot(any(), anyString());
     }
 }

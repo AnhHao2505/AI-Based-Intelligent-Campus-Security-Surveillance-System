@@ -367,3 +367,26 @@ export async function fetchAllPaginatedPages(
 
 	return allItems;
 }
+
+/**
+ * Kiểm soát quyền truy cập tab Camera & CameraInspectorDrawer theo vai trò.
+ * Chỉ ADMIN mới được mở tab Camera và CameraInspectorDrawer.
+ */
+export function resolveCameraInspectorAccess({
+	isAdmin,
+	requestedTab,
+	requestedCameraId,
+}) {
+	if (!isAdmin) {
+		return {
+			showCameraTab: false,
+			sidebarMode: "areas",
+			selectedCameraId: null,
+		};
+	}
+	return {
+		showCameraTab: true,
+		sidebarMode: requestedTab === "cameras" ? "cameras" : "areas",
+		selectedCameraId: requestedCameraId || null,
+	};
+}

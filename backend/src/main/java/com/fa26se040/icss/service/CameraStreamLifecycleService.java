@@ -2,13 +2,11 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.camera.CameraStreamLifecycleResponse;
 import com.fa26se040.icss.entity.Camera;
-import com.fa26se040.icss.entity.CameraHealthLog;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
-import com.fa26se040.icss.repository.CameraHealthLogRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.CameraStreamConfigurationRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,13 +37,15 @@ public class CameraStreamLifecycleService {
 
     private final CameraRepository cameraRepository;
     private final CameraStreamConfigurationRepository streamConfigRepo;
-    private final CameraHealthLogRepository healthLogRepo;
     private final CameraService cameraService;
     private final MediaMtxService mediaMtxService;
     private final AiServiceRestTemplate restTemplate;
 
     @Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;
+
+    @Autowired(required = false)
+    private EdgeStatusService edgeStatusService;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
@@ -69,8 +69,9 @@ public class CameraStreamLifecycleService {
         String subRtspUrl = cameraService.buildSubRtspUrl(config);
         boolean hasSub = (subRtspUrl != null && !subRtspUrl.isBlank());
 
-        boolean handledViaMqtt = false;
-        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+        boolean mqttConnected = edgeMqttControlService != null && edgeMqttControlService.isConnected();
+        boolean edgeOnline = mqttConnected && edgeStatusService != null && edgeStatusService.hasActiveOnlineEdge();
+        if (mqttConnected) {
             if (hasSub) {
                 edgeMqttControlService.publishCameraStreamConfig(
                         camera.getCameraCode(),
@@ -87,13 +88,12 @@ public class CameraStreamLifecycleService {
                         camera.getRoiGeometry()
                 );
             }
-            handledViaMqtt = true;
-            log.info("📡 [Cloud-Edge] Đã đồng bộ kích hoạt stream & AI Worker cho camera [{}] qua MQTT Retained Config",
-                    camera.getCameraCode());
+            log.info("📡 [Cloud-Edge] Đã đồng bộ kích hoạt stream & AI Worker cho camera [{}] qua MQTT Retained Config (edgeOnline={})",
+                    camera.getCameraCode(), edgeOnline);
         }
 
-        if (!handledViaMqtt) {
-            // Fallback khi chạy Standalone Local không kết nối MQTT
+        if (!edgeOnline) {
+            // Fallback khi chạy Standalone Local hoặc chưa có Edge ONLINE
             if (hasSub) {
                 mediaMtxService.syncCameraPath(camera.getCameraCode(), subRtspUrl);
                 mediaMtxService.syncCameraPath(camera.getCameraCode() + "_main", mainRtspUrl);
@@ -129,14 +129,6 @@ public class CameraStreamLifecycleService {
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
 
-        CameraHealthLog healthLog = CameraHealthLog.builder()
-                .camera(camera)
-                .status(OperationalStatus.ONLINE)
-                .checkedAt(OffsetDateTime.now())
-                .errorMessage("Kết nối Stream phát trực tiếp thành công")
-                .build();
-        healthLogRepo.save(healthLog);
-
         return CameraStreamLifecycleResponse.builder()
                 .success(true)
                 .cameraId(camera.getId())
@@ -152,19 +144,20 @@ public class CameraStreamLifecycleService {
         Camera camera = cameraRepository.findById(cameraId)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
-        boolean handledViaMqtt = false;
-        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
+        boolean mqttConnected = edgeMqttControlService != null && edgeMqttControlService.isConnected();
+        boolean edgeOnline = mqttConnected && edgeStatusService != null && edgeStatusService.hasActiveOnlineEdge();
+        if (mqttConnected) {
             edgeMqttControlService.publishCameraStreamConfig(
                     camera.getCameraCode(),
                     "",
                     false,
                     camera.getRoiGeometry()
             );
-            handledViaMqtt = true;
-            log.info("📡 [Cloud-Edge] Đã gửi lệnh ngắt stream camera [{}] qua MQTT Retained Config", camera.getCameraCode());
+            log.info("📡 [Cloud-Edge] Đã gửi lệnh ngắt stream camera [{}] qua MQTT Retained Config (edgeOnline={})",
+                    camera.getCameraCode(), edgeOnline);
         }
 
-        if (!handledViaMqtt) {
+        if (!edgeOnline) {
             mediaMtxService.deleteCameraPath(camera.getCameraCode());
             if (aiServiceUrl != null && !aiServiceUrl.isBlank()) {
                 try {
@@ -181,14 +174,6 @@ public class CameraStreamLifecycleService {
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
-
-        CameraHealthLog healthLog = CameraHealthLog.builder()
-                .camera(camera)
-                .status(OperationalStatus.OFFLINE)
-                .checkedAt(OffsetDateTime.now())
-                .errorMessage("Ngắt Stream phát trực tiếp bởi người dùng")
-                .build();
-        healthLogRepo.save(healthLog);
 
         return CameraStreamLifecycleResponse.builder()
                 .success(true)

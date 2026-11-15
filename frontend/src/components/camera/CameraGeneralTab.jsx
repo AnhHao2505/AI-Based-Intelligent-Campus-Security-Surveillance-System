@@ -51,14 +51,7 @@ export default function CameraGeneralTab({
 						<span>Khu vực phụ trách *</span>
 					</label>
 
-					<div
-						style={{
-							display: "flex",
-							gap: "0.75rem",
-							alignItems: "center",
-							flexWrap: "wrap",
-						}}
-					>
+					<div className="camera-general-area-row">
 						<Select
 							className="camera-general-area-select"
 							value={generalForm.areaId || ""}

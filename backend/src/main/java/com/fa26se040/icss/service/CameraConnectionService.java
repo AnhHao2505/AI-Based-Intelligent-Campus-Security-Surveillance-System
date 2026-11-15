@@ -33,6 +33,9 @@ public class CameraConnectionService {
     private EdgeMqttControlService edgeMqttControlService;
 
     @Autowired(required = false)
+    private EdgeStatusService edgeStatusService;
+
+    @Autowired(required = false)
     private com.fa26se040.icss.util.AesEncryptionUtil aesEncryptionUtil;
 
     @Value("${ai.service.url:http://localhost:8000}")
@@ -100,9 +103,20 @@ public class CameraConnectionService {
             username = config.getUsername().trim();
         }
 
-        // Cloud-Edge Mode: Ủy quyền cho Edge Agent kiểm tra kết nối RTSP nội bộ (sau NAT)
-        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
-            return testConnectionViaEdgeMqttRpc(camera.getCameraCode(), host, port, path, username, password, timeout);
+        // Cloud-Edge Mode: Chỉ ủy quyền cho Edge Agent khi thực sự có Edge ONLINE (tránh timeout khi chỉ bật Mosquitto)
+        boolean edgeOnline = edgeMqttControlService != null
+                && edgeMqttControlService.isConnected()
+                && edgeStatusService != null
+                && edgeStatusService.hasActiveOnlineEdge();
+        if (edgeOnline) {
+            TestConnectionResponse edgeResponse = testConnectionViaEdgeMqttRpc(
+                    camera.getCameraCode(), host, port, path, username, password, timeout
+            );
+            if (edgeResponse != null) {
+                return edgeResponse;
+            }
+            log.warn("⚠️ [Smart Fallback] Edge RPC không phản hồi cho camera [{}], chuyển sang kiểm tra RTSP trực tiếp",
+                    camera.getCameraCode());
         }
 
         try {
@@ -191,6 +205,12 @@ public class CameraConnectionService {
                     .message(errMsg)
                     .build();
         } catch (CameraException ce) {
+            if (ce.getErrorCode() == CameraErrorCode.ERR_EDGE_001
+                    || ce.getErrorCode() == CameraErrorCode.ERR_EDGE_002) {
+                log.warn("⚠️ [Smart Fallback] Edge RPC trả về {} cho camera [{}]: {}",
+                        ce.getErrorCode(), cameraCode, ce.getMessage());
+                return null;
+            }
             return TestConnectionResponse.builder()
                     .success(false)
                     .operationalStatus(OperationalStatus.OFFLINE)

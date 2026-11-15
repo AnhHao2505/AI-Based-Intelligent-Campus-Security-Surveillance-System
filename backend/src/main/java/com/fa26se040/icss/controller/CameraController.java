@@ -71,7 +71,7 @@ public class CameraController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CameraDetailResponse>> getDetail(@PathVariable UUID id) {
         log.info("REST request to get camera detail for id: {}", id);
         CameraDetailResponse detail = cameraService.getCameraDetail(id);
@@ -116,16 +116,6 @@ public class CameraController {
         log.info("REST request to upsert camera stream configuration: {}", id);
         CameraStreamConfigResponse config = cameraService.upsertStreamConfig(id, req);
         return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình stream thành công"));
-    }
-
-    @GetMapping("/{id}/health-logs")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER')")
-    public ResponseEntity<ApiResponse<Page<CameraHealthLogResponse>>> healthLogs(
-            @PathVariable UUID id,
-            @PageableDefault(size = 10) Pageable pageable) {
-        log.info("REST request to get health logs for camera: {}", id);
-        Page<CameraHealthLogResponse> logs = cameraService.getHealthLogs(id, pageable);
-        return ResponseEntity.ok(ApiResponse.success(logs, "Lấy nhật ký hoạt động camera thành công"));
     }
 
     @PostMapping("/{id}/snapshot")

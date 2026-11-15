@@ -536,9 +536,8 @@ export default function RoiEditorModal({
 										<p>Đang tải ảnh...</p>
 									</div>
 								) : (
-									<div className="roi-no-image">
-										<p>Không có ảnh chụp tham chiếu từ camera.</p>
-										<span>Vui lòng kết nối camera để lấy khung hình mẫu.</span>
+									<div className="roi-grid-canvas" aria-label="Khung lưới ROI 16:9">
+										<span>Khung lưới chuẩn hóa 16:9 (Camera chưa phát Live)</span>
 									</div>
 								)}
 
@@ -729,18 +728,13 @@ export default function RoiEditorModal({
 					<div className="roi-sidebar">
 						<div className="roi-sidebar-header">
 							<span>Vùng giám sát ROI</span>
-							{error && (
-								<span
-									style={{
-										color: "#ef4444",
-										fontSize: "0.8rem",
-										marginLeft: "auto",
-									}}
-								>
-									{error}
-								</span>
-							)}
 						</div>
+
+						{error && (
+							<div className="roi-error-banner" role="alert">
+								{error}
+							</div>
+						)}
 
 						<div className="roi-sidebar-content">
 							{/* Polygons */}

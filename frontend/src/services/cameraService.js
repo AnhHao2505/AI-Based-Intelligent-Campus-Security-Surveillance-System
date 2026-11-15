@@ -1,4 +1,5 @@
 import { getAccessToken } from "./authService";
+import { buildRoiUpdatePayload } from "../utils/roiUtils";
 
 const API_BASE_URL =
 	import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
@@ -114,14 +115,6 @@ export function fetchAllSimpleCameras() {
 	return request("/api/cameras/all-simple");
 }
 
-export function fetchHealthLogs(id, { page = 0, size = 10 } = {}) {
-	return request(`/api/cameras/${id}/health-logs?page=${page}&size=${size}`);
-}
-
-export function captureSnapshot(cameraId) {
-	return request(`/api/cameras/${cameraId}/snapshot`, { method: "POST" });
-}
-
 export function startStream(cameraId) {
 	return request(`/api/cameras/${cameraId}/stream/start`, { method: "POST" });
 }
@@ -154,19 +147,10 @@ export function testConnection(cameraId, data) {
 	});
 }
 
-export function updateRoiGeometry(
-	cameraId,
-	roiGeometry,
-	{ snapshotBase64, snapshotWidth, snapshotHeight } = {},
-) {
+export function updateRoiGeometry(cameraId, roiGeometry, snapshotMeta) {
 	return request(`/api/cameras/${cameraId}/roi`, {
 		method: "PUT",
-		body: JSON.stringify({
-			roiGeometry,
-			snapshot_base64: snapshotBase64,
-			snapshot_width: snapshotWidth,
-			snapshot_height: snapshotHeight,
-		}),
+		body: JSON.stringify(buildRoiUpdatePayload(roiGeometry, snapshotMeta)),
 	});
 }
 

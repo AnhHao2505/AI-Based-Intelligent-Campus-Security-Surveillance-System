@@ -37,7 +37,6 @@ public class CameraService {
 
     private final CameraRepository cameraRepository;
     private final CameraStreamConfigurationRepository cameraStreamConfigurationRepository;
-    private final CameraHealthLogRepository cameraHealthLogRepository;
     private final MediaMtxService mediaMtxService;
     private final AesEncryptionUtil aesEncryptionUtil;
     private final RoiGeometryValidator roiGeometryValidator;
@@ -181,16 +180,6 @@ public class CameraService {
                 if (currentStatus != newStatus) {
                     cam.setOperationalStatus(newStatus);
                     cameraRepository.save(cam);
-
-                    CameraHealthLog healthLog = CameraHealthLog.builder()
-                            .camera(cam)
-                            .status(newStatus)
-                            .checkedAt(OffsetDateTime.now())
-                            .errorMessage(newStatus == OperationalStatus.ONLINE
-                                    ? "Kết nối luồng RTSP thành công qua MediaMTX"
-                                    : "Mất tín hiệu luồng RTSP từ camera")
-                            .build();
-                    cameraHealthLogRepository.save(healthLog);
                     log.info("Cập nhật trạng thái kết nối camera [{}]: {} -> {}", cam.getCameraCode(), currentStatus, newStatus);
 
                     if (newStatus == OperationalStatus.ONLINE) {
@@ -417,18 +406,8 @@ public class CameraService {
         return streamResponse;
     }
 
-    // === Health Logs ===
+    // === ROI Configuration ===
 
-    @Transactional(readOnly = true)
-    public Page<CameraHealthLogResponse> getHealthLogs(UUID cameraId, Pageable pageable) {
-        log.info("Fetching health logs for camera id: {}", cameraId);
-        if (!cameraRepository.existsById(cameraId)) {
-            throw new CameraException(CameraErrorCode.ERR_CAM_002);
-        }
-        Page<CameraHealthLog> logs = cameraHealthLogRepository.findByCameraIdOrderByCheckedAtDesc(cameraId, pageable);
-        return logs.map(this::mapToHealthLogResponse);
-    }
-    
     public CameraDetailResponse updateRoiGeometry(UUID cameraId, RoiUpdateRequest request) {
         log.info("Updating ROI geometry for camera id: {}", cameraId);
         Camera camera = cameraRepository.findById(cameraId)
@@ -439,39 +418,6 @@ public class CameraService {
             roi = RoiGeometry.builder().polygons(new ArrayList<>()).build();
         }
         roiGeometryValidator.validate(roi);
-
-        boolean isNewBase64 = request.getSnapshotBase64() != null
-                && !request.getSnapshotBase64().isBlank()
-                && !request.getSnapshotBase64().startsWith("http")
-                && !request.getSnapshotBase64().startsWith("/api/");
-
-        if (isNewBase64) {
-            try {
-                String cleanBase64 = request.getSnapshotBase64();
-                if (cleanBase64.contains(",")) {
-                    cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
-                }
-                byte[] imageBytes = java.util.Base64.getDecoder().decode(cleanBase64);
-                String snapshotUrl = minioStorageService.uploadRoiReferenceSnapshot(imageBytes, camera.getCameraCode());
-                roi.setReferenceSnapshotUrl(snapshotUrl);
-                roi.setReferenceSnapshotWidth(request.getSnapshotWidth() != null ? request.getSnapshotWidth() : 1920);
-                roi.setReferenceSnapshotHeight(request.getSnapshotHeight() != null ? request.getSnapshotHeight() : 1080);
-                roi.setReferenceCapturedAt(OffsetDateTime.now());
-            } catch (Exception e) {
-                log.error("Failed to upload reference snapshot to MinIO for camera {}: {}", camera.getCameraCode(), e.getMessage());
-                if (camera.getRoiGeometry() != null && camera.getRoiGeometry().getReferenceSnapshotUrl() != null) {
-                    roi.setReferenceSnapshotUrl(camera.getRoiGeometry().getReferenceSnapshotUrl());
-                    roi.setReferenceSnapshotWidth(camera.getRoiGeometry().getReferenceSnapshotWidth());
-                    roi.setReferenceSnapshotHeight(camera.getRoiGeometry().getReferenceSnapshotHeight());
-                    roi.setReferenceCapturedAt(camera.getRoiGeometry().getReferenceCapturedAt());
-                }
-            }
-        } else if (camera.getRoiGeometry() != null) {
-            roi.setReferenceSnapshotUrl(camera.getRoiGeometry().getReferenceSnapshotUrl());
-            roi.setReferenceSnapshotWidth(request.getSnapshotWidth() != null ? request.getSnapshotWidth() : camera.getRoiGeometry().getReferenceSnapshotWidth());
-            roi.setReferenceSnapshotHeight(request.getSnapshotHeight() != null ? request.getSnapshotHeight() : camera.getRoiGeometry().getReferenceSnapshotHeight());
-            roi.setReferenceCapturedAt(camera.getRoiGeometry().getReferenceCapturedAt());
-        }
 
         camera.setRoiGeometry(roi);
         camera.setUpdatedAt(OffsetDateTime.now());
@@ -704,18 +650,6 @@ public class CameraService {
                 .whepStreamUrl(whepUrl)
                 .updatedAt(config.getCamera() != null ? config.getCamera().getUpdatedAt() : null)
                 .operationalStatus(config.getCamera() != null ? config.getCamera().getOperationalStatus() : null)
-                .build();
-    }
-
-    private CameraHealthLogResponse mapToHealthLogResponse(CameraHealthLog log) {
-        return CameraHealthLogResponse.builder()
-                .id(log.getId())
-                .status(log.getStatus())
-                .checkedAt(log.getCheckedAt())
-                .latencyMs(log.getLatencyMs())
-                .fps(log.getFps())
-                .errorCode(log.getErrorCode())
-                .errorMessage(log.getErrorMessage())
                 .build();
     }
 

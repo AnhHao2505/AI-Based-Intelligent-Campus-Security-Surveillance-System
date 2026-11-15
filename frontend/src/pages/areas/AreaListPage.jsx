@@ -58,6 +58,7 @@ import {
 import {
 	buildCameraStatsByArea,
 	extractCameraAreaInfo,
+	resolveCameraInspectorAccess,
 	fetchAllPaginatedPages,
 } from "../../utils/campusCameraHelpers";
 import {
@@ -552,6 +553,17 @@ export default function AreaListPage() {
 	const urlCameraTab = searchParams.get("cameraTab");
 	const prevUrlRef = useRef({ tab: null, cameraId: null, cameraTab: null });
 	useEffect(() => {
+		const access = resolveCameraInspectorAccess({
+			isAdmin,
+			requestedTab: urlTab,
+			requestedCameraId: urlCameraId,
+		});
+		if (!access.showCameraTab) {
+			setLeftSidebarMode("AREAS");
+			setSelectedCameraId(null);
+			prevUrlRef.current = { tab: urlTab, cameraId: urlCameraId, cameraTab: urlCameraTab };
+			return;
+		}
 		const prev = prevUrlRef.current;
 		if (urlTab !== prev.tab) {
 			if (urlTab === "cameras") {
@@ -569,14 +581,15 @@ export default function AreaListPage() {
 			}
 		}
 		prevUrlRef.current = { tab: urlTab, cameraId: urlCameraId, cameraTab: urlCameraTab };
-	}, [urlTab, urlCameraId, urlCameraTab]);
+	}, [isAdmin, urlTab, urlCameraId, urlCameraTab]);
 
 	const handleSwitchLeftSidebarMode = useCallback(
 		(nextMode) => {
+			if (!isAdmin) return;
 			setLeftSidebarMode(nextMode);
 			syncCameraUrlParams(nextMode, selectedCameraId, selectedCameraInitialTab);
 		},
-		[selectedCameraId, selectedCameraInitialTab, syncCameraUrlParams],
+		[isAdmin, selectedCameraId, selectedCameraInitialTab, syncCameraUrlParams],
 	);
 
 	const handleSyncMapFilter = useCallback((nextBuilding, nextFloor) => {
@@ -653,6 +666,9 @@ export default function AreaListPage() {
 	const handleSelectCameraBadge = useCallback(
 		(areaId, areaCameras = []) => {
 			handleSelectArea(areaId);
+			if (!isAdmin) {
+				return;
+			}
 			if (Array.isArray(areaCameras) && areaCameras.length === 1) {
 				handleSelectCamera(areaCameras[0], "general");
 				return;
@@ -662,7 +678,7 @@ export default function AreaListPage() {
 				handleOpenCamerasModal(matchedArea);
 			}
 		},
-		[areaById, handleOpenCamerasModal, handleSelectArea, handleSelectCamera],
+		[areaById, handleOpenCamerasModal, handleSelectArea, handleSelectCamera, isAdmin],
 	);
 
 	const handleOpenCreateCameraModal = useCallback(
@@ -1105,34 +1121,36 @@ export default function AreaListPage() {
 				<aside
 					className={`zone-split-sidebar ${isLeftSidebarCollapsed ? "zone-split-sidebar--collapsed" : ""}`}
 				>
-					<div
-						className="zone-mode-switcher"
-						role="tablist"
-						aria-label="Chế độ quản lý bên trái"
-					>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={leftSidebarMode === "AREAS"}
-							className={`zone-mode-switcher__btn ${leftSidebarMode === "AREAS" ? "zone-mode-switcher__btn--active" : ""}`}
-							onClick={() => handleSwitchLeftSidebarMode("AREAS")}
+					{isAdmin && (
+						<div
+							className="zone-mode-switcher"
+							role="tablist"
+							aria-label="Chế độ quản lý bên trái"
 						>
-							<MapPin size={14} />
-							<span>Khu vực</span>
-							<span className="zone-mode-switcher__count">{areas.length}</span>
-						</button>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={leftSidebarMode === "CAMERAS"}
-							className={`zone-mode-switcher__btn ${leftSidebarMode === "CAMERAS" ? "zone-mode-switcher__btn--active" : ""}`}
-							onClick={() => handleSwitchLeftSidebarMode("CAMERAS")}
-						>
-							<Video size={14} />
-							<span>Camera</span>
-							<span className="zone-mode-switcher__count">{cameras.length}</span>
-						</button>
-					</div>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={leftSidebarMode === "AREAS"}
+								className={`zone-mode-switcher__btn ${leftSidebarMode === "AREAS" ? "zone-mode-switcher__btn--active" : ""}`}
+								onClick={() => handleSwitchLeftSidebarMode("AREAS")}
+							>
+								<MapPin size={14} />
+								<span>Khu vực</span>
+								<span className="zone-mode-switcher__count">{areas.length}</span>
+							</button>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={leftSidebarMode === "CAMERAS"}
+								className={`zone-mode-switcher__btn ${leftSidebarMode === "CAMERAS" ? "zone-mode-switcher__btn--active" : ""}`}
+								onClick={() => handleSwitchLeftSidebarMode("CAMERAS")}
+							>
+								<Video size={14} />
+								<span>Camera</span>
+								<span className="zone-mode-switcher__count">{cameras.length}</span>
+							</button>
+						</div>
+					)}
 
 					{leftSidebarMode === "AREAS" && loading && (
 						<LoadingState text="Đang tải dữ liệu khu vực..." />
@@ -1177,7 +1195,7 @@ export default function AreaListPage() {
 						/>
 					)}
 
-					{leftSidebarMode === "CAMERAS" && (
+					{isAdmin && leftSidebarMode === "CAMERAS" && (
 						<CameraWorkspaceSidebar
 							cameras={cameras}
 							areas={areas}
@@ -1211,7 +1229,7 @@ export default function AreaListPage() {
 							onCancelPickCameraArea={() => setPickingCameraArea(false)}
 							onAreaPickedForCamera={handleAreaPickedForCamera}
 							rightDrawerContent={
-								selectedCameraId ? (
+								isAdmin && selectedCameraId ? (
 									<CameraInspectorDrawer
 										cameraId={selectedCameraId}
 										initialTab={selectedCameraInitialTab}

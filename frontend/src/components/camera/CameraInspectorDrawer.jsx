@@ -6,7 +6,6 @@ import {
 	MapPin,
 	Layers,
 	Activity,
-	HeartPulse,
 	Power,
 	PowerOff,
 	Trash2,
@@ -20,14 +19,11 @@ import {
 	reactivateCamera,
 	deleteCamera,
 	upsertStreamConfig,
-	fetchHealthLogs,
-	captureSnapshot,
 	startStream,
 	stopStream,
 	testConnection,
 	updateRoiGeometry,
 } from "../../services/cameraService";
-import { formatImageUrl } from "../../utils/roiUtils";
 import { formatLocation } from "../../utils/formatLocation";
 import { extractCameraAreaInfo } from "../../utils/campusCameraHelpers";
 import RoiEditorModal from "./RoiEditorModal";
@@ -35,7 +31,6 @@ import CameraGeneralTab from "./CameraGeneralTab";
 import CameraStreamTab from "./CameraStreamTab";
 import CameraSurveillanceTab from "./CameraSurveillanceTab";
 import CameraAccessLogsTab from "./CameraAccessLogsTab";
-import CameraHealthLogs from "./CameraHealthLogs";
 import { LoadingState, ErrorState, Modal, Button } from "../ui";
 import "../../styles/cameraShared.css";
 import "../../styles/CameraDetailPage.css";
@@ -45,7 +40,6 @@ const VALID_TABS = [
 	"stream",
 	"surveillance",
 	"access-logs",
-	"health",
 ];
 
 export default function CameraInspectorDrawer({
@@ -77,24 +71,13 @@ export default function CameraInspectorDrawer({
 	const [loadError, setLoadError] = useState(null);
 	const [camera, setCamera] = useState(null);
 
-	const [logs, setLogs] = useState([]);
-	const [logPage, setLogPage] = useState(0);
-	const [logTotalPages, setLogTotalPages] = useState(0);
-	const [logsLoading, setLogsLoading] = useState(false);
-	const [logsError, setLogsError] = useState(null);
-
 	const [testingConnection, setTestingConnection] = useState(false);
 	const [testResult, setTestResult] = useState(null);
 
 	const [startingStream, setStartingStream] = useState(false);
 	const [stoppingStream, setStoppingStream] = useState(false);
-	const [capturingSnapshot, setCapturingSnapshot] = useState(false);
-	const [refreshingLive, setRefreshingLive] = useState(false);
-	const [liveSnapshot, setLiveSnapshot] = useState(null);
-	const [compareMode, setCompareMode] = useState(false);
 	const [roiModalOpen, setRoiModalOpen] = useState(false);
 	const [activeSnapshotForModal, setActiveSnapshotForModal] = useState(null);
-	const [surveillanceViewMode, setSurveillanceViewMode] = useState("snapshot");
 
 	const [confirmDecommissionOpen, setConfirmDecommissionOpen] = useState(false);
 	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -151,32 +134,10 @@ export default function CameraInspectorDrawer({
 		}
 	}, [cameraId]);
 
-	const loadLogs = useCallback(async () => {
-		if (!cameraId) return;
-		setLogsLoading(true);
-		setLogsError(null);
-		try {
-			const data = await fetchHealthLogs(cameraId, { page: logPage, size: 5 });
-			setLogs(data.content || []);
-			setLogTotalPages(data.totalPages || 0);
-		} catch (err) {
-			setLogsError(err?.message || "Không tải được nhật ký kết nối.");
-		} finally {
-			setLogsLoading(false);
-		}
-	}, [cameraId, logPage]);
-
 	useEffect(() => {
 		setTestResult(null);
-		setCompareMode(false);
-		setLiveSnapshot(null);
-		setLogPage(0);
 		loadCameraDetails();
 	}, [loadCameraDetails]);
-
-	useEffect(() => {
-		loadLogs();
-	}, [loadLogs]);
 
 	// Apply 3D map room pick override to generalForm
 	useEffect(() => {
@@ -212,7 +173,6 @@ export default function CameraInspectorDrawer({
 					(res?.success
 						? "Kết nối RTSP thành công!"
 						: "Không thể kết nối đến camera."),
-				latencyMs: res?.latencyMs,
 			});
 		} catch (err) {
 			setTestResult({
@@ -231,7 +191,6 @@ export default function CameraInspectorDrawer({
 			if (res?.success) {
 				setCamera((prev) => ({ ...prev, operationalStatus: "ONLINE" }));
 				toast.success("Đã bật Stream trực tiếp. Camera chuyển sang ONLINE.");
-				loadLogs();
 				onCameraMutated?.();
 			} else {
 				toast.error(res?.message || "Không thể kết nối Stream trực tiếp.");
@@ -250,7 +209,6 @@ export default function CameraInspectorDrawer({
 			if (res?.success) {
 				setCamera((prev) => ({ ...prev, operationalStatus: "OFFLINE" }));
 				toast.success("Đã ngắt Stream trực tiếp. Camera chuyển sang OFFLINE.");
-				loadLogs();
 				onCameraMutated?.();
 			} else {
 				toast.error(res?.message || "Không thể ngắt Stream trực tiếp.");
@@ -262,93 +220,20 @@ export default function CameraInspectorDrawer({
 		}
 	};
 
-	const handleCaptureNewSnapshot = async () => {
-		setCapturingSnapshot(true);
-		try {
-			const res = await captureSnapshot(cameraId);
-			if (res?.success) {
-				toast.success("Đã trích xuất khung hình mới thành công!");
-				setActiveSnapshotForModal({
-					data: res.snapshotBase64,
-					width: res.width || 1920,
-					height: res.height || 1080,
-				});
-				setRoiModalOpen(true);
-			} else {
-				toast.error(res?.errorMessage || "Không thể chụp snapshot từ camera.");
-			}
-		} catch (err) {
-			toast.error(err?.message || "Lỗi chụp snapshot từ camera.");
-		} finally {
-			setCapturingSnapshot(false);
-		}
-	};
-
-	const handleCaptureFromLiveStream = (snapshotData) => {
-		if (!snapshotData?.base64) {
-			handleCaptureNewSnapshot();
-			return;
-		}
-		toast.success("Đã chụp khung hình trực tiếp thành công!");
-		setActiveSnapshotForModal({
-			data: snapshotData.base64,
-			width: snapshotData.width || 1920,
-			height: snapshotData.height || 1080,
-		});
+	const handleOpenRoiEditor = (snapshotMeta) => {
+		setActiveSnapshotForModal(
+			snapshotMeta || { data: null, width: 1920, height: 1080 },
+		);
 		setRoiModalOpen(true);
 	};
 
-	const handleEditCurrentRoi = () => {
-		const rawRefUrl =
-			camera?.roiGeometry?.reference_snapshot_url ||
-			camera?.roiGeometry?.referenceSnapshotUrl;
-		const refUrl = formatImageUrl(rawRefUrl);
-		if (!refUrl) {
-			toast.error("Chưa có ảnh chụp tham chiếu. Vui lòng bấm 'Chụp ảnh mới'.");
-			return;
-		}
-		setActiveSnapshotForModal({
-			data: refUrl,
-			width:
-				camera?.roiGeometry?.reference_snapshot_width ||
-				camera?.roiGeometry?.referenceSnapshotWidth ||
-				1920,
-			height:
-				camera?.roiGeometry?.reference_snapshot_height ||
-				camera?.roiGeometry?.referenceSnapshotHeight ||
-				1080,
-		});
-		setRoiModalOpen(true);
-	};
-
-	const handleCheckDrift = async () => {
-		setRefreshingLive(true);
-		try {
-			const res = await captureSnapshot(cameraId);
-			if (res?.success) {
-				setLiveSnapshot(res);
-				setCompareMode(true);
-				toast.success("Đã trích xuất khung hình để kiểm tra sai lệch.");
-			} else {
-				toast.error(res?.errorMessage || "Không thể lấy khung hình trực tiếp.");
-			}
-		} catch (err) {
-			toast.error(err?.message || "Lỗi kiểm tra sai lệch.");
-		} finally {
-			setRefreshingLive(false);
-		}
-	};
-
-	const handleSaveRoi = async (roiGeometry, snapshotMeta) => {
-		const updated = await updateRoiGeometry(cameraId, roiGeometry, snapshotMeta);
+	const handleSaveRoi = async (roiGeometry) => {
+		const updated = await updateRoiGeometry(cameraId, roiGeometry);
 		const newRoi = updated?.roiGeometry || updated;
 		setCamera((prev) => ({
 			...prev,
 			roiGeometry: { ...prev?.roiGeometry, ...newRoi },
 		}));
-		setCompareMode(false);
-		setLiveSnapshot(null);
-		setSurveillanceViewMode("snapshot");
 		toast.success("Cấu hình vùng giám sát (ROI) đã được lưu thành công!");
 		loadCameraDetails();
 		onCameraMutated?.();
@@ -590,16 +475,6 @@ export default function CameraInspectorDrawer({
 							<Activity size={14} />
 							<span>Ra vào</span>
 						</button>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={activeTab === "health"}
-							className={`cam-inspector-tab ${activeTab === "health" ? "cam-inspector-tab--active" : ""}`}
-							onClick={() => setActiveTab("health")}
-						>
-							<HeartPulse size={14} />
-							<span>Kết nối</span>
-						</button>
 					</div>
 
 					<div className="cam-inspector-drawer__body">
@@ -638,40 +513,12 @@ export default function CameraInspectorDrawer({
 						{activeTab === "surveillance" && (
 							<CameraSurveillanceTab
 								camera={camera}
-								capturingSnapshot={capturingSnapshot}
-								refreshingLive={refreshingLive}
-								compareMode={compareMode}
-								liveSnapshot={liveSnapshot}
-								onCaptureNewSnapshot={isAdmin ? handleCaptureNewSnapshot : undefined}
-								onEditCurrentRoi={isAdmin ? handleEditCurrentRoi : undefined}
-								onCheckDrift={isAdmin ? handleCheckDrift : undefined}
-								onCloseCompare={() => {
-									setCompareMode(false);
-									setLiveSnapshot(null);
-								}}
-								onCaptureFromLiveStream={
-									isAdmin ? handleCaptureFromLiveStream : undefined
-								}
-								viewMode={surveillanceViewMode}
-								onViewModeChange={setSurveillanceViewMode}
-								onError={(msg) => toast.error(msg)}
+								onOpenRoiEditor={isAdmin ? handleOpenRoiEditor : undefined}
 							/>
 						)}
 
 						{activeTab === "access-logs" && (
 							<CameraAccessLogsTab camera={camera} />
-						)}
-
-						{activeTab === "health" && (
-							<CameraHealthLogs
-								logs={logs}
-								loading={logsLoading}
-								page={logPage}
-								totalPages={logTotalPages}
-								onPageChange={setLogPage}
-								onRefresh={loadLogs}
-								error={logsError}
-							/>
 						)}
 					</div>
 				</>

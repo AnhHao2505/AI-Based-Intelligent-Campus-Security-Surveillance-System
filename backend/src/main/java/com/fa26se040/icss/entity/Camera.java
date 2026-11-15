@@ -63,9 +63,6 @@ public class Camera {
     @OneToOne(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private CameraStreamConfiguration streamConfiguration;
 
-    @OneToMany(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<CameraHealthLog> healthLogs;
-
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "area_id", nullable = false)
     private Area area;

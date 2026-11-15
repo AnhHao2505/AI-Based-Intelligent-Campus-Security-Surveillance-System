@@ -117,4 +117,10 @@ public class EdgeStatusService {
                     edge.getEdgeId(), edge.getLastSeen());
         }
     }
+
+    @Transactional(readOnly = true)
+    public boolean hasActiveOnlineEdge() {
+        OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(90);
+        return edgeDeviceStatusRepository.existsByStatusAndLastSeenAfter("ONLINE", cutoff);
+    }
 }
