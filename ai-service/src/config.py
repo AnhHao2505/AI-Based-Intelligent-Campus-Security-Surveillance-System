@@ -150,6 +150,7 @@ class Settings(BaseSettings):
         validation_alias="RECORDING_BASE_DIR"
     )
     RECORDING_SEGMENT_SECONDS: int = Field(default=60, validation_alias="RECORDING_SEGMENT_SECONDS")
+    RECORDING_RETENTION_HOURS: float = Field(default=0.5, validation_alias="RECORDING_RETENTION_HOURS")
     LOCAL_RECORDING_MAX_RETAINED_FILES: int = Field(default=30, validation_alias="LOCAL_RECORDING_MAX_RETAINED_FILES")
     LOCAL_RECORDING_MAX_MB: int = Field(default=2048, validation_alias="LOCAL_RECORDING_MAX_MB")
     LOCAL_EVIDENCE_MAX_MB: int = Field(default=5120, validation_alias="LOCAL_EVIDENCE_MAX_MB")
