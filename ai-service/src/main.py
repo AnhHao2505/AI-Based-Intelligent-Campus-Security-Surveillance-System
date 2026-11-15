@@ -126,6 +126,8 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
 
                     with active_workers_lock:
                         workers = list(active_workers.values())
+                    from .pipeline.runtime_config import apply_runtime_config
+                    apply_runtime_config(data, default_pipeline, workers)
                     for worker in workers:
                         worker.update_runtime_config(
                             max_inactive_seconds=settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS,
@@ -364,6 +366,8 @@ class AIRuntimeConfigRequest(BaseModel):
     identity_grace_seconds: Optional[float] = None
     unauthorized_alert_cooldown: Optional[float] = None
     suspicious_motion_cooldown: Optional[float] = None
+    # V126: thời hạn lưu trữ video ghi hình (giờ)
+    recording_retention_hours: Optional[float] = None
 
 @app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])
 async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
