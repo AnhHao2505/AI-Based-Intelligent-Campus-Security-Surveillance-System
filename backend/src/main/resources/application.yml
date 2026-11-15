@@ -105,6 +105,10 @@ app:
     # H1: khoá HMAC-SHA256 cho mã băm chuỗi đăng nhập sai không khớp tài khoản (audit AUTH). Bắt buộc, >= 32 ký tự,
     # KHÔNG có giá trị mặc định: thiếu thì backend không khởi động. Sinh: openssl rand -hex 32
     audit-hash-key: ${APP_SECURITY_AUDITHASHKEY:}
+    # DEF-13: khoá AES-256-GCM mã hoá thông tin đăng nhập camera (AesEncryptionUtil). Bắt buộc, >= 32 ký tự, KHÔNG có
+    # giá trị mặc định (":" rỗng chỉ để thiếu biến cũng ra đúng câu lỗi của AesEncryptionUtil). Phải giữ nguyên giá trị
+    # đã mã hoá dữ liệu hiện có: đổi khoá thì mật khẩu camera đã lưu không giải mã được, phải nhập lại.
+    camera-secret: ${APP_SECURITY_CAMERA_SECRET:}
   cors:
     # Danh sách origin được gọi API, phân tách bằng dấu phẩy
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:3000}

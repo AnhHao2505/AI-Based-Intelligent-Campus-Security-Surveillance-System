@@ -14,9 +14,17 @@ nhân sự chỉ định, lịch sự kiện, lượt khách, log ra vào 30 ng�
    DB_HOST=localhost DB_PORT=55434 POSTGRES_DB=campus_security_demo \
    POSTGRES_USER=sep POSTGRES_PASSWORD=<mật khẩu DB demo> \
    JWT_SECRET=<chuỗi ngẫu nhiên ≥ 32 ký tự> INTERNAL_SERVICE_KEY=<chuỗi ngẫu nhiên ≥ 32 ký tự> \
+   APP_SECURITY_AUDITHASHKEY=<chuỗi ngẫu nhiên ≥ 32 ký tự> APP_SECURITY_CAMERA_SECRET=<chuỗi ≥ 32 ký tự> \
    MINIO_ROOT_PASSWORD=<giá trị tạm> SERVER_PORT=8090 \
    ./mvnw spring-boot:run
    ```
+
+   Các khoá `JWT_SECRET`, `INTERNAL_SERVICE_KEY`, `APP_SECURITY_AUDITHASHKEY`, `APP_SECURITY_CAMERA_SECRET` đều bắt buộc:
+   thiếu hoặc ngắn hơn 32 ký tự thì backend không khởi động. Sinh bằng `openssl rand -hex 32`, không ghi giá trị vào
+   repo. `APP_SECURITY_AUDITHASHKEY` là khoá HMAC băm chuỗi đăng nhập sai trong nhật ký audit.
+   `APP_SECURITY_CAMERA_SECRET` mã hoá mật khẩu camera lưu trong DB: với DB demo mới sinh khoá nào cũng được, nhưng sau
+   đó phải dùng đúng khoá đó mỗi lần chạy lại backend trên DB demo này (đổi khoá thì mật khẩu camera đã lưu không giải
+   mã được, phải nhập lại).
 
 2. Chạy seed (backend có thể đang chạy):
 
