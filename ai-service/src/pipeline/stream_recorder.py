@@ -710,18 +710,22 @@ class StreamRecorder:
 
                 success = storage_service.upload_video_file(file_path, bucket, obj_name)
                 if success:
-                    get_security_mqtt_client().publish_recording_event(telemetry_payload)
                     try:
                         os.remove(file_path)
                         logger.debug(f"🗑️ [Recorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")
                     except Exception as ex:
                         logger.warning(f"Không thể xóa file tạm {file_path}: {ex}")
 
-                    deleted_keys = storage_service.enforce_recording_retention(camera_code, max_segments=30)
+                    deleted_keys = storage_service.enforce_recording_retention(camera_code)
+                    if deleted_keys:
+                        telemetry_payload["deleted_storage_keys"] = deleted_keys
+                    get_security_mqtt_client().publish_recording_event(telemetry_payload)
+
                     for del_key in (deleted_keys or []):
                         get_security_mqtt_client().publish_recording_event({
                             "event_type": "RECORDING_DELETED",
                             "camera_code": camera_code,
+                            "storage_key": del_key,
                             "object_key": del_key,
                         })
                 else:

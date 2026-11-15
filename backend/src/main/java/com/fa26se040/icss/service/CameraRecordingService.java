@@ -150,6 +150,21 @@ public class CameraRecordingService {
     }
 
     /**
+     * Đánh dấu bản ghi video thành DELETED khi nhận thông báo xoá từ AI service theo storageKey.
+     */
+    @Transactional
+    public void markRecordingDeletedByStorageKey(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) return;
+        cameraRecordingRepository.findByStorageKey(storageKey.trim()).ifPresent(oldRec -> {
+            if (oldRec.getStatus() != RecordingStatus.DELETED) {
+                oldRec.setStatus(RecordingStatus.DELETED);
+                cameraRecordingRepository.save(oldRec);
+                log.info("🗑️ [CameraRecording] Đã cập nhật trạng thái DELETED cho storageKey: {}", storageKey);
+            }
+        });
+    }
+
+    /**
      * Quản lý chuyển trạng thái vòng đời bản ghi video:
      * Hợp lệ: RECORDING -> READY, RECORDING -> DELETED, READY -> DELETED.
      */

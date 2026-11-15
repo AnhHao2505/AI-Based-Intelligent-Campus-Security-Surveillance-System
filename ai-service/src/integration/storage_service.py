@@ -2,6 +2,7 @@ import io
 import os
 import time
 import logging
+from datetime import datetime, timezone, timedelta
 import cv2
 import numpy as np
 from typing import Optional, List, Tuple
@@ -304,26 +305,55 @@ class StorageService:
                 return False
         return False
 
-    def enforce_recording_retention(self, camera_code: str, max_segments: int = 30) -> List[str]:
+    def enforce_recording_retention(
+        self,
+        camera_code: str,
+        retention_hours: Optional[float] = None,
+        max_segments: Optional[int] = None
+    ) -> List[str]:
         """
         Tự động xoay vòng lưu trữ (Rolling Retention) cho bucket 'camera-recordings':
-        Chỉ giữ lại tối đa `max_segments` phân đoạn 1 phút mới nhất của mỗi camera và trả về danh sách object_name đã xóa.
+        Xoá các phân đoạn video định kỳ có thời gian lưu vượt quá retention_hours (mặc định đọc từ settings.RECORDING_RETENTION_HOURS hoặc 0.5 giờ).
+        Nếu max_segments được truyền vào, áp dụng thêm giới hạn số lượng phân đoạn tối đa.
+        Trả về danh sách object_name đã xóa.
         """
         deleted_keys: List[str] = []
         if not self.is_connected or not self.client or not camera_code:
             return deleted_keys
         try:
+            if retention_hours is None:
+                retention_hours = float(getattr(settings, "RECORDING_RETENTION_HOURS", 0.5))
+            if retention_hours <= 0:
+                retention_hours = 0.5
+
             prefix = f"{camera_code.strip()}/"
             objs = list(self.client.list_objects(self.bucket_recordings, prefix=prefix, recursive=True))
             mp4_objs = [o for o in objs if o.object_name and o.object_name.lower().endswith(".mp4")]
-            if len(mp4_objs) <= max_segments:
-                return deleted_keys
-            mp4_objs.sort(key=lambda x: x.last_modified or 0)
-            to_delete = mp4_objs[: len(mp4_objs) - max_segments]
+
+            now_utc = datetime.now(timezone.utc)
+            cutoff_utc = now_utc - timedelta(hours=retention_hours)
+
+            to_delete = []
+            for obj in mp4_objs:
+                last_mod = getattr(obj, "last_modified", None)
+                if last_mod is not None:
+                    if last_mod.tzinfo is None:
+                        last_mod = last_mod.replace(tzinfo=timezone.utc)
+                    if last_mod < cutoff_utc:
+                        to_delete.append(obj)
+
+            # Nếu có cấu hình max_segments, kiểm tra số segment còn lại sau khi lọc theo giờ
+            if max_segments is not None and max_segments > 0:
+                remaining = [o for o in mp4_objs if o not in to_delete]
+                if len(remaining) > max_segments:
+                    remaining.sort(key=lambda x: getattr(x, "last_modified", None) or datetime.min.replace(tzinfo=timezone.utc))
+                    excess = remaining[: len(remaining) - max_segments]
+                    to_delete.extend(excess)
+
             for old_obj in to_delete:
                 self.client.remove_object(self.bucket_recordings, old_obj.object_name)
                 deleted_keys.append(old_obj.object_name)
-                logger.info(f"♻️ [Retention] Đã xóa video định kỳ cũ trên MinIO: {old_obj.object_name}")
+                logger.info(f"♻️ [Retention] Đã xóa video định kỳ cũ trên MinIO (> {retention_hours}h): {old_obj.object_name}")
         except Exception as e:
             logger.warning(f"⚠️ [Retention] Không thể dẹp video cũ cho camera [{camera_code}]: {e}")
         return deleted_keys

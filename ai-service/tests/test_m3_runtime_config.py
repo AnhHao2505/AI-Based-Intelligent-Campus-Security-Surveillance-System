@@ -132,6 +132,8 @@ def test_edge_agent_handle_system_config_validation():
     settings.ACCESS_DECISION_CACHE_TTL = 30.0
     settings.ACCESS_DENY_CACHE_TTL = 5.0
 
+
+
 def test_main_update_ai_runtime_config_endpoint():
     """Kiểm tra endpoint /api/v1/system-config/ai-runtime nhận diện các khóa mới và validate."""
     import asyncio
@@ -164,3 +166,54 @@ def test_main_update_ai_runtime_config_endpoint():
     settings.ACCESS_CHECK_TIMEOUT_SECONDS = 1.5
     settings.ACCESS_DECISION_CACHE_TTL = 30.0
     settings.ACCESS_DENY_CACHE_TTL = 5.0
+
+
+def test_recording_retention_config_and_time_based_deletion():
+    """V126: Kiểm tra cập nhật thời hạn lưu trữ video và xoá MinIO dựa theo thời gian (giờ)."""
+    import asyncio
+    from datetime import datetime, timezone, timedelta
+    from src.integration.storage_service import StorageService
+
+    # 1. Cập nhật qua AIRuntimeConfigRequest
+    req = AIRuntimeConfigRequest(recording_retention_hours=2.0)
+    res = asyncio.run(update_ai_runtime_config(req))
+    assert res["success"] is True
+    assert res["recording_retention_hours"] == 2.0
+    assert settings.RECORDING_RETENTION_HOURS == 2.0
+
+    # 2. Cập nhật qua EdgeMqttAgent (_handle_system_config)
+    agent = EdgeMqttAgent(mqtt_client_wrapper=MagicMock(), storage=MagicMock(), active_workers={})
+    agent._handle_system_config({"recording_retention_hours": 1.5})
+    assert settings.RECORDING_RETENTION_HOURS == 1.5
+
+    # 3. Test StorageService.enforce_recording_retention xoá theo thời gian
+    storage = StorageService()
+    storage.is_connected = True
+    storage.client = MagicMock()
+
+    now = datetime.now(timezone.utc)
+    # Giả lập 3 object: 1 cái 3 giờ trước (quá 1.5h -> xoá), 1 cái 2 giờ trước (quá 1.5h -> xoá), 1 cái 30 phút trước (giữ)
+    obj_old1 = MagicMock()
+    obj_old1.object_name = "CAM-01/old_1.mp4"
+    obj_old1.last_modified = now - timedelta(hours=3)
+
+    obj_old2 = MagicMock()
+    obj_old2.object_name = "CAM-01/old_2.mp4"
+    obj_old2.last_modified = now - timedelta(hours=2)
+
+    obj_recent = MagicMock()
+    obj_recent.object_name = "CAM-01/recent.mp4"
+    obj_recent.last_modified = now - timedelta(minutes=30)
+
+    storage.client.list_objects.return_value = [obj_old1, obj_old2, obj_recent]
+
+    deleted = storage.enforce_recording_retention("CAM-01")
+    assert "CAM-01/old_1.mp4" in deleted
+    assert "CAM-01/old_2.mp4" in deleted
+    assert "CAM-01/recent.mp4" not in deleted
+    assert storage.client.remove_object.call_count == 2
+
+    # Reset
+    settings.RECORDING_RETENTION_HOURS = 0.5
+
+
