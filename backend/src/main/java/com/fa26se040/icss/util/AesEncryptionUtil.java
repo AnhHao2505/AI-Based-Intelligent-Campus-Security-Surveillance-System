@@ -23,9 +23,27 @@ public class AesEncryptionUtil {
     private static final int IV_LENGTH_BYTE = 12;
     private static final String PREFIX = "ENC_GCM:";
 
+    /**
+     * DEF-13: độ dài tối thiểu của khoá camera. Khoá AES-256 suy ra bằng SHA-256 của chuỗi, nên độ mạnh thực tế
+     * chỉ bằng độ ngẫu nhiên của chuỗi: chuỗi ngắn thì đoán/vét được. 32 ký tự cùng ngưỡng với INTERNAL_SERVICE_KEY và
+     * APP_SECURITY_AUDITHASHKEY; sinh khoá mới bằng `openssl rand -hex 32` (64 ký tự hex).
+     */
+    static final int MIN_SECRET_LENGTH = 32;
+
+    static final String INVALID_SECRET_MESSAGE = "app.security.camera-secret (env APP_SECURITY_CAMERA_SECRET) is missing"
+            + " or shorter than " + MIN_SECRET_LENGTH + " characters. Set it in .env; it must stay the same value that"
+            + " encrypted the stored camera credentials.";
+
     private final SecretKey secretKey;
 
-    public AesEncryptionUtil(@Value("${app.security.camera-secret:fa26se040-default-camera-secret-key-2026}") String secret) {
+    /**
+     * DEF-13: khoá chỉ đọc từ cấu hình (env APP_SECURITY_CAMERA_SECRET), không có giá trị mặc định trong code.
+     * Thiếu hoặc ngắn hơn {@link #MIN_SECRET_LENGTH} ký tự thì dừng khởi động; thông báo không in giá trị khoá.
+     */
+    public AesEncryptionUtil(@Value("${app.security.camera-secret}") String secret) {
+        if (secret == null || secret.isBlank() || secret.length() < MIN_SECRET_LENGTH) {
+            throw new IllegalStateException(INVALID_SECRET_MESSAGE);
+        }
         this.secretKey = deriveKey(secret);
     }
 

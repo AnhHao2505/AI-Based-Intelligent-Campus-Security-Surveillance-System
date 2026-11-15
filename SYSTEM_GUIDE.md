@@ -95,6 +95,8 @@ Tất cả câu lệnh thực hiện từ thư mục gốc của dự án (`d:/D
 
 > Backend bắt buộc có `JWT_SECRET` và `MINIO_ROOT_PASSWORD` trong `.env`; thiếu một trong hai thì backend không khởi động (lỗi `Could not resolve placeholder`).
 >
+> Backend cũng bắt buộc có `APP_SECURITY_CAMERA_SECRET` (khoá mã hoá mật khẩu camera đã lưu, ≥ 32 ký tự, không có giá trị mặc định). Thiếu hoặc ngắn hơn 32 ký tự thì backend dừng khi khởi động. **Phải giữ nguyên giá trị đã mã hoá dữ liệu hiện có**: đổi giá trị thì mật khẩu camera đã lưu không giải mã được, phải nhập lại từng camera. Chỉ môi trường mới (DB chưa có camera) mới sinh khoá mới bằng `openssl rand -hex 32`. Backend đọc `.env` ở thư mục chạy lệnh và thư mục cha (`spring.config.import` trong `application.yml`), nên chạy `./mvnw spring-boot:run` từ `backend/` là đọc được `.env` ở gốc repo.
+>
 > Khi chạy frontend ở địa chỉ khác `http://localhost:5173` (máy chủ demo, tên miền thật), đặt `APP_FRONTEND_BASE_URL` (địa chỉ gắn vào link đặt lại mật khẩu trong e-mail) và `APP_CORS_ALLOWED_ORIGINS` (các origin được gọi API, phân tách bằng dấu phẩy) trong `.env`. Bỏ trống thì dùng cổng dev 5173 / 5174 / 3000.
 
 ```bash

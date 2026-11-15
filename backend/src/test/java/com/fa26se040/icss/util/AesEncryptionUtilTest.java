@@ -12,7 +12,55 @@ class AesEncryptionUtilTest {
 
     @BeforeEach
     void setUp() {
-        aesEncryptionUtil = new AesEncryptionUtil("test-master-secret-key-for-camera-passwords-2026");
+        aesEncryptionUtil = new AesEncryptionUtil(TEST_ONLY_SECRET);
+    }
+
+    /** Khoá giả chỉ dùng trong test (>= 32 ký tự), không phải khoá thật. */
+    private static final String TEST_ONLY_SECRET = "test-only-camera-secret-0123456789abcdef";
+
+    private static final String EXPECTED_MESSAGE = "app.security.camera-secret (env APP_SECURITY_CAMERA_SECRET) is missing"
+            + " or shorter than 32 characters. Set it in .env; it must stay the same value that"
+            + " encrypted the stored camera credentials.";
+
+    @Test
+    @DisplayName("DEF-13: missing secret (null / empty / blank) fails at startup with the fixed message")
+    void missingSecretFailsFast() {
+        for (String missing : new String[] {null, "", "   "}) {
+            IllegalStateException ex = assertThrows(IllegalStateException.class, () -> new AesEncryptionUtil(missing));
+            assertEquals(EXPECTED_MESSAGE, ex.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("DEF-13: secret shorter than 32 characters fails at startup and the message does not echo it")
+    void shortSecretFailsFast() {
+        String shortSecret = "test-only-short-secret-31-chars"; // 31 ký tự
+        assertEquals(AesEncryptionUtil.MIN_SECRET_LENGTH - 1, shortSecret.length());
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> new AesEncryptionUtil(shortSecret));
+        assertEquals(EXPECTED_MESSAGE, ex.getMessage());
+        assertFalse(ex.getMessage().contains(shortSecret));
+    }
+
+    @Test
+    @DisplayName("DEF-13: secret of exactly 32 characters is accepted and round-trips")
+    void minimumLengthSecretRoundTrips() {
+        String secret = "test-only-camera-secret-32-chars";
+        assertEquals(AesEncryptionUtil.MIN_SECRET_LENGTH, secret.length());
+
+        AesEncryptionUtil util = new AesEncryptionUtil(secret);
+        String encrypted = util.encrypt("cam-pass-01");
+        assertTrue(encrypted.startsWith("ENC_GCM:"));
+        assertEquals("cam-pass-01", util.decrypt(encrypted));
+    }
+
+    @Test
+    @DisplayName("DEF-13: data encrypted with one secret cannot be decrypted with another")
+    void differentSecretCannotDecrypt() {
+        String encrypted = aesEncryptionUtil.encrypt("cam-pass-02");
+        AesEncryptionUtil other = new AesEncryptionUtil("test-only-other-camera-secret-0123456789");
+
+        assertThrows(RuntimeException.class, () -> other.decrypt(encrypted));
     }
 
     @Test
