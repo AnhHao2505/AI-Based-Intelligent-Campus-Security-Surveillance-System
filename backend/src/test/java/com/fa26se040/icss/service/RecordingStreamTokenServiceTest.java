@@ -1,21 +1,30 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.enums.ConfigKey;
+import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** BE-03: token xem video ghi hình — ký theo path + source, hết hạn theo cấu hình. */
+/** BE-03 & Security: token xem video ghi hình — ký theo path + source + user + role, hết hạn theo cấu hình. */
 class RecordingStreamTokenServiceTest {
 
     private static final String KEY = "test-only-internal-service-key-0123456789";
@@ -31,6 +40,13 @@ class RecordingStreamTokenServiceTest {
 
     private RecordingStreamTokenService at(Instant instant) {
         return new RecordingStreamTokenService(KEY, ttlConfig(300), Clock.fixed(instant, ZoneOffset.UTC));
+    }
+
+    private Authentication authUser(String email, String role) {
+        return new UsernamePasswordAuthenticationToken(
+                email, "password",
+                List.of(new SimpleGrantedAuthority("ROLE_" + role))
+        );
     }
 
     @Test
@@ -112,5 +128,131 @@ class RecordingStreamTokenServiceTest {
 
         when(config.getInt(ConfigKey.RECORDING_STREAM_TOKEN_SECONDS)).thenReturn(0);
         assertEquals(NOW.getEpochSecond() + 300, service.issue(PATH, "recording").expiresAt());
+    }
+
+    // =========================================================================
+    // V2 User-Bound & Authority-Bound Security Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("Token V2: Cấp cho GUARD thành công và mở đúng file với cùng tài khoản")
+    void issueV2_guard_verifiesSuccessfullyWithSameUser() {
+        RecordingStreamTokenService service = at(NOW);
+        String user = "guard.security@fpt.edu.vn";
+        RecordingStreamTokenService.TokenResponse response =
+                service.issue(PATH, "minio_recording", user, "GUARD");
+
+        assertNotNull(response.token());
+        assertTrue(response.token().startsWith("V2."));
+        assertEquals(user, response.userEmail());
+        assertEquals("GUARD", response.userRole());
+
+        Authentication auth = authUser(user, "GUARD");
+        assertDoesNotThrow(() -> service.verify(PATH, "minio_recording", response.token(), auth));
+    }
+
+    @Test
+    @DisplayName("Token V2: Cố tình cấp cho vai trò không có thẩm quyền (USER/STUDENT) -> 403 AccessDenied")
+    void issueV2_unauthorizedRole_throwsAccessDenied() {
+        RecordingStreamTokenService service = at(NOW);
+        AccessDeniedException ex = assertThrows(AccessDeniedException.class,
+                () -> service.issue(PATH, "minio_recording", "student@fpt.edu.vn", "USER"));
+        assertEquals(RecordingStreamTokenService.MSG_UNAUTHORIZED_ROLE, ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Token V2: Người dùng khác cố tình mở link cấp cho Guard -> 403 Forbidden chặn xem chéo")
+    void verifyV2_crossUserAccess_throwsAccessDenied() {
+        RecordingStreamTokenService service = at(NOW);
+        String guardUser = "guard.security@fpt.edu.vn";
+        RecordingStreamTokenService.TokenResponse response =
+                service.issue(PATH, "recording", guardUser, "GUARD");
+
+        // Một tài khoản khác (dù có role GUARD khác) cố mở link của guardUser
+        Authentication otherGuard = authUser("other.guard@fpt.edu.vn", "GUARD");
+        AccessDeniedException ex = assertThrows(AccessDeniedException.class,
+                () -> service.verify(PATH, "recording", response.token(), otherGuard));
+        assertEquals(RecordingStreamTokenService.MSG_CROSS_USER_ACCESS_DENIED, ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Token V2: Quản trị viên (ADMIN) được phép mở kiểm tra video của Guard")
+    void verifyV2_adminUser_canAccessGuardToken() {
+        RecordingStreamTokenService service = at(NOW);
+        String guardUser = "guard.security@fpt.edu.vn";
+        RecordingStreamTokenService.TokenResponse response =
+                service.issue(PATH, "recording", guardUser, "GUARD");
+
+        Authentication adminAuth = authUser("admin.security@fpt.edu.vn", "ADMIN");
+        assertDoesNotThrow(() -> service.verify(PATH, "recording", response.token(), adminAuth));
+    }
+
+    @Test
+    @DisplayName("Token V2: Tài khoản không có thẩm quyền (USER) dù có link cũng bị chặn 403")
+    void verifyV2_unauthorizedCaller_throwsAccessDenied() {
+        RecordingStreamTokenService service = at(NOW);
+        String guardUser = "guard.security@fpt.edu.vn";
+        RecordingStreamTokenService.TokenResponse response =
+                service.issue(PATH, "recording", guardUser, "GUARD");
+
+        Authentication normalUser = authUser("normal.student@fpt.edu.vn", "NORMAL_USER");
+        AccessDeniedException ex = assertThrows(AccessDeniedException.class,
+                () -> service.verify(PATH, "recording", response.token(), normalUser));
+        assertEquals(RecordingStreamTokenService.MSG_UNAUTHORIZED_ROLE, ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Token V2: Token bị sửa thông tin user hoặc vai trò -> 401 Invalid")
+    void verifyV2_tamperedToken_throwsUnauthorized() {
+        RecordingStreamTokenService service = at(NOW);
+        String guardUser = "guard.security@fpt.edu.vn";
+        RecordingStreamTokenService.TokenResponse response =
+                service.issue(PATH, "recording", guardUser, "GUARD");
+
+        // Giả mạo đổi role thành ADMIN ở chuỗi token
+        String[] parts = response.token().split("\\.");
+        String forgedRoleToken = String.format("%s.%s.%s.%s.%s", parts[0], parts[1], parts[2], "ADMIN", parts[4]);
+
+        UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+                () -> service.verify(PATH, "recording", forgedRoleToken));
+        assertEquals(RecordingStreamTokenService.MSG_INVALID, ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Token V2: Hết hạn -> 401 Expired")
+    void verifyV2_expired_throwsUnauthorized() {
+        RecordingStreamTokenService service = at(NOW);
+        String guardUser = "guard.security@fpt.edu.vn";
+        RecordingStreamTokenService.TokenResponse response =
+                service.issue(PATH, "recording", guardUser, "GUARD");
+
+        UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+                () -> at(NOW.plusSeconds(301)).verify(PATH, "recording", response.token()));
+        assertEquals(RecordingStreamTokenService.MSG_EXPIRED, ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("parseTokenPayload trích xuất đúng thông tin cho cả V1 và V2")
+    void parseTokenPayload_extractsCorrectMetadata() {
+        RecordingStreamTokenService service = at(NOW);
+
+        // V2
+        RecordingStreamTokenService.TokenResponse v2 = service.issue(PATH, "recording", "guard@fpt.edu.vn", "GUARD");
+        RecordingStreamTokenService.TokenPayload p2 = service.parseTokenPayload(v2.token());
+        assertNotNull(p2);
+        assertEquals("V2", p2.version());
+        assertEquals("guard@fpt.edu.vn", p2.userEmail());
+        assertEquals("GUARD", p2.userRole());
+
+        // V1 legacy
+        RecordingStreamTokenService.TokenResponse v1 = service.issue(PATH, "recording");
+        RecordingStreamTokenService.TokenPayload p1 = service.parseTokenPayload(v1.token());
+        assertNotNull(p1);
+        assertEquals("V2", p1.version()); // delegate to V2 when context resolved
+
+        // Malformed token
+        assertNull(service.parseTokenPayload("invalid.token"));
+        assertNull(service.parseTokenPayload(""));
+        assertNull(service.parseTokenPayload(null));
     }
 }
