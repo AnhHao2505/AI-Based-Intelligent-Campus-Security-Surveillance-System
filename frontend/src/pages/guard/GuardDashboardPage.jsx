@@ -28,6 +28,11 @@ import {
 	ExternalLink,
 	RefreshCw,
 	Play,
+	UserX,
+	Box,
+	Layers,
+	Filter,
+	ChevronDown,
 } from "lucide-react";
 import { fetchDiskRecordings, withRecordingStreamToken } from "../../services/recordingService";
 import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
@@ -57,30 +62,35 @@ const EVENT_SEVERITY_CONFIG = {
 		label: "Hợp lệ",
 		badgeClass: "severity-success",
 		color: "#10b981",
+		icon: CheckCircle2,
 	},
 	UNAUTHORIZED_PERSON: {
 		weight: 3,
 		label: "Không có quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
+		icon: ShieldAlert,
 	},
 	PERSON_INTRUSION: {
 		weight: 3,
 		label: "Đột nhập ngoài giờ",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
+		icon: Clock,
 	},
 	UNKNOWN_PERSON: {
 		weight: 1,
 		label: "Người lạ",
 		badgeClass: "severity-warning",
 		color: "#8b5cf6",
+		icon: UserX,
 	},
 	SUSPICIOUS_MOVING_OBJECT: {
 		weight: 2,
 		label: "Vật thể bất thường",
 		badgeClass: "severity-high",
 		color: "#f97316",
+		icon: Box,
 	},
 
 	// Tương thích ngược các mã sự cố cũ
@@ -89,42 +99,49 @@ const EVENT_SEVERITY_CONFIG = {
 		label: "Hợp lệ",
 		badgeClass: "severity-success",
 		color: "#10b981",
+		icon: CheckCircle2,
 	},
 	UNAUTHORIZED_ACCESS: {
 		weight: 3,
 		label: "Không có quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
+		icon: ShieldAlert,
 	},
 	UNAUTHORIZED: {
 		weight: 3,
 		label: "Không có quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
+		icon: ShieldAlert,
 	},
 	INTRUSION: {
 		weight: 2,
 		label: "Đột nhập ngoài giờ",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
+		icon: Clock,
 	},
 	AFTER_HOURS_PRESENCE: {
 		weight: 2,
 		label: "Đột nhập ngoài giờ",
 		badgeClass: "severity-high",
 		color: "#ef4444",
+		icon: Clock,
 	},
 	AFTER_HOURS_ACCESS: {
 		weight: 2,
 		label: "Đột nhập ngoài giờ",
 		badgeClass: "severity-high",
 		color: "#ef4444",
+		icon: Clock,
 	},
 	AFTER_HOURS: {
 		weight: 2,
 		label: "Đột nhập ngoài giờ",
 		badgeClass: "severity-high",
 		color: "#ef4444",
+		icon: Clock,
 	},
 	// Sai khung giờ tính như không có quyền (03/11)
 	ACCESS_OUT_OF_TIME: {
@@ -132,35 +149,109 @@ const EVENT_SEVERITY_CONFIG = {
 		label: "Không có quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
+		icon: ShieldAlert,
 	},
 	OUT_OF_TIME: {
 		weight: 3,
 		label: "Không có quyền",
 		badgeClass: "severity-critical",
 		color: "#ef4444",
+		icon: ShieldAlert,
 	},
 	UNKNOWN: {
 		weight: 1,
 		label: "Người lạ",
 		badgeClass: "severity-warning",
 		color: "#8b5cf6",
+		icon: UserX,
 	},
 	SUSPICIOUS_MOTION: {
 		weight: 2,
 		label: "Vật thể bất thường",
 		badgeClass: "severity-high",
 		color: "#f97316",
+		icon: Box,
 	},
 	MOVING_OBJECT: {
 		weight: 2,
 		label: "Vật thể bất thường",
 		badgeClass: "severity-high",
 		color: "#f97316",
+		icon: Box,
 	},
 };
 
+// Cấu hình các nhóm sự cố nghiệp vụ chuẩn để hiển thị bộ lọc nhanh (filter chips)
+const CANONICAL_INCIDENT_CATEGORIES = [
+	{
+		key: "ALL",
+		label: "Tất cả",
+		icon: Layers,
+		chipClass: "cat-all",
+	},
+	{
+		key: "Vật thể bất thường",
+		label: "Vật thể bất thường",
+		icon: Box,
+		chipClass: "cat-object",
+	},
+	{
+		key: "Người lạ",
+		label: "Người lạ",
+		icon: UserX,
+		chipClass: "cat-stranger",
+	},
+	{
+		key: "Không có quyền",
+		label: "Không có quyền",
+		icon: ShieldAlert,
+		chipClass: "cat-unauthorized",
+	},
+	{
+		key: "Đột nhập ngoài giờ",
+		label: "Đột nhập ngoài giờ",
+		icon: Clock,
+		chipClass: "cat-intrusion",
+	},
+];
+
+const parseIncidentTimestamp = (incident) => {
+	if (!incident) return Date.now();
+	if (typeof incident === "number") return incident;
+	if (typeof incident === "string") {
+		const parsed = new Date(incident).getTime();
+		return Number.isFinite(parsed) && parsed > 0 ? parsed : Date.now();
+	}
+	const raw =
+		incident.detectedAt ||
+		incident.detected_at ||
+		incident.createdAt ||
+		incident.created_at ||
+		incident.timestamp ||
+		incident.time;
+	if (!raw) return Date.now();
+	const parsed = new Date(raw).getTime();
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : Date.now();
+};
+
+const getIncidentIsoString = (incident) => {
+	if (!incident) return null;
+	if (typeof incident === "string") return incident;
+	return (
+		incident.detectedAt ||
+		incident.detected_at ||
+		incident.createdAt ||
+		incident.created_at ||
+		incident.timestamp ||
+		null
+	);
+};
+
 const getIncidentTimeParts = (isoString) => {
-	const d = isoString ? new Date(isoString) : new Date();
+	let d = isoString ? new Date(isoString) : new Date();
+	if (Number.isNaN(d.getTime())) {
+		d = new Date();
+	}
 	const time = d.toLocaleTimeString("vi-VN", {
 		hour: "2-digit",
 		minute: "2-digit",
@@ -170,10 +261,18 @@ const getIncidentTimeParts = (isoString) => {
 	const day = String(d.getDate()).padStart(2, "0");
 	const month = String(d.getMonth() + 1).padStart(2, "0");
 	const year = d.getFullYear();
+	const today = new Date();
+	const isToday =
+		d.getDate() === today.getDate() &&
+		d.getMonth() === today.getMonth() &&
+		d.getFullYear() === today.getFullYear();
+
 	return {
 		time,
 		date: `${day}/${month}/${year}`,
+		shortDate: `${day}/${month}`,
 		full: `${time} ${day}/${month}/${year}`,
+		isToday,
 	};
 };
 
@@ -238,6 +337,44 @@ const cleanIncidentMessage = (msg, eventType = "", areaName = "", cameraCode = "
 	return `Vị trí: ${locDefault}`;
 };
 
+// Hiển thị nội dung chi tiết sự cố theo dạng danh sách key-value phân cấp trực quan
+const renderIncidentDetails = (msg) => {
+	if (!msg) return null;
+	const lines = String(msg).split("\n").map((l) => l.trim()).filter(Boolean);
+	const hasKeyValue = lines.some((l) => /^(Tên|Lý do|Vị trí|Đối tượng|Khu vực):/i.test(l));
+
+	if (!hasKeyValue) {
+		return <p className="soc-incident-msg-text">{msg}</p>;
+	}
+
+	return (
+		<div className="soc-incident-details-list">
+			{lines.map((line, idx) => {
+				const colonIdx = line.indexOf(":");
+				if (colonIdx > 0 && colonIdx < 15) {
+					const label = line.slice(0, colonIdx).trim();
+					const val = line.slice(colonIdx + 1).trim();
+					const isReason = /^lý do/i.test(label);
+					const isName = /^tên/i.test(label);
+					return (
+						<div key={idx} className="soc-incident-detail-row">
+							<span className="soc-detail-label">{label}:</span>
+							<span className={`soc-detail-val ${isReason ? "is-reason" : ""} ${isName ? "is-name" : ""}`}>
+								{val}
+							</span>
+						</div>
+					);
+				}
+				return (
+					<div key={idx} className="soc-incident-detail-row">
+						<span className="soc-detail-val">{line}</span>
+					</div>
+				);
+			})}
+		</div>
+	);
+};
+
 const isAlertPending = (status) => {
 	if (!status) return true;
 	const s = String(status).toUpperCase();
@@ -265,6 +402,7 @@ function getSeverityMeta(eventType) {
 			label: eventType || "Cảnh báo an ninh",
 			badgeClass: "severity-warning",
 			color: "#8b5cf6",
+			icon: AlertTriangle,
 		}
 	);
 }
@@ -350,6 +488,9 @@ export function SecuritySurveillancePage() {
 	const [cameraList, setCameraList] = useState([]);
 	const [camerasLoading, setCamerasLoading] = useState(true);
 	const [alertFilter, setAlertFilter] = useState("ALL"); // 'ALL' | 'PENDING'
+	const [categoryFilter, setCategoryFilter] = useState("ALL"); // 'ALL' | 'Vật thể bất thường' | 'Người lạ' | ...
+	const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+	const categoryDropdownRef = useRef(null);
 	const [hasClearedIncidents, setHasClearedIncidents] = useState(
 		() => getStoredSet(SOC_CLEARED_STORAGE_KEY).size > 0,
 	);
@@ -368,11 +509,31 @@ export function SecuritySurveillancePage() {
 		soundEnabledRef.current = soundEnabled;
 	}, [soundEnabled]);
 
-	// Phím tắt ESC để thoát chế độ phóng to hoặc đóng modal xem ảnh/video bằng chứng
+	// Đóng menu dropdown lọc khi click ra ngoài
+	useEffect(() => {
+		const handleClickOutside = (e) => {
+			if (
+				categoryDropdownRef.current &&
+				!categoryDropdownRef.current.contains(e.target)
+			) {
+				setIsCategoryDropdownOpen(false);
+			}
+		};
+		if (isCategoryDropdownOpen) {
+			document.addEventListener("mousedown", handleClickOutside);
+		}
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside);
+		};
+	}, [isCategoryDropdownOpen]);
+
+	// Phím tắt ESC để đóng dropdown lọc, thoát chế độ phóng to hoặc đóng modal xem ảnh/video bằng chứng
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			if (e.key === "Escape") {
-				if (evidenceModalAlert) {
+				if (isCategoryDropdownOpen) {
+					setIsCategoryDropdownOpen(false);
+				} else if (evidenceModalAlert) {
 					setEvidenceModalAlert(null);
 					setIncidentVideoData(null);
 					setIncidentVideoError(null);
@@ -383,7 +544,7 @@ export function SecuritySurveillancePage() {
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [isTheaterMode, evidenceModalAlert]);
+	}, [isTheaterMode, evidenceModalAlert, isCategoryDropdownOpen]);
 
 	// Hiển thị thông báo toast tạm thời
 	const triggerNotification = (msg) => {
@@ -573,6 +734,9 @@ export function SecuritySurveillancePage() {
 			.replace(/[^a-z0-9_-]/g, "")
 			.trim();
 
+		const rawTime = parseIncidentTimestamp(incident);
+		const isoDate = getIncidentIsoString(incident);
+
 		const newAlert = {
 			id: incidentId,
 			eventId: eventId,
@@ -600,9 +764,10 @@ export function SecuritySurveillancePage() {
 			duration: incident.duration_seconds
 				? `${incident.duration_seconds}s`
 				: incident.duration || "Vừa phát hiện",
-			timeParts: getIncidentTimeParts(incident.detectedAt || incident.detected_at),
-			timestamp: formatIncidentTimestamp(incident.detectedAt || incident.detected_at),
-			rawTime: Date.now(),
+			timeParts: getIncidentTimeParts(isoDate || rawTime),
+			timestamp: formatIncidentTimestamp(isoDate || rawTime),
+			detectedAt: isoDate || new Date(rawTime).toISOString(),
+			rawTime,
 			status: incident.status || "NEW",
 			socAcknowledged: isAck,
 			claimedByName: incident.claimedByName || incident.claimed_by_name,
@@ -742,6 +907,9 @@ export function SecuritySurveillancePage() {
 								.replace(/[^a-z0-9_-]/g, "")
 								.trim();
 
+							const rawTime = parseIncidentTimestamp(incident);
+							const isoDate = getIncidentIsoString(incident);
+
 							return {
 								id: incId,
 								cameraCode: (
@@ -764,11 +932,10 @@ export function SecuritySurveillancePage() {
 								duration: incident.duration_seconds
 									? `${incident.duration_seconds}s`
 									: "Vừa phát hiện",
-								timeParts: getIncidentTimeParts(incident.detectedAt),
-								timestamp: formatIncidentTimestamp(incident.detectedAt),
-								rawTime: incident.detectedAt
-									? new Date(incident.detectedAt).getTime()
-									: Date.now(),
+								timeParts: getIncidentTimeParts(isoDate || rawTime),
+								timestamp: formatIncidentTimestamp(isoDate || rawTime),
+								detectedAt: isoDate || incident.detectedAt || null,
+								rawTime,
 								status: incident.status || "NEW",
 								socAcknowledged: ackSet.has(String(incId)),
 								claimedByName: incident.claimedByName || incident.claimed_by_name,
@@ -894,7 +1061,9 @@ export function SecuritySurveillancePage() {
 			}
 
 			// Ưu tiên 1: Video sự cố an ninh (SECURITY_EVENT hoặc file Incident)
-			const alertTime = alert.detectedAt ? new Date(alert.detectedAt).getTime() : Date.now();
+			const alertTime = alert.detectedAt
+				? new Date(alert.detectedAt).getTime()
+				: (alert.rawTime || Date.now());
 			const incidentVideos = list.filter(
 				(v) =>
 					v.eventType === "SECURITY_EVENT" ||
@@ -1011,23 +1180,81 @@ export function SecuritySurveillancePage() {
 	const pendingAlertCount = activeAlerts.filter(
 		(a) => !a.socAcknowledged && isAlertPending(a.status),
 	).length;
-	const filteredAlerts = useMemo(() => {
-		const base =
-			alertFilter === "PENDING"
-				? activeAlerts.filter(
-					(a) => !a.socAcknowledged && isAlertPending(a.status),
-				)
-				: [...activeAlerts];
 
-		return base.sort((a, b) => {
+	// 1. Lọc nền tảng theo trạng thái ('ALL' | 'PENDING')
+	const baseStatusAlerts = useMemo(() => {
+		if (alertFilter === "PENDING") {
+			return activeAlerts.filter(
+				(a) => !a.socAcknowledged && isAlertPending(a.status),
+			);
+		}
+		return activeAlerts;
+	}, [activeAlerts, alertFilter]);
+
+	// 2. Thống kê số lượng sự cố theo từng nhóm nghiệp vụ dựa trên tab trạng thái đang chọn
+	const categoryCounts = useMemo(() => {
+		const counts = { ALL: baseStatusAlerts.length };
+		baseStatusAlerts.forEach((a) => {
+			const label = getAlertSeverityMeta(a).label || "Khác";
+			counts[label] = (counts[label] || 0) + 1;
+		});
+		return counts;
+	}, [baseStatusAlerts]);
+
+	// 3. Danh sách các tùy chọn dropdown phân loại sự cố (kèm số đếm thực tế)
+	const categoryFilterOptions = useMemo(() => {
+		const options = CANONICAL_INCIDENT_CATEGORIES.map((cat) => ({
+			...cat,
+			count: categoryCounts[cat.key] || 0,
+		}));
+
+		// Tự động thu thập thêm loại sự cố nếu backend có nhãn ngoài các nhóm chuẩn
+		const knownKeys = new Set(options.map((o) => o.key));
+		Object.keys(categoryCounts).forEach((key) => {
+			if (!knownKeys.has(key)) {
+				options.push({
+					key,
+					label: key,
+					icon: AlertTriangle,
+					chipClass: "cat-other",
+					count: categoryCounts[key] || 0,
+				});
+			}
+		});
+
+		return options;
+	}, [categoryCounts]);
+
+	// Phân loại đang chọn (phục vụ hiển thị icon và class tương ứng trên khung select)
+	const activeCategoryMeta = useMemo(() => {
+		return (
+			categoryFilterOptions.find((opt) => opt.key === categoryFilter) ||
+			categoryFilterOptions[0]
+		);
+	}, [categoryFilterOptions, categoryFilter]);
+
+	const filteredAlerts = useMemo(() => {
+		let base = baseStatusAlerts;
+		if (categoryFilter !== "ALL") {
+			base = base.filter((a) => {
+				const label = getAlertSeverityMeta(a).label;
+				return label === categoryFilter;
+			});
+		}
+
+		return [...base].sort((a, b) => {
+			const timeA = a.rawTime || 0;
+			const timeB = b.rawTime || 0;
+			// 1. Sắp xếp ưu tiên thời gian mới nhất lên đầu (Mới nhất -> Cũ nhất)
+			if (timeB !== timeA) {
+				return timeB - timeA;
+			}
+			// 2. Nếu cùng thời gian thì ưu tiên sự cố có mức độ nghiêm trọng cao hơn
 			const weightA = getAlertSeverityMeta(a).weight;
 			const weightB = getAlertSeverityMeta(b).weight;
-			if (weightB !== weightA) {
-				return weightB - weightA;
-			}
-			return (b.rawTime || 0) - (a.rawTime || 0);
+			return weightB - weightA;
 		});
-	}, [activeAlerts, alertFilter]);
+	}, [baseStatusAlerts, categoryFilter]);
 
 	return (
 		<div
@@ -1140,7 +1367,7 @@ export function SecuritySurveillancePage() {
 											type="button"
 											className={`cam-chip-btn ${isSelected ? "active" : ""} ${hasIncident ? `has-incident ${severityClass}` : ""} ${isFlashing ? `flashing ${severityClass}` : ""}`}
 											onClick={() => handleSelectCamera(cam.code)}
-											title={`Xem Camera ${cam.cameraCode}: ${cam.name}${hasIncident ? ` (${summary.count} sự cố: ${summary.highestSeverity?.label || "Cảnh báo"})` : ""}`}
+											title={`Xem Camera ${cam.cameraCode}: ${cam.name}${hasIncident ? ` (${summary.count} sự cố)` : ""}`}
 										>
 											<span
 												className={`status-indicator-dot ${cam.status === "ONLINE" ? "online" : "standby"}`}
@@ -1231,10 +1458,7 @@ export function SecuritySurveillancePage() {
 													size={13}
 													className="banner-flame-icon"
 												/>
-												<span>
-													{summary.count} SỰ CỐ:{" "}
-													{summary.highestSeverity?.label || "Cảnh báo an ninh"}
-												</span>
+												<span>{summary.count} SỰ CỐ</span>
 											</div>
 										)}
 
@@ -1279,7 +1503,7 @@ export function SecuritySurveillancePage() {
 									size={18}
 									className="soc-shield-icon"
 								/>
-								<span>SỰ CỐ AN NINH</span>
+								<span title="Danh sách sự cố an ninh (Thời gian mới nhất lên đầu)">SỰ CỐ AN NINH</span>
 							</div>
 							<span
 								className={`soc-header-count ${pendingAlertCount > 0 ? "has-incidents" : ""}`}
@@ -1292,59 +1516,180 @@ export function SecuritySurveillancePage() {
 						{/* ┌──────────────────────────────┐
 						    │ [Tất cả 0] [Chờ ghi nhận 0]  │
 						    └──────────────────────────────┘ */}
-						<div className="soc-filter-tabs">
-							<button
-								type="button"
-								className={`soc-tab-btn ${alertFilter === "ALL" ? "active" : ""}`}
-								onClick={() => setAlertFilter("ALL")}
-							>
-								Tất cả {activeAlerts.length}
-							</button>
-							<button
-								type="button"
-								className={`soc-tab-btn ${alertFilter === "PENDING" ? "active" : ""}`}
-								onClick={() => setAlertFilter("PENDING")}
-								title="Sự cố chưa được phòng trực ghi nhận"
-							>
-								Chờ ghi nhận {pendingAlertCount}
-							</button>
-
-							{pendingAlertCount > 1 && (
+						<div className="soc-filter-section">
+							<div className="soc-filter-tabs">
 								<button
 									type="button"
-									className="soc-btn-ack-all"
-									onClick={handleAcknowledgeAll}
-									title="Ghi nhận toàn bộ sự cố và tắt cảnh báo âm thanh"
+									className={`soc-tab-btn ${alertFilter === "ALL" ? "active" : ""}`}
+									onClick={() => setAlertFilter("ALL")}
+									title="Tất cả sự cố (Sắp xếp theo thời gian mới nhất)"
 								>
-									<CheckCheck size={13} />
-									<span>Ghi nhận tất cả</span>
+									<span>Tất cả</span>
+									<span className="soc-tab-badge">{activeAlerts.length}</span>
 								</button>
-							)}
+								<button
+									type="button"
+									className={`soc-tab-btn ${alertFilter === "PENDING" ? "active" : ""}`}
+									onClick={() => setAlertFilter("PENDING")}
+									title="Sự cố chờ phòng trực ghi nhận (Sắp xếp theo thời gian mới nhất)"
+								>
+									<span>Chờ ghi nhận</span>
+									<span className={`soc-tab-badge ${pendingAlertCount > 0 ? "highlight" : ""}`}>
+										{pendingAlertCount}
+									</span>
+								</button>
+							</div>
 
-							{activeAlerts.some(
-								(a) => a.socAcknowledged || !isAlertPending(a.status),
-							) && (
+							{/* Hộp Dropdown Lọc Phân Loại Sự Cố Tùy Biến (Custom Popover Select) */}
+							{activeAlerts.length > 0 && (
+								<div className="soc-category-select-row" ref={categoryDropdownRef}>
 									<button
 										type="button"
-										className="soc-btn-clear"
-										onClick={handleClearResolved}
-										title="Dọn dẹp bảng trực (chỉ ẩn các sự cố đã ghi nhận/đã đóng khỏi màn hình, không xóa dữ liệu lưu trữ)"
-										aria-label="Dọn dẹp bảng trực"
+										className={`soc-category-dropdown-trigger ${isCategoryDropdownOpen ? "is-open" : ""} ${categoryFilter !== "ALL" ? "is-filtered" : ""}`}
+										onClick={() => setIsCategoryDropdownOpen((prev) => !prev)}
+										aria-haspopup="listbox"
+										aria-expanded={isCategoryDropdownOpen}
+										aria-label="Lọc theo loại sự cố an ninh"
 									>
-										<Broom size={13} />
-									</button>
-								)}
+										<div className="soc-trigger-left">
+											{activeCategoryMeta?.icon ? (
+												<activeCategoryMeta.icon
+													size={14}
+													className={`soc-trigger-cat-icon ${activeCategoryMeta.chipClass || ""}`}
+												/>
+											) : (
+												<Filter size={14} className="soc-trigger-cat-icon text-muted" />
+											)}
+											<span className="soc-trigger-label-prefix">Loại sự cố:</span>
+											<span className="soc-trigger-selected-title">
+												{categoryFilter === "ALL"
+													? "Tất cả loại sự cố"
+													: activeCategoryMeta?.label}
+											</span>
+											<span className="soc-trigger-count-badge">
+												{activeCategoryMeta?.count || 0}
+											</span>
+										</div>
 
-							{hasClearedIncidents && (
-								<button
-									type="button"
-									className="soc-btn-restore"
-									onClick={handleRestoreCleared}
-									title="Khôi phục lại toàn bộ danh sách sự cố đã ẩn"
-								>
-									<RotateCcw size={12} />
-									<span>Khôi phục</span>
-								</button>
+										<div className="soc-trigger-right">
+											{categoryFilter !== "ALL" && (
+												<span
+													role="button"
+													tabIndex={0}
+													className="soc-trigger-btn-clear"
+													onClick={(e) => {
+														e.stopPropagation();
+														setCategoryFilter("ALL");
+														setIsCategoryDropdownOpen(false);
+													}}
+													onKeyDown={(e) => {
+														if (e.key === "Enter" || e.key === " ") {
+															e.stopPropagation();
+															setCategoryFilter("ALL");
+															setIsCategoryDropdownOpen(false);
+														}
+													}}
+													title="Bỏ lọc, quay về tất cả loại sự cố"
+													aria-label="Bỏ lọc loại sự cố"
+												>
+													<X size={11} />
+												</span>
+											)}
+											<ChevronDown
+												size={14}
+												className={`soc-trigger-chevron ${isCategoryDropdownOpen ? "rotate-180" : ""}`}
+											/>
+										</div>
+									</button>
+
+									{/* Menu Dropdown Tùy Biến Nổi (Custom Popover Menu) */}
+									{isCategoryDropdownOpen && (
+										<div
+											className="soc-category-popover"
+											role="listbox"
+											aria-label="Danh sách loại sự cố an ninh"
+										>
+											{categoryFilterOptions.map((opt) => {
+												const Icon = opt.icon;
+												const isSelected = categoryFilter === opt.key;
+												return (
+													<button
+														key={opt.key}
+														type="button"
+														role="option"
+														aria-selected={isSelected}
+														className={`soc-popover-item ${isSelected ? "is-selected" : ""} ${opt.chipClass || ""} ${opt.count === 0 ? "is-empty" : ""}`}
+														onClick={() => {
+															setCategoryFilter(opt.key);
+															setIsCategoryDropdownOpen(false);
+														}}
+													>
+														<div className="soc-popover-item-left">
+															<span className={`soc-popover-icon-box ${opt.chipClass || ""}`}>
+																<Icon size={14} />
+															</span>
+															<span className="soc-popover-item-label">
+																{opt.key === "ALL" ? "Tất cả loại sự cố" : opt.label}
+															</span>
+														</div>
+
+														<div className="soc-popover-item-right">
+															<span className="soc-popover-count-pill">{opt.count}</span>
+															{isSelected && (
+																<Check size={14} className="soc-popover-check-icon" />
+															)}
+														</div>
+													</button>
+												);
+											})}
+										</div>
+									)}
+								</div>
+							)}
+
+							{(pendingAlertCount > 1 || hasClearedIncidents || activeAlerts.some((a) => a.socAcknowledged || !isAlertPending(a.status))) && (
+								<div className="soc-filter-actions-bar">
+									<div className="soc-filter-actions-left">
+										{activeAlerts.some(
+											(a) => a.socAcknowledged || !isAlertPending(a.status),
+										) && (
+												<button
+													type="button"
+													className="soc-btn-clear"
+													onClick={handleClearResolved}
+													title="Dọn dẹp bảng trực (chỉ ẩn các sự cố đã ghi nhận/đã đóng khỏi màn hình, không xóa dữ liệu lưu trữ)"
+													aria-label="Dọn dẹp bảng trực"
+												>
+													<Broom size={12} />
+													<span>Dọn dẹp</span>
+												</button>
+											)}
+
+										{hasClearedIncidents && (
+											<button
+												type="button"
+												className="soc-btn-restore"
+												onClick={handleRestoreCleared}
+												title="Khôi phục lại toàn bộ danh sách sự cố đã ẩn"
+											>
+												<RotateCcw size={12} />
+												<span>Khôi phục</span>
+											</button>
+										)}
+									</div>
+
+									{pendingAlertCount > 1 && (
+										<button
+											type="button"
+											className="soc-btn-ack-all"
+											onClick={handleAcknowledgeAll}
+											title="Ghi nhận toàn bộ sự cố và tắt cảnh báo âm thanh"
+										>
+											<CheckCheck size={13} />
+											<span>Ghi nhận tất cả</span>
+										</button>
+									)}
+								</div>
 							)}
 						</div>
 
@@ -1361,6 +1706,30 @@ export function SecuritySurveillancePage() {
 							)}
 							{filteredAlerts.length === 0 && (incidentsError || incidentsLoading) ? (
 								incidentsError ? null : <LoadingState size="sm" text="Đang tải danh sách sự cố..." />
+							) : filteredAlerts.length === 0 && activeAlerts.length > 0 ? (
+								/* Trạng thái bộ lọc không có sự cố phù hợp */
+								<div className="soc-filter-empty-state">
+									<div className="soc-filter-empty-icon-box">
+										<Filter size={20} />
+									</div>
+									<h4 className="soc-filter-empty-title">Không có sự cố phù hợp</h4>
+									<p className="soc-filter-empty-desc">
+										{categoryFilter !== "ALL"
+											? `Không có sự cố "${categoryFilter}" nào ${alertFilter === "PENDING" ? "đang chờ ghi nhận" : "trong danh sách"}.`
+											: "Không có sự cố nào ở trạng thái chờ ghi nhận."}
+									</p>
+									<button
+										type="button"
+										className="soc-btn-reset-filter"
+										onClick={() => {
+											setAlertFilter("ALL");
+											setCategoryFilter("ALL");
+										}}
+									>
+										<RotateCcw size={12} />
+										<span>Xem tất cả sự cố ({activeAlerts.length})</span>
+									</button>
+								</div>
 							) : filteredAlerts.length === 0 ? (
 								/* ┌──────────────────────────────┐
 				   │        🟢                    │
@@ -1397,10 +1766,15 @@ export function SecuritySurveillancePage() {
 											>
 												<div className="soc-incident-top">
 													<div className="soc-incident-tags-group">
-														<div className="soc-incident-tag">
-															<AlertTriangle size={14} />
-															<span>{sev.label}</span>
-														</div>
+														{(() => {
+															const TagIcon = sev.icon || AlertTriangle;
+															return (
+																<div className={`soc-incident-tag ${sev.badgeClass || ""}`}>
+																	<TagIcon size={13} className="soc-tag-incident-icon" />
+																	<span>{sev.label}</span>
+																</div>
+															);
+														})()}
 														{/* V93 (BR-DSP-11): đang mời một nhóm bảo vệ trên mobile; web chỉ theo dõi */}
 														{isPending && status === "NEW" && String(alert.dispatchStage || "").toUpperCase() === "STEP1" && (
 															<span
@@ -1412,18 +1786,21 @@ export function SecuritySurveillancePage() {
 														)}
 													</div>
 
-													<div className="soc-incident-time" title={alert.timeParts?.full || alert.timestamp}>
-														<span className="soc-time-clock">
-															<Clock size={10} />
+													<div
+														className="soc-incident-time-pill"
+														title={`Thời điểm phát hiện: ${alert.timeParts?.full || alert.timestamp}${alert.duration ? ` (${alert.duration})` : ""}`}
+													>
+														<Clock size={11} className="soc-time-clock-icon" />
+														<span className="soc-time-clock-text">
 															{alert.timeParts?.time || alert.timestamp}
 														</span>
-														{alert.timeParts?.date && (
-															<span className="soc-time-date">{alert.timeParts.date}</span>
+														{!alert.timeParts?.isToday && alert.timeParts?.shortDate && (
+															<span className="soc-time-date-badge">{alert.timeParts.shortDate}</span>
 														)}
 													</div>
 												</div>
 
-												<p className="soc-incident-msg">{alert.message}</p>
+												{renderIncidentDetails(alert.message)}
 
 												<div className="soc-incident-bottom">
 													<div className="soc-incident-bottom-left">
@@ -1440,7 +1817,6 @@ export function SecuritySurveillancePage() {
 														>
 															<Video size={12} />
 															<span>{alert.cameraCode}</span>
-															<ArrowRight size={11} />
 														</button>
 
 														{/* Nút xem ảnh bằng chứng quả tang từ AI */}
@@ -1452,7 +1828,6 @@ export function SecuritySurveillancePage() {
 																title="Xem ảnh chụp bằng chứng quả tang từ AI"
 															>
 																<CameraIcon size={12} />
-																<span>Bằng chứng</span>
 															</button>
 														)}
 
@@ -1464,7 +1839,6 @@ export function SecuritySurveillancePage() {
 															title="Xem video hiện trường sự cố ngay trong tab này"
 														>
 															<Film size={12} />
-															<span>Video</span>
 														</button>
 													</div>
 
@@ -1515,7 +1889,7 @@ export function SecuritySurveillancePage() {
 																type="button"
 																className="btn-soc-ack"
 																onClick={() => handleAcknowledge(alert.id)}
-																title="Ghi nhận sự cố và tắt cảnh báo âm thanh"
+																title="Ghi nhận đã xem"
 															>
 																<Check size={12} />
 																<span>Ghi nhận</span>
@@ -1555,11 +1929,16 @@ export function SecuritySurveillancePage() {
 									}}
 								/>
 								<h4>BẰNG CHỨNG VI PHẠM AN NINH</h4>
-								<span
-									className={`soc-incident-tag ${getAlertSeverityMeta(evidenceModalAlert).badgeClass}`}
-								>
-									{getAlertSeverityMeta(evidenceModalAlert).label}
-								</span>
+								{(() => {
+									const modalSev = getAlertSeverityMeta(evidenceModalAlert);
+									const ModalTagIcon = modalSev.icon || AlertTriangle;
+									return (
+										<span className={`soc-incident-tag ${modalSev.badgeClass}`}>
+											<ModalTagIcon size={14} className="soc-tag-incident-icon" />
+											<span>{modalSev.label}</span>
+										</span>
+									);
+								})()}
 							</div>
 							<button
 								type="button"
@@ -1753,7 +2132,7 @@ export function SecuritySurveillancePage() {
 									onClick={() => {
 										handleSelectCamera(
 											evidenceModalAlert.camCodeClean ||
-												evidenceModalAlert.cameraCode,
+											evidenceModalAlert.cameraCode,
 										);
 										setEvidenceModalAlert(null);
 										setIncidentVideoData(null);
