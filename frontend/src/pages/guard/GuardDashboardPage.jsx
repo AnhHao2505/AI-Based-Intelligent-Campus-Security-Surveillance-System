@@ -11,13 +11,11 @@ import {
 	Clock,
 	Loader2,
 	Flame,
-	ArrowRight,
 	Broom,
 	RotateCcw,
 	Maximize2,
 	Minimize2,
 	AlertTriangle,
-	BellOff,
 	Eye,
 	Check,
 	CheckCheck,
@@ -27,7 +25,6 @@ import {
 	Download,
 	ExternalLink,
 	RefreshCw,
-	Play,
 	UserX,
 	Box,
 	Layers,
@@ -1144,7 +1141,7 @@ export function SecuritySurveillancePage() {
 			} else {
 				window.location.assign(signedUrl);
 			}
-		} catch (err) {
+		} catch {
 			popup?.close();
 			triggerNotification("Không thể lấy liên kết tải video");
 		}
