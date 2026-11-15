@@ -66,9 +66,17 @@ class Settings(BaseSettings):
         default=os.path.join(AI_SERVICE_DIR, "models", "yolo26n.pt") if os.path.exists(os.path.join(AI_SERVICE_DIR, "models", "yolo26n.pt")) else "yolo26n.pt",
         validation_alias="MODEL_YOLO_PATH"
     )
+    MODEL_SCRFD_PATH: str = Field(
+        default=os.path.join(AI_SERVICE_DIR, "models", "scrfd_2.5g_bnkps.onnx"),
+        validation_alias="MODEL_SCRFD_PATH"
+    )
     MODEL_YUNET_PATH: str = Field(
         default=os.path.join(AI_SERVICE_DIR, "models", "face_detection_yunet.onnx"),
         validation_alias="MODEL_YUNET_PATH"
+    )
+    MODEL_FACE_DETECTOR_PATH: str = Field(
+        default=os.path.join(AI_SERVICE_DIR, "models", "scrfd_2.5g_bnkps.onnx"),
+        validation_alias="MODEL_FACE_DETECTOR_PATH"
     )
     MODEL_ARCFACE_PATH: str = Field(
         default=os.path.join(AI_SERVICE_DIR, "models", "w600k_r50.onnx"),
@@ -93,6 +101,10 @@ class Settings(BaseSettings):
     FACE_CROP_UPSCALE_THRESHOLD: int = Field(default=160, validation_alias="FACE_CROP_UPSCALE_THRESHOLD")
     # Crop nửa trên cơ thể có cạnh dài > giá trị này thì thu nhỏ trước khi chạy YuNet (camera độ phân giải cao). 0 = tắt
     FACE_CROP_MAX_DIM: int = Field(default=480, validation_alias="FACE_CROP_MAX_DIM")
+    # SCRFD: đệm mọi ảnh <= cạnh này về đúng kích thước vuông cố định (ONNX CUDA chậm ~5 lần khi input đổi cỡ). 0 = tắt
+    FACE_DETECT_FIXED_INPUT: int = Field(default=480, validation_alias="FACE_DETECT_FIXED_INPUT")
+    # Ảnh đăng ký khuôn mặt có cạnh dài > giá trị này thì tự động thu nhỏ về ngưỡng này trước khi đưa vào SCRFD. 0 = tắt
+    FACE_REGISTRATION_MAX_DIM: int = Field(default=640, validation_alias="FACE_REGISTRATION_MAX_DIM")
     FACE_MIN_LAPLACIAN_VARIANCE: float = Field(default=15.0, validation_alias="FACE_MIN_LAPLACIAN_VARIANCE")
     ANALYSIS_MAX_FPS: float = Field(default=30.0, validation_alias="ANALYSIS_MAX_FPS")
     UPPER_BODY_CROP_RATIO: float = 0.60

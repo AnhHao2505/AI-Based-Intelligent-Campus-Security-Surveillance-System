@@ -694,7 +694,8 @@ class EdgeMqttAgent:
                 "latencyMs": int((time.time() - t0) * 1000),
             }
 
-        faces = detector.detect_in_image(img)
+        reg_max_dim = getattr(detector, "registration_max_dim", getattr(settings, "FACE_REGISTRATION_MAX_DIM", 640))
+        faces = detector.detect_in_image(img, max_dim=reg_max_dim)
         face_count = len(faces)
         if not faces:
             return {

@@ -547,7 +547,8 @@ async def process_face_registration(
 
     try:
         detector = default_pipeline.face_detector if default_pipeline else face_detector
-        faces = detector.detect_in_image(img)
+        reg_max_dim = getattr(detector, "registration_max_dim", getattr(settings, "FACE_REGISTRATION_MAX_DIM", 640))
+        faces = detector.detect_in_image(img, max_dim=reg_max_dim)
         face_count = len(faces)
 
         if not faces:

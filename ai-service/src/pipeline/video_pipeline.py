@@ -40,6 +40,7 @@ class VideoPipeline:
         roi_polygon: Optional[List[Point]] = None,
         conf_threshold: Optional[float] = None,
         model_yolo_path: Optional[str] = None,
+        model_face_detector_path: Optional[str] = None,
         model_yunet_path: Optional[str] = None,
         roi_polygons: Optional[List[Any]] = None,
         after_hour_start: Optional[str] = None,
@@ -60,14 +61,14 @@ class VideoPipeline:
 
         # Khởi tạo các module core
         yolo_path = model_yolo_path or settings.MODEL_YOLO_PATH
-        yunet_path = model_yunet_path or settings.MODEL_YUNET_PATH
+        face_path = model_face_detector_path or model_yunet_path or getattr(settings, "MODEL_FACE_DETECTOR_PATH", settings.MODEL_YUNET_PATH)
         detector_conf = conf_threshold if conf_threshold is not None else settings.DEFAULT_DETECTION_CONFIDENCE
         ah_start = after_hour_start or settings.DEFAULT_AFTER_HOUR_START
         ah_end = after_hour_end or settings.DEFAULT_AFTER_HOUR_END
 
         logger.info(f"Khởi tạo VideoPipeline cho Camera [{camera_code}]...")
         self.human_detector = HumanDetector(model_path=yolo_path, conf_threshold=detector_conf, analysis_fps=self.analysis_max_fps)
-        self.face_detector = FaceDetector(model_path=yunet_path, score_threshold=settings.DEFAULT_FACE_CONFIDENCE)
+        self.face_detector = FaceDetector(model_path=face_path, score_threshold=settings.DEFAULT_FACE_CONFIDENCE)
         self.face_matcher = FaceMatcher()
         self.analysis_engine = FrameAnalysisEngine(after_hour_start=ah_start, after_hour_end=ah_end)
 
