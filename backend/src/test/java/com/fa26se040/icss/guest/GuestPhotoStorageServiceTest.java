@@ -1,5 +1,6 @@
 package com.fa26se040.icss.guest;
 
+import com.fa26se040.icss.exception.StorageEncryptionException;
 import com.fa26se040.icss.service.GuestPhotoStorageService;
 import io.minio.*;
 import io.minio.errors.ErrorResponseException;
@@ -114,6 +115,22 @@ class GuestPhotoStorageServiceTest {
         assertDoesNotThrow(() -> storage.ensureBucket());
 
         verify(minio, times(2)).setBucketEncryption(any(SetBucketEncryptionArgs.class));
+    }
+
+    @Test
+    @DisplayName("NFR-05: MinIO từ chối SSE -> StorageEncryptionException, chỉ 1 lệnh ghi (có SSE), không ghi dạng rõ")
+    void upload_sseRejected_failsWithoutPlaintextRetry() throws Exception {
+        when(minio.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
+        when(minio.putObject(any(PutObjectArgs.class))).thenThrow(minioError("NotImplemented"));
+
+        StorageEncryptionException ex = assertThrows(StorageEncryptionException.class,
+                () -> storage.upload("visits/a/b/c.jpg", new byte[]{1, 2, 3}, "image/jpeg"));
+
+        assertEquals("NotImplemented", ex.getErrorCode());
+        assertTrue(ex.getMessage().startsWith("[NFR-05]"));
+        ArgumentCaptor<PutObjectArgs> cap = ArgumentCaptor.forClass(PutObjectArgs.class);
+        verify(minio, times(1)).putObject(cap.capture());
+        assertNotNull(cap.getValue().sse());
     }
 
     @Test

@@ -7,6 +7,7 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.ServerSideEncryptionS3;
+import io.minio.errors.ErrorResponseException;
 import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +52,10 @@ public class GuestPhotoStorageService {
         }
     }
 
-    /** Tải ảnh lên bucket riêng, mã hoá phía server SSE-S3 bằng khoá KMS mặc định của MinIO (NFR-05). */
+    /**
+     * Tải ảnh lên bucket riêng, mã hoá phía server SSE-S3 bằng khoá KMS mặc định của MinIO (NFR-05).
+     * MinIO từ chối SSE -> log ERROR [NFR-05] + StorageEncryptionException, không lưu dạng rõ.
+     */
     public void upload(String objectKey, byte[] bytes, String contentType) throws Exception {
         ensureBucket();
         try (ByteArrayInputStream in = new ByteArrayInputStream(bytes)) {
@@ -62,6 +66,8 @@ public class GuestPhotoStorageService {
                     .contentType(contentType)
                     .sse(new ServerSideEncryptionS3())
                     .build());
+        } catch (ErrorResponseException e) {
+            throw MinioBucketEncryption.onEncryptedPutFailure(bucket, objectKey, e);
         }
     }
 

@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.exception.StorageEncryptionException;
 import io.minio.GetBucketEncryptionArgs;
 import io.minio.MinioClient;
 import io.minio.SetBucketEncryptionArgs;
@@ -8,7 +9,8 @@ import io.minio.messages.SseConfiguration;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * NFR-05 (DEF-01): mã hoá mặc định SSE-S3 cho bucket ứng dụng (MinioStorageService, GuestPhotoStorageService).
+ * NFR-05 (DEF-01): mã hoá mặc định SSE-S3 cho bucket ứng dụng (MinioStorageService, GuestPhotoStorageService), và
+ * cách xử lý chung khi MinIO từ chối SSE lúc ghi object.
  *
  * <p>Lớp bảo vệ thứ hai bên cạnh header SSE của từng lệnh putObject: object nào ghi vào bucket mà không gửi header vẫn
  * được MinIO mã hoá bằng khoá KMS mặc định của server ({@code MINIO_KMS_SECRET_KEY}). Backend không giữ tên khoá.</p>
@@ -55,6 +57,28 @@ final class MinioBucketEncryption {
             }
             throw e;
         }
+    }
+
+    /**
+     * MinIO từ chối SSE: {@code NotImplemented} (server chưa cấu hình KMS) hoặc mã lỗi KMS ({@code KMS.*}).
+     * Các lỗi khác (AccessDenied, NoSuchBucket…) không phải lỗi mã hoá.
+     */
+    static boolean isSseRejected(ErrorResponseException e) {
+        String code = errorCode(e);
+        return "NotImplemented".equals(code) || (code != null && code.startsWith("KMS"));
+    }
+
+    /**
+     * Ghi object có SSE bị lỗi: lỗi mã hoá -> log ERROR [NFR-05] + {@link StorageEncryptionException} (không có đường
+     * lưu dạng rõ); lỗi khác -> trả lại nguyên lỗi để caller xử lý như trước.
+     */
+    static Exception onEncryptedPutFailure(String bucket, String object, ErrorResponseException e) {
+        if (!isSseRejected(e)) {
+            return e;
+        }
+        log.error("[NFR-05] MinIO từ chối mã hoá phía server SSE-S3 cho {}/{} ({}): KHÔNG lưu dạng rõ, upload thất bại. "
+                + "Kiểm tra KMS của MinIO (MINIO_KMS_SECRET_KEY).", bucket, object, describe(e));
+        return new StorageEncryptionException(bucket, object, errorCode(e), e);
     }
 
     static String errorCode(ErrorResponseException e) {
