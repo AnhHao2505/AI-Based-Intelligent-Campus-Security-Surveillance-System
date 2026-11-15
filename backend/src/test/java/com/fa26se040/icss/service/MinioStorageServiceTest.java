@@ -4,6 +4,8 @@ import io.minio.*;
 import io.minio.errors.ErrorResponseException;
 import io.minio.http.Method;
 import io.minio.messages.ErrorResponse;
+import io.minio.messages.SseAlgorithm;
+import io.minio.messages.SseConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -200,6 +202,53 @@ class MinioStorageServiceTest {
 
         verify(minioClient, never()).getBucketPolicy(any(GetBucketPolicyArgs.class));
         verify(minioClient, never()).deleteBucketPolicy(any(DeleteBucketPolicyArgs.class));
+    }
+
+    // ===== NFR-05 (N1): mã hoá mặc định của bucket =====
+
+    @Test
+    @DisplayName("NFR-05: initBuckets bật mã hoá mặc định SSE-S3 cho mọi bucket ứng dụng (faces, evidence, snapshots, recordings)")
+    void initBuckets_enablesDefaultEncryptionOnEveryBucket() throws Exception {
+        ReflectionTestUtils.setField(minioStorageService, "bucketRecordings", "camera-recordings");
+        givenBucketsExist();
+        when(minioClient.getBucketEncryption(any(GetBucketEncryptionArgs.class)))
+                .thenThrow(minioError("ServerSideEncryptionConfigurationNotFoundError"));
+
+        minioStorageService.initBuckets();
+
+        ArgumentCaptor<SetBucketEncryptionArgs> captor = ArgumentCaptor.forClass(SetBucketEncryptionArgs.class);
+        verify(minioClient, times(4)).setBucketEncryption(captor.capture());
+        assertEquals(List.of("face-profiles", "security-evidence", "camera-snapshots", "camera-recordings"),
+                captor.getAllValues().stream().map(SetBucketEncryptionArgs::bucket).toList());
+        captor.getAllValues().forEach(args ->
+                assertEquals(SseAlgorithm.AES256, args.config().rule().sseAlgorithm(), args.bucket()));
+    }
+
+    @Test
+    @DisplayName("NFR-05: bucket đã có mã hoá mặc định -> không ghi đè (idempotent); upload sau đó không kiểm lại")
+    void initBuckets_alreadyEncrypted_noWrite_andCached() throws Exception {
+        givenBucketsExist();
+        when(minioClient.getBucketEncryption(any(GetBucketEncryptionArgs.class)))
+                .thenReturn(SseConfiguration.newConfigWithSseS3Rule());
+
+        minioStorageService.initBuckets();
+        minioStorageService.uploadFaceImage(new byte[]{1}, "SE1");
+        minioStorageService.uploadSecurityEvidence(new byte[]{1}, "CAM-1", "UNAUTHORIZED_ACCESS", 1L);
+
+        verify(minioClient, never()).setBucketEncryption(any(SetBucketEncryptionArgs.class));
+        verify(minioClient, times(3)).getBucketEncryption(any(GetBucketEncryptionArgs.class));
+    }
+
+    @Test
+    @DisplayName("NFR-05: bật mã hoá bucket lỗi -> không chặn khởi động, vẫn gỡ policy các bucket")
+    void initBuckets_encryptionError_doesNotBlockStartup() throws Exception {
+        givenBucketsExist();
+        when(minioClient.getBucketEncryption(any(GetBucketEncryptionArgs.class))).thenThrow(minioError("AccessDenied"));
+
+        assertDoesNotThrow(() -> minioStorageService.initBuckets());
+
+        verify(minioClient, never()).setBucketEncryption(any(SetBucketEncryptionArgs.class));
+        verify(minioClient, times(3)).getBucketPolicy(any(GetBucketPolicyArgs.class));
     }
 
     // ===== B3 / B4: statObject =====

@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
@@ -58,6 +59,9 @@ public class MinioStorageService {
 
     /** Mã lỗi MinIO khi object không tồn tại. */
     private static final Set<String> OBJECT_NOT_FOUND_CODES = Set.of("NoSuchKey", "NoSuchObject");
+
+    /** NFR-05: bucket đã xác nhận có mã hoá mặc định trong vòng đời instance này (không kiểm lại mỗi lần upload). */
+    private final Set<String> defaultEncryptionVerified = ConcurrentHashMap.newKeySet();
 
     @PostConstruct
     public void initBuckets() {
@@ -168,12 +172,17 @@ public class MinioStorageService {
     /**
      * Tạo bucket nếu chưa tồn tại.
      * Cố ý giữ mặc định Private cho toàn bộ bucket (không gán public read policy).
+     * NFR-05: bật mã hoá mặc định SSE-S3 cho bucket (idempotent, lỗi chỉ log ERROR).
      */
     private void ensureBucketExists(String bucketName) throws Exception {
         boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
         if (!exists) {
             minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
             log.info("Created private MinIO bucket: {}", bucketName);
+        }
+        if (!defaultEncryptionVerified.contains(bucketName)
+                && MinioBucketEncryption.ensureDefaultEncryption(minioClient, bucketName)) {
+            defaultEncryptionVerified.add(bucketName);
         }
     }
 

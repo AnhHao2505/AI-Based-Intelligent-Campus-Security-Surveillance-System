@@ -6,6 +6,7 @@ import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import io.minio.ServerSideEncryptionS3;
 import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,16 +33,25 @@ public class GuestPhotoStorageService {
         return bucket;
     }
 
-    /** Tạo bucket nếu chưa có. Cố ý KHÔNG gọi setBucketPolicy: bucket giữ mặc định private. */
+    /** NFR-05: đã xác nhận bucket có mã hoá mặc định trong vòng đời instance này (không kiểm lại mỗi lần upload). */
+    private volatile boolean defaultEncryptionVerified;
+
+    /**
+     * Tạo bucket nếu chưa có. Cố ý KHÔNG gọi setBucketPolicy: bucket giữ mặc định private.
+     * NFR-05: bật mã hoá mặc định SSE-S3 cho bucket (idempotent, lỗi chỉ log ERROR).
+     */
     public void ensureBucket() throws Exception {
         boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
         if (!exists) {
             minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
             log.info("[GUEST-PHOTO] Created private bucket {}", bucket);
         }
+        if (!defaultEncryptionVerified) {
+            defaultEncryptionVerified = MinioBucketEncryption.ensureDefaultEncryption(minioClient, bucket);
+        }
     }
 
-    /** Tải ảnh lên bucket riêng. */
+    /** Tải ảnh lên bucket riêng, mã hoá phía server SSE-S3 bằng khoá KMS mặc định của MinIO (NFR-05). */
     public void upload(String objectKey, byte[] bytes, String contentType) throws Exception {
         ensureBucket();
         try (ByteArrayInputStream in = new ByteArrayInputStream(bytes)) {
@@ -50,6 +60,7 @@ public class GuestPhotoStorageService {
                     .object(objectKey)
                     .stream(in, bytes.length, -1)
                     .contentType(contentType)
+                    .sse(new ServerSideEncryptionS3())
                     .build());
         }
     }

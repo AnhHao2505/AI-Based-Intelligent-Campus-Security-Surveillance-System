@@ -2,7 +2,11 @@ package com.fa26se040.icss.guest;
 
 import com.fa26se040.icss.service.GuestPhotoStorageService;
 import io.minio.*;
+import io.minio.errors.ErrorResponseException;
 import io.minio.http.Method;
+import io.minio.messages.ErrorResponse;
+import io.minio.messages.SseAlgorithm;
+import io.minio.messages.SseConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +53,67 @@ class GuestPhotoStorageServiceTest {
         assertEquals("guest-photos", cap.getValue().bucket());
         assertEquals("visits/a/b/c.jpg", cap.getValue().object());
         verify(minio, never()).setBucketPolicy(any(SetBucketPolicyArgs.class));
+    }
+
+    // ===== NFR-05 (N1) =====
+
+    private static ErrorResponseException minioError(String code) {
+        return new ErrorResponseException(new ErrorResponse(code, "minio message", null, null, null, null, null), null, null);
+    }
+
+    @Test
+    @DisplayName("NFR-05: upload ảnh khách gửi SSE-S3 (header X-Amz-Server-Side-Encryption: AES256)")
+    void upload_withServerSideEncryption() throws Exception {
+        when(minio.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
+        storage.upload("visits/a/b/c.jpg", new byte[]{1, 2, 3}, "image/jpeg");
+        ArgumentCaptor<PutObjectArgs> cap = ArgumentCaptor.forClass(PutObjectArgs.class);
+        verify(minio).putObject(cap.capture());
+        ServerSideEncryption sse = cap.getValue().sse();
+        assertNotNull(sse, "ảnh khách phải được mã hoá phía server");
+        assertInstanceOf(ServerSideEncryptionS3.class, sse);
+        assertEquals("AES256", sse.headers().get("X-Amz-Server-Side-Encryption"));
+    }
+
+    @Test
+    @DisplayName("NFR-05: bucket guest-photos chưa có mã hoá mặc định -> setBucketEncryption SSE-S3 một lần, upload sau không kiểm lại")
+    void ensureBucket_enablesDefaultEncryptionOnce() throws Exception {
+        when(minio.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
+        when(minio.getBucketEncryption(any(GetBucketEncryptionArgs.class)))
+                .thenThrow(minioError("ServerSideEncryptionConfigurationNotFoundError"));
+
+        storage.upload("visits/a/b/c.jpg", new byte[]{1}, "image/jpeg");
+        storage.upload("visits/a/b/d.jpg", new byte[]{2}, "image/jpeg");
+
+        ArgumentCaptor<SetBucketEncryptionArgs> cap = ArgumentCaptor.forClass(SetBucketEncryptionArgs.class);
+        verify(minio, times(1)).setBucketEncryption(cap.capture());
+        assertEquals("guest-photos", cap.getValue().bucket());
+        assertEquals(SseAlgorithm.AES256, cap.getValue().config().rule().sseAlgorithm());
+        verify(minio, times(1)).getBucketEncryption(any(GetBucketEncryptionArgs.class));
+    }
+
+    @Test
+    @DisplayName("NFR-05: bucket đã có mã hoá mặc định -> không ghi đè cấu hình (idempotent)")
+    void ensureBucket_alreadyEncrypted_noWrite() throws Exception {
+        when(minio.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
+        when(minio.getBucketEncryption(any(GetBucketEncryptionArgs.class)))
+                .thenReturn(SseConfiguration.newConfigWithSseS3Rule());
+
+        storage.ensureBucket();
+
+        verify(minio, never()).setBucketEncryption(any(SetBucketEncryptionArgs.class));
+    }
+
+    @Test
+    @DisplayName("NFR-05: bật mã hoá bucket lỗi -> không ném ra (upload vẫn tự gửi SSE), lần sau thử lại")
+    void ensureBucket_encryptionError_doesNotThrow_retriesNextTime() throws Exception {
+        when(minio.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
+        when(minio.getBucketEncryption(any(GetBucketEncryptionArgs.class))).thenReturn(new SseConfiguration(null));
+        doThrow(minioError("AccessDenied")).when(minio).setBucketEncryption(any(SetBucketEncryptionArgs.class));
+
+        assertDoesNotThrow(() -> storage.ensureBucket());
+        assertDoesNotThrow(() -> storage.ensureBucket());
+
+        verify(minio, times(2)).setBucketEncryption(any(SetBucketEncryptionArgs.class));
     }
 
     @Test
