@@ -77,6 +77,11 @@ public class SecurityIncidentService {
     @Autowired(required = false)
     private IncidentDispatchQueryRepository incidentDispatchQueryRepository;
 
+    // G2 (DEF-16): /topic/guards/{id}/alerts chỉ app mobile subscribe -> chỉ bảo vệ có phiên mobile mới thực sự nhận được
+    // cảnh báo. Inject qua field như hai field trên; null (test dựng thủ công) -> đếm như cũ.
+    @Autowired(required = false)
+    private com.fa26se040.icss.config.WebSocketSessionRegistry webSocketSessionRegistry;
+
     @org.springframework.beans.factory.annotation.Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
@@ -298,7 +303,9 @@ public class SecurityIncidentService {
             String guardTopic = "/topic/guards/" + guard.getId() + "/alerts";
             try {
                 messagingTemplate.convertAndSend(guardTopic, response);
-                guardRecipientCount++;
+                if (canReceiveGuardAlerts(guard)) {
+                    guardRecipientCount++;
+                }
                 log.info("Dispatched incident [{}] to guard [{}] ({}) at topic [{}]",
                         saved.getId(), guard.getFullName(), guard.getEmail(), guardTopic);
             } catch (Exception e) {
@@ -306,6 +313,14 @@ public class SecurityIncidentService {
             }
         }
         return guardRecipientCount;
+    }
+
+    /**
+     * G2 (BR-IE-05): bảo vệ được tính là "đã nhận" cảnh báo khi có phiên STOMP từ mobile (kênh riêng chỉ app mobile nghe).
+     * Mọi bảo vệ đang trực đều đã đăng xuất app -> guard_recipient_count = 0 -> job leo thang báo FM ngay.
+     */
+    private boolean canReceiveGuardAlerts(User guard) {
+        return webSocketSessionRegistry == null || webSocketSessionRegistry.hasMobileSession(guard.getId());
     }
 
     /** Mục 2.B và 2.C của ingest (tách nguyên văn ở V93): kênh theo toà và kênh toàn cục. */
@@ -422,7 +437,9 @@ public class SecurityIncidentService {
         // Số bảo vệ được nhắm tới đổi thành số người nhận broadcast (0 -> job leo thang báo FM ở lần chạy kế)
         int targeted = 0;
         try {
-            targeted = incidentRecipientResolver.findOnDutyGuards(now).size();
+            targeted = (int) incidentRecipientResolver.findOnDutyGuards(now).stream()
+                    .filter(this::canReceiveGuardAlerts)
+                    .count();
         } catch (Exception e) {
             log.error("Lỗi khi tìm bảo vệ đang trực cho sự cố [{}]: {}", incidentId, e.getMessage(), e);
         }
