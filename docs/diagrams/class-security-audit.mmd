@@ -1,0 +1,89 @@
+%% Title: CD-07 Security Audit Log VOPC · Draw.io Compatible
+classDiagram
+    direction TB
+
+    class AccessControlController {
+        - auditService : AuditService
+        + getAuditLogs(module: String, from: OffsetDateTime, ...) : ResponseEntity
+    }
+
+    class AuditService {
+        - auditLogRepository : AuditLogRepository
+        - auditModuleRoleRepository : AuditModuleRoleRepository
+        - userRepository : UserRepository
+        - areaRepository : AreaRepository
+        + getAuditLogs(module: String, correlationId: UUID, ...) : Page
+        + getAccountAuditLogs(modules: List~String~, actions: List~AuditAction~, ...) : Page
+        - mapToResponse(log: AuditLog) : AuditLogResponse
+    }
+
+    class AuditModuleRoleRepository {
+        + findModulesByRole(role: String) : List~String~
+    }
+
+    class AuditLogRepository {
+        + findAll(spec: Specification, pageable: Pageable) : Page
+    }
+
+    class AuditLog {
+        - id : UUID
+        - targetType : AuditTargetType
+        - action : AuditAction
+        - targetId : String
+        - oldValue : String
+        - newValue : String
+        - reason : String
+        - actorType : String
+        - correlationId : UUID
+        - changedAt : OffsetDateTime
+        - ipAddress : String
+        + getId() : UUID
+        + getAction() : AuditAction
+        + getTargetType() : AuditTargetType
+        + getChangedAt() : OffsetDateTime
+        + getCorrelationId() : UUID
+    }
+
+    class AuditLogResponse {
+        + id : UUID
+        + targetType : AuditTargetType
+        + action : AuditAction
+        + module : String
+        + targetId : String
+        + reason : String
+        + changedByName : String
+        + correlationId : UUID
+        + changedAt : OffsetDateTime
+        + ipAddress : String
+    }
+
+    class AuditAction {
+        + CREATE
+        + UPDATE
+        + DELETE
+        + LOGIN
+        + LOGOUT
+        + VIEW_PHOTO
+    }
+
+    class AuditTargetType {
+        + USER_ACCOUNT
+        + USER_ACCESS_LEVEL
+        + AREA_RULES
+        + SYSTEM_CONFIG
+        + INCIDENT_POLICY
+    }
+
+    AccessControlController --> AuditService : invokes
+    AccessControlController ..> AuditLogResponse : returns
+
+    AuditService --> AuditLogRepository : queries
+    AuditService --> AuditModuleRoleRepository : verifies module permission
+    AuditService ..> AuditLog : maps
+    AuditService ..> AuditLogResponse : creates
+
+    AuditLogRepository ..> AuditLog : manages
+    AuditLog --> AuditAction : specifies
+    AuditLog --> AuditTargetType : targets
+    AuditLogResponse --> AuditAction : contains
+    AuditLogResponse --> AuditTargetType : contains

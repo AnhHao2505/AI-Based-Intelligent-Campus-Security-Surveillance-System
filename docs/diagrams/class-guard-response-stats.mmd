@@ -1,0 +1,72 @@
+%% Title: CD-09 Guard Response Time and False Alarm Analytics VOPC
+classDiagram
+    direction TB
+
+    class ReportController {
+        - securityReportService : SecurityReportService
+        + getSecurityReportSummary(startDate: LocalDate, endDate: LocalDate, ...) : ResponseEntity
+    }
+
+    class SecurityReportService {
+        - securityIncidentRepository : SecurityIncidentRepository
+        - userRepository : UserRepository
+        + generateReport(startDate: LocalDate, endDate: LocalDate, ...) : SecurityReportSummaryDto
+        - computeResponseTimes(incidents: List~SecurityIncident~) : List~Long~
+        - computeResolutionTimes(incidents: List~SecurityIncident~) : List~Long~
+    }
+
+    class SecurityIncidentRepository {
+        + findIncidentsInPeriod(from: OffsetDateTime, to: OffsetDateTime) : List~SecurityIncident~
+    }
+
+    class SecurityIncident {
+        - id : UUID
+        - detectedAt : OffsetDateTime
+        - claimedAt : OffsetDateTime
+        - resolvedAt : OffsetDateTime
+        - status : IncidentStatus
+        - outcome : IncidentOutcome
+        - severity : IncidentSeverity
+        + getId() : UUID
+        + getDetectedAt() : OffsetDateTime
+        + getClaimedAt() : OffsetDateTime
+        + getResolvedAt() : OffsetDateTime
+        + getStatus() : IncidentStatus
+        + getOutcome() : IncidentOutcome
+    }
+
+    class SecurityReportSummaryDto {
+        + totalIncidents : long
+        + verifiedIncidents : long
+        + dismissedIncidents : long
+        + falseAlarmRate : Double
+        + avgResponseTimeSeconds : Long
+        + avgResolutionTimeSeconds : Long
+        + topGuards : List~GuardAggregate~
+        + topAreas : List~AreaIncidentStatDto~
+    }
+
+    class GuardAggregate {
+        + guardId : UUID
+        + guardName : String
+        + guardCode : String
+        + resolvedIncidents : long
+        + increment() : void
+    }
+
+    class AreaIncidentStatDto {
+        + areaId : UUID
+        + areaName : String
+        + building : String
+        + count : long
+    }
+
+    ReportController --> SecurityReportService : invokes
+    ReportController ..> SecurityReportSummaryDto : returns
+
+    SecurityReportService --> SecurityIncidentRepository : queries
+    SecurityReportService ..> SecurityIncident : aggregates
+    SecurityReportService ..> SecurityReportSummaryDto : creates
+
+    SecurityReportSummaryDto --> GuardAggregate : contains
+    SecurityReportSummaryDto --> AreaIncidentStatDto : contains

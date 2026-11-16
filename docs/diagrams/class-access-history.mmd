@@ -1,0 +1,99 @@
+%% Title: CD-06 Query Access History VOPC · Draw.io Layout Fixed
+classDiagram
+    direction TB
+
+    class AccessHistoryController {
+        - accessHistoryService : AccessHistoryService
+        + getMyHistory(from: OffsetDateTime, to: OffsetDateTime, ...) : ResponseEntity
+        + search(areaId: UUID, cameraCode: String, ...) : ResponseEntity
+    }
+
+    class AccessHistoryService {
+        - cameraAccessLogRepository : CameraAccessLogRepository
+        - userRepository : UserRepository
+        - DEFAULT_RANGE_DAYS : int = 7
+        - MAX_PAGE_SIZE : int = 100
+        + getMyHistory(actorEmail: String, from: OffsetDateTime, ...) : Page
+        + search(areaId: UUID, cameraCode: String, ...) : Page
+        ~ resolveRange(from: OffsetDateTime, to: OffsetDateTime, ...) : OffsetDateTime[]
+        - filter(userId: UUID, areaId: UUID, ...) : Specification
+    }
+
+    class CameraAccessLogRepository {
+        + findAll(spec: Specification, pageable: Pageable) : Page
+    }
+
+    class UserRepository {
+        + findByEmail(email: String) : Optional
+    }
+
+    class CameraAccessLog {
+        - id : UUID
+        - loggedAt : OffsetDateTime
+        - cameraCode : String
+        - userCode : String
+        - fullName : String
+        - accessResult : AccessResult
+        - reasonDetails : String
+        + getId() : UUID
+        + getLoggedAt() : OffsetDateTime
+        + getCameraCode() : String
+        + getUserCode() : String
+        + getAccessResult() : AccessResult
+    }
+
+    class User {
+        - id : UUID
+        - userCode : String
+        - email : String
+        - fullName : String
+        - role : Role
+        + getId() : UUID
+        + getUserCode() : String
+        + getEmail() : String
+    }
+
+    class AccessHistoryItem {
+        + id : UUID
+        + loggedAt : OffsetDateTime
+        + areaName : String
+        + cameraCode : String
+        + userCode : String
+        + fullName : String
+        + accessResult : AccessResult
+        + from(log: CameraAccessLog) : AccessHistoryItem
+    }
+
+    class MyAccessHistoryItem {
+        + id : UUID
+        + loggedAt : OffsetDateTime
+        + areaName : String
+        + cameraCode : String
+        + accessResult : AccessResult
+        + from(log: CameraAccessLog) : MyAccessHistoryItem
+    }
+
+    class AccessResult {
+        + AUTHORIZED_ACCESS
+        + UNAUTHORIZED_ACCESS
+        + INTRUSION
+        + ACCESS_OUT_OF_TIME
+        + UNKNOWN_PERSON
+        + getDescription() : String
+    }
+
+    AccessHistoryController --> AccessHistoryService : invokes
+    AccessHistoryController ..> AccessHistoryItem : returns
+    AccessHistoryController ..> MyAccessHistoryItem : returns
+
+    AccessHistoryService --> CameraAccessLogRepository : queries
+    AccessHistoryService --> UserRepository : queries
+    AccessHistoryService ..> CameraAccessLog : maps
+    AccessHistoryService ..> AccessHistoryItem : creates
+    AccessHistoryService ..> MyAccessHistoryItem : creates
+
+    CameraAccessLogRepository ..> CameraAccessLog : manages
+    UserRepository ..> User : manages
+    CameraAccessLog --> AccessResult : classifies
+    AccessHistoryItem --> AccessResult : contains
+    MyAccessHistoryItem --> AccessResult : contains

@@ -1,0 +1,45 @@
+@startuml seq-security-audit
+title Sequence Diagram — 3.12.2 Nhật ký kiểm toán an ninh
+skinparam shadowing false
+autonumber
+
+actor "Administrator" as Admin
+participant ":AuditLogView" as View
+participant ":AccessControlController" as Controller
+participant ":AuditService" as Service
+participant ":AuditLogRepository" as Repo
+
+Admin -> View: Select audit filters (Module, Action, Date Range) and click Search
+activate View
+
+View -> Controller: requestAuditLogs(criteria)
+activate Controller
+
+Controller -> Service: getAuditLogs(criteria, userRole)
+activate Service
+
+Service -> Service: validateModuleAccess(userRole, module)
+
+alt Module Access Denied
+    Service --> Controller: return access denied error
+    Controller --> View: notifyError("No permission to view audit logs for this module")
+    View --> Admin: displayErrorMessage()
+else Authorized & Valid Criteria
+    Service -> Repo: queryAuditLogs(criteria)
+    activate Repo
+    Repo --> Service: return auditLogs
+    deactivate Repo
+
+    Service -> Service: formatAuditResponses(auditLogs)
+
+    Service --> Controller: return auditLogList
+    deactivate Service
+
+    Controller --> View: sendResponse(auditLogList)
+    deactivate Controller
+
+    View --> Admin: displayAuditLogTable()
+    deactivate View
+end
+
+@enduml

@@ -1,0 +1,50 @@
+@startuml seq-security-dashboard
+title Sequence Diagram — 3.13.1 Comprehensive Security Monitoring Dashboard
+skinparam shadowing false
+autonumber
+
+actor "Facility Manager" as Actor
+participant ":DashboardView" as View
+participant ":SecurityDashboardController" as Controller
+participant ":SecurityDashboardService" as Service
+participant ":SecurityStatsQueryRepository" as IncidentRepo
+participant ":AccessLogStatsQueryRepository" as AccessRepo
+
+Actor -> View: Select time filter (e.g., LAST_7_DAYS) and view dashboard
+activate View
+
+View -> Controller: requestSecurityStats(range)
+activate Controller
+
+Controller -> Service: getStats(range, currentTime)
+activate Service
+
+Service -> Service: calculateTimeWindow(range, currentTime)
+
+Service -> IncidentRepo: countByStatus(from, currentTime)
+activate IncidentRepo
+IncidentRepo --> Service: return statusCounts
+deactivate IncidentRepo
+
+Service -> IncidentRepo: countByArea(from, currentTime)
+activate IncidentRepo
+IncidentRepo --> Service: return areaCounts
+deactivate IncidentRepo
+
+Service -> AccessRepo: countByDayAndResult(from, currentTime, timeZone)
+activate AccessRepo
+AccessRepo --> Service: return dailyAccessCounts
+deactivate AccessRepo
+
+Service -> Service: aggregateKpisAndTrends(statusCounts, areaCounts, dailyAccessCounts)
+
+Service --> Controller: return securityStatsResponse
+deactivate Service
+
+Controller --> View: sendResponse(securityStatsResponse)
+deactivate Controller
+
+View --> Actor: renderKpiCardsAndCharts()
+deactivate View
+
+@enduml

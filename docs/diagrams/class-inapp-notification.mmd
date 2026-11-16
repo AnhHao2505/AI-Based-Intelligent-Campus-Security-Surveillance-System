@@ -1,0 +1,64 @@
+%% Title: CD-13 In-App Push Notification Center VOPC
+classDiagram
+    direction TB
+
+    class NotificationController {
+        - inAppNotificationService : InAppNotificationService
+        + getMyNotifications(page: int, size: int) : ResponseEntity
+        + getUnreadCount() : ResponseEntity
+        + markAsRead(id: UUID) : ResponseEntity
+        + markAllAsRead() : ResponseEntity
+    }
+
+    class InAppNotificationService {
+        - inAppNotificationRepository : InAppNotificationRepository
+        - userRepository : UserRepository
+        - messagingTemplate : SimpMessagingTemplate
+        + getMyNotifications(email: String, pageable: Pageable) : Page
+        + getUnreadCount(email: String) : long
+        + markAsRead(id: UUID, email: String) : NotificationResponse
+        + markAllAsRead(email: String) : int
+        + pushNotification(targetUserId: UUID, title: String, ...) : void
+    }
+
+    class InAppNotificationRepository {
+        + findByUserIdOrderByCreatedAtDesc(userId: UUID, pageable: Pageable) : Page
+        + countByUserIdAndIsReadFalse(userId: UUID) : long
+        + markAllAsReadByUserId(userId: UUID) : int
+    }
+
+    class InAppNotification {
+        - id : UUID
+        - userId : UUID
+        - title : String
+        - message : String
+        - type : String
+        - referenceId : String
+        - isRead : boolean
+        - readAt : OffsetDateTime
+        - createdAt : OffsetDateTime
+        + getId() : UUID
+        + getTitle() : String
+        + isRead() : boolean
+        + setRead(read: boolean) : void
+    }
+
+    class NotificationResponse {
+        + id : UUID
+        + title : String
+        + message : String
+        + type : String
+        + referenceId : String
+        + isRead : boolean
+        + readAt : OffsetDateTime
+        + createdAt : OffsetDateTime
+    }
+
+    NotificationController --> InAppNotificationService : invokes
+    NotificationController ..> NotificationResponse : returns
+
+    InAppNotificationService --> InAppNotificationRepository : manages
+    InAppNotificationService ..> InAppNotification : updates
+    InAppNotificationService ..> NotificationResponse : creates
+
+    InAppNotificationRepository ..> InAppNotification : persists

@@ -1,0 +1,58 @@
+@startuml seq-system-config
+title Sequence Diagram — 3.14.1 AI Parameters, Curfew Window and Data Retention Configuration
+skinparam shadowing false
+autonumber
+
+actor "Administrator" as Admin
+participant ":SystemConfigView" as View
+participant ":SystemConfigController" as Controller
+participant ":SystemConfigService" as Service
+participant ":SystemConfigRepository" as ConfigRepo
+participant ":SystemConfigChangeLogRepository" as LogRepo
+
+Admin -> View: Modify system parameter (e.g., AI Curfew Window, Retention Days) and click Save
+activate View
+
+View -> Controller: updateConfig(configKey, updateRequest)
+activate Controller
+
+Controller -> Service: update(configKey, configValue, reason, actorEmail)
+activate Service
+
+Service -> ConfigRepo: findByKey(configKey)
+activate ConfigRepo
+ConfigRepo --> Service: return systemConfig
+deactivate ConfigRepo
+
+Service -> Service: validateConfigValueBounds(configKey, configValue)
+
+alt Invalid Value Bounds / Format
+    Service --> Controller: return validation error
+    Controller --> View: notifyError("Configuration value exceeds allowable bounds")
+    View --> Admin: displayErrorMessage()
+else Valid Value
+    Service -> Service: createAuditChangeLog(oldValue, configValue, reason, actorEmail)
+
+    Service -> ConfigRepo: save(updatedSystemConfig)
+    activate ConfigRepo
+    ConfigRepo --> Service: return savedConfig
+    deactivate ConfigRepo
+
+    Service -> LogRepo: save(changeLog)
+    activate LogRepo
+    LogRepo --> Service: return savedLog
+    deactivate LogRepo
+
+    Service -> Service: refreshConfigCache(configKey, configValue)
+
+    Service --> Controller: return systemConfigResponse
+    deactivate Service
+
+    Controller --> View: sendResponse(systemConfigResponse)
+    deactivate Controller
+
+    View --> Admin: displaySuccessNotification("Configuration updated successfully")
+    deactivate View
+end
+
+@enduml

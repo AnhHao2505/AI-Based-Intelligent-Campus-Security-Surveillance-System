@@ -1,0 +1,81 @@
+%% Title: CD-11 AI Parameters, Curfew Window and Data Retention Configuration VOPC
+classDiagram
+    direction TB
+
+    class SystemConfigController {
+        - systemConfigService : SystemConfigService
+        + getAll() : ResponseEntity
+        + getAfterHoursWindow() : ResponseEntity
+        + update(configKey: String, request: SystemConfigUpdateRequest, ...) : ResponseEntity
+        + getHistory(configKey: String, pageable: Pageable) : ResponseEntity
+    }
+
+    class SystemConfigService {
+        - systemConfigRepository : SystemConfigRepository
+        - systemConfigChangeLogRepository : SystemConfigChangeLogRepository
+        - configCache : Map~String, String~
+        + getAll() : List~SystemConfigResponse~
+        + getString(key: ConfigKey) : String
+        + update(key: String, value: String, ...) : SystemConfigResponse
+        + getHistory(key: String, pageable: Pageable) : Page
+        + reloadCache() : int
+        - validateBounds(key: ConfigKey, value: String) : void
+    }
+
+    class SystemConfigRepository {
+        + findByKey(key: String) : Optional~SystemConfig~
+        + findAll() : List~SystemConfig~
+    }
+
+    class SystemConfigChangeLogRepository {
+        + findByConfigKey(configKey: String, pageable: Pageable) : Page
+    }
+
+    class SystemConfig {
+        - id : UUID
+        - configKey : String
+        - configValue : String
+        - description : String
+        - defaultValue : String
+        - updatedAt : OffsetDateTime
+        + getId() : UUID
+        + getConfigKey() : String
+        + getConfigValue() : String
+        + setConfigValue(value: String) : void
+    }
+
+    class SystemConfigChangeLog {
+        - id : UUID
+        - configKey : String
+        - oldValue : String
+        - newValue : String
+        - reason : String
+        - changedBy : String
+        - changedAt : OffsetDateTime
+        + getId() : UUID
+        + getNewValue() : String
+    }
+
+    class SystemConfigResponse {
+        + configKey : String
+        + configValue : String
+        + description : String
+        + updatedAt : OffsetDateTime
+    }
+
+    class SystemConfigUpdateRequest {
+        + configValue : String
+        + reason : String
+    }
+
+    SystemConfigController --> SystemConfigService : invokes
+    SystemConfigController ..> SystemConfigResponse : returns
+    SystemConfigController ..> SystemConfigUpdateRequest : consumes
+
+    SystemConfigService --> SystemConfigRepository : manages
+    SystemConfigService --> SystemConfigChangeLogRepository : records
+    SystemConfigService ..> SystemConfig : updates
+    SystemConfigService ..> SystemConfigResponse : creates
+
+    SystemConfigRepository ..> SystemConfig : persists
+    SystemConfigChangeLogRepository ..> SystemConfigChangeLog : persists

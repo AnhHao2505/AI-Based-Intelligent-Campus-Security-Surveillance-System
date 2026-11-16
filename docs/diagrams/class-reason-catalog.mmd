@@ -1,0 +1,78 @@
+%% Title: CD-12 Standardized System Reason Catalog Management VOPC
+classDiagram
+    direction TB
+
+    class ReasonCatalogController {
+        - reasonCatalogService : ReasonCatalogService
+        + getAll(actionType: String, active: Boolean) : ResponseEntity
+        + getActive(actionType: String) : ResponseEntity
+        + create(request: ReasonCatalogCreateRequest, ...) : ResponseEntity
+        + update(id: UUID, request: ReasonCatalogUpdateRequest, ...) : ResponseEntity
+        + toggleStatus(id: UUID, active: Boolean, ...) : ResponseEntity
+    }
+
+    class ReasonCatalogService {
+        - reasonCatalogRepository : ReasonCatalogRepository
+        - auditService : AuditService
+        + getAll(actionType: String, active: Boolean) : List~ReasonCatalogResponse~
+        + getActiveByActionType(actionType: String) : List~ReasonCatalogResponse~
+        + create(request: ReasonCatalogCreateRequest, ...) : ReasonCatalogResponse
+        + update(id: UUID, request: ReasonCatalogUpdateRequest, ...) : ReasonCatalogResponse
+        + toggleActive(id: UUID, active: Boolean, ...) : ReasonCatalogResponse
+    }
+
+    class ReasonCatalogRepository {
+        + existsByCodeAndActionType(code: String, actionType: String) : boolean
+        + findByActionTypeAndIsActiveTrue(actionType: String) : List~ReasonCatalog~
+        + findAll() : List~ReasonCatalog~
+    }
+
+    class ReasonCatalog {
+        - id : UUID
+        - actionType : String
+        - code : String
+        - label : String
+        - description : String
+        - isActive : boolean
+        - isDefault : boolean
+        - sortOrder : int
+        + getId() : UUID
+        + getCode() : String
+        + getLabel() : String
+        + isActive() : boolean
+        + setActive(active: boolean) : void
+    }
+
+    class ReasonCatalogCreateRequest {
+        + actionType : String
+        + code : String
+        + label : String
+        + description : String
+        + isDefault : boolean
+    }
+
+    class ReasonCatalogUpdateRequest {
+        + label : String
+        + description : String
+        + isActive : Boolean
+    }
+
+    class ReasonCatalogResponse {
+        + id : UUID
+        + actionType : String
+        + code : String
+        + label : String
+        + description : String
+        + isActive : boolean
+        + isDefault : boolean
+    }
+
+    ReasonCatalogController --> ReasonCatalogService : invokes
+    ReasonCatalogController ..> ReasonCatalogResponse : returns
+    ReasonCatalogController ..> ReasonCatalogCreateRequest : consumes
+
+    ReasonCatalogService --> ReasonCatalogRepository : manages
+    ReasonCatalogService ..> ReasonCatalog : creates and updates
+    ReasonCatalogService ..> ReasonCatalogResponse : maps
+
+    ReasonCatalogRepository ..> ReasonCatalog : persists

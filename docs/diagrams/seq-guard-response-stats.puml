@@ -1,0 +1,46 @@
+@startuml seq-guard-response-stats
+title Sequence Diagram — 3.13.2 Guard Response Time and False Alarm Rate Analytics
+skinparam shadowing false
+autonumber
+
+actor "Security Manager" as Actor
+participant ":GuardAnalyticsView" as View
+participant ":ReportController" as Controller
+participant ":SecurityReportService" as Service
+participant ":SecurityIncidentRepository" as IncidentRepo
+
+Actor -> View: Select date range (startDate, endDate) and click View Analytics
+activate View
+
+View -> Controller: requestGuardAnalytics(startDate, endDate)
+activate Controller
+
+Controller -> Controller: validateDateRange(startDate, endDate)
+
+alt Invalid Date Range (startDate > endDate)
+    Controller --> View: notifyError("Start date cannot be after end date")
+    View --> Actor: displayErrorMessage()
+else Valid Date Range
+    Controller -> Service: generateReport(startDate, endDate, userEmail)
+    activate Service
+
+    Service -> IncidentRepo: findIncidentsInPeriod(from, to)
+    activate IncidentRepo
+    IncidentRepo --> Service: return incidentList
+    deactivate IncidentRepo
+
+    Service -> Service: computeResponseTimes(incidentList)
+    Service -> Service: computeFalseAlarmRate(verifiedCount, dismissedCount)
+    Service -> Service: computeGuardPerformanceMetrics(incidentList)
+
+    Service --> Controller: return securityReportSummaryDto
+    deactivate Service
+
+    Controller --> View: sendAnalyticsResponse(securityReportSummaryDto)
+    deactivate Controller
+
+    View --> Actor: renderResponseTimeChartsAndFalseAlarmKPIs()
+    deactivate View
+end
+
+@enduml

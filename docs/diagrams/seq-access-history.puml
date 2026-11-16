@@ -1,0 +1,45 @@
+@startuml seq-access-history
+title Sequence Diagram — 3.12.1 Tra cứu lịch sử nhận diện ra vào (Toàn hệ thống)
+skinparam shadowing false
+autonumber
+
+actor "Facility Manager" as Actor
+participant ":AccessHistoryPage" as View
+participant ":AccessHistoryController" as Controller
+participant ":AccessHistoryService" as Service
+participant ":CameraAccessLogRepository" as Repo
+
+Actor -> View: Select search filters (Area, Time Range, Result) and click Search
+activate View
+
+View -> Controller: requestAccessHistory(criteria)
+activate Controller
+
+Controller -> Service: getAccessHistory(criteria)
+activate Service
+
+Service -> Service: validateTimeRange(from, to)
+
+alt Invalid Time Range
+    Service --> Controller: return validation error
+    Controller --> View: notifyError("Start date must be before end date")
+    View --> Actor: displayErrorMessage()
+else Valid Time Range
+    Service -> Repo: queryAccessLogs(criteria)
+    activate Repo
+    Repo --> Service: return accessLogs
+    deactivate Repo
+
+    Service -> Service: formatHistoryData(logs)
+
+    Service --> Controller: return historyList
+    deactivate Service
+
+    Controller --> View: sendResponse(historyList)
+    deactivate Controller
+
+    View --> Actor: displayAccessHistoryTable()
+    deactivate View
+end
+
+@enduml
