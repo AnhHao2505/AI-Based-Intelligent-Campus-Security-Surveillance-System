@@ -309,20 +309,27 @@ public class AccessDecisionService {
         }
 
         boolean isExit = eventDirection != null && eventDirection.equalsIgnoreCase("EXIT");
+        if (isExit) {
+            // Nghiệp vụ: Không ghi log ra vào và không phát sinh thông báo khi rời khỏi vùng ROI
+            return CheckCameraEntryResponse.builder()
+                    .allowed(true)
+                    .source(AccessSource.NONE)
+                    .reason("Rời khu vực")
+                    .cameraCode(camera.getCameraCode())
+                    .areaId(area.getId())
+                    .areaName(area.getName())
+                    .userCode(userCode != null && !userCode.isBlank() ? userCode : "UNKNOWN")
+                    .fullName(userCode != null && !userCode.isBlank() ? userCode : "Người lạ / Chưa rõ mặt")
+                    .build();
+        }
+
         String cleanRoi = (roiLabel != null && !roiLabel.isBlank()) ? roiLabel.trim() : null;
-        String durationStr = (durationSeconds != null && durationSeconds > 0)
-                ? String.format(" (Thời gian lưu lại: %ds)", Math.round(durationSeconds))
-                : "";
 
         // Từ đây đã xác định được camera + khu: mọi kết quả DENIED đều gắn khu để ghi được nhật ký ra vào
         if (!Boolean.TRUE.equals(area.getIsActive()) || area.getDeletedAt() != null) {
-            String reason = isExit
-                    ? (cleanRoi != null ? "[RA KHỎI ROI: " + cleanRoi + "] Rời khu vực đã ngừng hoạt động" + durationStr : "Rời khu vực đã ngừng hoạt động")
-                    : (cleanRoi != null ? "[VÀO ROI: " + cleanRoi + "] Khu vực đã ngừng hoạt động" : "Khu vực đã ngừng hoạt động");
+            String reason = cleanRoi != null ? "[VÀO ROI: " + cleanRoi + "] Khu vực đã ngừng hoạt động" : "Khu vực đã ngừng hoạt động";
             String effectiveUserCode = (userCode != null && !userCode.isBlank()) ? userCode : "UNKNOWN";
-            CheckCameraEntryResponse inactive = isExit
-                    ? CheckCameraEntryResponse.builder().allowed(true).source(AccessSource.NONE).reason(reason).cameraCode(camera.getCameraCode()).areaId(area.getId()).areaName(area.getName()).userCode(effectiveUserCode).build()
-                    : deniedAtCamera(camera, area, effectiveUserCode, reason);
+            CheckCameraEntryResponse inactive = deniedAtCamera(camera, area, effectiveUserCode, reason);
             recordAccessLogSafely(inactive, at);
             return inactive;
         }
@@ -331,30 +338,6 @@ public class AccessDecisionService {
         Optional<User> userOpt = userRepository.findByUserCodeAndDeletedAtIsNull(userCode);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
-            if (isExit) {
-                AccessDecision decision = checkEntry(user.getId(), area.getId(), at);
-                boolean allowed = decision.allowed();
-                String exitReason = cleanRoi != null
-                        ? "[RA KHỎI ROI: " + cleanRoi + "] Rời khu vực" + durationStr
-                        : "Rời khu vực" + durationStr;
-                if (!allowed) {
-                    exitReason += " (Không có thẩm quyền)";
-                }
-                CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
-                        .allowed(allowed)
-                        .source(allowed ? decision.source() : AccessSource.NONE)
-                        .reason(exitReason)
-                        .cameraCode(camera.getCameraCode())
-                        .areaId(area.getId())
-                        .areaName(area.getName())
-                        .userId(user.getId())
-                        .userCode(user.getUserCode())
-                        .fullName(user.getFullName())
-                        .build();
-                recordAccessLogSafely(response, at);
-                return response;
-            }
-
             AccessDecision decision = checkEntry(user.getId(), area.getId(), at);
             String entryReason = decision.reason();
             if (cleanRoi != null) {
@@ -383,31 +366,6 @@ public class AccessDecisionService {
                 Optional<Guest> guestOpt = guestRepository.findById(guestId);
                 if (guestOpt.isPresent()) {
                     Guest guest = guestOpt.get();
-                    if (isExit) {
-                        GuestAccessDecision guestDecision = guestAccessDecisionService.checkGuestEntry(guestId, area.getId(), at);
-                        boolean allowed = guestDecision.allowed();
-                        String exitReason = cleanRoi != null
-                                ? "[RA KHỎI ROI: " + cleanRoi + "] Khách rời khu vực" + durationStr
-                                : "Khách rời khu vực" + durationStr;
-                        if (!allowed) {
-                            exitReason += " (Không có thẩm quyền)";
-                        }
-                        CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
-                                .allowed(allowed)
-                                .source(allowed ? AccessSource.GUEST_VISIT : AccessSource.NONE)
-                                .reason(exitReason)
-                                .denyReason(guestDenyReasonCode(guestDecision))
-                                .cameraCode(camera.getCameraCode())
-                                .areaId(area.getId())
-                                .areaName(area.getName())
-                                .userId(guest.getId())
-                                .userCode("GUEST-" + guest.getId().toString().substring(0, 8))
-                                .fullName(guest.getFullName() + " (Khách)")
-                                .build();
-                        recordAccessLogSafely(response, at);
-                        return response;
-                    }
-
                     GuestAccessDecision guestDecision = guestAccessDecisionService.checkGuestEntry(guestId, area.getId(), at);
                     String reasonText = guestDecision.allowed()
                             ? "Khách tham quan hợp lệ trong lượt tiếp khách"
@@ -447,23 +405,9 @@ public class AccessDecisionService {
             }
         }
 
-        String finalDeniedReason = isExit
-                ? (cleanRoi != null ? "[RA KHỎI ROI: " + cleanRoi + "] Người lạ rời khu vực" + durationStr : "Người lạ rời khu vực" + durationStr)
-                : (cleanRoi != null ? "[VÀO ROI: " + cleanRoi + "] Người dùng không tồn tại" : "Người dùng không tồn tại");
-
+        String finalDeniedReason = cleanRoi != null ? "[VÀO ROI: " + cleanRoi + "] Người dùng không tồn tại" : "Người dùng không tồn tại";
         String effectiveUserCode = (userCode != null && !userCode.isBlank()) ? userCode : "UNKNOWN";
-        CheckCameraEntryResponse denied = isExit
-                ? CheckCameraEntryResponse.builder()
-                        .allowed(false)
-                        .source(AccessSource.NONE)
-                        .reason(finalDeniedReason)
-                        .cameraCode(camera.getCameraCode())
-                        .areaId(area.getId())
-                        .areaName(area.getName())
-                        .userCode(effectiveUserCode)
-                        .fullName("Người lạ / Chưa rõ mặt")
-                        .build()
-                : deniedAtCamera(camera, area, effectiveUserCode, finalDeniedReason);
+        CheckCameraEntryResponse denied = deniedAtCamera(camera, area, effectiveUserCode, finalDeniedReason);
         recordAccessLogSafely(denied, at);
         return denied;
     }

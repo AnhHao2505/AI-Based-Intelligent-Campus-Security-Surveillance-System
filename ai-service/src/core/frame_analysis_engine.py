@@ -520,15 +520,7 @@ class FrameAnalysisEngine:
                 duration = max(0.0, current_time - roi_enter_t)
                 exit_label = person.entered_roi_label or "Vùng giám sát"
                 exit_code = person.face_info.matched_code if (person.face_detected and person.face_info and person.face_info.matched_code) else "UNKNOWN"
-                roi_access_events.append({
-                    "user_code": exit_code,
-                    "roi_label": exit_label,
-                    "direction": "EXIT",
-                    "duration": duration
-                })
-                logger.info(
-                    f"🚶 [FrameAnalysisEngine:{camera_code}] Track #{person.track_id} ({exit_code}) RỜI KHỎI VÙNG ROI: '{exit_label}' (Thời gian ở trong vùng: {duration:.1f}s)"
-                )
+                # Không ghi log và không tạo sự kiện ra vào khi rời khỏi ROI
                 # Early Exit Fail-Secure: Kẻ gian chạy vội qua ROI vào phòng khi chưa kịp xác thực danh tính
                 # Chống flapping mép ROI: Phải ở trong ROI tối thiểu 0.2s để tránh rung giật 1 frame khi vừa chạm chân
                 if getattr(person, "security_display_state", "NEUTRAL") == "VERIFYING" and exit_code == "UNKNOWN" and duration >= ROI_MIN_DWELL_SECONDS:
@@ -874,17 +866,6 @@ class FrameAnalysisEngine:
                     logger.info(f"👋 [FrameAnalysisEngine:{camera_code}] Track #{tid} rời khỏi tầm nhìn camera")
 
         for tid in inactive_ids:
-            p = self.active_tracks[tid]
-            if getattr(p, "was_in_roi", False) and p.face_detected and p.face_info and p.face_info.matched_code:
-                p_roi_enter = p.roi_enter_time if p.roi_enter_time is not None else p.last_seen_time
-                duration = max(0.0, current_time - p_roi_enter)
-                exit_label = p.entered_roi_label or "Vùng giám sát"
-                roi_access_events.append({
-                    "user_code": p.face_info.matched_code,
-                    "roi_label": exit_label,
-                    "direction": "EXIT",
-                    "duration": duration
-                })
             del self.active_tracks[tid]
             if tid in self.pending_faces:
                 del self.pending_faces[tid]

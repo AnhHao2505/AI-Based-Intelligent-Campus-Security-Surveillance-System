@@ -1243,9 +1243,12 @@ class VideoPipeline:
             alerts = early_alerts + alerts
 
         # 4b. Xử lý ghi log sự kiện RA / VÀO vùng ROI ngầm (Async qua ThreadPoolExecutor)
+        # Lưu ý: Chức năng ghi log khi out ROI đã bị xoá, bỏ qua toàn bộ sự kiện EXIT
         if roi_events and self.face_matcher:
             log_executor = getattr(self, "access_log_executor", None) or self.access_executor
             for ev in roi_events:
+                if ev.get("direction") == "EXIT":
+                    continue
                 if log_executor and not getattr(log_executor, "_shutdown", False):
                     log_executor.submit(
                         self.face_matcher.check_camera_access,

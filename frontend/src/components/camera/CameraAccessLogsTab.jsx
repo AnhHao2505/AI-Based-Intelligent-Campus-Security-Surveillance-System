@@ -85,7 +85,11 @@ export default function CameraAccessLogsTab({ camera }) {
       });
 
       if (data) {
-        setLogs(data.content || []);
+        const filtered = (data.content || []).filter((item) => {
+          const r = item.reasonDetails || "";
+          return !r.includes("RA KHỎI ROI") && !r.includes("Rời khỏi") && !r.includes("rời khu vực");
+        });
+        setLogs(filtered);
         setTotalPages(data.totalPages || 0);
         setTotalElements(data.totalElements || 0);
       }
@@ -148,6 +152,13 @@ export default function CameraAccessLogsTab({ camera }) {
   }, [camera?.cameraCode, activeFilter]);
 
   const handleIncomingLiveLog = (newLog) => {
+    if (!newLog) return;
+    const r = newLog.reasonDetails || "";
+    // Bỏ qua log sự kiện rời khỏi ROI
+    if (r.includes("RA KHỎI ROI") || r.includes("Rời khỏi") || r.includes("rời khu vực")) {
+      return;
+    }
+
     // 1. Update stats counter
     setStats((prev) => {
       const next = { ...prev, totalToday: prev.totalToday + 1 };
@@ -189,9 +200,8 @@ export default function CameraAccessLogsTab({ camera }) {
     let text = String(reason).trim();
 
     // Chuẩn hóa hiển thị sự kiện ra vào qua ROI
-    if (text.includes("[RA KHỎI ROI:") || text.includes("[VÀO ROI:")) {
+    if (text.includes("[VÀO ROI:")) {
       text = text
-        .replace(/\[RA KHỎI ROI:\s*([^\]]+)\]\s*(Người lạ rời khu vực|Rời khu vực)?/i, "Rời khỏi [$1]")
         .replace(/\[VÀO ROI:\s*([^\]]+)\]\s*/i, "Vào [$1]: ")
         .trim();
     } else {
@@ -200,7 +210,6 @@ export default function CameraAccessLogsTab({ camera }) {
 
     if (
       accessResult === "UNKNOWN_PERSON" &&
-      !text.includes("Rời khỏi") &&
       (text.includes("không tồn tại") ||
         text.includes("đã bị xoá") ||
         text.includes("chưa đăng ký") ||
@@ -218,7 +227,7 @@ export default function CameraAccessLogsTab({ camera }) {
       accessResult === "UNAUTHORIZED_ACCESS" ||
       accessResult === "ACCESS_OUT_OF_TIME"
     ) {
-      if (!text.includes("Rời khỏi") && !text.includes("Vào [")) {
+      if (!text.includes("Vào [")) {
         return minimizeReason(text);
       }
     }
