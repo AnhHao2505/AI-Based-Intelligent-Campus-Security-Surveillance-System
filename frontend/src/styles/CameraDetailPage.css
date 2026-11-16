@@ -1777,8 +1777,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   justify-content: center;
 }
 
-/* 2D Camera Placement & FoV Controls Card */
-.cam-fov-card {
+/* 2D Camera Map Placement Card */
+.cam-map-card {
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
@@ -1788,14 +1788,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   background: var(--theme-bg-surface-elevated);
 }
 
-.cam-fov-card__header {
+.cam-map-card__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
 }
 
-.cam-fov-card__title {
+.cam-map-card__title {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
@@ -1804,7 +1804,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--theme-text-primary);
 }
 
-.cam-fov-card__remove {
+.cam-map-card__remove {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -1818,105 +1818,17 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
-.cam-fov-card__remove:hover {
+.cam-map-card__remove:hover {
   background: rgba(220, 38, 38, 0.08);
 }
 
-.cam-fov-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.cam-fov-compass-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.cam-fov-compass {
-  position: relative;
-  width: 72px;
-  height: 72px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  border: 2px solid var(--brand-blue, #034ea2);
-  background: var(--theme-bg-surface);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  user-select: none;
-}
-
-.cam-fov-compass__n {
-  position: absolute;
-  top: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--theme-text-muted);
-}
-
-.cam-fov-compass__needle {
-  position: absolute;
-  inset: 6px;
-  pointer-events: none;
-}
-
-.cam-fov-compass__needle::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 3px;
-  height: 50%;
-  background: var(--brand-orange, #f37021);
-  border-radius: 2px;
-  transform: translateX(-50%);
-}
-
-.cam-fov-compass__deg {
-  position: relative;
-  z-index: 1;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--theme-text-primary);
-  background: var(--theme-bg-surface);
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-
-.cam-fov-sliders {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-
-.cam-fov-slider-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 0.75rem;
-  color: var(--theme-text-secondary);
-}
-
-.cam-fov-slider-item input[type="range"] {
-  width: 100%;
-  accent-color: var(--brand-blue, #034ea2);
-  cursor: pointer;
-}
-
-.cam-fov-card__hint {
+.cam-map-card__hint {
   font-size: 0.72rem;
   color: var(--theme-text-muted);
   line-height: 1.35;
 }
 
-.cam-fov-card__empty {
+.cam-map-card__empty {
   margin: 0;
   font-size: 0.75rem;
   color: var(--theme-text-muted);

@@ -4198,34 +4198,6 @@
   gap: 6px;
 }
 
-.cam-sidebar-fov-toggle {
-  width: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-bg-surface);
-  color: var(--theme-text-muted);
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.cam-sidebar-fov-toggle:hover {
-  border-color: #10b981;
-  color: #047857;
-}
-
-.cam-sidebar-fov-toggle--active {
-  border-color: rgba(16, 185, 129, 0.45);
-  background: rgba(16, 185, 129, 0.12);
-  color: #047857;
-}
-
 .cam-sidebar-scope-chip {
   width: 100%;
   display: inline-flex;

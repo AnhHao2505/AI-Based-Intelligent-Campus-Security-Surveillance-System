@@ -63,7 +63,7 @@ import {
 	resolveCameraInspectorAccess,
 	fetchAllPaginatedPages,
 } from "../../utils/campusCameraHelpers";
-import { buildCameraPlacementsMap } from "../../utils/cameraFovGeometry";
+import { buildCameraPlacementsMap } from "../../utils/cameraMapGeometry";
 import {
 	DEFAULT_BUILDINGS_META,
 	matchesBuilding,
@@ -1372,7 +1372,6 @@ export default function AreaListPage() {
 							onDeleteCamera={(cam) => setSidebarDeleteTarget(cam)}
 							actionLoadingId={cameraActionLoadingId}
 							cameraMapPlacements={cameraMapPlacements}
-							fovPlacements={cameraMapPlacements}
 							onPickLocationForCamera={(cam) => {
 								handleSelectCamera(cam, "general");
 								setPickingCameraArea(false);
@@ -1395,12 +1394,12 @@ export default function AreaListPage() {
 							pickingCameraArea={pickingCameraArea}
 							onCancelPickCameraArea={() => setPickingCameraArea(false)}
 							onAreaPickedForCamera={handleAreaPickedForCamera}
-							fovPlacements={cameraMapPlacements}
+							cameraMapPlacements={cameraMapPlacements}
 							pickingCameraLocation={pickingCameraLocation}
 							onCancelPickCameraLocation={() => setPickingCameraLocation(false)}
 							onCameraLocationPicked={handleCameraLocationPicked}
 							onSelectCameraPin={handleSelectCameraPin}
-							onUpdateCameraFov={handleUpdateCameraLocation}
+							onUpdateCameraMapLocation={handleUpdateCameraLocation}
 							onCommitCameraLocation={handleCommitCameraLocation}
 							rightDrawerContent={
 								isAdmin && selectedCameraId ? (
@@ -1426,16 +1425,12 @@ export default function AreaListPage() {
 											setPickedAreaOverride(null)
 										}
 										mapPlacement={cameraMapPlacements?.[selectedCameraId] || null}
-										fovPlacement={cameraMapPlacements?.[selectedCameraId] || null}
 										isPickingLocationOnMap={pickingCameraLocation}
 										onRequestPickLocationOnMap={() => {
 											setPickingCameraArea(false);
 											setPickingCameraLocation((v) => !v);
 										}}
 										onRemoveMapLocation={() =>
-											handleRemoveCameraLocation(selectedCameraId)
-										}
-										onRemoveFov={() =>
 											handleRemoveCameraLocation(selectedCameraId)
 										}
 									/>

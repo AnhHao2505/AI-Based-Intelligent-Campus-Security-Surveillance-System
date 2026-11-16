@@ -6,7 +6,6 @@
 
 const CAMERA_BADGE_SPRITE_PREFIX = "cam-badge::";
 const CAMERA_PIN_SPRITE_PREFIX = "cam-pin::";
-const FOV_HANDLE_SPRITE_PREFIX = "fov-handle::";
 
 export function parseCameraPinSpriteId(spriteId) {
 	if (
@@ -240,54 +239,16 @@ export function createCameraPinSpriteImageData(spriteId) {
 	return ctx.getImageData(0, 0, logicalSize * SCALE, logicalSize * SCALE);
 }
 
-export function createFovHandleSpriteImageData() {
-	if (typeof document === "undefined") return null;
-	const SCALE = 2;
-	const logicalSize = 22;
-	const canvas = document.createElement("canvas");
-	canvas.width = logicalSize * SCALE;
-	canvas.height = logicalSize * SCALE;
-	const ctx = canvas.getContext("2d");
-	if (!ctx) return null;
-
-	ctx.scale(SCALE, SCALE);
-	ctx.clearRect(0, 0, logicalSize, logicalSize);
-
-	const c = logicalSize / 2;
-	ctx.save();
-	ctx.shadowColor = "rgba(15, 23, 42, 0.28)";
-	ctx.shadowBlur = 4;
-	ctx.shadowOffsetY = 1;
-	ctx.beginPath();
-	ctx.arc(c, c, 7.5, 0, Math.PI * 2);
-	ctx.fillStyle = "#ffffff";
-	ctx.fill();
-	ctx.restore();
-
-	ctx.beginPath();
-	ctx.arc(c, c, 5.5, 0, Math.PI * 2);
-	ctx.fillStyle = "#10b981";
-	ctx.fill();
-	ctx.lineWidth = 1.5;
-	ctx.strokeStyle = "#047857";
-	ctx.stroke();
-
-	return ctx.getImageData(0, 0, logicalSize * SCALE, logicalSize * SCALE);
-}
-
 export function ensureCameraBadgeSpriteImage(map, spriteId) {
 	if (!map || !spriteId) return false;
 	const isPin = spriteId.startsWith(CAMERA_PIN_SPRITE_PREFIX);
 	const isBadge = spriteId.startsWith(CAMERA_BADGE_SPRITE_PREFIX);
-	const isHandle = spriteId.startsWith(FOV_HANDLE_SPRITE_PREFIX);
-	if (!isPin && !isBadge && !isHandle) return false;
+	if (!isPin && !isBadge) return false;
 
 	if (map.hasImage?.(spriteId)) return true;
-	const imgData = isHandle
-		? createFovHandleSpriteImageData()
-		: isPin
-			? createCameraPinSpriteImageData(spriteId)
-			: createCameraBadgeSpriteImageData(spriteId);
+	const imgData = isPin
+		? createCameraPinSpriteImageData(spriteId)
+		: createCameraBadgeSpriteImageData(spriteId);
 	if (!imgData) return false;
 	try {
 		map.addImage(spriteId, imgData, { pixelRatio: 2 });

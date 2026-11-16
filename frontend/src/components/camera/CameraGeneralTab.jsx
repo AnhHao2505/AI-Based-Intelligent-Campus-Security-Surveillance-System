@@ -19,17 +19,12 @@ export default function CameraGeneralTab({
 	onSubmit,
 	isAdmin = true,
 	showAreaExternalLink = false,
-	fovPlacement = null,
 	mapPlacement = null,
 	isPickingLocationOnMap = false,
 	onPickLocationOnMap = null,
-	onUpdateFov = null,
-	onRemoveFov = null,
 	onRemoveMapLocation = null,
 }) {
 	const navigate = useNavigate();
-	const activePlacement = mapPlacement || fovPlacement;
-	const handleRemoveLocation = onRemoveMapLocation || onRemoveFov;
 
 	const sortedAreaOptions = useMemo(() => {
 		const sorted = [...availableAreas].sort((a, b) => {
@@ -116,7 +111,7 @@ export default function CameraGeneralTab({
 						)}
 					</div>
 					{selectedArea && selectedLevelCfg && (
-						<div className="cam-fov-card__hint" style={{ marginTop: "4px" }}>
+						<div className="cam-map-card__hint" style={{ marginTop: "4px" }}>
 							Cấp bảo mật:{" "}
 							<strong style={{ color: selectedLevelCfg.color }}>
 								{selectedLevelCfg.badgeLabel || selectedLevelCfg.name}
@@ -127,17 +122,17 @@ export default function CameraGeneralTab({
 			</div>
 
 			{onPickLocationOnMap && isAdmin && (
-				<div className="cam-fov-card">
-					<div className="cam-fov-card__header">
-						<div className="cam-fov-card__title">
+				<div className="cam-map-card">
+					<div className="cam-map-card__header">
+						<div className="cam-map-card__title">
 							<MapPin size={14} />
 							<span>Vị trí icon trên bản đồ 2D</span>
 						</div>
-						{activePlacement && handleRemoveLocation && (
+						{mapPlacement && onRemoveMapLocation && (
 							<button
 								type="button"
-								className="cam-fov-card__remove"
-								onClick={handleRemoveLocation}
+								className="cam-map-card__remove"
+								onClick={onRemoveMapLocation}
 								title="Xóa icon khỏi bản đồ"
 							>
 								<Trash2 size={13} />
@@ -146,11 +141,11 @@ export default function CameraGeneralTab({
 						)}
 					</div>
 
-					{!activePlacement ? (
+					{!mapPlacement ? (
 						<>
 							<button
 								type="button"
-								className={`cam-pick-3d-btn cam-fov-card__pick-btn ${isPickingLocationOnMap ? "cam-pick-3d-btn--active" : ""}`}
+								className={`cam-pick-3d-btn cam-map-card__pick-btn ${isPickingLocationOnMap ? "cam-pick-3d-btn--active" : ""}`}
 								onClick={onPickLocationOnMap}
 							>
 								<MapPin size={14} />
@@ -160,13 +155,13 @@ export default function CameraGeneralTab({
 										: "Đặt vị trí trên bản đồ"}
 								</span>
 							</button>
-							<p className="cam-fov-card__empty">
+							<p className="cam-map-card__empty">
 								Chưa ghim trên bản đồ. Bấm nút để chọn vị trí.
 							</p>
 						</>
 					) : (
-						<div className="cam-fov-card__hint">
-							Đã ghim vị trí ({activePlacement.building || "Khuôn viên"}). Kéo icon trên bản đồ để dời.
+						<div className="cam-map-card__hint">
+							Đã ghim vị trí ({mapPlacement.building || "Khuôn viên"}). Kéo icon trên bản đồ để dời.
 						</div>
 					)}
 				</div>

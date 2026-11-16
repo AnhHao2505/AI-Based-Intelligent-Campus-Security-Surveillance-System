@@ -25,10 +25,8 @@ export default function CameraWorkspaceSidebar({
 	selectedFloor = "ALL",
 	isAdmin = false,
 	onOpenCreateCamera,
-	fovPlacements = {},
-	cameraMapPlacements = null,
+	cameraMapPlacements = {},
 }) {
-	const activePlacements = cameraMapPlacements || fovPlacements;
 	const [search, setSearch] = useState("");
 	const [opStatusFilter, setOpStatusFilter] = useState("ALL");
 	const [statusFilter, setStatusFilter] = useState("ALL");
@@ -276,7 +274,7 @@ export default function CameraWorkspaceSidebar({
 										className="zone-item-row__meta"
 										onClick={(e) => e.stopPropagation()}
 									>
-										{activePlacements?.[cam.id] && (
+										{cameraMapPlacements?.[cam.id] && (
 											<span
 												className="cam-sidebar-code-chip"
 												style={{

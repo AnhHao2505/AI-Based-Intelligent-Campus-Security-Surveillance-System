@@ -149,7 +149,7 @@ export function buildCameraPlacementsMap(cameras = [], optimisticById = {}) {
  * Builds GeoJSON pin features for 2D camera icons filtered to the active building & floorOrder.
  * Soft-deleted cameras are excluded.
  */
-export function buildCameraFovMapGeoJson({
+export function buildCameraMapPinGeoJson({
 	cameras = [],
 	placementsById = {},
 	building = null,
@@ -214,8 +214,5 @@ export function buildCameraFovMapGeoJson({
 
 	return {
 		pinFeatures,
-		fovFeatures: [],
-		sightlineFeatures: [],
-		handleFeatures: [],
 	};
 }
