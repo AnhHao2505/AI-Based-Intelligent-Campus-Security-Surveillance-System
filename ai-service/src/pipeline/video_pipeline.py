@@ -532,6 +532,9 @@ class VideoPipeline:
         existing.alert_unknown_sent = False
         existing.alert_unauthorized_sent = False
         existing.unknown_verdict_time = None
+        existing.unknown_verdict_session_id = None
+        existing.identity_update_sent = False
+        existing.entry_logged_as_unknown = False
         existing.roi_entry_logged = False
         logger.warning(
             f"🕵️ [VideoPipeline:{self.camera_code}] Track #{existing.track_id}: danh tính kế thừa [{old_code}] "
@@ -1104,6 +1107,8 @@ class VideoPipeline:
                                 existing.alert_unauthorized_sent = False
                                 existing.alert_unknown_sent = False
                                 existing.unknown_verdict_time = None
+                                existing.unknown_verdict_session_id = None
+                                existing.identity_update_sent = False
                                 # Cooldown cảnh báo vi phạm theo track nằm ở engine (track_last_unauthorized_alert_time),
                                 # không phải thuộc tính trên person: xoá đúng chỗ engine đọc để B không bị chặn bởi
                                 # cooldown 30s còn lại của A.

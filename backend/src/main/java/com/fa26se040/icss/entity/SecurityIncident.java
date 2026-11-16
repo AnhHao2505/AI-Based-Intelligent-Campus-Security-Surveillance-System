@@ -116,6 +116,10 @@ public class SecurityIncident {
     @Column(name = "subject_user_code", length = 50)
     private String subjectUserCode;
 
+    // V129: roi_session_id AI gửi kèm cảnh báo người lạ; IDENTITY_UPDATE gửi sau dùng mã này để tìm lại sự cố
+    @Column(name = "ai_session_id", length = 64)
+    private String aiSessionId;
+
     @Version
     @Column(name = "version", nullable = false)
     @Builder.Default

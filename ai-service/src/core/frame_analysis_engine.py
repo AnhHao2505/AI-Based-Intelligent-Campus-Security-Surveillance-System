@@ -1,5 +1,6 @@
 import re
 import time
+import uuid
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -242,16 +243,74 @@ class FrameAnalysisEngine:
             track_id=person.track_id,
             confidence=person.bbox.confidence,
             details=det_msg,
-            location={"label": roi_label}
+            location={"label": roi_label},
+            roi_session_id=self._start_unknown_verdict(person, current_time)
         ))
         logger.warning(
             f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH: [{evt_type}] "
             f"Track #{person.track_id} ({evt_type}), Vị trí: {location_display}"
         )
         person.alert_unknown_sent = True
-        person.unknown_verdict_time = current_time
         self.last_unknown_alert_time[camera_code] = current_time
         self.track_last_unknown_alert_time[person.track_id] = current_time
+
+    @staticmethod
+    def _start_unknown_verdict(person: TrackedPerson, current_time: float) -> str:
+        """Ghi nhận vừa chốt cảnh báo không danh tính; trả mã phiên gửi kèm cảnh báo."""
+        person.unknown_verdict_time = current_time
+        person.unknown_verdict_session_id = str(uuid.uuid4())
+        person.identity_update_sent = False
+        return person.unknown_verdict_session_id
+
+    def _emit_identity_update(
+        self,
+        person: TrackedPerson,
+        outcome: str,
+        camera_code: str,
+        generated_alerts: List[SecurityAlertEvent],
+        details: str,
+        location: Optional[Dict[str, Any]],
+    ) -> None:
+        """
+        Đã chốt cảnh báo không danh tính cho người này, nay mới nhận ra mặt -> gửi IDENTITY_UPDATE (1 lần) để Backend
+        cập nhật sự cố cũ (UNAUTHORIZED: thêm tên, lý do) hoặc tự đóng (AUTHORIZED). Không phải cảnh báo mới.
+        """
+        session_id = getattr(person, "unknown_verdict_session_id", None)
+        if not session_id or getattr(person, "identity_update_sent", False):
+            return
+        face = person.face_info
+        user_code = getattr(face, "matched_code", None) if face else None
+        if not user_code:
+            return
+        user_name = getattr(face, "matched_name", None) or user_code
+        generated_alerts.append(SecurityAlertEvent(
+            camera_code=camera_code,
+            event_type="IDENTITY_UPDATE",
+            track_id=person.track_id,
+            confidence=person.bbox.confidence,
+            details=details,
+            location=location,
+            roi_session_id=session_id,
+            identity_outcome=outcome,
+            user_code=user_code,
+            user_name=user_name,
+        ))
+        person.identity_update_sent = True
+        logger.info(
+            f"🪪 [FrameAnalysisEngine:{camera_code}] Track #{person.track_id}: nhận ra {user_name} ({user_code}) sau cảnh báo "
+            f"người lạ -> gửi IDENTITY_UPDATE [{outcome}] cho phiên {session_id}"
+        )
+
+    def _emit_authorized_identity_update(
+        self, person: TrackedPerson, camera_code: str, generated_alerts: List[SecurityAlertEvent], location: Optional[Dict[str, Any]]
+    ) -> None:
+        face = person.face_info
+        code = getattr(face, "matched_code", None) if face else None
+        name = (getattr(face, "matched_name", None) if face else None) or code
+        self._emit_identity_update(
+            person, "AUTHORIZED", camera_code, generated_alerts,
+            f"[IDENTITY_UPDATE] Tên: {name} ({code})\nKết quả: Có quyền ra vào", location
+        )
 
     def _set_security_display_state(
         self,
@@ -462,6 +521,9 @@ class FrameAnalysisEngine:
                         person.alert_unknown_sent = old_p.alert_unknown_sent
                         person.alert_after_hours_sent = old_p.alert_after_hours_sent
                         person.unknown_verdict_time = getattr(old_p, "unknown_verdict_time", None)
+                        person.unknown_verdict_session_id = getattr(old_p, "unknown_verdict_session_id", None)
+                        person.identity_update_sent = getattr(old_p, "identity_update_sent", False)
+                        person.entry_logged_as_unknown = getattr(old_p, "entry_logged_as_unknown", False)
                         person.first_seen_time = old_p.first_seen_time
                         person.has_entered_roi = getattr(old_p, "has_entered_roi", False)
                         person.roi_first_entered_time = getattr(old_p, "roi_first_entered_time", None)
@@ -534,6 +596,7 @@ class FrameAnalysisEngine:
                 person.roi_enter_time = None
                 person.entered_roi_label = None
                 person.roi_entry_logged = False
+                person.entry_logged_as_unknown = False
                 # Chống flapping mép ROI: Không reset cờ alert_unauthorized_sent ngay khi vừa rời ROI
                 # Cờ này được duy trì và chỉ reset khi hết cooldown thời gian hoặc track bị hủy.
                 if getattr(person, "security_display_state", "NEUTRAL") not in ("UNKNOWN", "INTRUSION", "UNAUTHORIZED"):
@@ -566,6 +629,17 @@ class FrameAnalysisEngine:
                             "duration": 0.0
                         })
                         person.roi_entry_logged = True
+                        person.entry_logged_as_unknown = True
+                elif person.entry_logged_as_unknown and person.face_detected and person.face_info and person.face_info.matched_code:
+                    # Đã ghi ENTRY "UNKNOWN" rồi mới nhận ra mặt: ghi bổ sung ENTRY mang mã người thật (EXIT sau này cũng
+                    # ghi mã người thật). Bản ghi UNKNOWN cũ giữ nguyên trong nhật ký ra vào.
+                    roi_access_events.append({
+                        "user_code": person.face_info.matched_code,
+                        "roi_label": person.entered_roi_label or matched_label or "Vùng giám sát",
+                        "direction": "ENTRY",
+                        "duration": 0.0
+                    })
+                    person.entry_logged_as_unknown = False
 
                 loc_info = {"label": matched_label} if matched_label else None
                 target_area_name = getattr(person.face_info, "area_name", None) if person.face_info else None
@@ -623,6 +697,8 @@ class FrameAnalysisEngine:
                     if is_night_authorized:
                         # Người có thẩm quyền hợp lệ: Không sinh sự cố vi phạm (AUTHORIZED_PERSON chỉ ghi lịch sử ra vào)
                         self._set_security_display_state(person, "AUTHORIZED", camera_code, "Có thẩm quyền hợp lệ")
+                        # Đã lỡ chốt cảnh báo người lạ trước khi nhận ra mặt -> báo Backend tự đóng sự cố đó
+                        self._emit_authorized_identity_update(person, camera_code, generated_alerts, loc_info)
                     elif is_public_area and not after_hours:
                         # Khu vực Cấp 1 (Công khai - PUBLIC): Ban ngày tất cả mọi người vẫn vào bình thường -> KHÔNG cảnh báo UNAUTHORIZED_PERSON!
                         self._set_security_display_state(person, "AUTHORIZED", camera_code, "Có thẩm quyền hợp lệ")
@@ -647,9 +723,8 @@ class FrameAnalysisEngine:
                         user_unauth_cooldown_ok = (last_unauth_user_ts is None) or ((current_time - last_unauth_user_ts) >= self.unauthorized_alert_cooldown)
 
                         should_alert_unauth = (not person.alert_unauthorized_sent) if (last_unauth_track_ts is None and last_unauth_user_ts is None) else (track_unauth_cooldown_ok and user_unauth_cooldown_ok)
-                        if should_alert_unauth and self._unknown_verdict_active(person, current_time):
-                            self._absorb_late_identity(person, matched_code, camera_code)
-                            should_alert_unauth = False
+                        # Đã chốt cảnh báo người lạ cho người này -> không phát cảnh báo thứ hai, gửi IDENTITY_UPDATE
+                        absorb_now = should_alert_unauth and self._unknown_verdict_active(person, current_time)
                         if should_alert_unauth:
                             clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
                             if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
@@ -686,6 +761,10 @@ class FrameAnalysisEngine:
                                     minimal_reason = "Không có quyền"
                                 detail_msg = f"[UNAUTHORIZED_PERSON] Tên: {matched_name} ({matched_code})\nLý do: {minimal_reason}\nVị trí: {location_display}"
 
+                            if absorb_now:
+                                self._absorb_late_identity(person, matched_code, camera_code)
+                                self._emit_identity_update(person, "UNAUTHORIZED", camera_code, generated_alerts, detail_msg, loc_info)
+                        if should_alert_unauth and not absorb_now:
                             alert = SecurityAlertEvent(
                                 camera_code=camera_code,
                                 event_type=event_type,
@@ -776,7 +855,7 @@ class FrameAnalysisEngine:
                                     f"Track #{person.track_id} ({event_type}), Vị trí: {location_display}"
                                 )
                                 person.alert_unknown_sent = True
-                                person.unknown_verdict_time = current_time
+                                alert.roi_session_id = self._start_unknown_verdict(person, current_time)
                                 self.last_unknown_alert_time[camera_code] = current_time
                                 self.track_last_unknown_alert_time[person.track_id] = current_time
                                 if after_hours:
@@ -798,10 +877,12 @@ class FrameAnalysisEngine:
                                     self._set_security_display_state(person, "AUTHORIZED", camera_code, "Có thẩm quyền hợp lệ")
                                     person.alert_unauthorized_sent = False
                                     person.alert_unknown_sent = False
+                                    self._emit_authorized_identity_update(
+                                        person, camera_code, generated_alerts, {"label": person.entered_roi_label or "Vùng giám sát"}
+                                    )
                                 else:
                                     self._set_security_display_state(person, "UNAUTHORIZED", camera_code, "Từ chối truy cập / Không có quyền")
-                                    if not person.alert_unauthorized_sent and self._unknown_verdict_active(person, current_time):
-                                        self._absorb_late_identity(person, person.face_info.matched_code, camera_code)
+                                    late_absorb = (not person.alert_unauthorized_sent) and self._unknown_verdict_active(person, current_time)
                                     if not person.alert_unauthorized_sent:
                                         matched_code = person.face_info.matched_code
                                         matched_name = getattr(person.face_info, "matched_name", matched_code)
@@ -820,6 +901,14 @@ class FrameAnalysisEngine:
                                         location_display = re.sub(r"\s*\([^)]*(?:vùng|roi)[^)]*\)", "", raw_loc, flags=re.IGNORECASE).strip() or raw_loc
 
                                         detail_msg = f"[UNAUTHORIZED_PERSON] Tên: {matched_name} ({matched_code})\nLý do: {minimal_reason}\nVị trí: {location_display}"
+                                        if late_absorb:
+                                            # Đã chốt cảnh báo người lạ -> không phát cảnh báo thứ hai, gửi IDENTITY_UPDATE
+                                            self._absorb_late_identity(person, matched_code, camera_code)
+                                            self._emit_identity_update(
+                                                person, "UNAUTHORIZED", camera_code, generated_alerts, detail_msg,
+                                                {"label": person.entered_roi_label or "Vùng giám sát"}
+                                            )
+                                    if not person.alert_unauthorized_sent:
                                         alert = SecurityAlertEvent(
                                             camera_code=camera_code,
                                             event_type="UNAUTHORIZED_PERSON",

@@ -43,4 +43,20 @@ public class IncidentEventDto {
 
     @JsonProperty("location")
     private Map<String, Object> location;
+
+    /** V129: mã phiên AI của cảnh báo người lạ; IDENTITY_UPDATE gửi lại đúng mã này. */
+    @JsonProperty("roi_session_id")
+    private String roiSessionId;
+
+    /** Chỉ có ở IDENTITY_UPDATE: AUTHORIZED | UNAUTHORIZED. */
+    @JsonProperty("identity_outcome")
+    private String identityOutcome;
+
+    /** Chỉ có ở IDENTITY_UPDATE: mã người AI vừa nhận ra. */
+    @JsonProperty("user_code")
+    private String userCode;
+
+    /** Chỉ có ở IDENTITY_UPDATE: tên người AI vừa nhận ra. */
+    @JsonProperty("user_name")
+    private String userName;
 }

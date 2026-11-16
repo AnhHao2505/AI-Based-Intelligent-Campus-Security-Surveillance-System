@@ -855,10 +855,28 @@ export function SecuritySurveillancePage() {
 											claimedById: update.claimedById || a.claimedById,
 											severity: update.severity || a.severity,
 											dispatchStage: update.dispatchStage || a.dispatchStage,
+											// V129: AI nhận ra người sau cảnh báo người lạ -> backend cập nhật loại / nội dung sự cố
+											...(update.identityUpdate && update.eventType
+												? { eventType: update.eventType }
+												: {}),
+											...(update.identityUpdate && update.resolutionNotes
+												? {
+														message: cleanIncidentMessage(
+															update.resolutionNotes,
+															update.eventType || a.eventType,
+															a.cameraName,
+															a.cameraCode,
+														),
+													}
+												: {}),
 										}
 										: a,
 								),
 							);
+							// Câu báo xác minh danh tính muộn (tự đóng / cập nhật), hiện như toast, không phát âm thanh
+							if (update.identityNotice) {
+								triggerNotification(update.identityNotice);
+							}
 						} catch (err) {
 							console.error("Lỗi parse incident update:", err);
 						}

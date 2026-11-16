@@ -4,7 +4,8 @@ Một lượt vào ROI chỉ có một cảnh báo (hold buffer + chốt cảnh 
 - Hết grace mà KHÔNG thấy mặt nào dùng được -> UNKNOWN ngay (như cũ).
 - Hết grace mà ĐANG thấy mặt (chưa khớp) -> giữ thêm tối đa identity_hold_seconds; khớp được trong lúc giữ thì chỉ
   phát đúng một cảnh báo theo danh tính, không có UNKNOWN.
-- Đã chốt UNKNOWN rồi mới nhận ra mặt -> không phát thêm UNAUTHORIZED trong unknown_alert_cooldown.
+- Đã chốt UNKNOWN rồi mới nhận ra mặt -> không phát thêm UNAUTHORIZED trong unknown_alert_cooldown, chỉ gửi
+  IDENTITY_UPDATE (1 lần, cùng roi_session_id với cảnh báo cũ) để Backend cập nhật / tự đóng sự cố.
 - Rời ROI trong lúc giữ -> Early Exit phát UNKNOWN ngay (fail-secure).
 """
 from src.config import settings
@@ -45,6 +46,11 @@ def _face(t, code=None, authorized=False, checked=False):
 def _step(engine, t, bbox=BBOX, **kw):
     _, alerts, events = engine.process_frame(detected_tracks=[(1, bbox)], camera_code=CAM, current_time=t, **kw)
     return [a.event_type for a in alerts], events
+
+
+def _step_raw(engine, t, bbox=BBOX, **kw):
+    _, alerts, events = engine.process_frame(detected_tracks=[(1, bbox)], camera_code=CAM, current_time=t, **kw)
+    return alerts, events
 
 
 def test_no_usable_face_fires_unknown_right_after_grace():
@@ -104,17 +110,60 @@ def test_match_during_hold_authorized_gives_no_alert():
     assert engine.active_tracks[1].security_display_state == "AUTHORIZED"
 
 
-def test_late_identity_after_unknown_verdict_does_not_fire_second_alert():
+def test_late_identity_after_unknown_verdict_sends_identity_update_not_second_alert():
     engine = _engine()
     _step(engine, 0.0)
-    assert _step(engine, 1.6)[0] == ["UNKNOWN_PERSON"]
+    unknown, _ = _step_raw(engine, 1.6)
+    assert [a.event_type for a in unknown] == ["UNKNOWN_PERSON"]
+    session_id = unknown[0].roi_session_id
+    assert session_id and unknown[0].to_dict()["roi_session_id"] == session_id
 
     engine.associate_face(1, _face(2.6, code="U002", authorized=False, checked=True))
     collected = []
     for t in (2.6, 3.0, 10.0):
+        collected += _step_raw(engine, t)[0]
+    assert [a.event_type for a in collected] == ["IDENTITY_UPDATE"], "Không có cảnh báo thứ hai, chỉ 1 bản cập nhật"
+    update = collected[0].to_dict()
+    assert update["roi_session_id"] == session_id
+    assert update["identity_outcome"] == "UNAUTHORIZED"
+    assert update["user_code"] == "U002" and update["user_name"] == "Người U002"
+    assert "Người U002 (U002)" in update["details"]
+    assert engine.active_tracks[1].security_display_state == "UNAUTHORIZED"
+
+
+def test_late_authorized_identity_sends_authorized_update_once():
+    engine = _engine()
+    _step(engine, 0.0)
+    unknown, _ = _step_raw(engine, 1.6)
+    engine.associate_face(1, _face(2.6, code="A002", authorized=True, checked=True))
+    collected = []
+    for t in (2.6, 3.0, 4.0):
+        collected += _step_raw(engine, t)[0]
+    assert [(a.event_type, a.identity_outcome) for a in collected] == [("IDENTITY_UPDATE", "AUTHORIZED")]
+    assert collected[0].roi_session_id == unknown[0].roi_session_id
+    assert engine.active_tracks[1].security_display_state == "AUTHORIZED"
+
+
+def test_identified_on_time_sends_no_identity_update():
+    engine = _engine()
+    _step(engine, 0.0)
+    engine.associate_face(1, _face(0.5, code="A003", authorized=True, checked=True))
+    collected = []
+    for t in (0.5, 1.6, 3.0):
         collected += _step(engine, t)[0]
     assert collected == []
-    assert engine.active_tracks[1].security_display_state == "UNAUTHORIZED"
+
+
+def test_late_identity_logs_extra_entry_with_real_code():
+    engine = _engine()
+    _step(engine, 0.0)
+    _, events = _step(engine, 1.6)
+    assert [e["user_code"] for e in events if e["direction"] == "ENTRY"] == ["UNKNOWN"]
+    engine.associate_face(1, _face(2.6, code="U005", authorized=False, checked=True))
+    entries = []
+    for t in (2.6, 3.0):
+        entries += [e["user_code"] for e in _step(engine, t)[1] if e["direction"] == "ENTRY"]
+    assert entries == ["U005"], "Ghi bổ sung đúng 1 ENTRY mang mã người thật"
 
 
 def test_unknown_verdict_lock_expires_with_unknown_cooldown():
@@ -122,7 +171,7 @@ def test_unknown_verdict_lock_expires_with_unknown_cooldown():
     _step(engine, 0.0)
     assert _step(engine, 1.6)[0] == ["UNKNOWN_PERSON"]
     engine.associate_face(1, _face(2.6, code="U003", authorized=False, checked=True))
-    assert _step(engine, 2.6)[0] == []
+    assert _step(engine, 2.6)[0] == ["IDENTITY_UPDATE"]
     # Hết cooldown tính từ lúc chốt UNKNOWN (1.6 + 5.0): người vẫn còn đó thì được cảnh báo lại như bình thường
     assert _step(engine, 7.0)[0] == ["UNAUTHORIZED_PERSON"]
 
@@ -139,8 +188,8 @@ def test_late_identity_outside_roi_does_not_fire_second_alert():
     engine.associate_face(1, _face(2.5, code="U004", authorized=False, checked=True))
     collected = []
     for t in (2.5, 3.0):
-        collected += _step(engine, t, bbox=outside, roi_polygon=roi)[0]
-    assert collected == []
+        collected += _step_raw(engine, t, bbox=outside, roi_polygon=roi)[0]
+    assert [(a.event_type, a.identity_outcome, a.user_code) for a in collected] == [("IDENTITY_UPDATE", "UNAUTHORIZED", "U004")]
 
 
 def test_leaving_roi_during_hold_fires_unknown_immediately():
@@ -215,7 +264,7 @@ def test_track_reappearing_after_vanish_alert_inherits_verdict():
     # ByteTrack cấp ID mới khi người xuất hiện lại gần chỗ cũ: kế thừa cảnh báo đã chốt, không báo lại
     assert _frames(engine, (2.4, 3.0, 4.5), [(7, BBOX)]) == []
     engine.associate_face(7, _face(4.6, code="U009", authorized=False, checked=True))
-    assert _frames(engine, (4.6, 5.0), [(7, BBOX)]) == []
+    assert _frames(engine, (4.6, 5.0), [(7, BBOX)]) == [(7, "IDENTITY_UPDATE")], "Cập nhật sự cố cũ, không cảnh báo mới"
 
 
 def test_vanish_in_public_area_during_daytime_is_not_alerted():

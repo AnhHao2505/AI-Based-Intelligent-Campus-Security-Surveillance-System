@@ -129,10 +129,12 @@ def test_late_identified_authorized_person_not_flagged_unauthorized():
 
 def test_late_identified_without_decision_after_unknown_verdict_does_not_alert_twice():
     # Một lượt vào ROI chỉ có một cảnh báo: người này đã bị chốt UNKNOWN ở 1.6s (chưa thấy mặt).
-    # Nhận ra mặt ở 2.6s mà hết khoảng chờ vẫn chưa có quyết định quyền -> hiển thị UNAUTHORIZED, KHÔNG phát cảnh báo thứ hai.
+    # Nhận ra mặt ở 2.6s mà hết khoảng chờ vẫn chưa có quyết định quyền -> hiển thị UNAUTHORIZED, KHÔNG phát cảnh báo thứ hai,
+    # chỉ gửi IDENTITY_UPDATE để Backend cập nhật sự cố người lạ đã tạo.
     engine = FrameAnalysisEngine(after_hour_start="00:00", after_hour_end="00:00")
     wait = float(settings.ACCESS_CHECK_TIMEOUT_SECONDS) + 0.2
     alerts, person = _late_identified_person(engine, decision_after=999)  # không bao giờ có quyết định
-    assert [a.event_type for a in alerts] == ["UNKNOWN_PERSON"]
+    assert [a.event_type for a in alerts] == ["UNKNOWN_PERSON", "IDENTITY_UPDATE"]
+    assert alerts[1].identity_outcome == "UNAUTHORIZED"
     assert person.security_display_state == "UNAUTHORIZED"
     assert wait < 4.5 - 2.6, "Khung thời gian test phải dài hơn khoảng chờ"
