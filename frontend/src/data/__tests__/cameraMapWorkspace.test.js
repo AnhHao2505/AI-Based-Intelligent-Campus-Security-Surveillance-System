@@ -2,12 +2,12 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-	buildCameraFovMapGeoJson,
+	buildCameraMapPinGeoJson,
 	buildCameraPlacementsMap,
 	extractCameraMapPlacement,
 	projectEventToFloorLngLat,
 	resolveCameraPinStatusKey,
-} from "../../utils/cameraFovGeometry.js";
+} from "../../utils/cameraMapGeometry.js";
 
 describe("cameraMapWorkspace (API coordinates & 3D floor ray projection)", () => {
 	it("resolves pin status keys for active online, active offline, and decommissioned cameras", () => {
@@ -122,7 +122,7 @@ describe("cameraMapWorkspace (API coordinates & 3D floor ray projection)", () =>
 			},
 		];
 
-		const floor3 = buildCameraFovMapGeoJson({
+		const floor3 = buildCameraMapPinGeoJson({
 			cameras,
 			building: "Epsilon",
 			floorOrder: 3,
@@ -134,7 +134,6 @@ describe("cameraMapWorkspace (API coordinates & 3D floor ray projection)", () =>
 		assert.equal(floor3.pinFeatures[0].properties.isSelected, 1);
 		assert.equal(floor3.pinFeatures[0].properties.spriteId, "cam-pin::ok:1");
 		assert.ok(floor3.pinFeatures[0].properties.pinElevation > 10);
-		assert.equal(floor3.fovFeatures.length, 0);
 	});
 
 	it("projects pitched 3D mouse events onto elevated floor planes instead of z=0 ground", () => {

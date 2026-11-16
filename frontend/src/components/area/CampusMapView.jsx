@@ -69,9 +69,9 @@ import {
 	ensureCameraBadgeSpriteImage,
 } from "../../utils/mapCameraBadgeSprites";
 import {
-	buildCameraFovMapGeoJson,
+	buildCameraMapPinGeoJson,
 	projectEventToFloorLngLat,
-} from "../../utils/cameraFovGeometry";
+} from "../../utils/cameraMapGeometry";
 import {
 	buildCameraMapMarkersGeoJSON,
 	extractCameraAreaInfo,
@@ -187,13 +187,12 @@ export default function CampusMapView({
 	pickingCameraArea = false,
 	onCancelPickCameraArea = null,
 	onAreaPickedForCamera = null,
-	fovPlacements = {},
-	showAllFovs = true,
+	cameraMapPlacements = {},
 	pickingCameraLocation = false,
 	onCancelPickCameraLocation = null,
 	onCameraLocationPicked = null,
 	onSelectCameraPin = null,
-	onUpdateCameraFov = null,
+	onUpdateCameraMapLocation = null,
 	onCommitCameraLocation = null,
 	rightDrawerContent = null,
 	isAdmin = false,
@@ -363,9 +362,9 @@ export default function CampusMapView({
 
 	const cameraMapLayers = useMemo(
 		() =>
-			buildCameraFovMapGeoJson({
+			buildCameraMapPinGeoJson({
 				cameras,
-				placementsById: fovPlacements,
+				placementsById: cameraMapPlacements,
 				building: activeBuilding3d === "ALL" ? null : activeBuilding3d,
 				floorOrder:
 					activeFloorOrder3d === "ALL" ? null : Number(activeFloorOrder3d),
@@ -375,7 +374,7 @@ export default function CampusMapView({
 			}),
 		[
 			cameras,
-			fovPlacements,
+			cameraMapPlacements,
 			activeBuilding3d,
 			activeFloorOrder3d,
 			selectedCameraId,
@@ -901,7 +900,7 @@ export default function CampusMapView({
 			);
 			if (pinFeat?.properties?.cameraId) {
 				const camId = pinFeat.properties.cameraId;
-				const placement = fovPlacements?.[camId];
+				const placement = cameraMapPlacements?.[camId];
 				if (!placement) return;
 				e?.preventDefault?.();
 				draggingPinRef.current = {
@@ -916,7 +915,7 @@ export default function CampusMapView({
 				setHoverCursor("grabbing");
 			}
 		},
-		[fovPlacements, isAdmin, pickingCameraLocation],
+		[cameraMapPlacements, isAdmin, pickingCameraLocation],
 	);
 
 	const handleMapMouseUp = useCallback(() => {
@@ -953,7 +952,7 @@ export default function CampusMapView({
 						MercatorCoordinate,
 					) || { lng: e.lngLat.lng, lat: e.lngLat.lat };
 				drag.latestCoords = projected;
-				onUpdateCameraFov?.(drag.cameraId, {
+				onUpdateCameraMapLocation?.(drag.cameraId, {
 					lng: projected.lng,
 					lat: projected.lat,
 				});
@@ -1072,7 +1071,7 @@ export default function CampusMapView({
 			isEditingCoords,
 			pickingCameraArea,
 			pickingCameraLocation,
-			onUpdateCameraFov,
+			onUpdateCameraMapLocation,
 			cameraStatsByArea,
 			cameraCounts,
 			activeBuilding3d,

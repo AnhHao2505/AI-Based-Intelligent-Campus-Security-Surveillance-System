@@ -55,16 +55,11 @@ export default function CameraInspectorDrawer({
 	isPickingAreaOnMap = false,
 	pickedAreaOverride = null,
 	onConsumePickedAreaOverride,
-	fovPlacement = null,
 	mapPlacement = null,
 	isPickingLocationOnMap = false,
 	onRequestPickLocationOnMap,
-	onUpdateFov,
-	onRemoveFov,
 	onRemoveMapLocation,
 }) {
-	const activePlacement = mapPlacement || fovPlacement;
-	const handleRemoveLocation = onRemoveMapLocation || onRemoveFov;
 	const [activeTab, setActiveTab] = useState(
 		VALID_TABS.includes(initialTab) ? initialTab : "general",
 	);
@@ -501,10 +496,10 @@ export default function CameraInspectorDrawer({
 								saving={saving}
 								onSubmit={handleGeneralSubmit}
 								isAdmin={isAdmin}
-								mapPlacement={activePlacement}
+								mapPlacement={mapPlacement}
 								isPickingLocationOnMap={isPickingLocationOnMap}
 								onPickLocationOnMap={isAdmin ? onRequestPickLocationOnMap : null}
-								onRemoveMapLocation={handleRemoveLocation}
+								onRemoveMapLocation={onRemoveMapLocation}
 							/>
 						)}
 
