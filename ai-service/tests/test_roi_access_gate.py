@@ -95,7 +95,7 @@ def test_roi_and_access_gate():
         assert len(alerts2) > 0 and alerts2[0].event_type == "UNAUTHORIZED_PERSON", f"Lỗi: Kỳ vọng UNAUTHORIZED_PERSON nhưng nhận: {alerts2[0].event_type}"
         print(f"✅ TEST 4 PASSED: Bước chân vào ROI không có thẩm quyền -> Đã kích hoạt cảnh báo hợp lệ: {alerts2[0].event_type}")
 
-    # 5. Người bước chân ra khỏi ROI:
+    # 5. Người bước chân ra khỏi ROI: Không sinh sự kiện EXIT (đã bỏ chức năng ghi log out ROI)
     persons3, alerts3, roi_events3 = pipeline.analysis_engine.process_frame(
         detected_tracks=[(1, outside_bbox)],
         camera_code="CAM-002",
@@ -105,8 +105,8 @@ def test_roi_and_access_gate():
     )
     assert not persons3[0].is_in_roi
     exit_events = [ev for ev in roi_events3 if ev.get("direction") == "EXIT"]
-    assert len(exit_events) > 0, "Lỗi: Bước chân ra khỏi ROI phải sinh sự kiện EXIT"
-    print(f"✅ TEST 5 PASSED: Bước chân ra khỏi ROI -> Ghi nhận sự kiện EXIT với thời lượng: {exit_events[0].get('duration')}s")
+    assert len(exit_events) == 0, "Lỗi: Không được sinh sự kiện EXIT khi rời khỏi ROI"
+    print("✅ TEST 5 PASSED: Bước chân ra khỏi ROI -> Không ghi nhận sự kiện EXIT.")
 
     print("\n🎉 TẤT CẢ 5 BÀI TEST ĐÃ VƯỢT QUA 100%!")
 

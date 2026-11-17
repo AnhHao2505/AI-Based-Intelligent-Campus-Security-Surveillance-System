@@ -93,6 +93,9 @@ class FaceDetectionResult:
     # Thời điểm khuôn mặt được khớp ra danh tính này (cùng đồng hồ với current_time của pipeline).
     # Engine dùng để chờ quyết định quyền tính từ lúc nhận ra mặt, không chỉ từ lúc vào ROI.
     matched_at: Optional[float] = None
+    # Thời điểm khuôn mặt này qua bộ lọc chất lượng (đủ lớn, không mờ) và được gắn vào track.
+    # Engine dùng để biết có nên giữ thêm (hold) trước khi chốt UNKNOWN hay không.
+    seen_at: Optional[float] = None
 
 @dataclass
 class TrackedPerson:
@@ -123,6 +126,15 @@ class TrackedPerson:
     alert_unknown_sent: bool = False
     alert_after_hours_sent: bool = False
     is_inherited_identity: bool = False
+    # Thời điểm đã chốt cảnh báo KHÔNG danh tính (UNKNOWN_PERSON / PERSON_INTRUSION người lạ) cho người này.
+    # Trong unknown_alert_cooldown kể từ mốc này, danh tính nhận ra muộn không sinh thêm cảnh báo thứ hai.
+    unknown_verdict_time: Optional[float] = None
+    # Mã phiên của cảnh báo không danh tính đã chốt (gửi kèm cảnh báo, Backend lưu vào ai_session_id của sự cố).
+    # Nhận ra mặt muộn -> gửi IDENTITY_UPDATE cùng mã này để Backend cập nhật / tự đóng đúng sự cố cũ, đúng 1 lần.
+    unknown_verdict_session_id: Optional[str] = None
+    identity_update_sent: bool = False
+    # Đã ghi ENTRY "UNKNOWN" cho lượt vào ROI này: nhận ra mặt sau đó thì ghi bổ sung ENTRY mang mã người thật
+    entry_logged_as_unknown: bool = False
     
     # Vòng đời trạng thái an ninh (Sticky Security State)
     has_entered_roi: bool = False
@@ -157,7 +169,7 @@ class MotionResult:
 class SecurityAlertEvent:
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     camera_code: str = "CAM-001"
-    event_type: str = "UNKNOWN_PERSON"  # UNKNOWN_PERSON, AUTHORIZED_PERSON, UNAUTHORIZED_PERSON, PERSON_INTRUSION, SUSPICIOUS_MOVING_OBJECT
+    event_type: str = "UNKNOWN_PERSON"  # UNKNOWN_PERSON, AUTHORIZED_PERSON, UNAUTHORIZED_PERSON, PERSON_INTRUSION, SUSPICIOUS_MOVING_OBJECT, IDENTITY_UPDATE
     track_id: int = -1
     duration_seconds: float = 0.0
     confidence: float = 1.0
@@ -165,9 +177,15 @@ class SecurityAlertEvent:
     detected_at: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z")
     details: str = ""
     location: Optional[Dict[str, Any]] = None
+    # Cảnh báo không danh tính: mã phiên để Backend ghép với IDENTITY_UPDATE gửi sau
+    roi_session_id: Optional[str] = None
+    # Chỉ dùng cho event_type = IDENTITY_UPDATE: AUTHORIZED | UNAUTHORIZED, cùng mã và tên người vừa nhận ra
+    identity_outcome: Optional[str] = None
+    user_code: Optional[str] = None
+    user_name: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        data = {
             "event_id": self.event_id,
             "camera_code": self.camera_code,
             "event_type": self.event_type,
@@ -179,6 +197,11 @@ class SecurityAlertEvent:
             "details": self.details,
             "location": self.location or {}
         }
+        for key in ("roi_session_id", "identity_outcome", "user_code", "user_name"):
+            value = getattr(self, key)
+            if value is not None:
+                data[key] = value
+        return data
 
 @dataclass
 class RoiPolygonConfig:

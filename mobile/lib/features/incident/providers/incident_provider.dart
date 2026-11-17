@@ -237,6 +237,12 @@ class IncidentProvider extends ChangeNotifier {
     if (incidentId == null) return;
 
     final newStatus = (update['status'] ?? '').toString();
+    // V129: AI xác minh danh tính muộn -> backend cập nhật / tự đóng sự cố cũ và gửi kèm identityNotice.
+    // Chỉ báo cho bảo vệ đang thấy sự cố (trong hàng đợi hoặc đang xử lý); hiện câu báo, không rung, không còi.
+    final identityNotice = update['identityNotice']?.toString();
+    final identityRelevant = identityNotice != null &&
+        (_alertQueue.any((i) => i.id == incidentId) || _activeIncident?.id == incidentId);
+    _applyIdentityFields(incidentId, update);
     final currentUser = await StorageHelper.getUser();
 
     // Sự cố đã có người tiếp nhận hoặc đã xử lý xong → gỡ thông báo hệ thống của sự cố đó.
@@ -288,6 +294,38 @@ class IncidentProvider extends ChangeNotifier {
       if (_activeIncident?.id == incidentId) {
         _activeIncident = null;
       }
+      notifyListeners();
+    }
+
+    // 3. Câu báo xác minh danh tính muộn (vd. "Sự cố người lạ ... đã tự đóng: AI xác minh ... có quyền ra vào.")
+    if (identityRelevant) {
+      _peerClaimNotice = identityNotice;
+      notifyListeners();
+    }
+  }
+
+  /// V129: cập nhật loại sự cố / nội dung / ảnh bằng chứng khi AI nhận ra người sau cảnh báo người lạ (backend gửi eventType, resolutionNotes, imageUrl).
+  void _applyIdentityFields(String incidentId, Map<String, dynamic> update) {
+    final eventType = update['eventType']?.toString();
+    final notes = update['resolutionNotes']?.toString();
+    final imageUrl = update['imageUrl']?.toString();
+    if (update['identityUpdate'] != true || (eventType == null && notes == null && imageUrl == null)) return;
+    final idx = _alertQueue.indexWhere((i) => i.id == incidentId);
+    if (idx >= 0) {
+      _alertQueue[idx] = _alertQueue[idx].copyWith(
+        eventType: eventType,
+        resolutionNotes: notes,
+        imageUrl: imageUrl,
+      );
+    }
+    if (_activeIncident?.id == incidentId) {
+      _activeIncident = _activeIncident!.copyWith(
+        eventType: eventType,
+        resolutionNotes: notes,
+        imageUrl: imageUrl,
+      );
+    }
+    if (idx >= 0 || _activeIncident?.id == incidentId) {
       notifyListeners();
     }
   }

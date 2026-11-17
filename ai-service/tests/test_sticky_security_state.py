@@ -588,11 +588,12 @@ def test_early_hallway_recognition_prewarms_and_alerts_unauthorized_directly():
     assert persons4[0].security_display_state == "UNAUTHORIZED"
 
 
-def test_late_resolution_in_room_emits_unauthorized_alert():
+def test_late_resolution_in_room_updates_state_without_second_alert():
     """
     Test trường hợp lọt qua ROI lúc chưa có mặt (Early Exit -> UNKNOWN),
     nhưng khi vào trong phòng, camera soi thấy mặt là SE194249 (Cấp độ không đủ):
-    - Hệ thống PHẢI phát ngay cảnh báo UNAUTHORIZED_PERSON với tên và lý do!
+    - Một lượt vào ROI chỉ có một cảnh báo: đã chốt UNKNOWN thì KHÔNG phát thêm UNAUTHORIZED_PERSON,
+      chỉ nâng trạng thái hiển thị lên UNAUTHORIZED và gửi IDENTITY_UPDATE (tên, lý do) để Backend cập nhật sự cố cũ.
     - Khi đi ra ngoài, không phát cảnh báo lặp.
     """
     engine = FrameAnalysisEngine(unknown_alert_cooldown=30.0, unauthorized_alert_cooldown=30.0)
@@ -627,9 +628,10 @@ def test_late_resolution_in_room_emits_unauthorized_alert():
         camera_code="CAM-LAB1",
         frame_size=(1000, 1000)
     )
-    # PHẢI nâng cấp và phát ngay cảnh báo UNAUTHORIZED_PERSON!
-    assert len(alerts_upgraded) == 1
-    assert alerts_upgraded[0].event_type == "UNAUTHORIZED_PERSON"
+    # Nâng trạng thái hiển thị, KHÔNG phát cảnh báo thứ hai; chỉ gửi IDENTITY_UPDATE cho sự cố cũ
+    assert [a.event_type for a in alerts_upgraded] == ["IDENTITY_UPDATE"]
+    assert alerts_upgraded[0].roi_session_id == alerts_exit[0].roi_session_id
+    assert alerts_upgraded[0].identity_outcome == "UNAUTHORIZED"
     assert "Nguyễn Hoàng Minh" in alerts_upgraded[0].details
     assert "Cấp độ không đủ" in alerts_upgraded[0].details
     assert persons_upgraded[0].security_display_state == "UNAUTHORIZED"
