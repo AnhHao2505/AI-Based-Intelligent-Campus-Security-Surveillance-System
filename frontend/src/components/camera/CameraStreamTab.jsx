@@ -37,6 +37,7 @@ export default function CameraStreamTab({
 	stoppingStream,
 	onStartStream,
 	onStopStream,
+	isDirty = false,
 }) {
 	const [editingPath, setEditingPath] = useState(false);
 	const [showPlainPreviewPassword, setShowPlainPreviewPassword] =
@@ -417,12 +418,16 @@ export default function CameraStreamTab({
 					) : (
 						<button
 							type="button"
-							className="btn-start-stream"
+							className={`btn-start-stream ${isDirty ? "btn-start-stream--dirty" : ""}`}
 							onClick={onStartStream}
 							disabled={
 								startingStream || stoppingStream || saving || testingConnection
 							}
-							title="Kết nối Stream phát trực tiếp và khởi động worker AI phân tích"
+							title={
+								isDirty
+									? "Tự động lưu cấu hình và kết nối luồng video trực tiếp"
+									: "Kết nối Stream phát trực tiếp và khởi động worker AI phân tích"
+							}
 						>
 							{startingStream ? (
 								<>
@@ -430,12 +435,20 @@ export default function CameraStreamTab({
 										className="animate-spin"
 										size={16}
 									/>
-									<span>Đang kích hoạt...</span>
+									<span>
+										{isDirty
+											? "Đang lưu & kết nối..."
+											: "Đang kích hoạt..."}
+									</span>
 								</>
 							) : (
 								<>
 									<Play size={16} />
-									<span>Kết nối Stream</span>
+									<span>
+										{isDirty
+											? "Lưu & Kết nối Stream"
+											: "Kết nối Stream"}
+									</span>
 								</>
 							)}
 						</button>

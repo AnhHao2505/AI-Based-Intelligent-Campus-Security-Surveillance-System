@@ -451,3 +451,47 @@ export function applyLiveCameraStatus(camera, { operationalStatus, status } = {}
 		status: nextStatus,
 	};
 }
+
+/**
+ * Kiểm tra xem cấu hình RTSP hiện tại trên form có thay đổi so với cấu hình đã lưu trong DB hay không.
+ */
+export function isStreamConfigDirty(currentForm, savedConfig) {
+	if (!currentForm) return false;
+	const curHost = (currentForm.host || "").trim();
+	const curPort =
+		currentForm.port !== "" &&
+		currentForm.port !== undefined &&
+		currentForm.port !== null
+			? String(currentForm.port).trim()
+			: "554";
+	const curUsername = (currentForm.username || "").trim();
+	const curPath = (currentForm.mainStreamPath || "").trim();
+	const hasNewPassword = Boolean(currentForm.credentialRef?.trim());
+
+	if (!savedConfig) {
+		return Boolean(
+			curHost ||
+				(currentForm.port && String(currentForm.port).trim() !== "554") ||
+				curUsername ||
+				hasNewPassword ||
+				curPath,
+		);
+	}
+
+	const origHost = (savedConfig.host || "").trim();
+	const origPort =
+		savedConfig.port !== null && savedConfig.port !== undefined
+			? String(savedConfig.port).trim()
+			: "554";
+	const origUsername = (savedConfig.username || "").trim();
+	const origPath = (savedConfig.mainStreamPath || "").trim();
+
+	return (
+		curHost !== origHost ||
+		curPort !== origPort ||
+		curUsername !== origUsername ||
+		curPath !== origPath ||
+		hasNewPassword
+	);
+}
+
