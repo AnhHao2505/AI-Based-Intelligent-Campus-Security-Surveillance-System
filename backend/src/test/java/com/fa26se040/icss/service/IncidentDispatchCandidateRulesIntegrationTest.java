@@ -78,7 +78,6 @@ class IncidentDispatchCandidateRulesIntegrationTest extends AbstractIntegrationT
 
     @Autowired private SecurityIncidentService incidentService;
     @Autowired private IncidentDispatchService dispatchService;
-    @Autowired private IncidentRecipientResolver recipientResolver;
     @Autowired private SystemConfigService systemConfigService;
     @Autowired private WebSocketSessionRegistry sessionRegistry;
     @Autowired private SecurityIncidentRepository incidentRepository;
@@ -330,18 +329,16 @@ class IncidentDispatchCandidateRulesIntegrationTest extends AbstractIntegrationT
         disconnect(mobileSession); // đăng xuất app -> SessionDisconnectEvent -> sessionClosed
         assertFalse(sessionRegistry.hasMobileSession(guard.getId()));
 
-        int onDutyBefore = recipientResolver.findOnDutyGuards(OffsetDateTime.now()).size();
         IncidentDetailResponse response = ingestHigh();
-        int onDutyAfter = recipientResolver.findOnDutyGuards(OffsetDateTime.now()).size();
 
         assertTrue(offersOf(response.getId()).isEmpty(), "bảo vệ không có phiên mobile không được nhận lời mời");
         assertEquals(IncidentDispatchStage.BROADCAST, reload(response.getId()).getDispatchStage());
         assertEquals(IncidentDispatchStage.BROADCAST, response.getDispatchStage());
-        // Luồng broadcast vẫn gửi cho mọi bảo vệ đang trực, kể cả người vừa đăng xuất mobile
-        int count = guardRecipientCount(response.getId());
-        assertTrue(count >= Math.min(onDutyBefore, onDutyAfter) && count <= Math.max(onDutyBefore, onDutyAfter),
-                "guard_recipient_count=" + count + " onDuty=" + onDutyBefore + "/" + onDutyAfter);
-        assertTrue(count >= 1, "bảo vệ do test tạo phải nằm trong số được gửi broadcast, count=" + count);
+        // Broadcast vẫn gửi cho mọi bảo vệ đang trực, nhưng chỉ người có phiên mobile mới được đếm là đã nhận
+        // (/topic/guards/{id}/alerts chỉ app mobile nghe). Count = 0 -> job leo thang báo FM ngay (G2, BR-IE-05).
+        // guardRecipientCount đọc bản ghi incident_escalations của sự cố (không có bản ghi -> queryForObject ném lỗi).
+        assertEquals(0, guardRecipientCount(response.getId()),
+                "bảo vệ không còn phiên mobile không nhận được /topic/guards/{id}/alerts nên không được đếm (G2, BR-IE-05)");
     }
 
     // ===== c. Check-in sớm, chưa tới giờ bắt đầu ca =====
