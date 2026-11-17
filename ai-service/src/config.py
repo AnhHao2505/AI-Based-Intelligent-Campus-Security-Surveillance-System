@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     FACE_SCAN_BACKOFF_INTERVAL: float = Field(default=0.05, validation_alias="FACE_SCAN_BACKOFF_INTERVAL")
     FACE_MIN_CROP_SIZE: int = Field(default=24, validation_alias="FACE_MIN_CROP_SIZE")
     FACE_CROP_UPSCALE_THRESHOLD: int = Field(default=160, validation_alias="FACE_CROP_UPSCALE_THRESHOLD")
-    # Crop nửa trên cơ thể có cạnh dài > giá trị này thì thu nhỏ trước khi chạy YuNet (camera độ phân giải cao). 0 = tắt
+    # Crop nửa trên cơ thể có cạnh dài > giá trị này thì thu nhỏ trước khi chạy Face Detector (camera độ phân giải cao). 0 = tắt
     FACE_CROP_MAX_DIM: int = Field(default=480, validation_alias="FACE_CROP_MAX_DIM")
     # SCRFD: đệm mọi ảnh <= cạnh này về đúng kích thước vuông cố định (ONNX CUDA chậm ~5 lần khi input đổi cỡ). 0 = tắt
     FACE_DETECT_FIXED_INPUT: int = Field(default=480, validation_alias="FACE_DETECT_FIXED_INPUT")

@@ -28,7 +28,7 @@ class VideoPipeline:
     2. Cổng lọc tải & Máy trạng thái chốt giữ (ZoneStateMachine Latch)
     3. Human Detection & Tracking (YOLO26 + ByteTrack)
     4. Đối soát ngụy trang / Xâm nhập bất thường (SUSPICIOUS_MOVING_OBJECT)
-    5. Crop vùng người & Face Detection (YuNet)
+    5. Crop vùng người & Face Detection (SCRFD)
     6. Face Recognition Matching (pgvector Cosine Search)
     7. Violation Analysis (ROI Polygon Check)
     8. Cảnh báo tự động (MTQQ Event + MinIO Snapshot Upload)
@@ -726,7 +726,7 @@ class VideoPipeline:
             )
 
         # 1b. Cổng Motion-Gating: Nếu ở IDLE và hoàn toàn không có chuyển động trên TOÀN BỘ KHUNG HÌNH
-        #     Bỏ qua 100% suy luận Deep Learning nặng (YOLO26, YuNet, ArcFace) để giải phóng CPU/GPU.
+        #     Bỏ qua 100% suy luận Deep Learning nặng (YOLO26, SCRFD, ArcFace) để giải phóng CPU/GPU.
         #     Tuy nhiên, cứ mỗi heartbeat_interval_seconds (mặc định 4s), chạy 1 frame YOLO thăm dò
         #     để phát hiện đối tượng ngồi yên trong ROI (tránh lọt lưới do MOG2 hấp thụ vào background).
         if (
@@ -899,7 +899,7 @@ class VideoPipeline:
             self._suspicious_motion_start_time = None
 
         # ------------------------------------------------------------------
-        # 3. QUÉT KHUÔN MẶT TRÊN TỪNG NGƯỜI (YUNET + ARCFACE)
+        # 3. QUÉT KHUÔN MẶT TRÊN TỪNG NGƯỜI (SCRFD + ARCFACE)
         # ------------------------------------------------------------------
         for track_id, bbox in detected_tracks:
             if track_id < 0:
@@ -923,7 +923,7 @@ class VideoPipeline:
             in_roi, roi_label = self.is_bbox_in_roi(bbox, w, h)
 
             # Tối ưu hiệu năng: Nếu Track ID này đã nhận diện được danh tính trong active_tracks,
-            # ByteTrack tiếp tục bám theo mượt mà mà không cần chạy lại YuNet + ArcFace + pgvector mỗi frame!
+            # ByteTrack tiếp tục bám theo mượt mà mà không cần chạy lại SCRFD + ArcFace + pgvector mỗi frame!
             existing = self.analysis_engine.active_tracks.get(track_id)
             if not existing and hasattr(self.analysis_engine, "find_matching_parent_track"):
                 parent_res = self.analysis_engine.find_matching_parent_track(
