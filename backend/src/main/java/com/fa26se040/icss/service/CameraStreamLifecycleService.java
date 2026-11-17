@@ -80,6 +80,7 @@ public class CameraStreamLifecycleService {
 
         boolean mqttConnected = edgeMqttControlService != null && edgeMqttControlService.isConnected();
         boolean edgeOnline = mqttConnected && edgeStatusService != null && edgeStatusService.hasActiveOnlineEdge();
+        boolean aiWorkerRunning = false;
         if (mqttConnected) {
             if (hasSub) {
                 edgeMqttControlService.publishCameraStreamConfig(
@@ -99,6 +100,9 @@ public class CameraStreamLifecycleService {
             }
             log.info("📡 [Cloud-Edge] Đã đồng bộ kích hoạt stream & AI Worker cho camera [{}] qua MQTT Retained Config (edgeOnline={})",
                     camera.getCameraCode(), edgeOnline);
+            if (edgeOnline) {
+                aiWorkerRunning = true;
+            }
         }
 
         if (!edgeOnline) {
@@ -128,6 +132,7 @@ public class CameraStreamLifecycleService {
                         .cameraId(camera.getId())
                         .cameraCode(camera.getCameraCode())
                         .operationalStatus(OperationalStatus.OFFLINE)
+                        .aiWorkerRunning(false)
                         .message(failMsg)
                         .timestamp(OffsetDateTime.now())
                         .build();
@@ -146,9 +151,11 @@ public class CameraStreamLifecycleService {
                         reqBody.put("roi_geometry", camera.getRoiGeometry());
                     }
                     restTemplate.postForObject(streamStartUrl, reqBody, Map.class);
+                    aiWorkerRunning = true;
                     log.info("✅ Đã kích hoạt AI Stream Worker cho camera [{}] qua MediaMTX Gateway ({})",
-                            camera.getCameraCode(), workerRtspUrl);
+                            camera.getCameraCode(), MediaMtxService.maskRtspCredentials(workerRtspUrl));
                 } catch (Exception ex) {
+                    aiWorkerRunning = false;
                     log.warn("⚠️ Không thể kích hoạt AI Stream Worker cho camera [{}]: {}",
                             camera.getCameraCode(), ex.getMessage());
                 }
@@ -159,12 +166,17 @@ public class CameraStreamLifecycleService {
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
 
+        String successMsg = aiWorkerRunning
+                ? "Kết nối Stream phát trực tiếp thành công"
+                : "Kết nối Stream phát trực tiếp thành công (Cảnh báo: AI Worker chưa sẵn sàng)";
+
         return CameraStreamLifecycleResponse.builder()
                 .success(true)
                 .cameraId(camera.getId())
                 .cameraCode(camera.getCameraCode())
                 .operationalStatus(OperationalStatus.ONLINE)
-                .message("Kết nối Stream phát trực tiếp thành công")
+                .aiWorkerRunning(aiWorkerRunning)
+                .message(successMsg)
                 .timestamp(OffsetDateTime.now())
                 .build();
     }
@@ -210,6 +222,7 @@ public class CameraStreamLifecycleService {
                 .cameraId(camera.getId())
                 .cameraCode(camera.getCameraCode())
                 .operationalStatus(OperationalStatus.OFFLINE)
+                .aiWorkerRunning(false)
                 .message("Đã Ngắt Stream phát trực tiếp của camera")
                 .timestamp(OffsetDateTime.now())
                 .build();

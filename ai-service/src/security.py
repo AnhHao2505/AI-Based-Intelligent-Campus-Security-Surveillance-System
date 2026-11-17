@@ -45,3 +45,30 @@ def verify_stream_token(camera_code: str, token: Optional[str], now: Optional[fl
     expected_hexdigest = hmac.new(key_bytes, msg_bytes, hashlib.sha256).hexdigest()
     
     return hmac.compare_digest(parts[1], expected_hexdigest)
+
+
+INTERNAL_RTSP_USER = "icss-internal"
+
+
+def _normalize_rtsp_camera_code(camera_code: str) -> str:
+    code = camera_code.strip().upper()
+    if code.endswith("_MAIN"):
+        code = code[:-5]
+    return code
+
+
+def make_internal_rtsp_secret(camera_code: str) -> str:
+    key = getattr(settings, "INTERNAL_SERVICE_KEY", "") or ""
+    if not camera_code or not key:
+        return ""
+    msg = f"rtsp-internal|{_normalize_rtsp_camera_code(camera_code)}".encode("utf-8")
+    return hmac.new(key.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+
+
+def build_internal_rtsp_url(rtsp_base: str, path_name: str) -> str:
+    clean_base = (rtsp_base or "rtsp://localhost:8554").rstrip("/")
+    clean_path = (path_name or "").lstrip("/")
+    secret = make_internal_rtsp_secret(clean_path)
+    if secret and clean_base.startswith("rtsp://") and "@" not in clean_base:
+        clean_base = f"rtsp://{INTERNAL_RTSP_USER}:{secret}@{clean_base[len('rtsp://'):]}"
+    return f"{clean_base}/{clean_path}"

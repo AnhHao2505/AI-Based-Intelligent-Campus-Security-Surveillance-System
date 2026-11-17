@@ -239,9 +239,17 @@ export default function CameraDetailPage() {
 					...prev,
 					operationalStatus: "ONLINE",
 				}));
-				showNotification(
-					"Kết nối Stream phát trực tiếp thành công! Camera đã chuyển sang trạng thái ONLINE.",
-				);
+				if (res?.aiWorkerRunning === false) {
+					toast.warning(
+						res?.message ||
+							"Kết nối Stream thành công (Cảnh báo: AI chưa chạy).",
+					);
+				} else {
+					toast.success(
+						res?.message ||
+							"Kết nối Stream phát trực tiếp thành công! Camera đã chuyển sang trạng thái ONLINE.",
+					);
+				}
 				await loadCameraDetails();
 			} else {
 				showError(res?.message || "Không thể Kết nối Stream phát trực tiếp.");

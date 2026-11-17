@@ -96,6 +96,8 @@ class CameraStreamLifecycleServiceTest {
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertTrue(response.isAiWorkerRunning());
+        assertTrue(response.isAiWorkerRunning());
         assertEquals(OperationalStatus.ONLINE, response.getOperationalStatus());
         assertEquals("CAM-001", response.getCameraCode());
 
@@ -127,6 +129,7 @@ class CameraStreamLifecycleServiceTest {
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertTrue(response.isAiWorkerRunning());
 
         // Kiểm tra đồng bộ 2 luồng: Luồng phụ gán vào CAM-001 cho WHEP UI, Luồng chính gán vào CAM-001_main
         verify(mediaMtxService).syncCameraPathStrict("CAM-001", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
@@ -161,6 +164,7 @@ class CameraStreamLifecycleServiceTest {
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertTrue(response.isAiWorkerRunning());
 
         verify(edgeMqttControlService).publishCameraStreamConfig(
                 eq("CAM-001"),
@@ -202,6 +206,7 @@ class CameraStreamLifecycleServiceTest {
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertFalse(response.isAiWorkerRunning());
         assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
 
         verify(mediaMtxService).deleteCameraPath("CAM-001");
@@ -219,6 +224,7 @@ class CameraStreamLifecycleServiceTest {
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertFalse(response.isAiWorkerRunning());
         assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
     }
 
@@ -247,6 +253,7 @@ class CameraStreamLifecycleServiceTest {
 
         assertNotNull(response);
         assertFalse(response.isSuccess());
+        assertFalse(response.isAiWorkerRunning());
         assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
         verify(mediaMtxService).deleteCameraPath("CAM-001");
         verify(restTemplate, never()).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(), eq(Map.class));
@@ -265,9 +272,33 @@ class CameraStreamLifecycleServiceTest {
 
         assertNotNull(response);
         assertFalse(response.isSuccess());
+        assertFalse(response.isAiWorkerRunning());
         assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
         verify(mediaMtxService).deleteCameraPath("CAM-001");
         verify(restTemplate, never()).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(), eq(Map.class));
         verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+    }
+
+    @Test
+    @DisplayName("AI Service lỗi khi start: Vẫn chuyển ONLINE (Graceful Degraded) nhưng aiWorkerRunning=false và có cảnh báo trong message")
+    void startStream_WhenAiServiceFails_ShouldStillSetOnlineWithAiWorkerRunningFalseAndWarningMessage() {
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.READY);
+        when(mediaMtxService.getGatewayRtspUrl("CAM-001")).thenReturn("rtsp://mediamtx:8554/cam-001");
+        when(restTemplate.postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(Map.class), eq(Map.class)))
+                .thenThrow(new RuntimeException("Connection refused to AI Service"));
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+        assertEquals(OperationalStatus.ONLINE, response.getOperationalStatus());
+        assertFalse(response.isAiWorkerRunning());
+        assertTrue(response.getMessage().contains("Cảnh báo: AI Worker chưa sẵn sàng"));
+
+        verify(mediaMtxService).syncCameraPathStrict("CAM-001", "rtsp://192.168.1.50:554/stream1");
+        verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.ONLINE));
     }
 }

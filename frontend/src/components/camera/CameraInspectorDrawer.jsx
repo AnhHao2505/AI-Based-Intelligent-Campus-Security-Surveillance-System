@@ -248,7 +248,17 @@ export default function CameraInspectorDrawer({
 			const res = await startStream(cameraId);
 			if (res?.success) {
 				setCamera((prev) => ({ ...prev, operationalStatus: "ONLINE" }));
-				toast.success("Đã bật Stream trực tiếp. Camera chuyển sang ONLINE.");
+				if (res?.aiWorkerRunning === false) {
+					toast.warning(
+						res?.message ||
+							"Đã bật Stream (Cảnh báo: AI chưa chạy).",
+					);
+				} else {
+					toast.success(
+						res?.message ||
+							"Đã bật Stream trực tiếp. Camera chuyển sang ONLINE.",
+					);
+				}
 				onCameraMutated?.();
 				await loadCameraDetails();
 			} else {
