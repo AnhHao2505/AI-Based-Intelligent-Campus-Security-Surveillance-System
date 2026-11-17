@@ -480,6 +480,41 @@ class VideoPipeline:
         )
         return annotated_frame, active_persons, alerts
 
+    @staticmethod
+    def _head_fit_cost(face_bbox, person_bbox, require_inside: bool) -> Optional[float]:
+        """
+        Độ lệch giữa tâm mặt và vị trí đầu kỳ vọng của một người (giữa-trên khung người), chuẩn hoá theo kích thước khung.
+        Càng nhỏ càng có khả năng mặt thuộc người này. require_inside=True: mặt phải nằm trong vùng quét mặt
+        (UPPER_BODY_CROP_RATIO phía trên khung) của người đó, ngược lại trả None (không phải ứng viên).
+        """
+        pw, ph = person_bbox.width, person_bbox.height
+        if pw <= 0 or ph <= 0:
+            return None
+        fcx = (face_bbox.x1 + face_bbox.x2) / 2.0
+        fcy = (face_bbox.y1 + face_bbox.y2) / 2.0
+        if require_inside:
+            upper_y2 = person_bbox.y1 + ph * settings.UPPER_BODY_CROP_RATIO
+            if not (person_bbox.x1 <= fcx <= person_bbox.x2 and person_bbox.y1 <= fcy <= upper_y2):
+                return None
+        pcx = (person_bbox.x1 + person_bbox.x2) / 2.0
+        return abs(fcx - pcx) / pw + abs(fcy - person_bbox.y1) / ph
+
+    def _is_face_owned_by(self, face_bbox, person_bbox, other_bboxes) -> bool:
+        """
+        Mặt tìm thấy trong vùng quét của người này có thật sự là của người này không.
+        Khi hai người đứng chồng lên nhau, vùng quét của người đứng trước thường chứa mặt người đứng sau (mặt đó lại
+        rõ hơn nếu người trước đang cúi / quay đi) -> gán nhầm danh tính. Mặt thuộc về người có đầu kỳ vọng gần nhất;
+        hoà điểm coi như không xác định được chủ -> không dùng để định danh.
+        """
+        own = self._head_fit_cost(face_bbox, person_bbox, require_inside=False)
+        if own is None:
+            return False
+        for ob in other_bboxes:
+            other = self._head_fit_cost(face_bbox, ob, require_inside=True)
+            if other is not None and other <= own:
+                return False
+        return True
+
     def _is_reverify_due(self, existing, current_time: float) -> bool:
         """
         Track đã có danh tính: có quét lại mặt ở frame này không (Điểm 8).
@@ -933,6 +968,10 @@ class VideoPipeline:
                 )
                 if parent_res:
                     existing = parent_res[1]
+                    # Track cha chỉ khớp theo khoảng cách khi có người khác trong frame: không mượn danh tính của họ
+                    safe_check = getattr(self.analysis_engine, "parent_identity_is_safe", None)
+                    if callable(safe_check) and not safe_check(bbox, existing, visible_count=len(current_frame_tids)):
+                        existing = None
             is_reverifying = False
             if existing and existing.face_detected and existing.face_info and existing.face_info.matched_code:
                 if track_stats.get("first_matched_time") is None:
@@ -988,6 +1027,28 @@ class VideoPipeline:
                         person_upper_crop,
                         offset_xy=(x1, y1)
                     )
+                    # Người khác đứng chồng lên vùng quét mặt của người này: mặt điểm cao nhất có thể là của họ
+                    # -> chỉ nhận mặt thuộc về chính người này (quét lại có lọc), không thấy thì bỏ qua frame này.
+                    crop_box = BoundingBox(x1=x1, y1=y1, x2=x2, y2=y1 + crop_h)
+                    other_bboxes = [
+                        ob for otid, ob in detected_tracks
+                        if otid >= 0 and otid != track_id and crop_box.iou(ob) > 0.0
+                    ]
+                    if face_result and other_bboxes and not self._is_face_owned_by(face_result.bbox, bbox, other_bboxes):
+                        face_result = self.face_detector.detect_best_face_in_crop(
+                            person_upper_crop,
+                            offset_xy=(x1, y1),
+                            face_filter=lambda f, _b=bbox, _o=other_bboxes: self._is_face_owned_by(f.bbox, _b, _o)
+                        )
+                        if face_result and not self._is_face_owned_by(face_result.bbox, bbox, other_bboxes):
+                            face_result = None
+                        if not face_result:
+                            track_stats["drop_foreign_face"] = track_stats.get("drop_foreign_face", 0) + 1
+                            logger.debug(
+                                f"👥 [VideoPipeline:{self.camera_code}] [FaceOwner] Track #{track_id}: mặt trong vùng quét "
+                                f"thuộc người đứng chồng lên -> không dùng để định danh track này"
+                            )
+                            continue
                     if not face_result:
                         track_stats["drop_no_face"] += 1
                     else:
@@ -1077,8 +1138,14 @@ class VideoPipeline:
                                     continue
 
                                 # Mã mới KHÁC danh tính hiện tại:
-                                # Điểm mới phải >= prev_score + 0.05
-                                if score < (prev_score + 0.05):
+                                # Điểm mới phải >= prev_score + 0.05. Riêng danh tính KẾ THỪA: prev_score là điểm mặt của
+                                # track cha (có thể là người khác đứng gần), không phải mặt quét được trên track này
+                                # -> không bắt vượt điểm đó, chỉ cần 2 lần khớp liên tiếp cùng mã mới.
+                                inherited_identity = (
+                                    getattr(existing, "is_inherited_identity", False)
+                                    or getattr(existing.face_info, "is_inherited", False)
+                                )
+                                if not inherited_identity and score < (prev_score + 0.05):
                                     continue
 
                                 # Yêu cầu 2 lần match liên tiếp cùng mã mới trước khi đổi (POINT-08a)

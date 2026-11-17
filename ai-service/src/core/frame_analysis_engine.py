@@ -1,3 +1,4 @@
+import copy
 import re
 import time
 import uuid
@@ -148,6 +149,38 @@ class FrameAnalysisEngine:
                     return tid, p
 
         return None
+
+    @staticmethod
+    def parent_identity_is_safe(
+        bbox: BoundingBox,
+        parent: TrackedPerson,
+        visible_count: int,
+        user_code: Optional[str] = None
+    ) -> bool:
+        """
+        Track cha tìm được có đủ tin cậy để chuyển DANH TÍNH KHUÔN MẶT sang track mới không.
+        Khớp chỉ theo khoảng cách (Ưu tiên 3, tới 500-1000px) chỉ an toàn khi trong frame có đúng 1 người;
+        có người khác đứng gần thì người mới xuất hiện rất dễ nhận nhầm danh tính của người vừa bị che khuất.
+        """
+        if user_code and parent.face_info and getattr(parent.face_info, "matched_code", None) == user_code:
+            return True
+        if bbox.iou(parent.bbox) > 0.30 or bbox.intersection_ratio(parent.bbox) > 0.50:
+            return True
+        return visible_count <= 1
+
+    @staticmethod
+    def _copy_identity_as_inherited(receiver: TrackedPerson, donor: TrackedPerson) -> None:
+        """
+        Chuyển danh tính từ track donor sang receiver dưới dạng KẾ THỪA (chưa xác thực trên chính receiver):
+        receiver sẽ được quét lại mặt mỗi frame và bị gỡ / đổi danh tính nếu mặt thật không khớp.
+        Sao chép face_info thành object riêng để cờ kế thừa không ghi lên track donor.
+        """
+        receiver.face_detected = True
+        receiver.face_info = copy.copy(donor.face_info)
+        receiver.is_inherited_identity = True
+        receiver.inherited_mismatch_count = 0
+        if hasattr(receiver.face_info, "is_inherited"):
+            receiver.face_info.is_inherited = True
 
     def _within_identity_grace(self, person: TrackedPerson, current_time: float) -> bool:
         """
@@ -502,10 +535,15 @@ class FrameAnalysisEngine:
                         old_p.face_detected and old_p.face_info and old_p.face_info.matched_code
                     )
                     different_persons = bool(both_identified and (person.face_info.matched_code != old_p.face_info.matched_code))
+                    identity_safe = self.parent_identity_is_safe(
+                        bbox, old_p,
+                        visible_count=sum(1 for tid, _ in detected_tracks if tid >= 0),
+                        user_code=person.face_info.matched_code if (person.face_detected and person.face_info) else None
+                    )
 
                     if not different_persons:
-                        # Kế thừa nhận diện khuôn mặt
-                        if old_p.face_detected and old_p.face_info and not person.face_detected:
+                        # Kế thừa nhận diện khuôn mặt (chỉ khi track cha đủ tin cậy về mặt không gian)
+                        if identity_safe and old_p.face_detected and old_p.face_info and not person.face_detected:
                             person.face_detected = True
                             person.face_info = old_p.face_info
                             person.is_inherited_identity = True
@@ -527,7 +565,10 @@ class FrameAnalysisEngine:
                         person.first_seen_time = old_p.first_seen_time
                         person.has_entered_roi = getattr(old_p, "has_entered_roi", False)
                         person.roi_first_entered_time = getattr(old_p, "roi_first_entered_time", None)
-                        person.security_display_state = getattr(old_p, "security_display_state", "NEUTRAL")
+                        old_state = getattr(old_p, "security_display_state", "NEUTRAL")
+                        # Không kế thừa danh tính thì cũng không kế thừa trạng thái "có quyền" của người kia
+                        if identity_safe or old_state != "AUTHORIZED":
+                            person.security_display_state = old_state
                         # Ẩn và xoá track cũ bị thay thế
                         old_p.is_currently_visible = False
                         del self.active_tracks[best_match_tid]
@@ -1007,8 +1048,9 @@ class FrameAnalysisEngine:
                     # Nếu một track là coasting (không có trong frame hiện tại) và track kia đang có mặt:
                     if b_in_curr and not a_in_curr:
                         if a_has_face and not b_has_face:
-                            pb.face_detected = True
-                            pb.face_info = pa.face_info
+                            # Track đang thấy có thể là NGƯỜI KHÁC đứng trước người vừa bị che (pa) -> chỉ kế thừa,
+                            # để pb còn được quét lại mặt và gỡ danh tính nếu không khớp.
+                            self._copy_identity_as_inherited(pb, pa)
                         pb.has_entered_roi = pb.has_entered_roi or getattr(pa, "has_entered_roi", False)
                         pb.roi_first_entered_time = pb.roi_first_entered_time if pb.roi_first_entered_time is not None else getattr(pa, "roi_first_entered_time", None)
                         if getattr(pa, "security_display_state", "NEUTRAL") != "NEUTRAL":
@@ -1021,8 +1063,7 @@ class FrameAnalysisEngine:
                         break
                     elif a_in_curr and not b_in_curr:
                         if b_has_face and not a_has_face:
-                            pa.face_detected = True
-                            pa.face_info = pb.face_info
+                            self._copy_identity_as_inherited(pa, pb)
                         pa.has_entered_roi = pa.has_entered_roi or getattr(pb, "has_entered_roi", False)
                         pa.roi_first_entered_time = pa.roi_first_entered_time if pa.roi_first_entered_time is not None else getattr(pb, "roi_first_entered_time", None)
                         if getattr(pb, "security_display_state", "NEUTRAL") != "NEUTRAL":
