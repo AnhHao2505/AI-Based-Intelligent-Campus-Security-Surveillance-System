@@ -59,7 +59,10 @@ class AreaPinModel {
     }
   }
 
-  Color get levelColor {
+  Color get levelColor => levelColorOf(areaLevel);
+
+  /// Màu theo mã cấp khu — nguồn duy nhất cho ghim khu ([levelColor]) và chú giải bản đồ (CampusMapLegend).
+  static Color levelColorOf(String areaLevel) {
     switch (areaLevel) {
       case 'PUBLIC':
         return const Color(0xFF10B981); // Emerald Green
