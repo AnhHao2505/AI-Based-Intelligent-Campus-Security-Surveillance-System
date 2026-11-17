@@ -19,6 +19,7 @@ public enum CameraErrorCode {
     ERR_ROI_004("ERR_ROI_004", HttpStatus.BAD_REQUEST, "Polygon ROI phải có ít nhất 3 đỉnh phân biệt"),
     ERR_ROI_005("ERR_ROI_005", HttpStatus.BAD_REQUEST, "Nhãn polygon ROI không được vượt quá 100 ký tự"),
     ERR_ROI_006("ERR_ROI_006", HttpStatus.BAD_REQUEST, "Khu vực liên kết (target_area_id) không tồn tại"),
+    ERR_ROI_007("ERR_ROI_007", HttpStatus.BAD_REQUEST, "Camera phải có ít nhất 1 vùng giám sát ROI"),
     ERR_SNAPSHOT_001("ERR_SNAPSHOT_001", HttpStatus.BAD_GATEWAY, "Không thể trích xuất khung hình từ camera: Vui lòng kiểm tra lại thiết bị hoặc đường truyền luồng RTSP"),
     ERR_STREAM_003("ERR_STREAM_003", HttpStatus.BAD_REQUEST, "Camera đang ở trạng thái ngừng hoạt động (INACTIVE), không thể thao tác luồng stream"),
     ERR_RECORDING_001("ERR_RECORDING_001", HttpStatus.BAD_REQUEST, "Thông tin bản ghi video không hợp lệ hoặc thiếu đường dẫn lưu trữ"),

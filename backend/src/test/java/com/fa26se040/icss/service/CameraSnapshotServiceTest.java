@@ -7,7 +7,6 @@ import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
-import com.fa26se040.icss.repository.CameraHealthLogRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.CameraStreamConfigurationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,9 +36,6 @@ class CameraSnapshotServiceTest {
 
     @Mock
     private CameraStreamConfigurationRepository streamConfigRepo;
-
-    @Mock
-    private CameraHealthLogRepository healthLogRepo;
 
     @Mock
     private CameraService cameraService;
@@ -102,9 +98,8 @@ class CameraSnapshotServiceTest {
         assertEquals(1080, response.getHeight());
         assertEquals(150L, response.getLatencyMs());
 
-        // Kiểm tra tính Read-Only / Idempotency tuyệt đối: Không được lưu camera hay health log
+        // Kiểm tra tính Read-Only / Idempotency tuyệt đối: Không được lưu camera
         verify(cameraRepository, never()).save(any());
-        verify(healthLogRepo, never()).save(any());
         assertEquals(OperationalStatus.OFFLINE, camera.getOperationalStatus(), "Trạng thái camera không được thay đổi khi chỉ chụp snapshot");
     }
 
@@ -130,7 +125,6 @@ class CameraSnapshotServiceTest {
         }
 
         verify(cameraRepository, never()).save(any());
-        verify(healthLogRepo, never()).save(any());
     }
 
     @Test
@@ -142,7 +136,6 @@ class CameraSnapshotServiceTest {
         CameraException ex = assertThrows(CameraException.class, () -> cameraSnapshotService.captureSnapshot(cameraId));
         assertEquals(CameraErrorCode.ERR_STREAM_001, ex.getErrorCode());
         verify(cameraRepository, never()).save(any());
-        verify(healthLogRepo, never()).save(any());
     }
 
     @Test
@@ -154,7 +147,6 @@ class CameraSnapshotServiceTest {
         CameraException ex = assertThrows(CameraException.class, () -> cameraSnapshotService.captureSnapshot(cameraId));
         assertEquals(CameraErrorCode.ERR_STREAM_003, ex.getErrorCode());
         verify(cameraRepository, never()).save(any());
-        verify(healthLogRepo, never()).save(any());
     }
 
     @Test
@@ -170,6 +162,5 @@ class CameraSnapshotServiceTest {
         CameraException ex = assertThrows(CameraException.class, () -> cameraSnapshotService.captureSnapshot(cameraId));
         assertEquals(CameraErrorCode.ERR_SNAPSHOT_001, ex.getErrorCode());
         verify(cameraRepository, never()).save(any());
-        verify(healthLogRepo, never()).save(any());
     }
 }

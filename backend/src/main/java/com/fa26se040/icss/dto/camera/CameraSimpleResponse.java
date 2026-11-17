@@ -19,4 +19,8 @@ public class CameraSimpleResponse {
     private String name;
     private CameraStatus status;
     private OperationalStatus operationalStatus;
+    private Double mapLongitude;
+    private Double mapLatitude;
+    private String mapBuilding;
+    private Integer mapFloorOrder;
 }

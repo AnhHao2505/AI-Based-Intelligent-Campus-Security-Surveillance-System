@@ -140,4 +140,32 @@ class EdgeStatusServiceTest {
 
         verify(repository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("Smart Fallback (Happy Path): hasActiveOnlineEdge trả về true khi có Edge ONLINE trong 90s")
+    void hasActiveOnlineEdge_WhenRecentOnlineExists_ShouldReturnTrue() {
+        when(repository.existsByStatusAndLastSeenAfter(eq("ONLINE"), any(OffsetDateTime.class)))
+                .thenReturn(true);
+
+        assertTrue(service.hasActiveOnlineEdge());
+        verify(repository).existsByStatusAndLastSeenAfter(eq("ONLINE"), any(OffsetDateTime.class));
+    }
+
+    @Test
+    @DisplayName("Smart Fallback (Boundary): hasActiveOnlineEdge trả về false khi không có Edge ONLINE trong 90s")
+    void hasActiveOnlineEdge_WhenNoneOnline_ShouldReturnFalse() {
+        when(repository.existsByStatusAndLastSeenAfter(eq("ONLINE"), any(OffsetDateTime.class)))
+                .thenReturn(false);
+
+        assertFalse(service.hasActiveOnlineEdge());
+    }
+
+    @Test
+    @DisplayName("Smart Fallback (Error): hasActiveOnlineEdge truyền ngoại lệ khi repository gặp lỗi DB")
+    void hasActiveOnlineEdge_WhenRepositoryThrows_ShouldPropagate() {
+        when(repository.existsByStatusAndLastSeenAfter(eq("ONLINE"), any(OffsetDateTime.class)))
+                .thenThrow(new RuntimeException("DB connection error"));
+
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> service.hasActiveOnlineEdge());
+    }
 }

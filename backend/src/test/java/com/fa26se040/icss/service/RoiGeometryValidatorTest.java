@@ -48,29 +48,32 @@ class RoiGeometryValidatorTest {
     }
 
     @Test
-    @DisplayName("Validate: should pass with empty polygons (Full-frame mode)")
-    void testValidatePassWithEmptyPolygons() {
+    @DisplayName("Validate: should throw ERR_ROI_007 with empty polygons (min 1 ROI required)")
+    void testValidateThrowsWithEmptyPolygons() {
         RoiGeometry geometry = RoiGeometry.builder()
                 .polygons(List.of())
                 .build();
 
-        assertDoesNotThrow(() -> validator.validate(geometry));
+        CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
+        assertEquals(CameraErrorCode.ERR_ROI_007, ex.getErrorCode());
     }
 
     @Test
-    @DisplayName("Validate: should pass when polygons is null (Full-frame mode)")
-    void testValidatePassWithNullPolygons() {
+    @DisplayName("Validate: should throw ERR_ROI_007 when polygons is null (min 1 ROI required)")
+    void testValidateThrowsWithNullPolygons() {
         RoiGeometry geometry = RoiGeometry.builder()
                 .polygons(null)
                 .build();
 
-        assertDoesNotThrow(() -> validator.validate(geometry));
+        CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
+        assertEquals(CameraErrorCode.ERR_ROI_007, ex.getErrorCode());
     }
 
     @Test
-    @DisplayName("Validate: should pass when geometry is null (Full-frame mode)")
-    void testValidatePassWithNullGeometry() {
-        assertDoesNotThrow(() -> validator.validate(null));
+    @DisplayName("Validate: should throw ERR_ROI_007 when geometry is null (min 1 ROI required)")
+    void testValidateThrowsWithNullGeometry() {
+        CameraException ex = assertThrows(CameraException.class, () -> validator.validate(null));
+        assertEquals(CameraErrorCode.ERR_ROI_007, ex.getErrorCode());
     }
 
     @Test

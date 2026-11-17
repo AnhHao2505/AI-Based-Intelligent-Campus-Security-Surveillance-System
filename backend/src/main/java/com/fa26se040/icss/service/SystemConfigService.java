@@ -649,6 +649,7 @@ public class SystemConfigService {
                 config.getConfigGroup(),
                 config.getDisplayOrder(),
                 config.getDescription(),
+                config.getTooltip(),
                 config.getEditable(),
                 config.getUpdatedAt(),
                 updatedByEmail,

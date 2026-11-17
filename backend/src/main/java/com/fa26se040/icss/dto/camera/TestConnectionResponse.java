@@ -15,5 +15,7 @@ public class TestConnectionResponse {
     private Long latencyMs;
     private String errorCode;
     private String message;
+    private String warning;
+    private String videoCodec;
     private OperationalStatus operationalStatus;
 }

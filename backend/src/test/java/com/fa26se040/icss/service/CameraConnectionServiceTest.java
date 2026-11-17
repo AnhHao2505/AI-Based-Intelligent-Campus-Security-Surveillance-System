@@ -2,12 +2,12 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.camera.CameraStreamConfigRequest;
 import com.fa26se040.icss.dto.camera.TestConnectionResponse;
+import com.fa26se040.icss.dto.edge.EdgeRpcReplyDto;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
-import com.fa26se040.icss.repository.CameraHealthLogRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.CameraStreamConfigurationRepository;
 import com.fa26se040.icss.util.RtspCheckResult;
@@ -37,13 +37,16 @@ class CameraConnectionServiceTest {
     private CameraStreamConfigurationRepository streamConfigRepo;
 
     @Mock
-    private CameraHealthLogRepository healthLogRepo;
-
-    @Mock
     private CameraService cameraService;
 
     @Mock
     private RtspHandshakeChecker rtspHandshakeChecker;
+
+    @Mock
+    private EdgeMqttControlService edgeMqttControlService;
+
+    @Mock
+    private EdgeStatusService edgeStatusService;
 
     @InjectMocks
     private CameraConnectionService cameraConnectionService;
@@ -93,9 +96,8 @@ class CameraConnectionServiceTest {
         assertEquals(25L, response.getLatencyMs());
         assertEquals(OperationalStatus.ONLINE, response.getOperationalStatus());
 
-        // Kiểm tra tính idempotent/read-only: Không được gọi cameraRepository.save hoặc healthLogRepo.save
+        // Kiểm tra tính idempotent/read-only: Không được gọi cameraRepository.save
         verify(cameraRepository, never()).save(any());
-        verify(healthLogRepo, never()).save(any());
         assertEquals(OperationalStatus.OFFLINE, camera.getOperationalStatus(), "Trạng thái camera không được thay đổi khi chỉ test kết nối");
     }
 
@@ -120,7 +122,6 @@ class CameraConnectionServiceTest {
         assertEquals(30L, response.getLatencyMs());
         assertEquals(OperationalStatus.ONLINE, response.getOperationalStatus());
         verify(cameraRepository, never()).save(any());
-        verify(healthLogRepo, never()).save(any());
     }
 
     @Test
@@ -151,7 +152,6 @@ class CameraConnectionServiceTest {
         assertEquals(15L, response.getLatencyMs());
 
         verify(cameraRepository, never()).save(any());
-        verify(healthLogRepo, never()).save(any());
     }
 
     @Test
@@ -178,7 +178,6 @@ class CameraConnectionServiceTest {
         assertFalse(response.getMessage().contains("Kiểm tra kết nối thất bại:"));
 
         verify(cameraRepository, never()).save(any());
-        verify(healthLogRepo, never()).save(any());
     }
 
     @Test
@@ -188,5 +187,65 @@ class CameraConnectionServiceTest {
 
         CameraException ex = assertThrows(CameraException.class, () -> cameraConnectionService.testConnection(cameraId));
         assertEquals(CameraErrorCode.ERR_CAM_002, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("Smart Fallback 1 (Happy Path - Edge ONLINE): Khi Edge ONLINE và RPC thành công -> dùng Edge RPC, không gọi RtspHandshakeChecker")
+    void testConnection_EdgeOnline_UsesEdgeRpcWithoutLocalFallback() {
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraConnectionService, "edgeMqttControlService", edgeMqttControlService);
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraConnectionService, "edgeStatusService", edgeStatusService);
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(edgeMqttControlService.isConnected()).thenReturn(true);
+        when(edgeStatusService.hasActiveOnlineEdge()).thenReturn(true);
+        when(edgeMqttControlService.sendRpcRequest(eq("TEST_CONNECTION"), eq("CAM-01"), any(), anyLong()))
+                .thenReturn(EdgeRpcReplyDto.builder().success(true).latencyMs(12L).build());
+
+        TestConnectionResponse response = cameraConnectionService.testConnection(cameraId);
+
+        assertTrue(response.isSuccess());
+        assertEquals(12L, response.getLatencyMs());
+        verify(rtspHandshakeChecker, never()).check(any(), anyInt(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("Smart Fallback 2 (Broker bật nhưng Edge OFFLINE): Bỏ qua MQTT RPC, fallback thẳng sang RtspHandshakeChecker")
+    void testConnection_BrokerConnectedButEdgeOffline_FallsBackToRtspHandshakeChecker() {
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraConnectionService, "edgeMqttControlService", edgeMqttControlService);
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraConnectionService, "edgeStatusService", edgeStatusService);
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(edgeMqttControlService.isConnected()).thenReturn(true);
+        when(edgeStatusService.hasActiveOnlineEdge()).thenReturn(false);
+        when(rtspHandshakeChecker.check("192.168.1.100", 554, "/live", 10000))
+                .thenReturn(RtspCheckResult.builder().reachable(true).statusCode(200).latencyMs(18L).build());
+
+        TestConnectionResponse response = cameraConnectionService.testConnection(cameraId);
+
+        assertTrue(response.isSuccess());
+        assertEquals(18L, response.getLatencyMs());
+        verify(edgeMqttControlService, never()).sendRpcRequest(any(), any(), any(), anyLong());
+        verify(rtspHandshakeChecker).check("192.168.1.100", 554, "/live", 10000);
+    }
+
+    @Test
+    @DisplayName("Smart Fallback 3 (Edge Timeout ERR_EDGE_002): Edge RPC timeout -> tự fallback sang RtspHandshakeChecker")
+    void testConnection_EdgeRpcTimeout_FallsBackToRtspHandshakeChecker() {
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraConnectionService, "edgeMqttControlService", edgeMqttControlService);
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraConnectionService, "edgeStatusService", edgeStatusService);
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(edgeMqttControlService.isConnected()).thenReturn(true);
+        when(edgeStatusService.hasActiveOnlineEdge()).thenReturn(true);
+        when(edgeMqttControlService.sendRpcRequest(eq("TEST_CONNECTION"), eq("CAM-01"), any(), anyLong()))
+                .thenThrow(new CameraException(CameraErrorCode.ERR_EDGE_002));
+        when(rtspHandshakeChecker.check("192.168.1.100", 554, "/live", 10000))
+                .thenReturn(RtspCheckResult.builder().reachable(true).statusCode(200).latencyMs(22L).build());
+
+        TestConnectionResponse response = cameraConnectionService.testConnection(cameraId);
+
+        assertTrue(response.isSuccess());
+        assertEquals(22L, response.getLatencyMs());
+        verify(rtspHandshakeChecker).check("192.168.1.100", 554, "/live", 10000);
     }
 }

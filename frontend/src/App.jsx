@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {
+	Routes,
+	Route,
+	Navigate,
+	useLocation,
+	useParams,
+	useSearchParams,
+} from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ThemeProvider } from "./context/ThemeContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -10,8 +17,6 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 import AreaListPage from "./pages/areas/AreaListPage";
-import CameraListPage from "./pages/cameras/CameraListPage";
-import CameraDetailPage from "./pages/cameras/CameraDetailPage";
 import GuardDashboardPage from "./pages/guard/GuardDashboardPage";
 import AccessRequestPage from "./pages/accessRequest/AccessRequestPage";
 import ApprovalPage from "./pages/approvals/ApprovalPage";
@@ -42,8 +47,8 @@ const ROUTE_TITLES = {
 	"/admin/areas": "Quản lý khuôn viên",
 	"/admin/areas/map": "Quản lý khuôn viên",
 	"/admin/events": "Quản lý sự kiện",
-	"/cameras": "Quản lý Camera",
-	"/admin/cameras": "Quản lý Camera",
+	"/cameras": "Quản lý khuôn viên & Camera",
+	"/admin/cameras": "Quản lý khuôn viên & Camera",
 	"/admin/accounts": "Quản lý tài khoản",
 	"/admin/guard-teams": "Quản lý Đội bảo vệ",
 	"/admin/guard-schedules": "Quản lý Đội bảo vệ",
@@ -70,10 +75,30 @@ function getPageTitle(pathname) {
 	if (ROUTE_TITLES[pathname]) {
 		return ROUTE_TITLES[pathname];
 	}
-	if (pathname.startsWith("/cameras/")) {
-		return "Chi tiết Camera";
+	if (pathname.startsWith("/cameras/") || pathname.startsWith("/admin/cameras/")) {
+		return "Quản lý khuôn viên & Camera";
 	}
 	return null;
+}
+
+function CameraWorkspaceRedirect() {
+	const { id } = useParams();
+	const [searchParams] = useSearchParams();
+	const nextParams = new URLSearchParams();
+	nextParams.set("tab", "cameras");
+	if (id) {
+		nextParams.set("cameraId", id);
+		const camTab = searchParams.get("tab");
+		if (camTab) {
+			nextParams.set("cameraTab", camTab);
+		}
+	}
+	return (
+		<Navigate
+			to={`/admin/areas?${nextParams.toString()}`}
+			replace
+		/>
+	);
 }
 
 function RootRoute() {
@@ -216,8 +241,10 @@ function App() {
 							<Route
 								path="/cameras"
 								element={
-									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-										<CameraListPage />
+									<ProtectedRoute
+										allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}
+									>
+										<CameraWorkspaceRedirect />
 									</ProtectedRoute>
 								}
 							/>
@@ -225,20 +252,34 @@ function App() {
 							<Route
 								path="/cameras/:id"
 								element={
-									<ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-										<CameraDetailPage />
+									<ProtectedRoute
+										allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}
+									>
+										<CameraWorkspaceRedirect />
 									</ProtectedRoute>
 								}
 							/>
 
 							<Route
 								path="/admin/cameras"
-								element={<Navigate to="/cameras" replace />}
+								element={
+									<ProtectedRoute
+										allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}
+									>
+										<CameraWorkspaceRedirect />
+									</ProtectedRoute>
+								}
 							/>
 
 							<Route
 								path="/admin/cameras/:id"
-								element={<Navigate to="/cameras" replace />}
+								element={
+									<ProtectedRoute
+										allowedRoles={[ROLES.ADMIN, ROLES.FACILITY_MANAGER]}
+									>
+										<CameraWorkspaceRedirect />
+									</ProtectedRoute>
+								}
 							/>
 
 							{/* Video Recordings - Admin and Guard */}

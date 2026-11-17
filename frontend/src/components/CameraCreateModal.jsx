@@ -1,32 +1,66 @@
 import { useState, useEffect } from "react";
 import { X, Loader } from "lucide-react";
 import { createCamera } from "../services/cameraService";
-import { getAreas } from "../services/areaService";
+import { getAllAreas } from "../services/areaService";
+import "../styles/cameraShared.css";
 import "../styles/CameraCreateModal.css";
 import { formatLocation } from "../utils/formatLocation";
 import Select from "./ui/Select";
 
-export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
+export default function CameraCreateModal({
+	isOpen,
+	onClose,
+	onSuccess,
+	onCreated,
+	defaultAreaId = "",
+	defaultBuilding = "ALL",
+	defaultFloor = "ALL",
+}) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 	const [availableAreas, setAvailableAreas] = useState([]);
+	const [placeOnMapAfterCreate, setPlaceOnMapAfterCreate] = useState(true);
 	const [formData, setFormData] = useState({
 		name: "",
-		areaId: "",
+		areaId: defaultAreaId || "",
 	});
 
 	useEffect(() => {
 		if (isOpen) {
-			setFormData({ name: "", areaId: "" });
+			setFormData({ name: "", areaId: defaultAreaId || "" });
+			setPlaceOnMapAfterCreate(true);
 			setError(null);
-			getAreas({ size: 200, isActive: true })
-				.then((res) => {
-					const list = res?.content || res?.areas || (Array.isArray(res) ? res : []);
-					setAvailableAreas(list);
+			getAllAreas({ isActive: true })
+				.then((list) => {
+					const items = Array.isArray(list) ? list : [];
+					items.sort((a, b) => {
+						const locA = `${a.building || ""} ${a.floor || ""} ${a.name || ""}`;
+						const locB = `${b.building || ""} ${b.floor || ""} ${b.name || ""}`;
+						return locA.localeCompare(locB, "vi");
+					});
+					setAvailableAreas(items);
+					if (!defaultAreaId && defaultBuilding && defaultBuilding !== "ALL") {
+						const matched = items.find((a) => {
+							const bOk =
+								String(a.building || "").toLowerCase().includes(String(defaultBuilding).toLowerCase()) ||
+								String(defaultBuilding).toLowerCase().includes(String(a.building || "").toLowerCase());
+							const fOk =
+								!defaultFloor ||
+								defaultFloor === "ALL" ||
+								String(a.floor || "").toLowerCase() === String(defaultFloor).toLowerCase();
+							return bOk && fOk;
+						});
+						if (matched?.id) {
+							setFormData((prev) => ({
+								...prev,
+								areaId: prev.areaId || matched.id,
+							}));
+						}
+					}
 				})
 				.catch((err) => console.error("Failed to load areas:", err));
 		}
-	}, [isOpen]);
+	}, [isOpen, defaultAreaId, defaultBuilding, defaultFloor]);
 
 	if (!isOpen) return null;
 
@@ -47,7 +81,8 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 
 		try {
 			const response = await createCamera(payload);
-			onSuccess(response);
+			onSuccess?.(response, { placeOnMap: placeOnMapAfterCreate });
+			onCreated?.(response, { placeOnMap: placeOnMapAfterCreate });
 			onClose();
 		} catch (err) {
 			console.error("Failed to create camera:", err);
@@ -129,6 +164,27 @@ export default function CameraCreateModal({ isOpen, onClose, onSuccess }) {
 							>
 								Mỗi camera phải được gán vào một khu vực đang hoạt động. Bạn có thể thay đổi sau.
 							</span>
+						</div>
+
+						<div className="form-group col-span-2">
+							<label
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "0.5rem",
+									cursor: "pointer",
+									fontSize: "0.85rem",
+									fontWeight: 600,
+								}}
+							>
+								<input
+									type="checkbox"
+									checked={placeOnMapAfterCreate}
+									onChange={(e) => setPlaceOnMapAfterCreate(e.target.checked)}
+									style={{ width: "auto" }}
+								/>
+								<span>Đặt vị trí icon trên bản đồ ngay sau khi tạo</span>
+							</label>
 						</div>
 					</div>
 

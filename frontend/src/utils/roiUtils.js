@@ -41,3 +41,43 @@ export function computePolygonCentroid(vertices) {
 		y: sumY / vertices.length,
 	};
 }
+
+/**
+ * Chuẩn bị dữ liệu nền cho RoiEditorModal:
+ * - Nếu WebRtcPlayer đang live và captureFrame() trả về base64 -> dùng khung hình đó.
+ * - Ngược lại (offline / chưa live / lỗi canvas) -> trả về data=null (1920x1080) để vẽ trên lưới 16:9.
+ */
+export function resolveRoiModalSnapshot(playerStatus, playerInstance) {
+	if (playerStatus === "live" && playerInstance && typeof playerInstance.captureFrame === "function") {
+		try {
+			const frame = playerInstance.captureFrame();
+			if (frame && frame.base64) {
+				return {
+					data: frame.base64,
+					width: frame.width || 1920,
+					height: frame.height || 1080,
+				};
+			}
+		} catch {
+			// Fallback an toàn về lưới 16:9 nếu canvas bị taint hoặc player chưa sẵn sàng
+		}
+	}
+	return {
+		data: null,
+		width: 1920,
+		height: 1080,
+	};
+}
+
+/**
+ * Tạo payload cập nhật ROI an toàn khi snapshotMeta là null hoặc undefined.
+ */
+export function buildRoiUpdatePayload(roiGeometry, snapshotMeta) {
+	const { snapshotBase64, snapshotWidth, snapshotHeight } = snapshotMeta || {};
+	return {
+		roiGeometry,
+		snapshot_base64: snapshotBase64,
+		snapshot_width: snapshotWidth,
+		snapshot_height: snapshotHeight,
+	};
+}

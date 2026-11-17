@@ -205,6 +205,7 @@
 }
 
 .syscfg-item-card {
+  overflow: visible;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -237,7 +238,82 @@
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--theme-text-primary);
+  line-height: 1.45;
+}
+
+/* Help Tooltip Icon (matching CameraStreamTab style) */
+.syscfg-help-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin-left: 6px;
+  cursor: help;
+  outline: none;
+}
+
+.syscfg-help-icon {
+  color: var(--theme-text-muted);
+  opacity: 0.82;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.syscfg-help-wrapper:hover .syscfg-help-icon,
+.syscfg-help-wrapper:focus-visible .syscfg-help-icon {
+  opacity: 1;
+  color: var(--brand-text);
+}
+
+.syscfg-help-wrapper::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background-color: var(--theme-text-primary);
+  color: var(--theme-bg-surface);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
   line-height: 1.4;
+  text-align: left;
+  width: max-content;
+  max-width: 270px;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+  border: 1px solid var(--theme-border);
+  z-index: 60;
+}
+
+.syscfg-help-wrapper::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% - 2px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--theme-text-primary) transparent transparent transparent;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 60;
+}
+
+.syscfg-help-wrapper:hover::after,
+.syscfg-help-wrapper:hover::before,
+.syscfg-help-wrapper:focus-visible::after,
+.syscfg-help-wrapper:focus-visible::before {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
 }
 
 .syscfg-item__tags {

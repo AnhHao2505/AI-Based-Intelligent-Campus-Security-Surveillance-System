@@ -28,6 +28,10 @@ public class CameraDetailResponse {
     private RoiGeometry roiGeometry;
     private AreaSimpleResponse assignedArea;
     private List<AreaSimpleResponse> assignedAreas;
+    private Double mapLongitude;
+    private Double mapLatitude;
+    private String mapBuilding;
+    private Integer mapFloorOrder;
 
     public List<AreaSimpleResponse> getAssignedAreas() {
         if (assignedAreas != null && !assignedAreas.isEmpty()) {
