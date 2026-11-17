@@ -116,17 +116,19 @@ public class SecurityIncidentController {
     public ResponseEntity<ApiResponse<String>> acknowledgeIncident(
             @PathVariable String id
     ) {
-        log.info("Guard acknowledged incident [{}], stopping incident recording video", id);
-        securityIncidentService.triggerIncidentRecordingStop(id);
-        return ResponseEntity.ok(ApiResponse.success("ACKNOWLEDGED", "Đã xác nhận xem sự cố và lưu video bằng chứng vào evidence/"));
+        log.info("Guard acknowledged incident [{}] (marking as seen does not cut recording)", id);
+        // Guard marking incident alert as seen does NOT cut video anymore.
+        // Incident recording is managed by AI Service (starts 2s after detection, ends when detection ceases).
+        return ResponseEntity.ok(ApiResponse.success("ACKNOWLEDGED", "Đã xác nhận xem sự cố"));
     }
 
     @PostMapping("/acknowledge-all")
     @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
     public ResponseEntity<ApiResponse<String>> acknowledgeAllIncidents() {
-        log.info("Guard acknowledged all incidents, stopping all incident recording videos");
-        securityIncidentService.triggerAllIncidentRecordingsStop();
-        return ResponseEntity.ok(ApiResponse.success("ALL_ACKNOWLEDGED", "Đã xác nhận xem tất cả sự cố và lưu video bằng chứng vào evidence/"));
+        log.info("Guard acknowledged all incidents (marking as seen does not cut recording)");
+        // Guard marking incident alert as seen does NOT cut video anymore.
+        // Incident recording is managed by AI Service (starts 2s after detection, ends when detection ceases).
+        return ResponseEntity.ok(ApiResponse.success("ALL_ACKNOWLEDGED", "Đã xác nhận xem tất cả sự cố"));
     }
 
     @PostMapping("/test-alert")

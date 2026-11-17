@@ -65,7 +65,7 @@ class IncidentRecorder:
         base_dir: Optional[str] = None,
         fps: float = 15.0,
         frame_provider: Optional[Callable[[], Optional[np.ndarray]]] = None,
-        max_duration_seconds: float = 60.0,
+        max_duration_seconds: Optional[float] = None,
     ):
         self.incident_id = str(incident_id).strip()
         self.camera_code = camera_code.strip().upper()
@@ -76,7 +76,7 @@ class IncidentRecorder:
         )
         self.fps = fps
         self.frame_provider = frame_provider
-        self.max_duration_seconds = max_duration_seconds
+        self.max_duration_seconds = max_duration_seconds if max_duration_seconds is not None else float(getattr(settings, "INCIDENT_RECORDING_MAX_DURATION_SECONDS", 300.0))
 
         self.start_dt = _now_vn()
         self.start_ts = time.time()
@@ -414,6 +414,13 @@ class IncidentRecordingManager:
         with self._lock:
             rec = self._recordings_by_camera.get(cam_code)
             return bool(rec and rec.is_running)
+
+    def get_active_recording_for_camera(self, camera_code: str) -> Optional[IncidentRecorder]:
+        """Lấy phiên ghi hình sự cố đang chạy cho camera nếu có"""
+        cam_code = camera_code.strip().upper()
+        with self._lock:
+            rec = self._recordings_by_camera.get(cam_code)
+            return rec if (rec and rec.is_running) else None
 
     def stop_incident_recording(self, key: str) -> Optional[Dict[str, Any]]:
         clean_key = str(key).strip()

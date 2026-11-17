@@ -53,7 +53,10 @@ public class SystemConfigService {
             ConfigKey.AI_IDENTITY_GRACE_SECONDS.getKey(),
             ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS.getKey(),
             ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS.getKey(),
-            ConfigKey.RECORDING_RETENTION_HOURS.getKey());
+            ConfigKey.RECORDING_RETENTION_HOURS.getKey(),
+            ConfigKey.RECORDING_SEGMENT_SECONDS.getKey(),
+            ConfigKey.INCIDENT_RECORDING_START_DELAY_SECONDS.getKey(),
+            ConfigKey.INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS.getKey());
 
     private final SystemConfigurationRepository systemConfigurationRepository;
     private final SystemConfigurationChangeLogRepository changeLogRepository;
@@ -399,6 +402,9 @@ public class SystemConfigService {
         map.put("unauthorized_alert_cooldown", getInt(ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS));
         map.put("suspicious_motion_cooldown", getInt(ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS));
         map.put("recording_retention_hours", getDouble(ConfigKey.RECORDING_RETENTION_HOURS));
+        map.put("recording_segment_seconds", getInt(ConfigKey.RECORDING_SEGMENT_SECONDS));
+        map.put("incident_start_delay_seconds", getDouble(ConfigKey.INCIDENT_RECORDING_START_DELAY_SECONDS));
+        map.put("incident_no_detection_timeout_seconds", getDouble(ConfigKey.INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS));
         return map;
     }
 

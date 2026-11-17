@@ -34,6 +34,11 @@ RUNTIME_FIELDS: Dict[str, Tuple[str, Optional[Tuple[str, str]]]] = {
     "suspicious_motion_cooldown": ("SUSPICIOUS_MOTION_COOLDOWN_SECONDS", ("pipeline", "_suspicious_motion_cooldown")),
     # V126: thời hạn lưu trữ video ghi hình (giờ)
     "recording_retention_hours": ("RECORDING_RETENTION_HOURS", None),
+    # V128: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
+    "recording_segment_seconds": ("RECORDING_SEGMENT_SECONDS", None),
+    # V127: độ trễ bắt đầu và kết thúc ghi hình sự cố an ninh
+    "incident_start_delay_seconds": ("INCIDENT_RECORDING_START_DELAY_SECONDS", ("pipeline", "incident_start_delay_seconds")),
+    "incident_no_detection_timeout_seconds": ("INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS", ("pipeline", "incident_no_detection_timeout_seconds")),
 }
 
 
@@ -53,7 +58,12 @@ def parse_runtime_config(data: Dict[str, Any]) -> Tuple[Dict[str, float], List[s
         except (TypeError, ValueError):
             errors.append(f"{key} không hợp lệ: {raw}")
             continue
-        if not math.isfinite(val) or val <= 0:
+        # Cho phép các tham số độ trễ sự cố bằng 0 (ghi hình ngay lập tức hoặc ngắt ngay khi hết sự cố)
+        if key in ("incident_start_delay_seconds", "incident_no_detection_timeout_seconds"):
+            if not math.isfinite(val) or val < 0:
+                errors.append(f"{key}={raw} phải là số không âm (>= 0)")
+                continue
+        elif not math.isfinite(val) or val <= 0:
             errors.append(f"{key}={raw} phải là số dương")
             continue
         if key == "face_match_threshold" and val > 1.0:

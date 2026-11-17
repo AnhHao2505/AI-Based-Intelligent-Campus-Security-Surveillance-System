@@ -329,7 +329,11 @@ class CameraStreamWorker:
 
             last_analysis_time = time.time()
             try:
-                need_annotated = self.has_active_client or incident_recording_manager.is_recording(self.camera_code)
+                need_annotated = (
+                    self.has_active_client
+                    or incident_recording_manager.is_recording(self.camera_code)
+                    or getattr(self.pipeline, "is_incident_active_or_pending", False)
+                )
                 annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(
                     frame,
                     need_annotated=need_annotated
