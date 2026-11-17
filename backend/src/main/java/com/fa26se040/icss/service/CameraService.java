@@ -370,6 +370,9 @@ public class CameraService {
         if (camera.getStatus() == CameraStatus.DECOMMISSIONED) {
             throw new CameraException(CameraErrorCode.ERR_STREAM_003);
         }
+        if (camera.getOperationalStatus() == OperationalStatus.ONLINE) {
+            throw new CameraException(CameraErrorCode.ERR_STREAM_004);
+        }
 
         CameraStreamConfiguration config = cameraStreamConfigurationRepository.findByCameraId(cameraId)
                 .orElse(CameraStreamConfiguration.builder().camera(camera).build());
@@ -389,40 +392,6 @@ public class CameraService {
 
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
-
-        if (camera.getOperationalStatus() == OperationalStatus.ONLINE) {
-            String mainRtspUrl = buildRtspUrl(saved);
-            String subRtspUrl = buildSubRtspUrl(saved);
-            boolean hasSub = (subRtspUrl != null && !subRtspUrl.isBlank());
-            if (mainRtspUrl != null && !mainRtspUrl.isBlank()) {
-                if (hasSub) {
-                    mediaMtxService.syncCameraPath(camera.getCameraCode(), subRtspUrl);
-                    mediaMtxService.syncCameraPath(camera.getCameraCode() + "_main", mainRtspUrl);
-                } else {
-                    mediaMtxService.syncCameraPath(camera.getCameraCode(), mainRtspUrl);
-                    mediaMtxService.deleteCameraPath(camera.getCameraCode() + "_main");
-                }
-                if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
-                    if (hasSub) {
-                        edgeMqttControlService.publishCameraStreamConfig(
-                                camera.getCameraCode(),
-                                subRtspUrl,
-                                mainRtspUrl,
-                                true,
-                                camera.getRoiGeometry()
-                        );
-                    } else {
-                        edgeMqttControlService.publishCameraStreamConfig(
-                                camera.getCameraCode(),
-                                mainRtspUrl,
-                                true,
-                                camera.getRoiGeometry()
-                        );
-                    }
-                }
-                startAiStreamWorkerSafely(camera.getCameraCode());
-            }
-        }
 
         CameraStreamConfigResponse streamResponse = mapToStreamResponse(saved);
         streamResponse.setOperationalStatus(camera.getOperationalStatus() != null ? camera.getOperationalStatus() : OperationalStatus.OFFLINE);
