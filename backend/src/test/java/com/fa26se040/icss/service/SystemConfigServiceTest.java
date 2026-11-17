@@ -288,16 +288,23 @@ class SystemConfigServiceTest {
         assertEquals(5, map.get("suspicious_motion_cooldown"));
         assertEquals(1.0, map.get("identity_hold_seconds"));
         assertEquals(3, map.get("camera_unknown_min_interval"));
+        assertEquals(60, map.get("recording_segment_seconds"));
+        assertEquals(0.0, map.get("incident_start_delay_seconds"));
+        assertEquals(0.0, map.get("incident_no_detection_timeout_seconds"));
     }
 
     @Test
-    @DisplayName("V126: mọi khoá AI runtime (trừ giờ ngoài giờ) đều kích hoạt đồng bộ xuống AI")
+    @DisplayName("V126+: mọi khoá AI runtime (trừ giờ ngoài giờ) đều kích hoạt đồng bộ xuống AI")
     void testAiRuntimeKeys_CoverAllRuntimeConfigKeys() {
         for (ConfigKey k : ConfigKey.values()) {
             String key = k.getKey();
-            boolean isAi = key.startsWith("AI_") || key.equals(ConfigKey.RECORDING_RETENTION_HOURS.getKey());
+            boolean isAiRuntime = key.startsWith("AI_")
+                    || key.equals(ConfigKey.RECORDING_RETENTION_HOURS.getKey())
+                    || key.equals(ConfigKey.RECORDING_SEGMENT_SECONDS.getKey())
+                    || key.equals(ConfigKey.INCIDENT_RECORDING_START_DELAY_SECONDS.getKey())
+                    || key.equals(ConfigKey.INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS.getKey());
             boolean isAfterHour = key.equals("AI_AFTER_HOUR_START") || key.equals("AI_AFTER_HOUR_END");
-            assertEquals(isAi && !isAfterHour, SystemConfigService.AI_RUNTIME_KEYS.contains(key), key);
+            assertEquals(isAiRuntime && !isAfterHour, SystemConfigService.AI_RUNTIME_KEYS.contains(key), key);
         }
     }
 }
