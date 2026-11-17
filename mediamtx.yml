@@ -34,15 +34,18 @@ pathDefaults:
 api: yes
 apiAddress: :9997
 
-authMethod: internal
-authInternalUsers:
-  - user: any
-    pass: ''
-    permissions:
-      - action: api
-      - action: read
-      - action: publish
-      - action: playback
+# 5.1 Xác thực WHEP WebRTC Stream Token qua Backend ICSS
+# Giá trị authHTTPAddress mặc định dưới đây có thể được ghi đè động bằng biến môi trường
+# MTX_AUTHHTTPADDRESS (ví dụ cấu hình trong docker-compose.yml hoặc qua file .env với MEDIAMTX_AUTH_HTTP_ADDRESS).
+# - Chạy MediaMTX nhị phân trên Windows host: trỏ tới http://127.0.0.1:8080/api/cameras/whep-auth
+# - Chạy MediaMTX trong Docker Desktop (Windows/Mac): trỏ tới http://host.docker.internal:8080/api/cameras/whep-auth
+# - Chạy MediaMTX trong mạng Docker Linux: trỏ tới http://backend:8080/api/cameras/whep-auth
+authMethod: http
+authHTTPAddress: http://host.docker.internal:8080/api/cameras/whep-auth
+authHTTPExclude:
+  - action: api
+  - action: publish
+  - action: playback
 
 # 6. Danh sách Kênh Camera
 # Tất cả các camera sẽ được Edge AI Agent / Backend tự động đồng bộ qua MediaMTX API (/v3/config/paths/add)

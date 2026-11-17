@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
 	ArrowLeft,
@@ -24,6 +24,7 @@ import {
 } from "../../services/cameraService";
 import { getAreas } from "../../services/areaService";
 import { toast } from "sonner";
+import { isStreamConfigDirty } from "../../utils/campusCameraHelpers";
 import RoiEditorModal from "../../components/camera/RoiEditorModal";
 import CameraGeneralTab from "../../components/camera/CameraGeneralTab";
 import CameraStreamTab from "../../components/camera/CameraStreamTab";
@@ -106,6 +107,11 @@ export default function CameraDetailPage() {
 		mainStreamPath: "",
 	});
 
+	const isStreamDirty = useMemo(
+		() => isStreamConfigDirty(streamForm, camera?.streamConfig),
+		[streamForm, camera?.streamConfig],
+	);
+
 	useEffect(() => {
 		getAreas({ size: 200, isActive: true })
 			.then((res) => {
@@ -185,7 +191,9 @@ export default function CameraDetailPage() {
 			if (res && res.success) {
 				setTestResult({
 					success: true,
-					message: res.message || "Kết nối RTSP thành công!",
+					message:
+						res.message ||
+						'Kết nối RTSP thành công! Nhấn "Lưu & Kết nối Stream" để áp dụng.',
 				});
 			} else {
 				const msg =
@@ -208,15 +216,41 @@ export default function CameraDetailPage() {
 		setStartingStream(true);
 		setError(null);
 		try {
+			if (isStreamDirty) {
+				const payload = {
+					host: streamForm.host ? streamForm.host.trim() : "",
+					port: streamForm.port ? parseInt(streamForm.port, 10) : 554,
+					username: streamForm.username ? streamForm.username.trim() : "",
+					mainStreamPath: streamForm.mainStreamPath
+						? streamForm.mainStreamPath.trim()
+						: "",
+				};
+				if (streamForm.credentialRef && streamForm.credentialRef.trim()) {
+					payload.credentialRef = streamForm.credentialRef.trim();
+				}
+				await upsertStreamConfig(id, payload);
+				setStreamForm((prev) => ({ ...prev, credentialRef: "" }));
+				toast.info("Đã lưu cấu hình RTSP mới. Đang kết nối luồng video...");
+			}
+
 			const res = await startStream(id);
 			if (res && res.success) {
 				setCamera((prev) => ({
 					...prev,
 					operationalStatus: "ONLINE",
 				}));
-				showNotification(
-					"Kết nối Stream phát trực tiếp thành công! Camera đã chuyển sang trạng thái ONLINE.",
-				);
+				if (res?.aiWorkerRunning === false) {
+					toast.warning(
+						res?.message ||
+							"Kết nối Stream thành công (Cảnh báo: AI chưa chạy).",
+					);
+				} else {
+					toast.success(
+						res?.message ||
+							"Kết nối Stream phát trực tiếp thành công! Camera đã chuyển sang trạng thái ONLINE.",
+					);
+				}
+				await loadCameraDetails();
 			} else {
 				showError(res?.message || "Không thể Kết nối Stream phát trực tiếp.");
 			}
@@ -521,6 +555,7 @@ export default function CameraDetailPage() {
 								stoppingStream={stoppingStream}
 								onStartStream={handleStartStream}
 								onStopStream={handleStopStream}
+								isDirty={isStreamDirty}
 							/>
 						</div>
 

@@ -22,6 +22,7 @@ import {
 	Camera as CameraIcon,
 	X,
 	Film,
+	CirclePlay,
 	Download,
 	ExternalLink,
 	RefreshCw,
@@ -856,10 +857,56 @@ export function SecuritySurveillancePage() {
 											claimedById: update.claimedById || a.claimedById,
 											severity: update.severity || a.severity,
 											dispatchStage: update.dispatchStage || a.dispatchStage,
+											// V129: AI nhận ra người sau cảnh báo người lạ -> backend cập nhật loại / nội dung sự cố
+											...(update.identityUpdate && update.eventType
+												? { eventType: update.eventType }
+												: {}),
+											...(update.identityUpdate && update.resolutionNotes
+												? {
+														message: cleanIncidentMessage(
+															update.resolutionNotes,
+															update.eventType || a.eventType,
+															a.cameraName,
+															a.cameraCode,
+														),
+													}
+												: {}),
+											...(update.imageUrl ? { imageUrl: update.imageUrl } : {}),
 										}
 										: a,
 								),
 							);
+							setEvidenceModalAlert((prev) => {
+								if (
+									prev &&
+									(prev.id === update.incidentId ||
+										String(prev.id) === String(update.incidentId))
+								) {
+									return {
+										...prev,
+										status: update.status || prev.status,
+										severity: update.severity || prev.severity,
+										dispatchStage: update.dispatchStage || prev.dispatchStage,
+										...(update.eventType ? { eventType: update.eventType } : {}),
+										...(update.resolutionNotes
+											? {
+													message: cleanIncidentMessage(
+														update.resolutionNotes,
+														update.eventType || prev.eventType,
+														prev.cameraName,
+														prev.cameraCode,
+													),
+												}
+											: {}),
+										...(update.imageUrl ? { imageUrl: update.imageUrl } : {}),
+									};
+								}
+								return prev;
+							});
+							// Câu báo xác minh danh tính muộn (tự đóng / cập nhật), hiện như toast, không phát âm thanh
+							if (update.identityNotice) {
+								triggerNotification(update.identityNotice);
+							}
 						} catch (err) {
 							console.error("Lỗi parse incident update:", err);
 						}
@@ -1874,7 +1921,7 @@ export function SecuritySurveillancePage() {
 															onClick={() => handleOpenIncidentMedia(alert, "video")}
 															title="Xem video hiện trường sự cố ngay trong tab này"
 														>
-															<Film size={12} />
+															<CirclePlay size={12} />
 														</button>
 													</div>
 

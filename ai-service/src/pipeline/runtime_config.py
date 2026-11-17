@@ -34,11 +34,15 @@ RUNTIME_FIELDS: Dict[str, Tuple[str, Optional[Tuple[str, str]]]] = {
     "suspicious_motion_cooldown": ("SUSPICIOUS_MOTION_COOLDOWN_SECONDS", ("pipeline", "_suspicious_motion_cooldown")),
     # V126: thời hạn lưu trữ video ghi hình (giờ)
     "recording_retention_hours": ("RECORDING_RETENTION_HOURS", None),
-    # V128: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
-    "recording_segment_seconds": ("RECORDING_SEGMENT_SECONDS", None),
-    # V127: độ trễ bắt đầu và kết thúc ghi hình sự cố an ninh
+    # V127 (origin/main): thời gian giữ thêm (hold) khi đang thấy mặt nhưng chưa khớp, trước khi chốt cảnh báo người lạ
+    "identity_hold_seconds": ("ACCESS_RESOLUTION_HOLD_SECONDS", ("engine", "identity_hold_seconds")),
+    # V128 (origin/main): khoảng cách tối thiểu giữa 2 cảnh báo người lạ trên cùng một camera
+    "camera_unknown_min_interval": ("CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS", ("engine", "camera_unknown_min_interval")),
+    # V130: độ trễ bắt đầu và kết thúc ghi hình sự cố an ninh
     "incident_start_delay_seconds": ("INCIDENT_RECORDING_START_DELAY_SECONDS", ("pipeline", "incident_start_delay_seconds")),
     "incident_no_detection_timeout_seconds": ("INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS", ("pipeline", "incident_no_detection_timeout_seconds")),
+    # V131: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
+    "recording_segment_seconds": ("RECORDING_SEGMENT_SECONDS", None),
 }
 
 

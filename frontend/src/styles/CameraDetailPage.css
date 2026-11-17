@@ -1061,6 +1061,29 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   opacity: 1;
 }
 
+.stream-online-lock-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #f59e0b;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin-bottom: 1.25rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.stream-online-lock-banner__text {
+  flex: 1;
+}
+
+.stream-online-lock-banner__text strong {
+  color: #fbbf24;
+}
+
 /* Surveillance Tab — Compare Button & Drift Detection */
 .btn-refresh-compare {
   background: rgba(30, 41, 59, 0.6);

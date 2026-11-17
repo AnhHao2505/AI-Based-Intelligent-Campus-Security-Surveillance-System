@@ -104,6 +104,9 @@ class CameraControllerSecurityTest {
     private CameraRecordingService recordingService;
 
     @Autowired
+    private AnnotatedStreamTokenService annotatedStreamTokenService;
+
+    @Autowired
     private CameraService cameraService;
 
     private MockMvc mockMvc;
@@ -239,6 +242,45 @@ class CameraControllerSecurityTest {
                 .andExpect(jsonPath("$.data.mapLongitude").value(108.26105));
 
         mockMvc.perform(delete("/api/cameras/{id}/map-location", cameraId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("WHEP/RTSP Auth: Chặn RTSP ẩn danh hoặc sai action, chỉ cho phép RTSP nội bộ có HMAC hợp lệ hoặc WebRTC có stream token")
+    void authenticateWhepStream_ShouldRejectAnonymousRtspAndAllowValidCredentials() throws Exception {
+        when(annotatedStreamTokenService.verifyToken("cam-001", "valid-whep-token")).thenReturn(true);
+        when(annotatedStreamTokenService.verifyInternalRtspSecret("cam-001", "valid-hmac")).thenReturn(true);
+
+        // 1. RTSP ẩn danh (VLC / FFmpeg bên ngoài) -> 401 Unauthorized
+        mockMvc.perform(post("/api/cameras/whep-auth")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"protocol":"rtsp","action":"read","path":"cam-001","user":"","password":""}
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        // 2. RTSP dùng user đúng nhưng action=publish -> 401 Unauthorized
+        mockMvc.perform(post("/api/cameras/whep-auth")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"protocol":"rtsp","action":"publish","path":"cam-001","user":"icss-internal","password":"valid-hmac"}
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        // 3. RTSP nội bộ đúng user + action=read + HMAC hợp lệ -> 200 OK
+        mockMvc.perform(post("/api/cameras/whep-auth")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"protocol":"rtsp","action":"read","path":"cam-001","user":"icss-internal","password":"valid-hmac"}
+                                """))
+                .andExpect(status().isOk());
+
+        // 4. WebRTC WHEP có stream token hợp lệ -> 200 OK
+        mockMvc.perform(post("/api/cameras/whep-auth")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"protocol":"webrtc","action":"read","path":"cam-001","query":"token=valid-whep-token"}
+                                """))
                 .andExpect(status().isOk());
     }
 }

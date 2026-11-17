@@ -24,7 +24,12 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
 
     Optional<Camera> findTopByCameraCodeStartingWithOrderByCameraCodeDesc(String prefix);
 
-    @Query("SELECT c FROM Camera c WHERE " +
+    @Query(value = "SELECT c FROM Camera c LEFT JOIN FETCH c.area WHERE " +
+           "c.deletedAt IS NULL " +
+           "AND (LOWER(c.cameraCode) LIKE :search OR LOWER(c.name) LIKE :search) " +
+           "AND (:status IS NULL OR c.status = :status) " +
+           "AND (:opStatus IS NULL OR c.operationalStatus = :opStatus)",
+           countQuery = "SELECT COUNT(c) FROM Camera c WHERE " +
            "c.deletedAt IS NULL " +
            "AND (LOWER(c.cameraCode) LIKE :search OR LOWER(c.name) LIKE :search) " +
            "AND (:status IS NULL OR c.status = :status) " +
@@ -33,6 +38,13 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
                               @Param("status") CameraStatus status,
                               @Param("opStatus") OperationalStatus opStatus,
                               Pageable pageable);
+
+    List<Camera> findByStatusAndDeletedAtIsNullOrderByCameraCodeAsc(CameraStatus status);
+
+    @Query("SELECT DISTINCT c FROM Camera c LEFT JOIN FETCH c.streamConfiguration WHERE c.status = :status AND c.deletedAt IS NULL ORDER BY c.cameraCode ASC")
+    List<Camera> findActiveWithStreamConfigByStatus(@Param("status") CameraStatus status);
+
+    List<Camera> findByStatus(CameraStatus status);
 
     @Query(value = "SELECT nextval('camera_code_seq')", nativeQuery = true)
     Long getNextCameraCodeSequence();

@@ -659,6 +659,7 @@ public class CameraRecordingService {
                 || relativePathStr.contains("..")
                 || relativePathStr.startsWith("/")
                 || relativePathStr.startsWith("\\")
+                || relativePathStr.matches("^[A-Za-z]:.*")
                 || !relativePathStr.toLowerCase().endsWith(".mp4")) {
             log.warn("🚨 Từ chối truy cập đường dẫn không hợp lệ hoặc chứa ký tự nguy hiểm: {}", relativePathStr);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();

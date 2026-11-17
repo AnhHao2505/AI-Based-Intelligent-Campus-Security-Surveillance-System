@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
 	X,
 	Video,
@@ -25,7 +25,11 @@ import {
 	updateRoiGeometry,
 } from "../../services/cameraService";
 import { formatLocation } from "../../utils/formatLocation";
-import { extractCameraAreaInfo } from "../../utils/campusCameraHelpers";
+import {
+	applyLiveCameraStatus,
+	extractCameraAreaInfo,
+	isStreamConfigDirty,
+} from "../../utils/campusCameraHelpers";
 import RoiEditorModal from "./RoiEditorModal";
 import CameraGeneralTab from "./CameraGeneralTab";
 import CameraStreamTab from "./CameraStreamTab";
@@ -47,7 +51,10 @@ export default function CameraInspectorDrawer({
 	initialTab = "general",
 	availableAreas = [],
 	isAdmin = false,
+	liveOperationalStatus = null,
+	liveStatus = null,
 	onClose,
+	onCameraLoaded,
 	onCameraMutated,
 	onCameraDeleted,
 	onFocusAreaOnMap,
@@ -60,6 +67,11 @@ export default function CameraInspectorDrawer({
 	onRequestPickLocationOnMap,
 	onRemoveMapLocation,
 }) {
+	const liveOperationalStatusRef = useRef(liveOperationalStatus);
+	liveOperationalStatusRef.current = liveOperationalStatus;
+	const liveStatusRef = useRef(liveStatus);
+	liveStatusRef.current = liveStatus;
+
 	const [activeTab, setActiveTab] = useState(
 		VALID_TABS.includes(initialTab) ? initialTab : "general",
 	);
@@ -95,29 +107,42 @@ export default function CameraInspectorDrawer({
 		mainStreamPath: "",
 	});
 
+	const isStreamDirty = useMemo(
+		() => isStreamConfigDirty(streamForm, camera?.streamConfig),
+		[streamForm, camera?.streamConfig],
+	);
+
 	const loadCameraDetails = useCallback(async () => {
 		if (!cameraId) return;
 		setLoading(true);
 		setLoadError(null);
 		try {
 			const data = await fetchCameraDetail(cameraId);
-			setCamera(data);
-			const info = extractCameraAreaInfo(data);
+			const reconciled =
+				liveOperationalStatusRef.current || liveStatusRef.current
+					? applyLiveCameraStatus(data, {
+							operationalStatus: liveOperationalStatusRef.current,
+							status: liveStatusRef.current,
+					  })
+					: data;
+			setCamera(reconciled);
+			onCameraLoaded?.(reconciled);
+			const info = extractCameraAreaInfo(reconciled);
 			setGeneralForm({
-				name: data.name || "",
+				name: reconciled.name || "",
 				areaId: info.areaId || "",
 			});
-			if (data.streamConfig) {
+			if (reconciled.streamConfig) {
 				setStreamForm({
-					host: data.streamConfig.host || "",
+					host: reconciled.streamConfig.host || "",
 					port:
-						data.streamConfig.port !== null &&
-						data.streamConfig.port !== undefined
-							? String(data.streamConfig.port)
+						reconciled.streamConfig.port !== null &&
+						reconciled.streamConfig.port !== undefined
+							? String(reconciled.streamConfig.port)
 							: "",
-					username: data.streamConfig.username || "",
+					username: reconciled.streamConfig.username || "",
 					credentialRef: "",
-					mainStreamPath: data.streamConfig.mainStreamPath || "",
+					mainStreamPath: reconciled.streamConfig.mainStreamPath || "",
 				});
 			} else {
 				setStreamForm({
@@ -136,12 +161,22 @@ export default function CameraInspectorDrawer({
 		} finally {
 			setLoading(false);
 		}
-	}, [cameraId]);
+	}, [cameraId, onCameraLoaded]);
 
 	useEffect(() => {
 		setTestResult(null);
 		loadCameraDetails();
 	}, [loadCameraDetails]);
+
+	useEffect(() => {
+		if (!liveOperationalStatus && !liveStatus) return;
+		setCamera((prev) =>
+			applyLiveCameraStatus(prev, {
+				operationalStatus: liveOperationalStatus,
+				status: liveStatus,
+			}),
+		);
+	}, [liveOperationalStatus, liveStatus]);
 
 	// Apply 3D map room pick override to generalForm
 	useEffect(() => {
@@ -170,12 +205,13 @@ export default function CameraInspectorDrawer({
 				payload.credentialRef = streamForm.credentialRef.trim();
 			}
 			const res = await testConnection(cameraId, payload);
+			const isSuccess = Boolean(res?.success);
 			setTestResult({
-				success: Boolean(res?.success),
+				success: isSuccess,
 				message:
 					res?.message ||
-					(res?.success
-						? "Kết nối RTSP thành công!"
+					(isSuccess
+						? 'Kết nối RTSP thành công! Nhấn "Lưu & Kết nối Stream" để áp dụng.'
 						: "Không thể kết nối đến camera."),
 			});
 		} catch (err) {
@@ -191,11 +227,40 @@ export default function CameraInspectorDrawer({
 	const handleStartStream = async () => {
 		setStartingStream(true);
 		try {
+			// Tự động lưu cấu hình mới nếu form đang dirty trước khi kích hoạt stream
+			if (isStreamDirty) {
+				const payload = {
+					host: streamForm.host ? streamForm.host.trim() : "",
+					port: streamForm.port ? parseInt(streamForm.port, 10) : 554,
+					username: streamForm.username ? streamForm.username.trim() : "",
+					mainStreamPath: streamForm.mainStreamPath
+						? streamForm.mainStreamPath.trim()
+						: "",
+				};
+				if (streamForm.credentialRef?.trim()) {
+					payload.credentialRef = streamForm.credentialRef.trim();
+				}
+				await upsertStreamConfig(cameraId, payload);
+				setStreamForm((prev) => ({ ...prev, credentialRef: "" }));
+				toast.info("Đã lưu cấu hình RTSP mới. Đang khởi động luồng video...");
+			}
+
 			const res = await startStream(cameraId);
 			if (res?.success) {
 				setCamera((prev) => ({ ...prev, operationalStatus: "ONLINE" }));
-				toast.success("Đã bật Stream trực tiếp. Camera chuyển sang ONLINE.");
+				if (res?.aiWorkerRunning === false) {
+					toast.warning(
+						res?.message ||
+							"Đã bật Stream (Cảnh báo: AI chưa chạy).",
+					);
+				} else {
+					toast.success(
+						res?.message ||
+							"Đã bật Stream trực tiếp. Camera chuyển sang ONLINE.",
+					);
+				}
 				onCameraMutated?.();
+				await loadCameraDetails();
 			} else {
 				setCamera((prev) => ({
 					...prev,
@@ -282,8 +347,9 @@ export default function CameraInspectorDrawer({
 				payload.credentialRef = streamForm.credentialRef.trim();
 			}
 			await upsertStreamConfig(cameraId, payload);
+			setStreamForm((prev) => ({ ...prev, credentialRef: "" }));
 			toast.success("Đã lưu cấu hình stream!");
-			loadCameraDetails();
+			await loadCameraDetails();
 			onCameraMutated?.();
 		} catch (err) {
 			toast.error(err?.message || "Lưu cấu hình stream thất bại.");
@@ -518,6 +584,7 @@ export default function CameraInspectorDrawer({
 								stoppingStream={stoppingStream}
 								onStartStream={handleStartStream}
 								onStopStream={handleStopStream}
+								isDirty={isStreamDirty}
 							/>
 						)}
 

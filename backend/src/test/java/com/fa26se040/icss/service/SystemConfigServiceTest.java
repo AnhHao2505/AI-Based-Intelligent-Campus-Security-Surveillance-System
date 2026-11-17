@@ -286,6 +286,8 @@ class SystemConfigServiceTest {
         assertEquals(1.5, map.get("identity_grace_seconds"));
         assertEquals(30, map.get("unauthorized_alert_cooldown"));
         assertEquals(5, map.get("suspicious_motion_cooldown"));
+        assertEquals(1.0, map.get("identity_hold_seconds"));
+        assertEquals(3, map.get("camera_unknown_min_interval"));
     }
 
     @Test

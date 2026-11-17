@@ -62,6 +62,7 @@ import {
 	extractCameraAreaInfo,
 	resolveCameraInspectorAccess,
 	fetchAllPaginatedPages,
+	mergeCameraStatusUpdate,
 } from "../../utils/campusCameraHelpers";
 import { buildCameraPlacementsMap } from "../../utils/cameraMapGeometry";
 import {
@@ -484,8 +485,10 @@ export default function AreaListPage() {
 	}, [areas]);
 
 	// Unified Camera fetch & stats (Option 1 merge)
-	const fetchAllCameras = useCallback(async () => {
-		setCamerasLoading(true);
+	const fetchAllCameras = useCallback(async ({ silent = false } = {}) => {
+		if (!silent) {
+			setCamerasLoading(true);
+		}
 		setCamerasError(null);
 		try {
 			const list = await fetchAllPaginatedPages(
@@ -500,15 +503,36 @@ export default function AreaListPage() {
 			setCameras(Array.isArray(list) ? list : []);
 		} catch (err) {
 			console.error("Error fetching workspace cameras:", err);
-			setCamerasError(getErrorMessage(err));
+			if (!silent) {
+				setCamerasError(getErrorMessage(err));
+			}
 		} finally {
-			setCamerasLoading(false);
+			if (!silent) {
+				setCamerasLoading(false);
+			}
 		}
 	}, []);
 
 	useEffect(() => {
 		fetchAllCameras();
 	}, [fetchAllCameras]);
+
+	useEffect(() => {
+		const timer = setInterval(() => {
+			if (typeof document !== "undefined" && document.hidden) return;
+			fetchAllCameras({ silent: true });
+		}, 15000);
+		return () => clearInterval(timer);
+	}, [fetchAllCameras]);
+
+	const syncCameraStatusInState = useCallback((updatedCam) => {
+		setCameras((prev) => mergeCameraStatusUpdate(prev, updatedCam));
+	}, []);
+
+	const selectedCameraSummary = useMemo(
+		() => cameras.find((c) => c && c.id === selectedCameraId) || null,
+		[cameras, selectedCameraId],
+	);
 
 	const { statsByArea: cameraStatsByArea, countsByArea: derivedCameraCounts } =
 		useMemo(() => buildCameraStatsByArea(cameras), [cameras]);
@@ -1408,7 +1432,10 @@ export default function AreaListPage() {
 										initialTab={selectedCameraInitialTab}
 										availableAreas={areas}
 										isAdmin={isAdmin}
+										liveOperationalStatus={selectedCameraSummary?.operationalStatus}
+										liveStatus={selectedCameraSummary?.status}
 										onClose={handleCloseCameraInspector}
+										onCameraLoaded={syncCameraStatusInState}
 										onCameraMutated={fetchAllCameras}
 										onCameraDeleted={() => {
 											handleCloseCameraInspector();
@@ -1455,7 +1482,7 @@ export default function AreaListPage() {
 								setIsCreatingOnMap(false);
 								await fetchData(newArea.id);
 							}}
-							hideRail={!selectedCameraId}
+							hideRail={!isAdmin || !selectedCameraId}
 							isLeftSidebarCollapsed={isLeftSidebarCollapsed}
 							onToggleLeftSidebar={() =>
 								setIsLeftSidebarCollapsed((prev) => !prev)

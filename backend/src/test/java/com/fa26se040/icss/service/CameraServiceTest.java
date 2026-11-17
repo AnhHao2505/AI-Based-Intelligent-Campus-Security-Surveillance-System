@@ -190,6 +190,28 @@ class CameraServiceTest {
     }
 
     @Test
+    @DisplayName("UpsertStreamConfig: Throws ERR_STREAM_004 when camera is ONLINE to prevent hot-reload stream breakage")
+    void testUpsertStreamConfig_rejectedWhenCameraIsOnline() {
+        testCamera.setOperationalStatus(OperationalStatus.ONLINE);
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+
+        CameraStreamConfigRequest req = CameraStreamConfigRequest.builder()
+                .host("192.168.1.50")
+                .port(554)
+                .username("admin")
+                .password("Secret123")
+                .mainStreamPath("/live/ch0")
+                .build();
+
+        CameraException ex = assertThrows(CameraException.class, () ->
+                cameraService.upsertStreamConfig(testCameraId, req));
+        assertEquals(CameraErrorCode.ERR_STREAM_004, ex.getErrorCode());
+
+        verify(cameraStreamConfigurationRepository, never()).save(any());
+        verify(mediaMtxService, never()).syncCameraPath(any(), any());
+    }
+
+    @Test
     @DisplayName("DeleteCamera: happy path should soft-delete, keep the original area, and clean MediaMTX path")
     void testDeleteCamera_happyPath_keepsAreaAndCleansGateway() {
         when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
@@ -299,7 +321,7 @@ class CameraServiceTest {
 
         when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Map.of("cam-001", false));
-        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
 
         cameraService.syncLiveOperationalStatuses();
 
@@ -316,7 +338,7 @@ class CameraServiceTest {
 
         when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Map.of("cam-001", false));
-        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
 
         cameraService.syncLiveOperationalStatuses();
 
@@ -333,7 +355,7 @@ class CameraServiceTest {
 
         when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Collections.emptyMap());
-        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
 
         cameraService.syncLiveOperationalStatuses();
 

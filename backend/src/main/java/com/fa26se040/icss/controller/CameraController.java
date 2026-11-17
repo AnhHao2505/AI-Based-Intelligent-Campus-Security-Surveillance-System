@@ -205,8 +205,8 @@ public class CameraController {
 
     /**
      * BE-03 & Security Fix: Stream video ghi hình định kỳ hoặc bằng chứng sự cố an ninh.
-     * Bắt buộc có token hợp lệ được cấp bởi {@link #issueRecordingStreamToken}.
-     * Token được ràng buộc bảo mật với danh tính và thẩm quyền (ADMIN / GUARD / FACILITY_MANAGER).
+     * Bắt buộc có token hợp lệ được cấp bởi {@link #issueRecordingStreamToken} (hoặc phiên đăng nhập hợp lệ).
+     * Token được ràng buộc bảo mật với danh tính và thẩm quyền ({@code RecordingStreamTokenService.ALLOWED_AUTHORITIES}).
      */
     @GetMapping("/recordings/stream")
     public ResponseEntity<org.springframework.core.io.Resource> streamRecording(
@@ -257,12 +257,59 @@ public class CameraController {
     }
 
     @PostMapping("/{cameraCode}/annotated-stream-token")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACILITY_MANAGER', 'GUARD')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
     public ResponseEntity<ApiResponse<AnnotatedStreamTokenService.TokenResponse>> getAnnotatedStreamToken(
             @PathVariable String cameraCode) {
         log.info("REST request to issue annotated stream token for camera: {}", cameraCode);
         AnnotatedStreamTokenService.TokenResponse response = annotatedStreamTokenService.issueForCamera(cameraCode);
         return ResponseEntity.ok(ApiResponse.success(response, "Cấp token xem luồng trực tiếp thành công"));
+    }
+
+    /**
+     * F-07: Callback xác thực từ MediaMTX (authMethod: http) cho cả WebRTC WHEP và RTSP nội bộ.
+     * - WebRTC WHEP (Browser): kiểm tra HMAC stream token trong query string (?token=...).
+     * - RTSP nội bộ (AI Service / Edge Relay): bắt buộc user="icss-internal" và password là HMAC-SHA256 hợp lệ.
+     */
+    @PostMapping("/whep-auth")
+    public ResponseEntity<Void> authenticateWhepStream(@RequestBody(required = false) java.util.Map<String, Object> payload) {
+        if (payload == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String path = payload.get("path") != null ? String.valueOf(payload.get("path")) : "";
+        String query = payload.get("query") != null ? String.valueOf(payload.get("query")) : "";
+        String protocol = payload.get("protocol") != null ? String.valueOf(payload.get("protocol")).toLowerCase() : "";
+        String action = payload.get("action") != null ? String.valueOf(payload.get("action")).toLowerCase() : "";
+        String user = payload.get("user") != null ? String.valueOf(payload.get("user")) : "";
+        String password = payload.get("password") != null ? String.valueOf(payload.get("password")) : "";
+
+        String token = extractQueryParam(query, "token");
+        if (annotatedStreamTokenService.verifyToken(path, token)) {
+            return ResponseEntity.ok().build();
+        }
+
+        if ("rtsp".equals(protocol)
+                && "read".equals(action)
+                && com.fa26se040.icss.service.MediaMtxService.INTERNAL_RTSP_USER.equals(user)
+                && annotatedStreamTokenService.verifyInternalRtspSecret(path, password)) {
+            return ResponseEntity.ok().build();
+        }
+
+        log.debug("MediaMTX auth rejected for path: {}, protocol: {}, action: {}", path, protocol, action);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+
+    private static String extractQueryParam(String query, String key) {
+        if (query == null || query.isBlank()) {
+            return null;
+        }
+        String clean = query.startsWith("?") ? query.substring(1) : query;
+        for (String pair : clean.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0 && pair.substring(0, eq).equals(key)) {
+                return java.net.URLDecoder.decode(pair.substring(eq + 1), java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+        return null;
     }
 }
 

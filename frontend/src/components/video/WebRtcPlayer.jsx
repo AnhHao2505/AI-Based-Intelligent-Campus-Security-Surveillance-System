@@ -326,7 +326,16 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				const offer = await peerConnection.createOffer();
 				await peerConnection.setLocalDescription(offer);
 
-				const whepUrl = resolveWhepEndpoint(host, streamPath);
+				const targetCode = cameraCode || streamPath || "CAM-001";
+				const tokenRes = await getAnnotatedStreamToken(targetCode);
+				if (!isMounted) return;
+				if (!tokenRes || !tokenRes.token) {
+					throw new Error("Không thể cấp token xác thực luồng WebRTC");
+				}
+
+				const baseWhepUrl = resolveWhepEndpoint(host, streamPath);
+				const sep = baseWhepUrl.includes("?") ? "&" : "?";
+				const whepUrl = `${baseWhepUrl}${sep}token=${encodeURIComponent(tokenRes.token)}`;
 				const response = await fetch(whepUrl, {
 					method: "POST",
 					headers: {

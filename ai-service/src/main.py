@@ -368,11 +368,15 @@ class AIRuntimeConfigRequest(BaseModel):
     suspicious_motion_cooldown: Optional[float] = None
     # V126: thời hạn lưu trữ video ghi hình (giờ)
     recording_retention_hours: Optional[float] = None
-    # V128: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
-    recording_segment_seconds: Optional[int] = None
-    # V127: độ trễ bắt đầu và kết thúc ghi hình sự cố an ninh
+    # V127 (origin/main): thời gian giữ thêm trước khi chốt cảnh báo người lạ (giây)
+    identity_hold_seconds: Optional[float] = None
+    # V128 (origin/main): khoảng cách tối thiểu giữa 2 cảnh báo người lạ trên cùng một camera (giây)
+    camera_unknown_min_interval: Optional[float] = None
+    # V130: độ trễ bắt đầu và kết thúc ghi hình sự cố an ninh
     incident_start_delay_seconds: Optional[float] = None
     incident_no_detection_timeout_seconds: Optional[float] = None
+    # V131: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
+    recording_segment_seconds: Optional[int] = None
 
 @app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])
 async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
@@ -585,7 +589,10 @@ async def start_camera_stream(req: StreamStartRequest):
         current_worker = active_workers.get(camera_code)
         if current_worker and current_worker.is_running:
             if current_worker.rtsp_url != rtsp_url:
-                logger.info(f"🔄 [StreamStart] RTSP URL thay đổi cho camera [{camera_code}] ({current_worker.rtsp_url} -> {rtsp_url}), dừng worker cũ và tái kết nối...")
+                logger.info(
+                    f"🔄 [StreamStart] RTSP URL thay đổi cho camera [{camera_code}] "
+                    f"({mask_rtsp_url(current_worker.rtsp_url)} -> {mask_rtsp_url(rtsp_url)}), dừng worker cũ và tái kết nối..."
+                )
                 worker_to_stop = current_worker
                 active_workers.pop(camera_code, None)
             else:
@@ -737,10 +744,10 @@ async def capture_rtsp_snapshot(req: SnapshotRequest):
         raise HTTPException(status_code=502, detail=f"Lỗi trích xuất snapshot: {str(e)}")
         
     if frame is None:
-        logger.warning(f"⚠️ [Snapshot] Không đọc được frame từ {req.rtsp_url}")
+        logger.warning(f"⚠️ [Snapshot] Không đọc được frame từ {mask_rtsp_url(req.rtsp_url)}")
         raise HTTPException(status_code=502, detail="Không thể kết nối hoặc đọc frame từ RTSP")
         
-    logger.info(f"✅ [Snapshot] Trích xuất thành công: shape={frame.shape} từ {req.rtsp_url}")
+    logger.info(f"✅ [Snapshot] Trích xuất thành công: shape={frame.shape} từ {mask_rtsp_url(req.rtsp_url)}")
 
     latency_ms = int((time.time() - start_time) * 1000)
     height, width = frame.shape[:2]
