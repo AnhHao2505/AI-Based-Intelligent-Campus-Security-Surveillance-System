@@ -532,7 +532,8 @@ public class CameraService {
                 reqBody.put("roi_geometry", camera.getRoiGeometry());
             }
             restTemplate.postForObject(streamStartUrl, reqBody, Map.class);
-            log.info("✅ Đã tự động kích hoạt AI Stream Worker & Continuous Recording cho camera [{}] qua MediaMTX Gateway ({})", cameraCode, workerRtspUrl);
+            log.info("✅ Đã tự động kích hoạt AI Stream Worker & Continuous Recording cho camera [{}] qua MediaMTX Gateway ({})",
+                    cameraCode, MediaMtxService.maskRtspCredentials(workerRtspUrl));
         } catch (Exception ex) {
             log.warn("⚠️ Không thể tự động kích hoạt AI Stream Worker cho camera [{}]: {}", cameraCode, ex.getMessage());
         }

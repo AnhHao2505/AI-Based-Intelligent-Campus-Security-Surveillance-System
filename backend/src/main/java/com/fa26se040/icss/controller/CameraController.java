@@ -266,8 +266,9 @@ public class CameraController {
     }
 
     /**
-     * F-07: Callback xác thực từ MediaMTX (authMethod: http) khi trình duyệt kết nối WHEP.
-     * Kiểm tra HMAC stream token trong query string (?token=...) khớp với path camera.
+     * F-07: Callback xác thực từ MediaMTX (authMethod: http) cho cả WebRTC WHEP và RTSP nội bộ.
+     * - WebRTC WHEP (Browser): kiểm tra HMAC stream token trong query string (?token=...).
+     * - RTSP nội bộ (AI Service / Edge Relay): bắt buộc user="icss-internal" và password là HMAC-SHA256 hợp lệ.
      */
     @PostMapping("/whep-auth")
     public ResponseEntity<Void> authenticateWhepStream(@RequestBody(required = false) java.util.Map<String, Object> payload) {
@@ -276,11 +277,24 @@ public class CameraController {
         }
         String path = payload.get("path") != null ? String.valueOf(payload.get("path")) : "";
         String query = payload.get("query") != null ? String.valueOf(payload.get("query")) : "";
+        String protocol = payload.get("protocol") != null ? String.valueOf(payload.get("protocol")).toLowerCase() : "";
+        String action = payload.get("action") != null ? String.valueOf(payload.get("action")).toLowerCase() : "";
+        String user = payload.get("user") != null ? String.valueOf(payload.get("user")) : "";
+        String password = payload.get("password") != null ? String.valueOf(payload.get("password")) : "";
+
         String token = extractQueryParam(query, "token");
         if (annotatedStreamTokenService.verifyToken(path, token)) {
             return ResponseEntity.ok().build();
         }
-        log.debug("MediaMTX WHEP auth rejected for path: {}", path);
+
+        if ("rtsp".equals(protocol)
+                && "read".equals(action)
+                && com.fa26se040.icss.service.MediaMtxService.INTERNAL_RTSP_USER.equals(user)
+                && annotatedStreamTokenService.verifyInternalRtspSecret(path, password)) {
+            return ResponseEntity.ok().build();
+        }
+
+        log.debug("MediaMTX auth rejected for path: {}, protocol: {}, action: {}", path, protocol, action);
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 

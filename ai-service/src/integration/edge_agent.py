@@ -218,7 +218,8 @@ class EdgeMqttAgent:
             add_resp = requests.post(f"{api_base}/v3/config/paths/add/{path_name}", json=payload, timeout=2.0)
             if add_resp.status_code >= 400:
                 requests.patch(f"{api_base}/v3/config/paths/patch/{path_name}", json=payload, timeout=2.0)
-            return f"{rtsp_base}/{path_name}"
+            from ..security import build_internal_rtsp_url
+            return build_internal_rtsp_url(rtsp_base, path_name)
         except Exception as e:
             logger.debug(f"[EdgeAgent] Không kết nối được Local MediaMTX ({api_base}), dùng trực tiếp RTSP camera: {e}")
             return rtsp_source_url
@@ -378,7 +379,11 @@ class EdgeMqttAgent:
                 return
 
             path_name = _format_mediamtx_path(camera_code)
-            local_rtsp = f"{getattr(settings, 'MEDIAMTX_RTSP_URL', 'rtsp://localhost:8554').rstrip('/')}/{path_name}"
+            from ..security import build_internal_rtsp_url
+            local_rtsp = build_internal_rtsp_url(
+                getattr(settings, 'MEDIAMTX_RTSP_URL', 'rtsp://localhost:8554'),
+                path_name,
+            )
             cloud_target = f"{cloud_rtsp_base}/{path_name}"
             cmd = [
                 "ffmpeg",

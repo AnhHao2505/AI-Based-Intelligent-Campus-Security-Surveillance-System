@@ -44,6 +44,8 @@ public class MediaMtxService {
         return RTSP_CREDENTIALS_PATTERN.matcher(url).replaceAll("$1***$3");
     }
 
+    public static final String INTERNAL_RTSP_USER = "icss-internal";
+
     @Value("${mediamtx.api.url:http://localhost:9997}")
     private String mediaMtxApiUrl = "http://localhost:9997";
 
@@ -53,12 +55,32 @@ public class MediaMtxService {
     @Value("${mediamtx.whep.base-url:http://localhost:8889}")
     private String mediaMtxWhepBaseUrl = "http://localhost:8889";
 
+    @Value("${icss.internal.service-key:}")
+    private String internalServiceKey = "";
+
     /**
-     * Lấy địa chỉ RTSP phân phối nội bộ từ MediaMTX Gateway (ví dụ: rtsp://localhost:8554/cam-001).
+     * Lấy địa chỉ RTSP phân phối nội bộ từ MediaMTX Gateway (ví dụ: rtsp://icss-internal:<hmac>@localhost:8554/cam-001).
      */
     public String getGatewayRtspUrl(String cameraCode) {
         String base = (mediaMtxRtspUrl != null && !mediaMtxRtspUrl.isBlank()) ? mediaMtxRtspUrl : "rtsp://localhost:8554";
-        return base.replaceAll("/+$", "") + "/" + formatPathName(cameraCode);
+        String cleanBase = base.replaceAll("/+$", "");
+        String pathName = formatPathName(cameraCode);
+        if (internalServiceKey != null && !internalServiceKey.isBlank()
+                && cleanBase.startsWith("rtsp://") && !cleanBase.contains("@")) {
+            String secret = AnnotatedStreamTokenService.generateInternalRtspSecret(cameraCode, internalServiceKey);
+            cleanBase = "rtsp://" + INTERNAL_RTSP_USER + ":" + secret + "@" + cleanBase.substring("rtsp://".length());
+        }
+        return cleanBase + "/" + pathName;
+    }
+
+    /**
+     * Che thông tin user:password/HMAC trong URL RTSP trước khi ghi log.
+     */
+    public static String maskRtspCredentials(String rtspUrl) {
+        if (rtspUrl == null || rtspUrl.isBlank()) {
+            return "";
+        }
+        return rtspUrl.replaceFirst("^(rtsp://)([^/@:]+:[^/@]+@)", "$1***:***@");
     }
 
     /**
