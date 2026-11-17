@@ -149,3 +149,99 @@ def test_alert_still_sent_without_image_when_minio_rejects_sse(
     storage.client.put_object.assert_called_once()
     assert len(_nfr05_lines(caplog)) == 1
     assert elapsed < 1.3
+
+
+# ===== M1: StorageService.upload_video_file (video ghi hình / sự cố) =====
+
+VIDEO_BUCKET = "camera-recordings"
+
+
+@pytest.fixture
+def video_file(tmp_path):
+    path = tmp_path / "Incident 15-11-2026 - 12-00-00.mp4"
+    path.write_bytes(b"\x00\x00\x00\x18ftypmp42")
+    return str(path)
+
+
+def test_upload_video_file_sends_sse_s3(storage, video_file):
+    storage._verified_buckets.add(VIDEO_BUCKET)
+
+    assert storage.upload_video_file(video_file, VIDEO_BUCKET, "CAM-1/2026/11/15/a.mp4") is True
+
+    storage.client.fput_object.assert_called_once()
+    assert isinstance(storage.client.fput_object.call_args.kwargs["sse"], SseS3)
+
+
+@pytest.mark.parametrize("code", ["NotImplemented", "KMS.NotFoundException"])
+def test_upload_video_file_sse_rejected_fails_without_plaintext_retry(storage, video_file, caplog, code):
+    storage._verified_buckets.add(VIDEO_BUCKET)
+    storage.client.fput_object.side_effect = _s3_error(code)
+
+    with caplog.at_level(logging.ERROR, logger="src.integration.storage_service"):
+        ok = storage.upload_video_file(video_file, VIDEO_BUCKET, "CAM-1/2026/11/15/a.mp4")
+
+    assert ok is False
+    # Đúng 1 lần ghi, và lần đó có SSE: không còn lần ghi lại không mã hoá
+    storage.client.fput_object.assert_called_once()
+    assert isinstance(storage.client.fput_object.call_args.kwargs["sse"], SseS3)
+    lines = _nfr05_lines(caplog)
+    assert len(lines) == 1, caplog.text
+    assert f"code={code}" in lines[0]
+    assert "detail returned by minio" not in lines[0]
+    for secret in (settings.MINIO_SECRET_KEY, settings.MINIO_ACCESS_KEY):
+        assert secret not in caplog.text
+
+
+def test_upload_video_file_other_error_is_not_reported_as_nfr05(storage, video_file, caplog):
+    storage._verified_buckets.add(VIDEO_BUCKET)
+    storage.client.fput_object.side_effect = _s3_error("AccessDenied")
+
+    with caplog.at_level(logging.ERROR, logger="src.integration.storage_service"):
+        assert storage.upload_video_file(video_file, VIDEO_BUCKET, "CAM-1/2026/11/15/a.mp4") is False
+
+    storage.client.fput_object.assert_called_once()
+    assert _nfr05_lines(caplog) == []
+    assert "[MinIO LỖI]" in caplog.text
+
+
+class _SyncThread:
+    """Chạy target ngay trên luồng gọi để kiểm kết quả upload nền một cách tất định."""
+
+    def __init__(self, target=None, daemon=None, **kwargs):
+        self._target = target
+
+    def start(self):
+        self._target()
+
+
+def test_incident_recorder_sse_rejected_keeps_file_and_publishes_nothing(storage, tmp_path, caplog):
+    """
+    Nối thật IncidentRecorder._schedule_minio_upload -> StorageService.upload_video_file: MinIO từ chối SSE ->
+    upload False -> KHÔNG publish RECORDING_COMPLETED (backend không tạo bản ghi trỏ tới video không tồn tại),
+    file local giữ lại để tải bù, không lỗi.
+    """
+    from src.pipeline import incident_recorder as ir
+
+    recorder = ir.IncidentRecorder("EVT-M1", "CAM-M1", base_dir=str(tmp_path))
+    video = tmp_path / "CAM-M1" / "clip.mp4"
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_bytes(b"\x00\x00\x00\x18ftypmp42")
+    storage._verified_buckets.add(getattr(settings, "MINIO_BUCKET_EVIDENCE", "security-evidence"))
+    storage.client.fput_object.side_effect = _s3_error("NotImplemented")
+    mqtt = MagicMock()
+    start_dt = ir._now_vn()
+
+    with patch("src.integration.storage_service.storage_service", storage), \
+            patch("src.integration.mqtt_client.get_security_mqtt_client", return_value=mqtt), \
+            patch.object(ir, "enforce_emergency_evidence_retention") as retention, \
+            patch.object(ir.threading, "Thread", _SyncThread), \
+            caplog.at_level(logging.ERROR):
+        recorder._schedule_minio_upload(str(video), "CAM-M1", start_dt, start_dt, 15, "EVT-M1")
+
+    storage.client.fput_object.assert_called_once()
+    assert isinstance(storage.client.fput_object.call_args.kwargs["sse"], SseS3)
+    mqtt.publish_recording_event.assert_not_called()
+    retention.assert_called_once()
+    assert video.exists(), "upload lỗi -> giữ file local để tải bù"
+    assert len(_nfr05_lines(caplog)) == 1
+    assert "[IncidentRecorder MinIO Upload Task] Lỗi" not in caplog.text

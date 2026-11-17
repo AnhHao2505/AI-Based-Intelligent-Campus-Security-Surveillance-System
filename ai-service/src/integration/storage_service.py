@@ -291,6 +291,11 @@ class StorageService:
         )
 
     def upload_video_file(self, file_path: str, bucket_name: str, object_name: str) -> bool:
+        """
+        Tải file video lên MinIO với mã hóa SSE-S3 (NFR-05, M1).
+        Không có đường lưu dạng rõ: SSE bị từ chối -> trả False, log ERROR [NFR-05]; bên gọi giữ file local, không
+        publish RECORDING_COMPLETED (incident_recorder / stream_recorder), như mọi lần upload lỗi.
+        """
         if not file_path or not os.path.exists(file_path):
             logger.warning(f"⚠️ [MinIO] File video không tồn tại: {file_path}")
             return False
@@ -302,26 +307,26 @@ class StorageService:
             try:
                 self._ensure_bucket_exists(bucket_name)
 
-                try:
-                    self.client.fput_object(
-                        bucket_name=bucket_name,
-                        object_name=object_name,
-                        file_path=file_path,
-                        content_type="video/mp4",
-                        sse=SseS3()
-                    )
-                except Exception as sse_err:
-                    logger.warning(f"[MINIO] SSE-S3 fput_object gặp lỗi ({sse_err}), fallback sang upload tiêu chuẩn")
-                    self.client.fput_object(
-                        bucket_name=bucket_name,
-                        object_name=object_name,
-                        file_path=file_path,
-                        content_type="video/mp4"
-                    )
+                self.client.fput_object(
+                    bucket_name=bucket_name,
+                    object_name=object_name,
+                    file_path=file_path,
+                    content_type="video/mp4",
+                    sse=SseS3()
+                )
                 logger.info(f"☁️ [MinIO SSE-S3] Đã tải video thành công lên bucket [{bucket_name}]: {object_name}")
                 return True
             except Exception as e:
-                logger.error(f"❌ [MinIO LỖI] Upload video thất bại ({file_path} -> {bucket_name}/{object_name}): {e}")
+                if _is_sse_rejected(e):
+                    logger.error(
+                        f"[NFR-05] MinIO từ chối mã hoá phía server SSE-S3 cho video {bucket_name}/{object_name} "
+                        f"({_describe_error(e)}): KHÔNG lưu dạng rõ, upload thất bại. Kiểm tra KMS của MinIO."
+                    )
+                else:
+                    logger.error(
+                        f"❌ [MinIO LỖI] Upload video thất bại ({file_path} -> {bucket_name}/{object_name}): "
+                        f"{_describe_error(e)}"
+                    )
                 return False
         return False
 
