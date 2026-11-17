@@ -304,17 +304,26 @@ class IncidentProvider extends ChangeNotifier {
     }
   }
 
-  /// V129: cập nhật loại sự cố / nội dung khi AI nhận ra người sau cảnh báo người lạ (backend gửi eventType, resolutionNotes).
+  /// V129: cập nhật loại sự cố / nội dung / ảnh bằng chứng khi AI nhận ra người sau cảnh báo người lạ (backend gửi eventType, resolutionNotes, imageUrl).
   void _applyIdentityFields(String incidentId, Map<String, dynamic> update) {
     final eventType = update['eventType']?.toString();
     final notes = update['resolutionNotes']?.toString();
-    if (update['identityUpdate'] != true || (eventType == null && notes == null)) return;
+    final imageUrl = update['imageUrl']?.toString();
+    if (update['identityUpdate'] != true || (eventType == null && notes == null && imageUrl == null)) return;
     final idx = _alertQueue.indexWhere((i) => i.id == incidentId);
     if (idx >= 0) {
-      _alertQueue[idx] = _alertQueue[idx].copyWith(eventType: eventType, resolutionNotes: notes);
+      _alertQueue[idx] = _alertQueue[idx].copyWith(
+        eventType: eventType,
+        resolutionNotes: notes,
+        imageUrl: imageUrl,
+      );
     }
     if (_activeIncident?.id == incidentId) {
-      _activeIncident = _activeIncident!.copyWith(eventType: eventType, resolutionNotes: notes);
+      _activeIncident = _activeIncident!.copyWith(
+        eventType: eventType,
+        resolutionNotes: notes,
+        imageUrl: imageUrl,
+      );
     }
     if (idx >= 0 || _activeIncident?.id == incidentId) {
       notifyListeners();

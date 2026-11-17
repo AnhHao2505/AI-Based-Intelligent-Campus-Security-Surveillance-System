@@ -135,10 +135,7 @@ public class SecurityIncidentService {
                 : "FPT_CAMPUS";
 
         // Normalize MinIO image URL for web clients
-        String imageUrl = eventDto.getImageUrl();
-        if (imageUrl != null && imageUrl.contains("minio:9000")) {
-            imageUrl = imageUrl.replace("minio:9000", "localhost:9000");
-        }
+        String imageUrl = normalizeImageUrl(eventDto.getImageUrl());
 
         // M5: Sử dụng detected_at chuẩn từ payload AI (chính xác đến mili giây), fallback về now() nếu thiếu/lệch
         OffsetDateTime detectedAt = parseDetectedAt(eventDto.getDetectedAt());
@@ -484,7 +481,7 @@ public class SecurityIncidentService {
         String areaName = incident.getArea() != null ? incident.getArea().getName() : incident.getCameraCode();
 
         if (IDENTITY_AUTHORIZED.equals(outcome)) {
-            return applyAuthorizedIdentity(incident, who, areaName);
+            return applyAuthorizedIdentity(incident, dto, who, areaName);
         }
         if (IDENTITY_UNAUTHORIZED.equals(outcome)) {
             return applyUnauthorizedIdentity(incident, dto, code, who, areaName);
@@ -493,10 +490,21 @@ public class SecurityIncidentService {
         return null;
     }
 
-    private IncidentDetailResponse applyAuthorizedIdentity(SecurityIncident incident, String who, String areaName) {
+    private IncidentDetailResponse applyAuthorizedIdentity(SecurityIncident incident, IncidentEventDto dto, String who, String areaName) {
+        String newImageUrl = normalizeImageUrl(dto.getImageUrl());
+        if (newImageUrl != null && !newImageUrl.isBlank()) {
+            incident.setImageUrl(newImageUrl);
+        }
+
         if (incident.getStatus() != IncidentStatus.NEW) {
             // Đã có bảo vệ nhận: không tự đóng, chỉ báo để bảo vệ tự quyết định
+            if (newImageUrl != null && !newImageUrl.isBlank()) {
+                incidentRepository.saveAndFlush(incident);
+            }
             Map<String, Object> payload = baseIdentityPayload(incident);
+            if (incident.getImageUrl() != null) {
+                payload.put("imageUrl", incident.getImageUrl());
+            }
             payload.put("identityNotice", "Sự cố tại " + areaName + ": AI xác minh " + who
                     + " có quyền ra vào. Bạn có thể đóng sự cố.");
             sendIncidentUpdateAfterCommit(payload);
@@ -531,6 +539,9 @@ public class SecurityIncidentService {
         payload.put("resolvedByName", null);
         payload.put("resolvedAt", saved.getResolvedAt());
         payload.put("autoResolved", true);
+        if (saved.getImageUrl() != null) {
+            payload.put("imageUrl", saved.getImageUrl());
+        }
         payload.put("identityNotice", "Sự cố người lạ tại " + areaName + " đã tự đóng: AI xác minh " + who
                 + " có quyền ra vào.");
         sendIncidentUpdateAfterCommit(payload);
@@ -550,6 +561,10 @@ public class SecurityIncidentService {
         if (code != null) {
             incident.setSubjectUserCode(truncate(code, 50));
         }
+        String newImageUrl = normalizeImageUrl(dto.getImageUrl());
+        if (newImageUrl != null && !newImageUrl.isBlank()) {
+            incident.setImageUrl(newImageUrl);
+        }
         if (incident.getArea() != null) {
             IncidentSeverity raised = resolveSeverity(incident.getEventType(), incident.getArea(), incident.getDetectedAt());
             if (raised != null && (incident.getSeverity() == null || raised.ordinal() > incident.getSeverity().ordinal())) {
@@ -562,6 +577,9 @@ public class SecurityIncidentService {
         payload.put("eventType", saved.getEventType());
         payload.put("resolutionNotes", saved.getResolutionNotes());
         payload.put("subjectUserCode", saved.getSubjectUserCode());
+        if (saved.getImageUrl() != null) {
+            payload.put("imageUrl", saved.getImageUrl());
+        }
         payload.put("identityNotice", "Sự cố tại " + areaName + ": AI nhận diện được " + who + ", không có quyền ra vào.");
         sendIncidentUpdateAfterCommit(payload);
         log.info("[IDENTITY_UPDATE] Cập nhật sự cố [{}] theo danh tính: {} không có quyền", saved.getId(), who);
@@ -585,6 +603,17 @@ public class SecurityIncidentService {
                 log.error("[IDENTITY_UPDATE] Gửi cập nhật sự cố [{}] lỗi: {}", payload.get("incidentId"), e.getMessage(), e);
             }
         });
+    }
+
+    private static String normalizeImageUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return null;
+        }
+        String trimmed = imageUrl.trim();
+        if (trimmed.contains("minio:9000")) {
+            return trimmed.replace("minio:9000", "localhost:9000");
+        }
+        return trimmed;
     }
 
     private static String truncate(String value, int max) {

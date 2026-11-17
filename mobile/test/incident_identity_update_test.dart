@@ -64,6 +64,7 @@ void main() {
       'incidentId': 'inc-2',
       'identityUpdate': true,
       'eventType': 'UNAUTHORIZED_PERSON',
+      'imageUrl': 'security-evidence/2026-11-17/CAM-001/IDENTITY_UPDATE_Track1403_122335.jpg',
       'resolutionNotes': 'Tên: Minh (SE1)\nLý do: Cấp độ không đủ\nVị trí: Phòng Lab 1',
       'identityNotice': 'Sự cố tại Phòng Lab 1: AI nhận diện được Minh (SE1), không có quyền ra vào.',
     });
@@ -71,6 +72,7 @@ void main() {
 
     final incident = provider.alertQueue.single;
     expect(incident.eventType, equals('UNAUTHORIZED_PERSON'));
+    expect(incident.imageUrl, equals('security-evidence/2026-11-17/CAM-001/IDENTITY_UPDATE_Track1403_122335.jpg'));
     expect(incident.resolutionNotes, contains('Cấp độ không đủ'));
     expect(incident.isNew, isTrue);
     expect(provider.peerClaimNotice, contains('không có quyền'));

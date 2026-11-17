@@ -90,6 +90,7 @@ class SecurityIncidentIdentityUpdateTest {
                 .identityOutcome(outcome)
                 .userCode("SE194249")
                 .userName("Nguyễn Hoàng Minh")
+                .imageUrl("security-evidence/2026-11-17/CAM-001/IDENTITY_UPDATE_Track1403_122335.jpg")
                 .details("[UNAUTHORIZED_PERSON] Tên: Nguyễn Hoàng Minh (SE194249)\nLý do: Cấp độ không đủ\nVị trí: Phòng Lab 1")
                 .build();
     }
@@ -125,6 +126,8 @@ class SecurityIncidentIdentityUpdateTest {
         assertEquals("RESOLVED_DISMISSED", payload.get("status"));
         assertEquals(true, payload.get("autoResolved"));
         assertNull(payload.get("resolvedByName"));
+        assertEquals("security-evidence/2026-11-17/CAM-001/IDENTITY_UPDATE_Track1403_122335.jpg", incident.getImageUrl());
+        assertEquals("security-evidence/2026-11-17/CAM-001/IDENTITY_UPDATE_Track1403_122335.jpg", payload.get("imageUrl"));
         assertTrue(String.valueOf(payload.get("identityNotice")).contains("đã tự đóng"));
     }
 
@@ -135,14 +138,16 @@ class SecurityIncidentIdentityUpdateTest {
         incident.setClaimedBy(User.builder().id(UUID.randomUUID()).fullName("Bảo vệ A").build());
         when(incidentRepository.findFirstByAiSessionIdAndCameraCodeOrderByDetectedAtDesc(SESSION, CAMERA))
                 .thenReturn(Optional.of(incident));
+        when(incidentRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
 
         incidentService.ingestIncident(update("AUTHORIZED"));
 
         assertEquals(IncidentStatus.CLAIMED, incident.getStatus());
-        verify(incidentRepository, never()).saveAndFlush(any());
+        assertEquals("security-evidence/2026-11-17/CAM-001/IDENTITY_UPDATE_Track1403_122335.jpg", incident.getImageUrl());
         verifyNoInteractions(incidentDispatchService);
         Map<String, Object> payload = sentUpdate();
         assertFalse(payload.containsKey("status"), "Không gửi status để client không chạy lại luồng claim");
+        assertEquals("security-evidence/2026-11-17/CAM-001/IDENTITY_UPDATE_Track1403_122335.jpg", payload.get("imageUrl"));
         assertTrue(String.valueOf(payload.get("identityNotice")).contains("Bạn có thể đóng sự cố"));
     }
 
@@ -159,10 +164,12 @@ class SecurityIncidentIdentityUpdateTest {
         assertEquals(IncidentStatus.NEW, incident.getStatus());
         assertEquals("SE194249", incident.getSubjectUserCode());
         assertEquals("Tên: Nguyễn Hoàng Minh (SE194249)\nLý do: Cấp độ không đủ\nVị trí: Phòng Lab 1", incident.getResolutionNotes());
+        assertEquals("security-evidence/2026-11-17/CAM-001/IDENTITY_UPDATE_Track1403_122335.jpg", incident.getImageUrl());
         verify(incidentRepository, never()).save(any());
         verifyNoInteractions(incidentDispatchService);
         Map<String, Object> payload = sentUpdate();
         assertEquals("UNAUTHORIZED_PERSON", payload.get("eventType"));
+        assertEquals("security-evidence/2026-11-17/CAM-001/IDENTITY_UPDATE_Track1403_122335.jpg", payload.get("imageUrl"));
         assertFalse(payload.containsKey("status"));
     }
 

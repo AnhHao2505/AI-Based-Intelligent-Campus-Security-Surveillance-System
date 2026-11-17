@@ -869,10 +869,38 @@ export function SecuritySurveillancePage() {
 														),
 													}
 												: {}),
+											...(update.imageUrl ? { imageUrl: update.imageUrl } : {}),
 										}
 										: a,
 								),
 							);
+							setEvidenceModalAlert((prev) => {
+								if (
+									prev &&
+									(prev.id === update.incidentId ||
+										String(prev.id) === String(update.incidentId))
+								) {
+									return {
+										...prev,
+										status: update.status || prev.status,
+										severity: update.severity || prev.severity,
+										dispatchStage: update.dispatchStage || prev.dispatchStage,
+										...(update.eventType ? { eventType: update.eventType } : {}),
+										...(update.resolutionNotes
+											? {
+													message: cleanIncidentMessage(
+														update.resolutionNotes,
+														update.eventType || prev.eventType,
+														prev.cameraName,
+														prev.cameraCode,
+													),
+												}
+											: {}),
+										...(update.imageUrl ? { imageUrl: update.imageUrl } : {}),
+									};
+								}
+								return prev;
+							});
 							// Câu báo xác minh danh tính muộn (tự đóng / cập nhật), hiện như toast, không phát âm thanh
 							if (update.identityNotice) {
 								triggerNotification(update.identityNotice);
