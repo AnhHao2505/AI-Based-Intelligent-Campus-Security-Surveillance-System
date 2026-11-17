@@ -22,6 +22,7 @@ import {
 	Camera as CameraIcon,
 	X,
 	Film,
+	CirclePlay,
 	Download,
 	ExternalLink,
 	RefreshCw,
@@ -1886,7 +1887,7 @@ export function SecuritySurveillancePage() {
 															onClick={() => handleOpenIncidentMedia(alert, "video")}
 															title="Xem video hiện trường sự cố ngay trong tab này"
 														>
-															<Film size={12} />
+															<CirclePlay size={12} />
 														</button>
 													</div>
 
