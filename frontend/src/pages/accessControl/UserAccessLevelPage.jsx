@@ -6,10 +6,18 @@ import {
   ShieldCheck,
   AlertTriangle,
   X,
+  ListChecks,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
-import { searchUsers, updateUserAccessLevel, bulkUpdateUserAccessLevel } from '../../services/userService';
+import {
+  searchUsers,
+  updateUserAccessLevel,
+  bulkUpdateUserAccessLevel,
+  getImportBatchOptions,
+  getAccessLevelFilterIds,
+} from '../../services/userService';
+import { formatDateTime } from '../../utils/formatDateTime';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { getAccessLevelConfig } from '../../utils/areaHelpers';
 import Button from '../../components/ui/Button';
@@ -43,6 +51,22 @@ const LOCKED_TARGET_ROLES = [ROLES.ADMIN, ROLES.FACILITY_MANAGER];
 const SELF_LOCK_REASON = 'Bạn không thể tự thay đổi cấp truy cập của chính mình';
 const ROLE_LOCK_REASON = 'Chỉ đổi được cấp truy cập của người dùng thường và bảo vệ; không đổi cấp của quản trị viên hoặc quản lý cơ sở vật chất';
 
+// Luồng nạp tài khoản theo lô (audit IMPORT): cùng tên gọi với màn Quản lý tài khoản
+const IMPORT_FLOW_LABELS = {
+  NORMAL: 'Người dùng',
+  STAFF: 'Cán bộ',
+};
+
+const batchOptionLabel = (b) =>
+  [
+    formatDateTime(b.createdAt),
+    IMPORT_FLOW_LABELS[b.flow],
+    b.fileName,
+    `${b.activeCount} người`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
 const ACCESS_LEVELS = [
   { level: 1, name: 'Cấp 1 — Mọi người dùng' },
   { level: 2, name: 'Cấp 2 — Nhân viên' },
@@ -67,6 +91,10 @@ export default function UserAccessLevelPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   const [levelFilter, setLevelFilter] = useState('');
+  // Lọc theo lô import: FM chọn một lô rồi "Chọn tất cả kết quả lọc" để đổi cấp cả lô
+  const [batchFilter, setBatchFilter] = useState('');
+  const [batchOptions, setBatchOptions] = useState([]);
+  const [selectingAll, setSelectingAll] = useState(false);
   const [selected, setSelected] = useState({});
   const [bulkModal, setBulkModal] = useState(EMPTY_BULK_MODAL);
   const bulkReasonRef = useRef(null);
@@ -81,12 +109,12 @@ export default function UserAccessLevelPage() {
     isSaving: false,
   });
 
-  const handleSearchUsers = useCallback(async (q = '', pageNo = 0, level = '') => {
+  const handleSearchUsers = useCallback(async (q = '', pageNo = 0, level = '', batch = '') => {
     const clean = (q || '').trim();
     setLoadingUsers(true);
     setLoadError(null);
     try {
-      const res = await searchUsers(clean, pageNo, PAGE_SIZE, level ? Number(level) : undefined);
+      const res = await searchUsers(clean, pageNo, PAGE_SIZE, level ? Number(level) : undefined, batch || undefined);
       const items = res?.content || [];
       setUsers(items);
       setPage(pageNo);
@@ -109,8 +137,18 @@ export default function UserAccessLevelPage() {
 
   // Tự động tải trang 1 của toàn bộ danh sách khi mở trang
   React.useEffect(() => {
-    handleSearchUsers('', 0, '');
+    handleSearchUsers('', 0, '', '');
   }, [handleSearchUsers]);
+
+  // Danh sách lô cho ô lọc (chỉ tóm tắt lô, không có tên / email người trong lô)
+  React.useEffect(() => {
+    getImportBatchOptions()
+      .then((res) => setBatchOptions(Array.isArray(res) ? res : []))
+      .catch((err) => {
+        console.error('Lỗi tải danh sách lô import:', err);
+        setBatchOptions([]);
+      });
+  }, []);
 
   const handleKeywordChange = (e) => {
     const val = e.target.value;
@@ -122,7 +160,7 @@ export default function UserAccessLevelPage() {
 
     setLoadingUsers(true);
     debounceRef.current = setTimeout(() => {
-      handleSearchUsers(val, 0, levelFilter);
+      handleSearchUsers(val, 0, levelFilter, batchFilter);
     }, 300);
   };
 
@@ -180,6 +218,40 @@ export default function UserAccessLevelPage() {
     });
   };
 
+  const hasActiveFilter = Boolean(keyword.trim() || levelFilter || batchFilter);
+
+  // Chọn mọi người FM được đổi cấp theo bộ lọc (kể cả trang khác). Vượt giới hạn -> giữ nguyên lựa chọn, báo lỗi backend.
+  const handleSelectAllFiltered = async () => {
+    setSelectingAll(true);
+    try {
+      const ids = await getAccessLevelFilterIds(
+        keyword,
+        levelFilter ? Number(levelFilter) : undefined,
+        batchFilter || undefined
+      );
+      const list = Array.isArray(ids) ? ids : [];
+      const pageById = Object.fromEntries(users.map((u) => [u.id, u]));
+      setSelected((prev) => {
+        const next = { ...prev };
+        list.forEach((id) => {
+          next[id] = next[id] || pageById[id] || { id };
+        });
+        return next;
+      });
+      const skipped = totalElements - list.length;
+      toast.success(
+        skipped > 0
+          ? `Đã chọn ${list.length} người theo bộ lọc (bỏ qua ${skipped} tài khoản không đổi cấp được)`
+          : `Đã chọn ${list.length} người theo bộ lọc`
+      );
+    } catch (err) {
+      console.error('Lỗi chọn tất cả kết quả lọc:', err);
+      toast.error(err?.message || 'Không thể chọn tất cả kết quả lọc');
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+
   const openBulkModal = () => {
     if (selectedList.length === 0) return;
     setBulkModal({ ...EMPTY_BULK_MODAL, isOpen: true });
@@ -212,7 +284,7 @@ export default function UserAccessLevelPage() {
       toast.success(
         `Đổi cấp xong: ${result.updated} thành công, ${result.unchanged} không đổi, ${result.failed} lỗi`
       );
-      handleSearchUsers(keyword, page, levelFilter);
+      handleSearchUsers(keyword, page, levelFilter, batchFilter);
     } catch (err) {
       console.error('Lỗi đổi cấp nhiều người:', err);
       toast.error(err?.message || 'Không thể đổi cấp truy cập');
@@ -287,7 +359,7 @@ export default function UserAccessLevelPage() {
                 className="access-level-search-box__clear"
                 onClick={() => {
                   setKeyword('');
-                  handleSearchUsers('', 0, levelFilter);
+                  handleSearchUsers('', 0, levelFilter, batchFilter);
                 }}
                 title="Xóa từ khóa"
               >
@@ -301,7 +373,7 @@ export default function UserAccessLevelPage() {
             onChange={(e) => {
               const val = e.target.value;
               setLevelFilter(val);
-              handleSearchUsers(keyword, 0, val);
+              handleSearchUsers(keyword, 0, val, batchFilter);
             }}
             aria-label="Lọc theo cấp hiện tại"
             options={[
@@ -309,6 +381,33 @@ export default function UserAccessLevelPage() {
               ...ACCESS_LEVELS.map((opt) => ({ value: opt.level, label: `Đang ở cấp ${opt.level}` })),
             ]}
           />
+          <Select
+            className="ui-select-group--filter access-level-batch-filter"
+            value={batchFilter}
+            onChange={(e) => {
+              const val = e.target.value;
+              setBatchFilter(val);
+              handleSearchUsers(keyword, 0, levelFilter, val);
+            }}
+            aria-label="Lọc theo lô import"
+            options={[
+              { value: '', label: 'Mọi lô import' },
+              ...batchOptions.map((b) => ({ value: b.importBatchId, label: batchOptionLabel(b) })),
+            ]}
+          />
+          {isFM && hasActiveFilter && totalElements > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={
+                selectingAll ? <Loader2 size={16} className="animate-spin" /> : <ListChecks size={16} />
+              }
+              onClick={handleSelectAllFiltered}
+              disabled={selectingAll || loadingUsers}
+            >
+              Chọn tất cả kết quả lọc ({totalElements} người)
+            </Button>
+          )}
         </div>
 
         {isFM && selectedList.length > 0 && (
@@ -334,14 +433,14 @@ export default function UserAccessLevelPage() {
           ) : loadError ? (
             <ErrorState
               message={loadError}
-              onRetry={() => handleSearchUsers(keyword, page, levelFilter)}
+              onRetry={() => handleSearchUsers(keyword, page, levelFilter, batchFilter)}
             />
           ) : users.length === 0 ? (
             <EmptyState
               icon={Users}
               title="Không tìm thấy người dùng phù hợp"
               description={
-                keyword || levelFilter
+                keyword || levelFilter || batchFilter
                   ? "Không có kết quả nào khớp với bộ lọc hiện tại. Thử kiểm tra lại từ khóa hoặc xóa bộ lọc."
                   : "Chưa có người dùng nào trong hệ thống."
               }
@@ -453,7 +552,7 @@ export default function UserAccessLevelPage() {
                   totalPages={totalPages}
                   totalElements={totalElements}
                   pageSize={PAGE_SIZE}
-                  onPageChange={(newPage) => handleSearchUsers(keyword, newPage, levelFilter)}
+                  onPageChange={(newPage) => handleSearchUsers(keyword, newPage, levelFilter, batchFilter)}
                   itemLabel="người dùng"
                 />
               )}
@@ -486,11 +585,16 @@ export default function UserAccessLevelPage() {
                 <div className="modal-field">
                   <span className="change-summary-label">Những người sẽ bị đổi cấp:</span>
                   <ul className="access-level-bulk-list">
-                    {selectedList.map((u) => (
+                    {selectedList.filter((u) => u.userCode).map((u) => (
                       <li key={u.id}>
                         {u.fullName} ({u.userCode}) — đang ở cấp {u.accessLevel ?? 1}
                       </li>
                     ))}
+                    {selectedList.some((u) => !u.userCode) && (
+                      <li>
+                        … và {selectedList.filter((u) => !u.userCode).length} người khác theo kết quả lọc
+                      </li>
+                    )}
                   </ul>
                 </div>
 
