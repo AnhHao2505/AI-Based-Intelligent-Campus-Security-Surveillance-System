@@ -25,7 +25,10 @@ import {
 	updateRoiGeometry,
 } from "../../services/cameraService";
 import { formatLocation } from "../../utils/formatLocation";
-import { extractCameraAreaInfo } from "../../utils/campusCameraHelpers";
+import {
+	applyLiveCameraStatus,
+	extractCameraAreaInfo,
+} from "../../utils/campusCameraHelpers";
 import RoiEditorModal from "./RoiEditorModal";
 import CameraGeneralTab from "./CameraGeneralTab";
 import CameraStreamTab from "./CameraStreamTab";
@@ -47,7 +50,10 @@ export default function CameraInspectorDrawer({
 	initialTab = "general",
 	availableAreas = [],
 	isAdmin = false,
+	liveOperationalStatus = null,
+	liveStatus = null,
 	onClose,
+	onCameraLoaded,
 	onCameraMutated,
 	onCameraDeleted,
 	onFocusAreaOnMap,
@@ -102,6 +108,7 @@ export default function CameraInspectorDrawer({
 		try {
 			const data = await fetchCameraDetail(cameraId);
 			setCamera(data);
+			onCameraLoaded?.(data);
 			const info = extractCameraAreaInfo(data);
 			setGeneralForm({
 				name: data.name || "",
@@ -136,12 +143,22 @@ export default function CameraInspectorDrawer({
 		} finally {
 			setLoading(false);
 		}
-	}, [cameraId]);
+	}, [cameraId, onCameraLoaded]);
 
 	useEffect(() => {
 		setTestResult(null);
 		loadCameraDetails();
 	}, [loadCameraDetails]);
+
+	useEffect(() => {
+		if (!liveOperationalStatus && !liveStatus) return;
+		setCamera((prev) =>
+			applyLiveCameraStatus(prev, {
+				operationalStatus: liveOperationalStatus,
+				status: liveStatus,
+			}),
+		);
+	}, [liveOperationalStatus, liveStatus]);
 
 	// Apply 3D map room pick override to generalForm
 	useEffect(() => {

@@ -89,6 +89,7 @@ class CameraStreamLifecycleServiceTest {
         when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
         when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
         when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.READY);
         when(mediaMtxService.getGatewayRtspUrl("CAM-001")).thenReturn("rtsp://mediamtx:8554/cam-001");
 
         CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
@@ -99,7 +100,7 @@ class CameraStreamLifecycleServiceTest {
         assertEquals("CAM-001", response.getCameraCode());
 
         // Kiểm tra side-effects
-        verify(mediaMtxService).syncCameraPath("CAM-001", "rtsp://192.168.1.50:554/stream1");
+        verify(mediaMtxService).syncCameraPathStrict("CAM-001", "rtsp://192.168.1.50:554/stream1");
         verify(restTemplate).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(Map.class), eq(Map.class));
         verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.ONLINE));
     }
@@ -119,6 +120,7 @@ class CameraStreamLifecycleServiceTest {
         when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(dualConfig));
         when(cameraService.buildRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
         when(cameraService.buildSubRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.READY);
         when(mediaMtxService.getGatewayRtspUrl("CAM-001_main")).thenReturn("rtsp://mediamtx:8554/cam-001_main");
 
         CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
@@ -127,8 +129,8 @@ class CameraStreamLifecycleServiceTest {
         assertTrue(response.isSuccess());
 
         // Kiểm tra đồng bộ 2 luồng: Luồng phụ gán vào CAM-001 cho WHEP UI, Luồng chính gán vào CAM-001_main
-        verify(mediaMtxService).syncCameraPath("CAM-001", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
-        verify(mediaMtxService).syncCameraPath("CAM-001_main", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
+        verify(mediaMtxService).syncCameraPathStrict("CAM-001", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
+        verify(mediaMtxService).syncCameraPathStrict("CAM-001_main", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
 
         // Kiểm tra AI Worker nhận luồng Main Stream
         ArgumentCaptor<Map> bodyCaptor = ArgumentCaptor.forClass(Map.class);
@@ -179,13 +181,14 @@ class CameraStreamLifecycleServiceTest {
         when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
         when(edgeMqttControlService.isConnected()).thenReturn(true);
         when(edgeStatusService.hasActiveOnlineEdge()).thenReturn(false);
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.READY);
         when(mediaMtxService.getGatewayRtspUrl("CAM-001")).thenReturn("rtsp://mediamtx:8554/cam-001");
 
         CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
 
         assertTrue(response.isSuccess());
         verify(edgeMqttControlService).publishCameraStreamConfig(eq("CAM-001"), eq("rtsp://192.168.1.50:554/stream1"), eq(true), any());
-        verify(mediaMtxService).syncCameraPath("CAM-001", "rtsp://192.168.1.50:554/stream1");
+        verify(mediaMtxService).syncCameraPathStrict("CAM-001", "rtsp://192.168.1.50:554/stream1");
         verify(restTemplate).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(Map.class), eq(Map.class));
     }
 
@@ -239,6 +242,24 @@ class CameraStreamLifecycleServiceTest {
         when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
         when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
         when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.NOT_READY);
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertNotNull(response);
+        assertFalse(response.isSuccess());
+        assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
+        verify(mediaMtxService).deleteCameraPath("CAM-001");
+        verify(restTemplate, never()).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(), eq(Map.class));
+        verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+    }
+
+    @Test
+    @DisplayName("MediaMTX UNAVAILABLE sau khi sync: startStream dọn path, giữ OFFLINE và trả success=false")
+    void startStream_WhenMediaMtxUnavailable_ShouldRollbackPathAndStayOffline() {
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.UNAVAILABLE);
 
         CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
 

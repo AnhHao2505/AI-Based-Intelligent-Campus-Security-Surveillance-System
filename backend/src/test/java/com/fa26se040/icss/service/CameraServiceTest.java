@@ -299,7 +299,7 @@ class CameraServiceTest {
 
         when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Map.of("cam-001", false));
-        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
 
         cameraService.syncLiveOperationalStatuses();
 
@@ -316,7 +316,7 @@ class CameraServiceTest {
 
         when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Map.of("cam-001", false));
-        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
 
         cameraService.syncLiveOperationalStatuses();
 
@@ -333,7 +333,7 @@ class CameraServiceTest {
 
         when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Collections.emptyMap());
-        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
 
         cameraService.syncLiveOperationalStatuses();
 

@@ -34,15 +34,13 @@ pathDefaults:
 api: yes
 apiAddress: :9997
 
-authMethod: internal
-authInternalUsers:
-  - user: any
-    pass: ''
-    permissions:
-      - action: api
-      - action: read
-      - action: publish
-      - action: playback
+authMethod: http
+authHTTPAddress: http://host.docker.internal:8080/api/cameras/whep-auth
+authHTTPExclude:
+  - action: api
+  - action: publish
+  - action: playback
+  - protocol: rtsp
 
 # 6. Danh sách Kênh Camera
 # Tất cả các camera sẽ được Edge AI Agent / Backend tự động đồng bộ qua MediaMTX API (/v3/config/paths/add)

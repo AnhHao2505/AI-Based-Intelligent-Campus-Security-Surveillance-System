@@ -66,7 +66,23 @@ public final class RoleRestrictedEndpoints {
             rule(HttpMethod.POST, "/api/users/staff-accounts", ADMIN),
             rule(HttpMethod.POST, "/api/guest-visits/{visitId}/guests/{guestId}/photo", ADMIN),
             // BE-03: xin token xem video ghi hình (body JSON có @Valid)
-            rule(HttpMethod.POST, "/api/cameras/recordings/stream-token", ADMIN, GUARD)
+            rule(HttpMethod.POST, "/api/cameras/recordings/stream-token", ADMIN, GUARD),
+            // CameraController mutations
+            rule(HttpMethod.POST, "/api/cameras", ADMIN),
+            rule(HttpMethod.PUT, "/api/cameras/{id}", ADMIN),
+            rule(HttpMethod.PATCH, "/api/cameras/{id}/decommission", ADMIN),
+            rule(HttpMethod.PATCH, "/api/cameras/{id}/reactivate", ADMIN),
+            rule(HttpMethod.DELETE, "/api/cameras/{id}", ADMIN),
+            rule(HttpMethod.PUT, "/api/cameras/{id}/stream-config", ADMIN),
+            rule(HttpMethod.POST, "/api/cameras/{id}/snapshot", ADMIN),
+            rule(HttpMethod.POST, "/api/cameras/{id}/stream/start", ADMIN),
+            rule(HttpMethod.POST, "/api/cameras/{id}/stream/stop", ADMIN),
+            rule(HttpMethod.POST, "/api/cameras/{id}/test-connection", ADMIN),
+            rule(HttpMethod.PUT, "/api/cameras/{id}/roi", ADMIN),
+            rule(HttpMethod.PATCH, "/api/cameras/{id}/map-location", ADMIN),
+            rule(HttpMethod.DELETE, "/api/cameras/{id}/map-location", ADMIN),
+            rule(HttpMethod.POST, "/api/cameras/stream/cloud-relay", ADMIN, GUARD),
+            rule(HttpMethod.POST, "/api/cameras/{cameraCode}/annotated-stream-token", ADMIN, GUARD)
     );
 
     private static Rule rule(HttpMethod method, String pattern, String... roles) {

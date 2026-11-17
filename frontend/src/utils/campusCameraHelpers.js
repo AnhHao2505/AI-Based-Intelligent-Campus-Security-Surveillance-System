@@ -398,3 +398,56 @@ export function resolveCameraInspectorAccess({
 		selectedCameraId: requestedCameraId || null,
 	};
 }
+
+/**
+ * Đồng bộ trạng thái vận hành (operationalStatus, status, name) của một camera
+ * vào danh sách cameras trong state mà không cần refetch toàn bộ danh sách.
+ */
+export function mergeCameraStatusUpdate(cameras, updatedCamera) {
+	if (!Array.isArray(cameras) || !updatedCamera?.id) {
+		return cameras;
+	}
+	const idx = cameras.findIndex((c) => c && c.id === updatedCamera.id);
+	if (idx === -1) {
+		return cameras;
+	}
+	const current = cameras[idx];
+	const nextOp = updatedCamera.operationalStatus ?? current.operationalStatus;
+	const nextStatus = updatedCamera.status ?? current.status;
+	const nextName = updatedCamera.name ?? current.name;
+
+	if (
+		current.operationalStatus === nextOp &&
+		current.status === nextStatus &&
+		current.name === nextName
+	) {
+		return cameras;
+	}
+
+	const next = cameras.slice();
+	next[idx] = {
+		...current,
+		operationalStatus: nextOp,
+		status: nextStatus,
+		name: nextName,
+	};
+	return next;
+}
+
+/**
+ * Đồng bộ operationalStatus / status mới nhất từ component cha xuống state chi tiết của Drawer.
+ * Trả về chính reference `camera` nếu không có thay đổi để tránh re-render thừa.
+ */
+export function applyLiveCameraStatus(camera, { operationalStatus, status } = {}) {
+	if (!camera) return camera;
+	const nextOp = operationalStatus || camera.operationalStatus;
+	const nextStatus = status || camera.status;
+	if (camera.operationalStatus === nextOp && camera.status === nextStatus) {
+		return camera;
+	}
+	return {
+		...camera,
+		operationalStatus: nextOp,
+		status: nextStatus,
+	};
+}

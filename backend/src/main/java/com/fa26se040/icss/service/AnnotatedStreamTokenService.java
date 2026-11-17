@@ -102,4 +102,36 @@ public class AnnotatedStreamTokenService {
             throw new RuntimeException("Lỗi sinh stream token", e);
         }
     }
+
+    /**
+     * Xác thực token ngắn hạn (dùng cho MediaMTX WHEP HTTP Auth callback).
+     */
+    public boolean verifyToken(String cameraCode, String token) {
+        if (cameraCode == null || cameraCode.isBlank() || token == null || token.isBlank()
+                || this.serviceKey == null || this.serviceKey.isBlank()) {
+            return false;
+        }
+        int dotIdx = token.indexOf('.');
+        if (dotIdx <= 0 || dotIdx >= token.length() - 1) {
+            return false;
+        }
+        long exp;
+        try {
+            exp = Long.parseLong(token.substring(0, dotIdx));
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        if (exp < Instant.now(clock).getEpochSecond()) {
+            return false;
+        }
+        String normalizedCode = cameraCode.trim().toUpperCase();
+        if (normalizedCode.endsWith("_MAIN")) {
+            normalizedCode = normalizedCode.substring(0, normalizedCode.length() - 5);
+        }
+        String expectedToken = generateToken(normalizedCode, exp, this.serviceKey);
+        return java.security.MessageDigest.isEqual(
+                expectedToken.getBytes(StandardCharsets.UTF_8),
+                token.getBytes(StandardCharsets.UTF_8)
+        );
+    }
 }

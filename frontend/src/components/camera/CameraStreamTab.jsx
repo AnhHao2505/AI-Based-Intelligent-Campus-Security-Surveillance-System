@@ -171,7 +171,6 @@ export default function CameraStreamTab({
 					</label>
 					<input
 						type="text"
-						placeholder="admin"
 						autoComplete="off"
 						value={streamForm.username}
 						onChange={(e) =>
@@ -208,7 +207,7 @@ export default function CameraStreamTab({
 						placeholder={
 							camera?.streamConfig?.isPasswordConfigured
 								? "•••••••• (Đã mã hóa và lưu bảo mật)"
-								: "Nhập mật khẩu RTSP"
+								: ""
 						}
 						value={streamForm.credentialRef}
 						onChange={(e) =>
