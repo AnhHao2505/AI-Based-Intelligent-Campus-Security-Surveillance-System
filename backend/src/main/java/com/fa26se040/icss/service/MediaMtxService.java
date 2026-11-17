@@ -11,15 +11,38 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MediaMtxService {
 
-    private final RestTemplate restTemplate = new RestTemplate(new JdkClientHttpRequestFactory());
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
+    private static final Pattern RTSP_CREDENTIALS_PATTERN = Pattern.compile("(rtsps?://[^:/@\\s]+:)([^@\\s]+)(@)", Pattern.CASE_INSENSITIVE);
+
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    private static RestTemplate createRestTemplate() {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(CONNECT_TIMEOUT)
+                .build();
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
+        factory.setReadTimeout(READ_TIMEOUT);
+        return new RestTemplate(factory);
+    }
+
+    static String maskRtspUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return url;
+        }
+        return RTSP_CREDENTIALS_PATTERN.matcher(url).replaceAll("$1***$3");
+    }
 
     @Value("${mediamtx.api.url:http://localhost:9997}")
     private String mediaMtxApiUrl = "http://localhost:9997";
@@ -53,9 +76,21 @@ public class MediaMtxService {
     }
 
     /**
-     * Tự động đăng ký hoặc cập nhật luồng RTSP của Camera vào MediaMTX Gateway.
+     * Tự động đăng ký hoặc cập nhật luồng RTSP của Camera vào MediaMTX Gateway (best-effort).
      */
     public void syncCameraPath(String cameraCode, String rtspSourceUrl) {
+        doSyncCameraPath(cameraCode, rtspSourceUrl, false);
+    }
+
+    /**
+     * Đồng bộ luồng RTSP sang MediaMTX Gateway tuân theo nguyên tắc Gateway-First.
+     * Ném lỗi CameraException(ERR_STREAM_002) nếu không thể kết nối hoặc MediaMTX từ chối.
+     */
+    public void syncCameraPathStrict(String cameraCode, String rtspSourceUrl) {
+        doSyncCameraPath(cameraCode, rtspSourceUrl, true);
+    }
+
+    private void doSyncCameraPath(String cameraCode, String rtspSourceUrl, boolean strict) {
         if (cameraCode == null || cameraCode.trim().isEmpty() || rtspSourceUrl == null || rtspSourceUrl.trim().isEmpty()) {
             return;
         }
@@ -79,55 +114,17 @@ public class MediaMtxService {
 
         try {
             restTemplate.postForObject(addUrl, request, Map.class);
-            log.info("✅ [MediaMTX] Đã tạo thành công dynamic path cho camera [{}] -> {}", pathName, rtspSourceUrl);
+            log.info("✅ [MediaMTX] Đã tạo thành công dynamic path cho camera [{}] -> {}", pathName, maskRtspUrl(rtspSourceUrl));
         } catch (HttpClientErrorException e) {
             log.info("Path [{}] đã tồn tại trong MediaMTX, cập nhật nguồn mới...", pathName);
             try {
                 restTemplate.patchForObject(patchUrl, request, Map.class);
                 log.info("✅ [MediaMTX] Đã cập nhật thành công dynamic path cho camera [{}]", pathName);
             } catch (Exception patchErr) {
-                log.warn("⚠️ [MediaMTX] Không thể cập nhật path [{}]: {}", pathName, patchErr.getMessage());
-            }
-        } catch (Exception e) {
-            log.warn("⚠️ [MediaMTX] Không thể kết nối tới MediaMTX Control API ({}) để tạo path [{}]: {}",
-                    mediaMtxApiUrl, pathName, e.getMessage());
-        }
-    }
-
-    /**
-     * Đồng bộ luồng RTSP sang MediaMTX Gateway tuân theo nguyên tắc Gateway-First.
-     * Ném lỗi CameraException(ERR_STREAM_002) nếu không thể kết nối hoặc MediaMTX từ chối.
-     */
-    public void syncCameraPathStrict(String cameraCode, String rtspSourceUrl) {
-        if (cameraCode == null || cameraCode.trim().isEmpty() || rtspSourceUrl == null || rtspSourceUrl.trim().isEmpty()) {
-            return;
-        }
-        if (mediaMtxApiUrl == null || mediaMtxApiUrl.isBlank()) {
-            return;
-        }
-
-        String pathName = formatPathName(cameraCode);
-        String addUrl = mediaMtxApiUrl + "/v3/config/paths/add/" + pathName;
-        String patchUrl = mediaMtxApiUrl + "/v3/config/paths/patch/" + pathName;
-
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("source", rtspSourceUrl);
-        payload.put("sourceProtocol", "tcp");
-        payload.put("sourceOnDemand", false);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
-
-        try {
-            restTemplate.postForObject(addUrl, request, Map.class);
-            log.info("✅ [MediaMTX] Đã tạo thành công dynamic path cho camera [{}] -> {}", pathName, rtspSourceUrl);
-        } catch (HttpClientErrorException e) {
-            log.info("Path [{}] đã tồn tại trong MediaMTX, cập nhật nguồn mới...", pathName);
-            try {
-                restTemplate.patchForObject(patchUrl, request, Map.class);
-                log.info("✅ [MediaMTX] Đã cập nhật thành công dynamic path cho camera [{}]", pathName);
-            } catch (Exception patchErr) {
+                if (!strict) {
+                    log.warn("⚠️ [MediaMTX] Không thể cập nhật path [{}]: {}", pathName, patchErr.getMessage());
+                    return;
+                }
                 log.warn("⚠️ [MediaMTX] PATCH thất bại ({}), thử xóa và tạo lại path [{}]...", patchErr.getMessage(), pathName);
                 try {
                     deleteCameraPath(cameraCode);
@@ -139,6 +136,11 @@ public class MediaMtxService {
                 }
             }
         } catch (Exception e) {
+            if (!strict) {
+                log.warn("⚠️ [MediaMTX] Không thể kết nối tới MediaMTX Control API ({}) để tạo path [{}]: {}",
+                        mediaMtxApiUrl, pathName, e.getMessage());
+                return;
+            }
             log.error("❌ [MediaMTX] Lỗi kết nối tới MediaMTX Control API ({}) để tạo path [{}]: {}",
                     mediaMtxApiUrl, pathName, e.getMessage());
             throw new com.fa26se040.icss.exception.CameraException(com.fa26se040.icss.exception.CameraErrorCode.ERR_STREAM_002);

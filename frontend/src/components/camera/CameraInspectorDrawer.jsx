@@ -48,6 +48,7 @@ export default function CameraInspectorDrawer({
 	availableAreas = [],
 	isAdmin = false,
 	onClose,
+	onCameraLoaded,
 	onCameraMutated,
 	onCameraDeleted,
 	onFocusAreaOnMap,
@@ -102,6 +103,7 @@ export default function CameraInspectorDrawer({
 		try {
 			const data = await fetchCameraDetail(cameraId);
 			setCamera(data);
+			onCameraLoaded?.(data);
 			const info = extractCameraAreaInfo(data);
 			setGeneralForm({
 				name: data.name || "",
@@ -136,7 +138,7 @@ export default function CameraInspectorDrawer({
 		} finally {
 			setLoading(false);
 		}
-	}, [cameraId]);
+	}, [cameraId, onCameraLoaded]);
 
 	useEffect(() => {
 		setTestResult(null);

@@ -398,3 +398,38 @@ export function resolveCameraInspectorAccess({
 		selectedCameraId: requestedCameraId || null,
 	};
 }
+
+/**
+ * Đồng bộ trạng thái vận hành (operationalStatus, status, name) của một camera
+ * vào danh sách cameras trong state mà không cần refetch toàn bộ danh sách.
+ */
+export function mergeCameraStatusUpdate(cameras, updatedCamera) {
+	if (!Array.isArray(cameras) || !updatedCamera?.id) {
+		return cameras;
+	}
+	const idx = cameras.findIndex((c) => c && c.id === updatedCamera.id);
+	if (idx === -1) {
+		return cameras;
+	}
+	const current = cameras[idx];
+	const nextOp = updatedCamera.operationalStatus ?? current.operationalStatus;
+	const nextStatus = updatedCamera.status ?? current.status;
+	const nextName = updatedCamera.name ?? current.name;
+
+	if (
+		current.operationalStatus === nextOp &&
+		current.status === nextStatus &&
+		current.name === nextName
+	) {
+		return cameras;
+	}
+
+	const next = cameras.slice();
+	next[idx] = {
+		...current,
+		operationalStatus: nextOp,
+		status: nextStatus,
+		name: nextName,
+	};
+	return next;
+}
