@@ -529,6 +529,11 @@ export default function AreaListPage() {
 		setCameras((prev) => mergeCameraStatusUpdate(prev, updatedCam));
 	}, []);
 
+	const selectedCameraSummary = useMemo(
+		() => cameras.find((c) => c && c.id === selectedCameraId) || null,
+		[cameras, selectedCameraId],
+	);
+
 	const { statsByArea: cameraStatsByArea, countsByArea: derivedCameraCounts } =
 		useMemo(() => buildCameraStatsByArea(cameras), [cameras]);
 
@@ -1427,6 +1432,8 @@ export default function AreaListPage() {
 										initialTab={selectedCameraInitialTab}
 										availableAreas={areas}
 										isAdmin={isAdmin}
+										liveOperationalStatus={selectedCameraSummary?.operationalStatus}
+										liveStatus={selectedCameraSummary?.status}
 										onClose={handleCloseCameraInspector}
 										onCameraLoaded={syncCameraStatusInState}
 										onCameraMutated={fetchAllCameras}

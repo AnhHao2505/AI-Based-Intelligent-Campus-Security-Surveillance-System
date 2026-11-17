@@ -433,3 +433,21 @@ export function mergeCameraStatusUpdate(cameras, updatedCamera) {
 	};
 	return next;
 }
+
+/**
+ * Đồng bộ operationalStatus / status mới nhất từ component cha xuống state chi tiết của Drawer.
+ * Trả về chính reference `camera` nếu không có thay đổi để tránh re-render thừa.
+ */
+export function applyLiveCameraStatus(camera, { operationalStatus, status } = {}) {
+	if (!camera) return camera;
+	const nextOp = operationalStatus || camera.operationalStatus;
+	const nextStatus = status || camera.status;
+	if (camera.operationalStatus === nextOp && camera.status === nextStatus) {
+		return camera;
+	}
+	return {
+		...camera,
+		operationalStatus: nextOp,
+		status: nextStatus,
+	};
+}

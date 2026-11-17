@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+	applyLiveCameraStatus,
 	buildCameraStatsByArea,
 	mergeCameraStatusUpdate,
 } from "../campusCameraHelpers.js";
@@ -55,5 +56,26 @@ describe("cameraStatusSync", () => {
 			operationalStatus: "OFFLINE",
 		});
 		assert.equal(next, initial);
+	});
+
+	it("đồng bộ liveOperationalStatus từ component cha xuống CameraInspectorDrawer", () => {
+		const prev = {
+			id: "cam-19",
+			name: "Black",
+			status: "ACTIVE",
+			operationalStatus: "ONLINE",
+		};
+		const updated = applyLiveCameraStatus(prev, {
+			operationalStatus: "OFFLINE",
+			status: "ACTIVE",
+		});
+		assert.equal(updated.operationalStatus, "OFFLINE");
+		assert.equal(
+			applyLiveCameraStatus(updated, {
+				operationalStatus: "OFFLINE",
+				status: "ACTIVE",
+			}),
+			updated,
+		);
 	});
 });
