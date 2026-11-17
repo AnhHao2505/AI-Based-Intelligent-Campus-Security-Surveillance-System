@@ -159,6 +159,18 @@ const double areaPinMaxRadius = 13;
 /// cách tâm [areaPinMaxRadius] + [areaPinMaxStrokeWidth].
 const double areaPinMaxStrokeWidth = 3;
 
+/// Quầng đứng yên dưới ghim sự cố (lớp campus-incident-halo-layer của guard_map_screen.dart): phân biệt ghim sự cố
+/// với ghim khu đang chọn cùng hình. Không nhấp nháy. Màu = AppColors.danger.
+const String incidentHaloColor = '#ef4444';
+
+/// Bán kính quầng, dp: gấp đôi ghim khu đang chọn.
+const double incidentHaloRadius = areaPinMaxRadius * 2;
+const double incidentHaloOpacity = 0.25;
+
+/// Viền quầng (vẽ ngoài bán kính như mọi circle của MapLibre), dp.
+const double incidentHaloStrokeWidth = 2;
+const double incidentHaloStrokeOpacity = 0.6;
+
 /// Khoảng hở giữa mép ghim nhìn thấy (gồm viền) và cạnh dưới viên nhãn, dp.
 const double roomLabelPinGap = 4;
 

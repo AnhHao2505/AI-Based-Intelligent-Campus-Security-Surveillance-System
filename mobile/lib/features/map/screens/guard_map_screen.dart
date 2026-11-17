@@ -352,8 +352,23 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         minzoom: roomLabelMinZoom,
         // Bấm nhãn mở thẻ khu như bấm ghim (_onFeatureTapped); chạm trúng cả nhãn lẫn ghim → nhãn (lớp trên)
       );
-      // Ghim sự cố đang mở (kể cả ghim tạm): trên tên phòng để nhãn không che, dưới vị trí bảo vệ. Cùng hình với ghim khu.
+      // Ghim sự cố đang mở (kể cả ghim tạm): trên tên phòng để nhãn không che, dưới vị trí bảo vệ. Cùng hình với ghim khu,
+      // thêm quầng đỏ đứng yên ngay dưới (cùng nguồn) để phân biệt với ghim khu đang chọn; quầng không nhận chạm.
       await map.addGeoJsonSource(_incidentPinSource, empty);
+      await map.addCircleLayer(
+        _incidentPinSource,
+        campusIncidentHaloLayerId,
+        const ml.CircleLayerProperties(
+          circleColor: incidentHaloColor,
+          circleRadius: incidentHaloRadius,
+          circleOpacity: incidentHaloOpacity,
+          circleStrokeColor: incidentHaloColor,
+          circleStrokeWidth: incidentHaloStrokeWidth,
+          circleStrokeOpacity: incidentHaloStrokeOpacity,
+          circlePitchAlignment: 'viewport',
+        ),
+        enableInteraction: false,
+      );
       await map.addCircleLayer(_incidentPinSource, _incidentPinLayer, _areaPinPaint);
       await map.addGeoJsonSource(_guardSource, empty);
       await map.addCircleLayer(

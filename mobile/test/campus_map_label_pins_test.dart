@@ -6,6 +6,7 @@ import 'package:guard_mobile_app/core/network/api_client.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_data.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_overlays.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_repository.dart';
+import 'package:guard_mobile_app/features/map/data/campus_map_sprites.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_style.dart';
 import 'package:guard_mobile_app/features/map/models/area_pin_model.dart';
 import 'package:guard_mobile_app/features/map/providers/map_provider.dart';
@@ -85,9 +86,20 @@ void main() {
       return i;
     }
 
-    test('nhãn → ghim sự cố → vị trí bảo vệ: ghim sự cố ngay trên nhãn, dưới vị trí bảo vệ', () {
-      expect(at(campusIncidentPinLayerId), at(campusRoomLabelsLayerId) + 1);
+    test('nhãn → quầng sự cố → ghim sự cố → vị trí bảo vệ: ghim sự cố trên nhãn, dưới vị trí bảo vệ', () {
+      expect(at(campusIncidentHaloLayerId), at(campusRoomLabelsLayerId) + 1, reason: 'quầng ngay trên tên phòng');
+      expect(at(campusIncidentPinLayerId), at(campusIncidentHaloLayerId) + 1, reason: 'quầng ngay dưới ghim sự cố');
       expect(at('campus-guard-halo'), at(campusIncidentPinLayerId) + 1);
+    });
+
+    test('id lớp quầng sự cố cố định; quầng đỏ đứng yên gấp đôi ghim khu đang chọn', () {
+      expect(campusIncidentHaloLayerId, 'campus-incident-halo-layer');
+      expect(campusLayerOrder[campusLayerOrder.indexOf(campusIncidentPinLayerId) - 1], 'campus-incident-halo-layer');
+      expect(incidentHaloColor.toLowerCase(), '#ef4444');
+      expect(incidentHaloRadius, areaPinMaxRadius * 2);
+      expect(incidentHaloOpacity, 0.25);
+      expect(incidentHaloStrokeWidth, 2);
+      expect(incidentHaloStrokeOpacity, 0.6);
     });
 
     test('tên phòng nằm NGAY TRÊN ghim khu, dưới vị trí bảo vệ', () {
