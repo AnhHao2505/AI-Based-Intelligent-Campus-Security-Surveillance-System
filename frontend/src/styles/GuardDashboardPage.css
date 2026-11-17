@@ -2334,6 +2334,23 @@
   line-height: 1.4;
 }
 
+/* "Not Available" state for incident video tab */
+.soc-video-unavailable-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.01em;
+}
+
+.soc-video-unavailable-sub {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
 .soc-video-error-actions {
   display: flex;
   align-items: center;

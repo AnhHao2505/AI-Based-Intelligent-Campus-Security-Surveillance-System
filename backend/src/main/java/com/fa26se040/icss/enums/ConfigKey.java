@@ -89,6 +89,11 @@ public enum ConfigKey {
     ANNOTATED_STREAM_TOKEN_SECONDS("ANNOTATED_STREAM_TOKEN_SECONDS", "60"),
     // V126 (Checklist 6.1): thời hạn lưu trữ video ghi hình camera định kỳ (giờ), mặc định 0.5 giờ = 30 phút
     RECORDING_RETENTION_HOURS("RECORDING_RETENTION_HOURS", "0.5"),
+    // V128: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
+    RECORDING_SEGMENT_SECONDS("RECORDING_SEGMENT_SECONDS", "60"),
+    // V127: độ trễ bắt đầu và kết thúc ghi hình sự cố an ninh (mặc định 0s)
+    INCIDENT_RECORDING_START_DELAY_SECONDS("INCIDENT_RECORDING_START_DELAY_SECONDS", "0.0"),
+    INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS("INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS", "0.0"),
     // V123 (P-MAP-2, MM-05): ước tính thời gian di chuyển trên bản đồ (web + app bảo vệ)
     WALKING_SPEED_MPS("WALKING_SPEED_MPS", "1.45"),
     FLOOR_CHANGE_SECONDS("FLOOR_CHANGE_SECONDS", "14"),

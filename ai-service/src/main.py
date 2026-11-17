@@ -368,10 +368,15 @@ class AIRuntimeConfigRequest(BaseModel):
     suspicious_motion_cooldown: Optional[float] = None
     # V126: thời hạn lưu trữ video ghi hình (giờ)
     recording_retention_hours: Optional[float] = None
-    # V127: thời gian giữ thêm trước khi chốt cảnh báo người lạ (giây)
+    # V127 (origin/main): thời gian giữ thêm trước khi chốt cảnh báo người lạ (giây)
     identity_hold_seconds: Optional[float] = None
-    # V128: khoảng cách tối thiểu giữa 2 cảnh báo người lạ trên cùng một camera (giây)
+    # V128 (origin/main): khoảng cách tối thiểu giữa 2 cảnh báo người lạ trên cùng một camera (giây)
     camera_unknown_min_interval: Optional[float] = None
+    # V130: độ trễ bắt đầu và kết thúc ghi hình sự cố an ninh
+    incident_start_delay_seconds: Optional[float] = None
+    incident_no_detection_timeout_seconds: Optional[float] = None
+    # V131: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
+    recording_segment_seconds: Optional[int] = None
 
 @app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])
 async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
