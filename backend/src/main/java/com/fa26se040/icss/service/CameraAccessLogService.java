@@ -63,14 +63,20 @@ public class CameraAccessLogService {
                 ? entryResponse.getUserCode()
                 : "UNKNOWN";
 
+        // Bỏ qua ghi log khi ra khỏi ROI (chức năng log out ROI đã được xoá)
+        if (entryResponse.getReason() != null && (
+                entryResponse.getReason().startsWith("[RA KHỎI ROI") ||
+                entryResponse.getReason().toLowerCase().contains("rời khu vực") ||
+                entryResponse.getReason().toLowerCase().contains("rời khỏi")
+        )) {
+            log.info("Bỏ qua ghi nhật ký ra khỏi ROI: camera=[{}], user=[{}], reason=[{}]", cameraCode, userCode, entryResponse.getReason());
+            return null;
+        }
+
         // 1. Kiểm tra Debounce chống spam
         String directionKey = "";
-        if (entryResponse.getReason() != null) {
-            if (entryResponse.getReason().startsWith("[RA KHỎI ROI")) {
-                directionKey = ":EXIT";
-            } else if (entryResponse.getReason().startsWith("[VÀO ROI")) {
-                directionKey = ":ENTRY";
-            }
+        if (entryResponse.getReason() != null && entryResponse.getReason().startsWith("[VÀO ROI")) {
+            directionKey = ":ENTRY";
         }
         String cacheKey = cameraCode + ":" + userCode + directionKey;
         long nowEpoch = at.toEpochSecond();

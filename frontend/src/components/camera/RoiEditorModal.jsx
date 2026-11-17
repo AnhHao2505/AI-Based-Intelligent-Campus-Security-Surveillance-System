@@ -325,7 +325,12 @@ export default function RoiEditorModal({
 			return;
 		}
 
-		// Validate polygons (nếu có cấu hình vùng)
+		if (polygons.length < 1) {
+			setError("Camera phải có ít nhất 1 vùng giám sát ROI (tối đa 10 vùng) trước khi lưu.");
+			return;
+		}
+
+		// Validate polygons (1..10 vùng)
 		for (let i = 0; i < polygons.length; i++) {
 			const p = polygons[i];
 			if (!p.vertices || p.vertices.length < MIN_VERTICES) {
@@ -408,7 +413,7 @@ export default function RoiEditorModal({
 							Cấu hình vùng quan sát của camera
 						</h3>
 						<span className="roi-counter-badge">
-							{polygons.length}/10 vùng giám sát
+							{polygons.length}/10 vùng giám sát (tối thiểu 1)
 						</span>
 					</div>
 
@@ -536,9 +541,8 @@ export default function RoiEditorModal({
 										<p>Đang tải ảnh...</p>
 									</div>
 								) : (
-									<div className="roi-no-image">
-										<p>Không có ảnh chụp tham chiếu từ camera.</p>
-										<span>Vui lòng kết nối camera để lấy khung hình mẫu.</span>
+									<div className="roi-grid-canvas" aria-label="Khung lưới ROI 16:9">
+										<span>Khung lưới chuẩn hóa 16:9 (Camera chưa phát Live)</span>
 									</div>
 								)}
 
@@ -729,18 +733,13 @@ export default function RoiEditorModal({
 					<div className="roi-sidebar">
 						<div className="roi-sidebar-header">
 							<span>Vùng giám sát ROI</span>
-							{error && (
-								<span
-									style={{
-										color: "#ef4444",
-										fontSize: "0.8rem",
-										marginLeft: "auto",
-									}}
-								>
-									{error}
-								</span>
-							)}
 						</div>
+
+						{error && (
+							<div className="roi-error-banner" role="alert">
+								{error}
+							</div>
+						)}
 
 						<div className="roi-sidebar-content">
 							{/* Polygons */}
@@ -751,9 +750,9 @@ export default function RoiEditorModal({
 								<div className="roi-polygon-list">
 									{polygons.length === 0 ? (
 										<div className="roi-empty-state">
-											<p style={{ fontWeight: 500, margin: 0 }}>Chưa cấu hình vùng giám sát nào.</p>
-											<span style={{ fontSize: "0.78rem", color: "#94a3b8", display: "block", marginTop: "4px" }}>
-												(Camera sẽ mặc định giám sát toàn bộ khung hình)
+											<p className="roi-empty-state-title">Chưa có vùng giám sát nào.</p>
+											<span className="roi-empty-state-hint">
+												Vui lòng vẽ ít nhất 1 vùng ROI (tối đa 10 vùng) trước khi lưu.
 											</span>
 										</div>
 									) : (

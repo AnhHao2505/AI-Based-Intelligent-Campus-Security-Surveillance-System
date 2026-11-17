@@ -18,6 +18,7 @@ import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.IncidentDispatchStage;
 import com.fa26se040.icss.enums.IncidentOutcome;
+import com.fa26se040.icss.enums.IncidentResolutionCategory;
 import com.fa26se040.icss.enums.IncidentSeverity;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.enums.Role;
@@ -82,6 +83,11 @@ public class SecurityIncidentService {
     @Autowired(required = false)
     private com.fa26se040.icss.config.WebSocketSessionRegistry webSocketSessionRegistry;
 
+    /** V129: loại sự kiện AI gửi khi nhận ra mặt sau khi đã chốt cảnh báo người lạ (không phải sự cố mới). */
+    public static final String IDENTITY_UPDATE_EVENT = "IDENTITY_UPDATE";
+    public static final String IDENTITY_AUTHORIZED = "AUTHORIZED";
+    public static final String IDENTITY_UNAUTHORIZED = "UNAUTHORIZED";
+
     @org.springframework.beans.factory.annotation.Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
@@ -104,6 +110,11 @@ public class SecurityIncidentService {
                 log.info("Bỏ qua sự cố trùng event_id [{}]: đã có sự cố [{}]", eventDto.getEventId(), existing.get().getId());
                 return mapToDetailResponse(existing.get());
             }
+        }
+
+        // V129: AI nhận ra mặt sau khi đã chốt cảnh báo người lạ -> cập nhật / tự đóng sự cố cũ, KHÔNG tạo sự cố mới
+        if (IDENTITY_UPDATE_EVENT.equalsIgnoreCase(eventDto.getEventType())) {
+            return applyIdentityUpdate(eventDto);
         }
 
         // 1. Resolve camera and its assigned area
@@ -129,10 +140,7 @@ public class SecurityIncidentService {
                 : "FPT_CAMPUS";
 
         // Normalize MinIO image URL for web clients
-        String imageUrl = eventDto.getImageUrl();
-        if (imageUrl != null && imageUrl.contains("minio:9000")) {
-            imageUrl = imageUrl.replace("minio:9000", "localhost:9000");
-        }
+        String imageUrl = normalizeImageUrl(eventDto.getImageUrl());
 
         // M5: Sử dụng detected_at chuẩn từ payload AI (chính xác đến mili giây), fallback về now() nếu thiếu/lệch
         OffsetDateTime detectedAt = parseDetectedAt(eventDto.getDetectedAt());
@@ -198,6 +206,7 @@ public class SecurityIncidentService {
                 .resolutionNotes(incidentResolutionNotes)
                 .version(0)
                 .broadcastAt(detectedAt)
+                .aiSessionId(truncate(eventDto.getRoiSessionId(), 64))
                 .build();
         incident.setSeverity(resolveSeverity(normalizedEventType, area, detectedAt));
         // V93 (BR-DSP-02): mã người bị nhận diện, để loại người đó khỏi danh sách mời. Gọi parser có sẵn, không sửa regex.
@@ -451,6 +460,185 @@ public class SecurityIncidentService {
         });
         log.info("[DISPATCH] incident={}: hết lời mời ở bước 1, chuyển BROADCAST ({} bảo vệ đang trực)", incidentId, targeted);
         return true;
+    }
+
+    /**
+     * V129: AI đã chốt cảnh báo người lạ (UNKNOWN_PERSON / PERSON_INTRUSION) rồi mới nhận ra mặt. Tìm sự cố theo
+     * (roi_session_id, camera) và:
+     * - UNAUTHORIZED: ghi tên, lý do vào sự cố; UNKNOWN_PERSON -> UNAUTHORIZED_PERSON (PERSON_INTRUSION giữ nguyên);
+     *   mức độ chỉ nâng, không hạ. Không mời / phát lại cho bảo vệ.
+     * - AUTHORIZED, sự cố còn NEW: tự đóng (RESOLVED_DISMISSED, FALSE_ALARM, không người xử lý), huỷ lời mời còn chờ,
+     *   dừng ghi hình sự cố.
+     * - AUTHORIZED, sự cố đã CLAIMED: giữ nguyên, chỉ báo cho bảo vệ (bảo vệ tự đóng).
+     * Mọi trường hợp gửi /topic/incidents/updates sau commit, kèm identityNotice để web / mobile hiện thông báo không còi.
+     * Không tìm thấy sự cố (vd. khu PUBLIC bị bỏ qua lúc ingest) hoặc sự cố đã đóng -> bỏ qua.
+     */
+    IncidentDetailResponse applyIdentityUpdate(IncidentEventDto dto) {
+        String sessionId = dto.getRoiSessionId();
+        if (sessionId == null || sessionId.isBlank() || dto.getCameraCode() == null) {
+            log.warn("[IDENTITY_UPDATE] Thiếu roi_session_id hoặc camera_code, bỏ qua (event_id={})", dto.getEventId());
+            return null;
+        }
+        Optional<SecurityIncident> found = incidentRepository
+                .findFirstByAiSessionIdAndCameraCodeOrderByDetectedAtDesc(sessionId, dto.getCameraCode());
+        if (found.isEmpty()) {
+            log.info("[IDENTITY_UPDATE] Không có sự cố của phiên [{}] camera [{}], bỏ qua", sessionId, dto.getCameraCode());
+            return null;
+        }
+        SecurityIncident incident = found.get();
+        if (incident.getStatus() == IncidentStatus.RESOLVED_VERIFIED || incident.getStatus() == IncidentStatus.RESOLVED_DISMISSED) {
+            log.info("[IDENTITY_UPDATE] Sự cố [{}] đã đóng ({}), bỏ qua", incident.getId(), incident.getStatus());
+            return mapToDetailResponse(incident);
+        }
+
+        String outcome = dto.getIdentityOutcome() != null ? dto.getIdentityOutcome().trim().toUpperCase() : "";
+        String code = dto.getUserCode() != null && !dto.getUserCode().isBlank() ? dto.getUserCode().trim() : null;
+        String name = dto.getUserName() != null && !dto.getUserName().isBlank() ? dto.getUserName().trim() : code;
+        String who = code != null ? name + " (" + code + ")" : "người trong khu vực";
+        String areaName = incident.getArea() != null ? incident.getArea().getName() : incident.getCameraCode();
+
+        if (IDENTITY_AUTHORIZED.equals(outcome)) {
+            return applyAuthorizedIdentity(incident, dto, who, areaName);
+        }
+        if (IDENTITY_UNAUTHORIZED.equals(outcome)) {
+            return applyUnauthorizedIdentity(incident, dto, code, who, areaName);
+        }
+        log.warn("[IDENTITY_UPDATE] identity_outcome không hợp lệ [{}] cho sự cố [{}], bỏ qua", dto.getIdentityOutcome(), incident.getId());
+        return null;
+    }
+
+    private IncidentDetailResponse applyAuthorizedIdentity(SecurityIncident incident, IncidentEventDto dto, String who, String areaName) {
+        String newImageUrl = normalizeImageUrl(dto.getImageUrl());
+        if (newImageUrl != null && !newImageUrl.isBlank()) {
+            incident.setImageUrl(newImageUrl);
+        }
+
+        if (incident.getStatus() != IncidentStatus.NEW) {
+            // Đã có bảo vệ nhận: không tự đóng, chỉ báo để bảo vệ tự quyết định
+            if (newImageUrl != null && !newImageUrl.isBlank()) {
+                incidentRepository.saveAndFlush(incident);
+            }
+            Map<String, Object> payload = baseIdentityPayload(incident);
+            if (incident.getImageUrl() != null) {
+                payload.put("imageUrl", incident.getImageUrl());
+            }
+            payload.put("identityNotice", "Sự cố tại " + areaName + ": AI xác minh " + who
+                    + " có quyền ra vào. Bạn có thể đóng sự cố.");
+            sendIncidentUpdateAfterCommit(payload);
+            log.info("[IDENTITY_UPDATE] Sự cố [{}] đã được nhận ({}): {} có quyền, chỉ gửi thông báo", incident.getId(),
+                    incident.getStatus(), who);
+            return mapToDetailResponse(incident);
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+        String autoNote = "Tự đóng: AI xác minh danh tính muộn, " + who + " có quyền ra vào.";
+        String oldNotes = incident.getResolutionNotes();
+        incident.setStatus(IncidentStatus.RESOLVED_DISMISSED);
+        incident.setOutcome(IncidentOutcome.DISMISSED);
+        incident.setResolutionCategory(IncidentResolutionCategory.FALSE_ALARM);
+        incident.setResolutionNotes(oldNotes == null || oldNotes.isBlank() ? autoNote : oldNotes + "\n" + autoNote);
+        incident.setResolvedBy(null);
+        incident.setResolvedAt(now);
+        SecurityIncident saved = incidentRepository.saveAndFlush(incident);
+
+        if (incidentDispatchService != null) {
+            incidentDispatchService.cancelPendingOffersForClosedIncident(saved.getId(), now);
+        }
+        UUID incidentId = saved.getId();
+        IncidentDispatchService.runAfterCommit(() -> triggerIncidentRecordingStop(incidentId));
+
+        Map<String, Object> payload = baseIdentityPayload(saved);
+        payload.put("status", saved.getStatus().name());
+        payload.put("outcome", saved.getOutcome().name());
+        payload.put("resolutionCategory", saved.getResolutionCategory().name());
+        payload.put("resolutionNotes", saved.getResolutionNotes());
+        payload.put("resolvedById", null);
+        payload.put("resolvedByName", null);
+        payload.put("resolvedAt", saved.getResolvedAt());
+        payload.put("autoResolved", true);
+        if (saved.getImageUrl() != null) {
+            payload.put("imageUrl", saved.getImageUrl());
+        }
+        payload.put("identityNotice", "Sự cố người lạ tại " + areaName + " đã tự đóng: AI xác minh " + who
+                + " có quyền ra vào.");
+        sendIncidentUpdateAfterCommit(payload);
+        log.info("[IDENTITY_UPDATE] Tự đóng sự cố [{}]: {} có quyền ra vào", saved.getId(), who);
+        return mapToDetailResponse(saved);
+    }
+
+    private IncidentDetailResponse applyUnauthorizedIdentity(SecurityIncident incident, IncidentEventDto dto, String code,
+                                                             String who, String areaName) {
+        String cleanDetails = dto.getDetails() != null ? dto.getDetails().replaceAll("\\[[A-Z0-9_]+\\]\\s*", "").trim() : "";
+        if ("UNKNOWN_PERSON".equals(incident.getEventType())) {
+            incident.setEventType("UNAUTHORIZED_PERSON");
+        }
+        if (!cleanDetails.isBlank()) {
+            incident.setResolutionNotes(cleanDetails);
+        }
+        if (code != null) {
+            incident.setSubjectUserCode(truncate(code, 50));
+        }
+        String newImageUrl = normalizeImageUrl(dto.getImageUrl());
+        if (newImageUrl != null && !newImageUrl.isBlank()) {
+            incident.setImageUrl(newImageUrl);
+        }
+        if (incident.getArea() != null) {
+            IncidentSeverity raised = resolveSeverity(incident.getEventType(), incident.getArea(), incident.getDetectedAt());
+            if (raised != null && (incident.getSeverity() == null || raised.ordinal() > incident.getSeverity().ordinal())) {
+                incident.setSeverity(raised);
+            }
+        }
+        SecurityIncident saved = incidentRepository.saveAndFlush(incident);
+
+        Map<String, Object> payload = baseIdentityPayload(saved);
+        payload.put("eventType", saved.getEventType());
+        payload.put("resolutionNotes", saved.getResolutionNotes());
+        payload.put("subjectUserCode", saved.getSubjectUserCode());
+        if (saved.getImageUrl() != null) {
+            payload.put("imageUrl", saved.getImageUrl());
+        }
+        payload.put("identityNotice", "Sự cố tại " + areaName + ": AI nhận diện được " + who + ", không có quyền ra vào.");
+        sendIncidentUpdateAfterCommit(payload);
+        log.info("[IDENTITY_UPDATE] Cập nhật sự cố [{}] theo danh tính: {} không có quyền", saved.getId(), who);
+        return mapToDetailResponse(saved);
+    }
+
+    private Map<String, Object> baseIdentityPayload(SecurityIncident incident) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("incidentId", incident.getId());
+        payload.put("severity", severityName(incident));
+        payload.put("dispatchStage", dispatchStageName(incident));
+        payload.put("identityUpdate", true);
+        return payload;
+    }
+
+    private void sendIncidentUpdateAfterCommit(Map<String, Object> payload) {
+        IncidentDispatchService.runAfterCommit(() -> {
+            try {
+                messagingTemplate.convertAndSend("/topic/incidents/updates", payload);
+            } catch (Exception e) {
+                log.error("[IDENTITY_UPDATE] Gửi cập nhật sự cố [{}] lỗi: {}", payload.get("incidentId"), e.getMessage(), e);
+            }
+        });
+    }
+
+    private static String normalizeImageUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return null;
+        }
+        String trimmed = imageUrl.trim();
+        if (trimmed.contains("minio:9000")) {
+            return trimmed.replace("minio:9000", "localhost:9000");
+        }
+        return trimmed;
+    }
+
+    private static String truncate(String value, int max) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String v = value.trim();
+        return v.length() > max ? v.substring(0, max) : v;
     }
 
     /** V93 (BR-DSP-02): mã người bị nhận diện trong details (parser có sẵn); người lạ / không xác định -> null. */

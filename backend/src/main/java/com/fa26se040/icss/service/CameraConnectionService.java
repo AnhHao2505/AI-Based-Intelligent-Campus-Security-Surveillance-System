@@ -5,6 +5,7 @@ import com.fa26se040.icss.dto.camera.TestConnectionResponse;
 import com.fa26se040.icss.dto.edge.EdgeRpcReplyDto;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
+import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
@@ -33,6 +34,9 @@ public class CameraConnectionService {
     private EdgeMqttControlService edgeMqttControlService;
 
     @Autowired(required = false)
+    private EdgeStatusService edgeStatusService;
+
+    @Autowired(required = false)
     private com.fa26se040.icss.util.AesEncryptionUtil aesEncryptionUtil;
 
     @Value("${ai.service.url:http://localhost:8000}")
@@ -49,7 +53,11 @@ public class CameraConnectionService {
     @Transactional(readOnly = true)
     public TestConnectionResponse testConnection(UUID cameraId, CameraStreamConfigRequest customReq) {
         Camera camera = cameraRepository.findById(cameraId)
+                .filter(c -> c.getDeletedAt() == null)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+        if (camera.getStatus() == CameraStatus.DECOMMISSIONED) {
+            throw new CameraException(CameraErrorCode.ERR_STREAM_003);
+        }
 
         CameraStreamConfiguration config = streamConfigRepo.findByCameraId(cameraId).orElse(null);
 
@@ -100,19 +108,43 @@ public class CameraConnectionService {
             username = config.getUsername().trim();
         }
 
-        // Cloud-Edge Mode: Ủy quyền cho Edge Agent kiểm tra kết nối RTSP nội bộ (sau NAT)
-        if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
-            return testConnectionViaEdgeMqttRpc(camera.getCameraCode(), host, port, path, username, password, timeout);
+        // Cloud-Edge Mode: Chỉ ủy quyền cho Edge Agent khi thực sự có Edge ONLINE (tránh timeout khi chỉ bật Mosquitto)
+        boolean edgeOnline = edgeMqttControlService != null
+                && edgeMqttControlService.isConnected()
+                && edgeStatusService != null
+                && edgeStatusService.hasActiveOnlineEdge();
+        if (edgeOnline) {
+            TestConnectionResponse edgeResponse = testConnectionViaEdgeMqttRpc(
+                    camera.getCameraCode(), host, port, path, username, password, timeout
+            );
+            if (edgeResponse != null) {
+                return edgeResponse;
+            }
+            log.warn("⚠️ [Smart Fallback] Edge RPC không phản hồi cho camera [{}], chuyển sang kiểm tra RTSP trực tiếp",
+                    camera.getCameraCode());
         }
 
         try {
             com.fa26se040.icss.util.RtspCheckResult result = rtspHandshakeChecker.check(host, port, path, timeout);
+            if (!result.isReachable() && result.getStatusCode() == 401 && username != null && !username.isBlank()) {
+                com.fa26se040.icss.util.RtspCheckResult authResult =
+                        rtspHandshakeChecker.check(host, port, path, username, password, timeout);
+                if (authResult != null) {
+                    result = authResult;
+                }
+            }
             if (result.isReachable()) {
+                String msg = "Kết nối thành công tới cổng RTSP (Độ trễ: " + result.getLatencyMs() + "ms)";
+                if (result.getWarningMessage() != null && !result.getWarningMessage().isBlank()) {
+                    msg = msg + " — " + result.getWarningMessage();
+                }
                 return TestConnectionResponse.builder()
                         .success(true)
                         .operationalStatus(OperationalStatus.ONLINE)
                         .latencyMs(result.getLatencyMs())
-                        .message("Kết nối thành công tới cổng RTSP (Độ trễ: " + result.getLatencyMs() + "ms)")
+                        .videoCodec(result.getVideoCodec())
+                        .warning(result.getWarningMessage())
+                        .message(msg)
                         .build();
             } else {
                 String errMsg = result.getErrorMessage() != null ? result.getErrorMessage() : "Không nhận được phản hồi từ camera";
@@ -191,6 +223,12 @@ public class CameraConnectionService {
                     .message(errMsg)
                     .build();
         } catch (CameraException ce) {
+            if (ce.getErrorCode() == CameraErrorCode.ERR_EDGE_001
+                    || ce.getErrorCode() == CameraErrorCode.ERR_EDGE_002) {
+                log.warn("⚠️ [Smart Fallback] Edge RPC trả về {} cho camera [{}]: {}",
+                        ce.getErrorCode(), cameraCode, ce.getMessage());
+                return null;
+            }
             return TestConnectionResponse.builder()
                     .success(false)
                     .operationalStatus(OperationalStatus.OFFLINE)

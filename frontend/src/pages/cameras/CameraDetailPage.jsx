@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
 	ArrowLeft,
@@ -17,8 +17,6 @@ import {
 	decommissionCamera,
 	reactivateCamera,
 	upsertStreamConfig,
-	fetchHealthLogs,
-	captureSnapshot,
 	startStream,
 	stopStream,
 	testConnection,
@@ -26,13 +24,13 @@ import {
 } from "../../services/cameraService";
 import { getAreas } from "../../services/areaService";
 import { toast } from "sonner";
+import { isStreamConfigDirty } from "../../utils/campusCameraHelpers";
 import RoiEditorModal from "../../components/camera/RoiEditorModal";
 import CameraGeneralTab from "../../components/camera/CameraGeneralTab";
 import CameraStreamTab from "../../components/camera/CameraStreamTab";
 import CameraSurveillanceTab from "../../components/camera/CameraSurveillanceTab";
-import { formatImageUrl } from "../../utils/roiUtils";
 import CameraAccessLogsTab from "../../components/camera/CameraAccessLogsTab";
-import CameraHealthLogs from "../../components/camera/CameraHealthLogs";
+import "../../styles/cameraShared.css";
 import "../../styles/CameraDetailPage.css";
 import {
 	Modal,
@@ -83,26 +81,16 @@ export default function CameraDetailPage() {
 	const [error, setError] = useState(null);
 	const [successMsg, setSuccessMsg] = useState(null);
 
-	const [logs, setLogs] = useState([]);
-	const [logPage, setLogPage] = useState(0);
-	const [logTotalPages, setLogTotalPages] = useState(0);
-	const [logsLoading, setLogsLoading] = useState(false);
 	// Lỗi tải: tách khỏi `error` (thông báo thao tác) để không hiện "Không tìm thấy camera" khi chỉ là lỗi mạng / 500
 	const [loadError, setLoadError] = useState(null);
-	const [logsError, setLogsError] = useState(null);
 
 	const [testingConnection, setTestingConnection] = useState(false);
 	const [testResult, setTestResult] = useState(null);
 
 	const [startingStream, setStartingStream] = useState(false);
 	const [stoppingStream, setStoppingStream] = useState(false);
-	const [capturingSnapshot, setCapturingSnapshot] = useState(false);
-	const [refreshingLive, setRefreshingLive] = useState(false);
-	const [liveSnapshot, setLiveSnapshot] = useState(null);
-	const [compareMode, setCompareMode] = useState(false);
 	const [roiModalOpen, setRoiModalOpen] = useState(false);
 	const [activeSnapshotForModal, setActiveSnapshotForModal] = useState(null);
-	const [surveillanceViewMode, setSurveillanceViewMode] = useState("snapshot");
 
 	const [camera, setCamera] = useState(null);
 	const [availableAreas, setAvailableAreas] = useState([]);
@@ -118,6 +106,11 @@ export default function CameraDetailPage() {
 		credentialRef: "",
 		mainStreamPath: "",
 	});
+
+	const isStreamDirty = useMemo(
+		() => isStreamConfigDirty(streamForm, camera?.streamConfig),
+		[streamForm, camera?.streamConfig],
+	);
 
 	useEffect(() => {
 		getAreas({ size: 200, isActive: true })
@@ -167,28 +160,9 @@ export default function CameraDetailPage() {
 		}
 	};
 
-	const loadLogs = async () => {
-		setLogsLoading(true);
-		setLogsError(null);
-		try {
-			const data = await fetchHealthLogs(id, { page: logPage, size: 5 });
-			setLogs(data.content || []);
-			setLogTotalPages(data.totalPages || 0);
-		} catch (err) {
-			console.error("Failed to load health logs:", err);
-			setLogsError(err?.message || "Không tải được nhật ký kết nối.");
-		} finally {
-			setLogsLoading(false);
-		}
-	};
-
 	useEffect(() => {
 		loadCameraDetails();
 	}, [id]);
-
-	useEffect(() => {
-		loadLogs();
-	}, [id, logPage]);
 
 	const showNotification = (msg) => {
 		toast.success(msg);
@@ -217,8 +191,9 @@ export default function CameraDetailPage() {
 			if (res && res.success) {
 				setTestResult({
 					success: true,
-					message: res.message || "Kết nối RTSP thành công!",
-					latencyMs: res.latencyMs,
+					message:
+						res.message ||
+						'Kết nối RTSP thành công! Nhấn "Lưu & Kết nối Stream" để áp dụng.',
 				});
 			} else {
 				const msg =
@@ -241,16 +216,41 @@ export default function CameraDetailPage() {
 		setStartingStream(true);
 		setError(null);
 		try {
+			if (isStreamDirty) {
+				const payload = {
+					host: streamForm.host ? streamForm.host.trim() : "",
+					port: streamForm.port ? parseInt(streamForm.port, 10) : 554,
+					username: streamForm.username ? streamForm.username.trim() : "",
+					mainStreamPath: streamForm.mainStreamPath
+						? streamForm.mainStreamPath.trim()
+						: "",
+				};
+				if (streamForm.credentialRef && streamForm.credentialRef.trim()) {
+					payload.credentialRef = streamForm.credentialRef.trim();
+				}
+				await upsertStreamConfig(id, payload);
+				setStreamForm((prev) => ({ ...prev, credentialRef: "" }));
+				toast.info("Đã lưu cấu hình RTSP mới. Đang kết nối luồng video...");
+			}
+
 			const res = await startStream(id);
 			if (res && res.success) {
 				setCamera((prev) => ({
 					...prev,
 					operationalStatus: "ONLINE",
 				}));
-				showNotification(
-					"Kết nối Stream phát trực tiếp thành công! Camera đã chuyển sang trạng thái ONLINE.",
-				);
-				loadLogs();
+				if (res?.aiWorkerRunning === false) {
+					toast.warning(
+						res?.message ||
+							"Kết nối Stream thành công (Cảnh báo: AI chưa chạy).",
+					);
+				} else {
+					toast.success(
+						res?.message ||
+							"Kết nối Stream phát trực tiếp thành công! Camera đã chuyển sang trạng thái ONLINE.",
+					);
+				}
+				await loadCameraDetails();
 			} else {
 				showError(res?.message || "Không thể Kết nối Stream phát trực tiếp.");
 			}
@@ -275,7 +275,6 @@ export default function CameraDetailPage() {
 				showNotification(
 					"Đã Ngắt Stream phát trực tiếp của camera. Camera đã chuyển sang trạng thái OFFLINE.",
 				);
-				loadLogs();
 			} else {
 				showError(res?.message || "Không thể Ngắt Stream phát trực tiếp.");
 			}
@@ -287,120 +286,23 @@ export default function CameraDetailPage() {
 		}
 	};
 
-	const handleCaptureNewSnapshot = async () => {
-		setCapturingSnapshot(true);
-		setError(null);
-		try {
-			const res = await captureSnapshot(id);
-			if (res && res.success) {
-				showNotification("Đã trích xuất khung hình mới thành công!");
-				setActiveSnapshotForModal({
-					data: res.snapshotBase64,
-					width: res.width || 1920,
-					height: res.height || 1080,
-				});
-				setRoiModalOpen(true);
-			} else {
-				showError(res?.errorMessage || "Không thể chụp snapshot từ camera.");
-			}
-		} catch (err) {
-			console.error("Failed to capture snapshot:", err);
-			showError(err.message || "Lỗi chụp snapshot từ camera.");
-		} finally {
-			setCapturingSnapshot(false);
-		}
-	};
-
-	const handleCaptureFromLiveStream = (snapshotData) => {
-		if (!snapshotData || !snapshotData.base64) {
-			handleCaptureNewSnapshot();
-			return;
-		}
-		showNotification("Đã chụp khung hình trực tiếp thành công!");
-		setActiveSnapshotForModal({
-			data: snapshotData.base64,
-			width: snapshotData.width || 1920,
-			height: snapshotData.height || 1080,
-		});
+	const handleOpenRoiEditor = (snapshotMeta) => {
+		setActiveSnapshotForModal(
+			snapshotMeta || { data: null, width: 1920, height: 1080 },
+		);
 		setRoiModalOpen(true);
 	};
 
-	const handleEditCurrentRoi = () => {
-		const rawRefUrl =
-			camera?.roiGeometry?.reference_snapshot_url ||
-			camera?.roiGeometry?.referenceSnapshotUrl;
-		const refUrl = formatImageUrl(rawRefUrl);
-		const refWidth =
-			camera?.roiGeometry?.reference_snapshot_width ||
-			camera?.roiGeometry?.referenceSnapshotWidth ||
-			1920;
-		const refHeight =
-			camera?.roiGeometry?.reference_snapshot_height ||
-			camera?.roiGeometry?.referenceSnapshotHeight ||
-			1080;
-
-		if (!refUrl) {
-			showError("Chưa có ảnh chụp tham chiếu. Vui lòng bấm 'Chụp ảnh mới'.");
-			return;
-		}
-
-		setActiveSnapshotForModal({
-			data: refUrl,
-			width: refWidth,
-			height: refHeight,
-		});
-		setRoiModalOpen(true);
-	};
-
-	const handleCheckDrift = async () => {
-		setRefreshingLive(true);
-		setError(null);
-		try {
-			const res = await captureSnapshot(id);
-			if (res && res.success) {
-				setLiveSnapshot(res);
-				setCompareMode(true);
-				showNotification(
-					"Đã trích xuất khung hình trực tiếp để kiểm tra sai lệch góc quan sát camera.",
-				);
-			} else {
-				showError(res?.errorMessage || "Không thể lấy khung hình trực tiếp.");
-			}
-		} catch (err) {
-			console.error("Failed to capture live frame for drift check:", err);
-			showError(err.message || "Lỗi khi lấy khung hình kiểm tra sai lệch.");
-		} finally {
-			setRefreshingLive(false);
-		}
-	};
-
-	const handleCloseCompare = () => {
-		setCompareMode(false);
-		setLiveSnapshot(null);
-	};
-
-	const handleSaveRoi = async (roiGeometry, snapshotMeta) => {
-		const updated = await updateRoiGeometry(id, roiGeometry, snapshotMeta);
+	const handleSaveRoi = async (roiGeometry) => {
+		const updated = await updateRoiGeometry(id, roiGeometry);
 		const newRoi = updated?.roiGeometry || updated;
-		setCamera((prev) => {
-			const refUrl =
-				newRoi?.referenceSnapshotUrl ||
-				newRoi?.reference_snapshot_url ||
-				prev?.roiGeometry?.referenceSnapshotUrl ||
-				prev?.roiGeometry?.reference_snapshot_url;
-			return {
-				...prev,
-				roiGeometry: {
-					...prev?.roiGeometry,
-					...newRoi,
-					referenceSnapshotUrl: refUrl,
-					reference_snapshot_url: refUrl,
-				},
-			};
-		});
-		setCompareMode(false);
-		setLiveSnapshot(null);
-		setSurveillanceViewMode("snapshot");
+		setCamera((prev) => ({
+			...prev,
+			roiGeometry: {
+				...prev?.roiGeometry,
+				...newRoi,
+			},
+		}));
 		showNotification("Cấu hình vùng giám sát (ROI) đã được lưu thành công!");
 		loadCameraDetails();
 	};
@@ -470,7 +372,6 @@ export default function CameraDetailPage() {
 			}));
 			toast.success("Lưu cấu hình stream thành công!");
 			loadCameraDetails();
-			loadLogs();
 		} catch (err) {
 			toast.error(err.message || "Cập nhật cấu hình stream thất bại.");
 		} finally {
@@ -654,6 +555,7 @@ export default function CameraDetailPage() {
 								stoppingStream={stoppingStream}
 								onStartStream={handleStartStream}
 								onStopStream={handleStopStream}
+								isDirty={isStreamDirty}
 							/>
 						</div>
 
@@ -664,18 +566,7 @@ export default function CameraDetailPage() {
 						>
 							<CameraSurveillanceTab
 								camera={camera}
-								capturingSnapshot={capturingSnapshot}
-								refreshingLive={refreshingLive}
-								compareMode={compareMode}
-								liveSnapshot={liveSnapshot}
-								onCaptureNewSnapshot={handleCaptureNewSnapshot}
-								onEditCurrentRoi={handleEditCurrentRoi}
-								onCheckDrift={handleCheckDrift}
-								onCloseCompare={handleCloseCompare}
-								onCaptureFromLiveStream={handleCaptureFromLiveStream}
-								viewMode={surveillanceViewMode}
-								onViewModeChange={setSurveillanceViewMode}
-								onError={showError}
+								onOpenRoiEditor={handleOpenRoiEditor}
 							/>
 						</div>
 
@@ -688,16 +579,6 @@ export default function CameraDetailPage() {
 						</div>
 					</div>
 				</div>
-
-				<CameraHealthLogs
-					logs={logs}
-					loading={logsLoading}
-					page={logPage}
-					totalPages={logTotalPages}
-					onPageChange={setLogPage}
-					onRefresh={loadLogs}
-					error={logsError}
-				/>
 			</div>
 
 			<RoiEditorModal

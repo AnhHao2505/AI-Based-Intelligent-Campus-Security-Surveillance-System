@@ -119,9 +119,14 @@ def test_inherited_identity_kept_in_ambiguous_zone_and_revoked_when_clearly_some
     # Còn trong thời gian chờ xác thực tính từ lúc vào ROI (t=0): đang xác thực lại, chưa báo người lạ
     assert p.security_display_state == "VERIFYING"
 
-    # Quá thời gian chờ mà vẫn không khớp ai -> người lạ
+    # Hết grace nhưng vẫn đang thấy mặt (chưa khớp) -> giữ thêm (hold), chưa báo người lạ
     t_after_grace = settings.ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS + 0.2
     pipeline.process_frame(FRAME, current_time=t_after_grace)
+    assert p.security_display_state == "VERIFYING"
+
+    # Quá cả thời gian giữ thêm mà vẫn không khớp ai -> người lạ
+    t_after_hold = settings.ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS + settings.ACCESS_RESOLUTION_HOLD_SECONDS + 0.2
+    pipeline.process_frame(FRAME, current_time=t_after_hold)
     assert not p.face_info.matched_code
     assert p.security_display_state == "UNKNOWN"
 

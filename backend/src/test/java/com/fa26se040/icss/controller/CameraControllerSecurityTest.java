@@ -28,11 +28,15 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringJUnitWebConfig(CameraControllerSecurityTest.TestSecurityConfig.class)
@@ -99,6 +103,12 @@ class CameraControllerSecurityTest {
     @Autowired
     private CameraRecordingService recordingService;
 
+    @Autowired
+    private AnnotatedStreamTokenService annotatedStreamTokenService;
+
+    @Autowired
+    private CameraService cameraService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -150,5 +160,127 @@ class CameraControllerSecurityTest {
 
         mockMvc.perform(get("/api/cameras/recordings"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("3. Security Access (403 vs 200): GET /api/cameras/{id} bị chặn với FACILITY_MANAGER (403) và cho phép ADMIN (200)")
+    void getCameraById_facilityManagerForbidden_adminAllowed() throws Exception {
+        java.util.UUID cameraId = java.util.UUID.randomUUID();
+        when(cameraService.getCameraDetail(cameraId)).thenReturn(
+                com.fa26se040.icss.dto.camera.CameraDetailResponse.builder().id(cameraId).cameraCode("CAM-001").build()
+        );
+
+        authenticateWithRole("FACILITY_MANAGER");
+        mockMvc.perform(get("/api/cameras/{id}", cameraId))
+                .andExpect(status().isForbidden());
+
+        authenticateWithRole("ADMIN");
+        mockMvc.perform(get("/api/cameras/{id}", cameraId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("4. Map Location Security: FACILITY_MANAGER bị chặn PATCH/DELETE (403) nhưng vẫn xem được tọa độ qua GET /api/cameras (200); ADMIN được phép PATCH/DELETE (200)")
+    void mapLocationEndpoints_rbacVerification() throws Exception {
+        java.util.UUID cameraId = java.util.UUID.randomUUID();
+        com.fa26se040.icss.dto.camera.CameraDetailResponse detail =
+                com.fa26se040.icss.dto.camera.CameraDetailResponse.builder()
+                        .id(cameraId)
+                        .cameraCode("CAM-019")
+                        .mapLongitude(108.26105)
+                        .mapLatitude(15.96885)
+                        .mapBuilding("Tòa Epsilon")
+                        .mapFloorOrder(2)
+                        .build();
+        when(cameraService.updateMapLocation(eq(cameraId), any())).thenReturn(detail);
+        when(cameraService.clearMapLocation(cameraId)).thenReturn(
+                com.fa26se040.icss.dto.camera.CameraDetailResponse.builder()
+                        .id(cameraId)
+                        .cameraCode("CAM-019")
+                        .build()
+        );
+        com.fa26se040.icss.dto.camera.CameraSimpleResponse simpleItem =
+                com.fa26se040.icss.dto.camera.CameraSimpleResponse.builder()
+                        .id(cameraId)
+                        .cameraCode("CAM-019")
+                        .name("ADAD")
+                        .mapLongitude(108.26105)
+                        .mapLatitude(15.96885)
+                        .mapBuilding("Tòa Epsilon")
+                        .mapFloorOrder(2)
+                        .build();
+        when(cameraService.getAllActiveSimple()).thenReturn(List.of(simpleItem));
+
+        String body = """
+                {
+                  "longitude": 108.26105,
+                  "latitude": 15.96885,
+                  "building": "Tòa Epsilon",
+                  "floorOrder": 2
+                }
+                """;
+
+        authenticateWithRole("FACILITY_MANAGER");
+        mockMvc.perform(patch("/api/cameras/{id}/map-location", cameraId)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(delete("/api/cameras/{id}/map-location", cameraId))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/cameras/all-simple"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].mapLongitude").value(108.26105))
+                .andExpect(jsonPath("$.data[0].mapFloorOrder").value(2));
+
+        authenticateWithRole("ADMIN");
+        mockMvc.perform(patch("/api/cameras/{id}/map-location", cameraId)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mapLongitude").value(108.26105));
+
+        mockMvc.perform(delete("/api/cameras/{id}/map-location", cameraId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("WHEP/RTSP Auth: Chặn RTSP ẩn danh hoặc sai action, chỉ cho phép RTSP nội bộ có HMAC hợp lệ hoặc WebRTC có stream token")
+    void authenticateWhepStream_ShouldRejectAnonymousRtspAndAllowValidCredentials() throws Exception {
+        when(annotatedStreamTokenService.verifyToken("cam-001", "valid-whep-token")).thenReturn(true);
+        when(annotatedStreamTokenService.verifyInternalRtspSecret("cam-001", "valid-hmac")).thenReturn(true);
+
+        // 1. RTSP ẩn danh (VLC / FFmpeg bên ngoài) -> 401 Unauthorized
+        mockMvc.perform(post("/api/cameras/whep-auth")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"protocol":"rtsp","action":"read","path":"cam-001","user":"","password":""}
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        // 2. RTSP dùng user đúng nhưng action=publish -> 401 Unauthorized
+        mockMvc.perform(post("/api/cameras/whep-auth")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"protocol":"rtsp","action":"publish","path":"cam-001","user":"icss-internal","password":"valid-hmac"}
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        // 3. RTSP nội bộ đúng user + action=read + HMAC hợp lệ -> 200 OK
+        mockMvc.perform(post("/api/cameras/whep-auth")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"protocol":"rtsp","action":"read","path":"cam-001","user":"icss-internal","password":"valid-hmac"}
+                                """))
+                .andExpect(status().isOk());
+
+        // 4. WebRTC WHEP có stream token hợp lệ -> 200 OK
+        mockMvc.perform(post("/api/cameras/whep-auth")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"protocol":"webrtc","action":"read","path":"cam-001","query":"token=valid-whep-token"}
+                                """))
+                .andExpect(status().isOk());
     }
 }

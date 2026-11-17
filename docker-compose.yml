@@ -176,6 +176,10 @@ services:
     image: bluenviron/mediamtx:latest
     container_name: sep_mediamtx
     restart: always
+    environment:
+      MTX_AUTHHTTPADDRESS: ${MEDIAMTX_AUTH_HTTP_ADDRESS}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8554:8554" # RTSP Stream cho AI Service
       - "8888:8888" # HLS Stream cho Trình duyệt

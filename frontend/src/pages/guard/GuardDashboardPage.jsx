@@ -22,6 +22,7 @@ import {
 	Camera as CameraIcon,
 	X,
 	Film,
+	CirclePlay,
 	Download,
 	ExternalLink,
 	RefreshCw,
@@ -30,6 +31,7 @@ import {
 	Layers,
 	Filter,
 	ChevronDown,
+	VideoOff,
 } from "lucide-react";
 import { fetchDiskRecordings, withRecordingStreamToken } from "../../services/recordingService";
 import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
@@ -855,10 +857,56 @@ export function SecuritySurveillancePage() {
 											claimedById: update.claimedById || a.claimedById,
 											severity: update.severity || a.severity,
 											dispatchStage: update.dispatchStage || a.dispatchStage,
+											// V129: AI nhận ra người sau cảnh báo người lạ -> backend cập nhật loại / nội dung sự cố
+											...(update.identityUpdate && update.eventType
+												? { eventType: update.eventType }
+												: {}),
+											...(update.identityUpdate && update.resolutionNotes
+												? {
+														message: cleanIncidentMessage(
+															update.resolutionNotes,
+															update.eventType || a.eventType,
+															a.cameraName,
+															a.cameraCode,
+														),
+													}
+												: {}),
+											...(update.imageUrl ? { imageUrl: update.imageUrl } : {}),
 										}
 										: a,
 								),
 							);
+							setEvidenceModalAlert((prev) => {
+								if (
+									prev &&
+									(prev.id === update.incidentId ||
+										String(prev.id) === String(update.incidentId))
+								) {
+									return {
+										...prev,
+										status: update.status || prev.status,
+										severity: update.severity || prev.severity,
+										dispatchStage: update.dispatchStage || prev.dispatchStage,
+										...(update.eventType ? { eventType: update.eventType } : {}),
+										...(update.resolutionNotes
+											? {
+													message: cleanIncidentMessage(
+														update.resolutionNotes,
+														update.eventType || prev.eventType,
+														prev.cameraName,
+														prev.cameraCode,
+													),
+												}
+											: {}),
+										...(update.imageUrl ? { imageUrl: update.imageUrl } : {}),
+									};
+								}
+								return prev;
+							});
+							// Câu báo xác minh danh tính muộn (tự đóng / cập nhật), hiện như toast, không phát âm thanh
+							if (update.identityNotice) {
+								triggerNotification(update.identityNotice);
+							}
 						} catch (err) {
 							console.error("Lỗi parse incident update:", err);
 						}
@@ -984,9 +1032,9 @@ export function SecuritySurveillancePage() {
 
 		try {
 			await acknowledgeIncident(strId, camCode);
-			triggerNotification("Đã ghi nhận sự cố. Video bằng chứng đã được lưu vào thư mục evidence!");
+			triggerNotification("Đã ghi nhận sự cố");
 		} catch (err) {
-			console.warn("Lỗi khi kết thúc ghi hình sự cố:", err);
+			console.warn("Lỗi khi ghi nhận sự cố:", err);
 			triggerNotification("Đã ghi nhận sự cố");
 		}
 	};
@@ -1011,9 +1059,9 @@ export function SecuritySurveillancePage() {
 
 		try {
 			await acknowledgeAllIncidents();
-			triggerNotification("Đã ghi nhận tất cả sự cố. Toàn bộ video bằng chứng đã được lưu vào thư mục evidence!");
+			triggerNotification("Đã ghi nhận tất cả sự cố");
 		} catch (err) {
-			console.warn("Lỗi khi kết thúc toàn bộ ghi hình sự cố:", err);
+			console.warn("Lỗi khi ghi nhận tất cả sự cố:", err);
 			triggerNotification("Đã ghi nhận tất cả sự cố");
 		}
 	};
@@ -1061,32 +1109,65 @@ export function SecuritySurveillancePage() {
 			const alertTime = alert.detectedAt
 				? new Date(alert.detectedAt).getTime()
 				: (alert.rawTime || Date.now());
-			const incidentVideos = list.filter(
-				(v) =>
+			// Cửa sổ thời gian hợp lệ:
+			// - Video phải bắt đầu tối đa 30 giây TRƯỚC alert (buffer nhỏ cho độ trễ hệ thống)
+			// - Video phải bắt đầu tối đa 10 phút SAU alert (ghi hình bắt đầu sau 2s, cộng thêm buffer)
+			// Điều này đảm bảo không nhận nhầm video từ sự cố khác cùng camera
+			const BEFORE_ALERT_BUFFER_MS = 30 * 1000;       // 30 giây trước alert
+			const AFTER_ALERT_WINDOW_MS  = 10 * 60 * 1000;  // 10 phút sau alert
+
+			// Ưu tiên 1: Video sự cố (SECURITY_EVENT hoặc tên file bắt đầu "incident")
+			// bắt đầu trong cửa sổ [-30s, +10min] so với thời điểm alert
+			const incidentVideos = list.filter((v) => {
+				const isSecurityEvent =
 					v.eventType === "SECURITY_EVENT" ||
-					(v.filename && v.filename.toLowerCase().startsWith("incident")),
-			);
+					(v.filename && v.filename.toLowerCase().startsWith("incident"));
+				if (!isSecurityEvent) return false;
+				const videoTime = new Date(v.startTime).getTime();
+				// Video phải bắt đầu sau (alertTime - 30s) và trước (alertTime + 10min)
+				return (
+					videoTime >= alertTime - BEFORE_ALERT_BUFFER_MS &&
+					videoTime <= alertTime + AFTER_ALERT_WINDOW_MS
+				);
+			});
+
+			// Ưu tiên 2: Fallback — bất kỳ bản ghi nào trong cửa sổ [-30s, +10min]
+			const nearbyVideos = list.filter((v) => {
+				const videoTime = new Date(v.startTime).getTime();
+				return (
+					videoTime >= alertTime - BEFORE_ALERT_BUFFER_MS &&
+					videoTime <= alertTime + AFTER_ALERT_WINDOW_MS
+				);
+			});
 
 			let bestMatch = null;
 			if (incidentVideos.length > 0) {
+				// Sắp xếp theo khoảng cách thời gian nhỏ nhất so với alert
 				incidentVideos.sort((a, b) => {
 					const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
 					const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
 					return diffA - diffB;
 				});
 				bestMatch = incidentVideos[0];
-			} else {
-				// Fallback: Bản ghi định kỳ gần thời điểm sự cố nhất
-				list.sort((a, b) => {
+			} else if (nearbyVideos.length > 0) {
+				// Fallback: Bản ghi định kỳ gần thời điểm sự cố nhất (trong ±1 giờ)
+				nearbyVideos.sort((a, b) => {
 					const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
 					const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
 					return diffA - diffB;
 				});
-				bestMatch = list[0];
+				bestMatch = nearbyVideos[0];
+			} else {
+				// Không tìm thấy video nào trong cửa sổ thời gian hợp lệ
+				bestMatch = null;
 			}
 
 			if (!bestMatch || !bestMatch.videoUrl) {
-				setIncidentVideoError("Không tìm thấy tệp video sự cố phù hợp.");
+				// Không có video nào trong cửa sổ [-30s, +10min] — tránh hiển thị video sai sự cố
+				setIncidentVideoError(
+					"Không tìm thấy video sự cố trong vòng 10 phút sau thời điểm phát hiện. " +
+					"Video có thể chưa được lưu hoặc đã bị xoá khỏi hệ thống.",
+				);
 				return;
 			}
 
@@ -1464,7 +1545,12 @@ export function SecuritySurveillancePage() {
 											cameraCode={camera.cameraCode}
 											cameraName={camera.name}
 											enabled={camera.status === "ONLINE"}
-											host="localhost:8889"
+											host={
+												import.meta.env.VITE_MEDIAMTX_HOST ||
+												(typeof window !== "undefined" && window.location.hostname
+													? `${window.location.hostname}:8889`
+													: "localhost:8889")
+											}
 											onStatusChange={(playerStatus) => {
 												if (playerStatus === "live") {
 													setCameraList((prev) =>
@@ -1835,7 +1921,7 @@ export function SecuritySurveillancePage() {
 															onClick={() => handleOpenIncidentMedia(alert, "video")}
 															title="Xem video hiện trường sự cố ngay trong tab này"
 														>
-															<Film size={12} />
+															<CirclePlay size={12} />
 														</button>
 													</div>
 
@@ -1988,29 +2074,11 @@ export function SecuritySurveillancePage() {
 										</div>
 									) : incidentVideoError ? (
 										<div className="soc-video-empty-box">
-											<AlertTriangle size={36} color="#ef4444" />
-											<p className="soc-video-error-text">{incidentVideoError}</p>
-											<div className="soc-video-error-actions">
-												<button
-													type="button"
-													className="btn-soc-retry-video"
-													onClick={() => loadIncidentVideo(evidenceModalAlert)}
-												>
-													<RefreshCw size={13} /> Thử tải lại
-												</button>
-												<button
-													type="button"
-													className="btn-soc-open-archive"
-													onClick={() =>
-														window.open(
-															`/recordings?cameraId=${evidenceModalAlert.camCodeClean || evidenceModalAlert.cameraCode}`,
-															"_blank",
-														)
-													}
-												>
-													<ExternalLink size={13} /> Mở Kho lưu trữ ghi hình
-												</button>
-											</div>
+											<VideoOff size={48} color="#94a3b8" strokeWidth={1.5} />
+											<p className="soc-video-unavailable-title">Video không khả dụng</p>
+											<p className="soc-video-unavailable-sub">
+												Không tìm thấy video sự cố tương ứng với thời điểm phát hiện.
+											</p>
 										</div>
 									) : incidentVideoData?.signedUrl ? (
 										<div className="soc-video-player-wrapper">

@@ -56,6 +56,9 @@ public class SystemConfiguration {
     @Column(name = "description", nullable = false, columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "tooltip", columnDefinition = "TEXT")
+    private String tooltip;
+
     @Column(name = "editable", nullable = false)
     @Builder.Default
     private Boolean editable = true;

@@ -234,6 +234,20 @@ public class IncidentDispatchService {
         }
     }
 
+    /**
+     * V129: sự cố được hệ thống tự đóng (AI xác minh danh tính muộn) -> huỷ mọi lời mời còn chờ (INCIDENT_CLOSED) và báo
+     * người được mời sau commit. Trả về số lời mời đã huỷ.
+     */
+    public int cancelPendingOffersForClosedIncident(UUID incidentId, OffsetDateTime now) {
+        int cancelled = 0;
+        for (IncidentDispatchOffer offer : offerRepository.findPendingByIncidentId(incidentId)) {
+            if (cancelAndNotify(offer, DispatchOfferCancelReason.INCIDENT_CLOSED, incidentId, now)) {
+                cancelled++;
+            }
+        }
+        return cancelled;
+    }
+
     /** K5: bảo vệ từ chối lời mời còn chờ, chưa hết hạn của chính mình. true = đã từ chối. */
     public boolean decline(UUID incidentId, UUID guardId, OffsetDateTime now) {
         return offerRepository.declineIfPending(incidentId, guardId, now) == 1;

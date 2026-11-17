@@ -29,7 +29,7 @@ class VideoPipeline:
     2. Cổng lọc tải & Máy trạng thái chốt giữ (ZoneStateMachine Latch)
     3. Human Detection & Tracking (YOLO26 + ByteTrack)
     4. Đối soát ngụy trang / Xâm nhập bất thường (SUSPICIOUS_MOVING_OBJECT)
-    5. Crop vùng người & Face Detection (YuNet)
+    5. Crop vùng người & Face Detection (SCRFD)
     6. Face Recognition Matching (pgvector Cosine Search)
     7. Violation Analysis (ROI Polygon Check)
     8. Cảnh báo tự động (MTQQ Event + MinIO Snapshot Upload)
@@ -122,6 +122,32 @@ class VideoPipeline:
         self.storage_service = StorageService()
         self.visualizer = FrameVisualizer()
         self._last_heartbeat_time: Optional[float] = None
+
+        # Vòng đời ghi hình sự cố (Incident Recording Lifecycle):
+        # 1. Bắt đầu ghi hình sau 2 giây kể từ phát hiện đầu tiên (2s start delay)
+        # 2. Kết thúc ghi hình khi không còn phát hiện sự cố (end when no detection anymore)
+        # 3. Bảo vệ click "Đã xem" không ngắt video
+        self.incident_start_delay_seconds: float = float(getattr(settings, "INCIDENT_RECORDING_START_DELAY_SECONDS", 2.0))
+        self.incident_no_detection_timeout_seconds: float = float(getattr(settings, "INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS", 2.0))
+        self._incident_first_detected_at: Optional[float] = None
+        self._incident_last_detected_at: Optional[float] = None
+        self._pending_incident_params: Optional[Dict[str, Any]] = None
+        self._incident_recording_active: bool = False
+
+    @property
+    def is_incident_active_or_pending(self) -> bool:
+        """Kiểm tra có đang ghi hình sự cố hoặc đang trong đếm ngược 2s hay không"""
+        return bool(
+            self._incident_first_detected_at is not None
+            or self._incident_recording_active
+        )
+
+    def reset_incident_state(self):
+        """Khôi phục trạng thái bộ đếm ghi hình sự cố"""
+        self._incident_first_detected_at = None
+        self._incident_last_detected_at = None
+        self._pending_incident_params = None
+        self._incident_recording_active = False
 
     def _record_access_checked(self, track_id: int, user_code: Optional[str], current_time: Optional[float] = None):
         """Ghi nhận mốc thời gian có kết quả thẩm định quyền và kích hoạt log hiệu năng (IdentifyLatency)"""
@@ -532,6 +558,10 @@ class VideoPipeline:
         existing.inherited_mismatch_count = 0
         existing.alert_unknown_sent = False
         existing.alert_unauthorized_sent = False
+        existing.unknown_verdict_time = None
+        existing.unknown_verdict_session_id = None
+        existing.identity_update_sent = False
+        existing.entry_logged_as_unknown = False
         existing.roi_entry_logged = False
         logger.warning(
             f"🕵️ [VideoPipeline:{self.camera_code}] Track #{existing.track_id}: danh tính kế thừa [{old_code}] "
@@ -723,7 +753,7 @@ class VideoPipeline:
             )
 
         # 1b. Cổng Motion-Gating: Nếu ở IDLE và hoàn toàn không có chuyển động trên TOÀN BỘ KHUNG HÌNH
-        #     Bỏ qua 100% suy luận Deep Learning nặng (YOLO26, YuNet, ArcFace) để giải phóng CPU/GPU.
+        #     Bỏ qua 100% suy luận Deep Learning nặng (YOLO26, SCRFD, ArcFace) để giải phóng CPU/GPU.
         #     Tuy nhiên, cứ mỗi heartbeat_interval_seconds (mặc định 4s), chạy 1 frame YOLO thăm dò
         #     để phát hiện đối tượng ngồi yên trong ROI (tránh lọt lưới do MOG2 hấp thụ vào background).
         if (
@@ -896,7 +926,7 @@ class VideoPipeline:
             self._suspicious_motion_start_time = None
 
         # ------------------------------------------------------------------
-        # 3. QUÉT KHUÔN MẶT TRÊN TỪNG NGƯỜI (YUNET + ARCFACE)
+        # 3. QUÉT KHUÔN MẶT TRÊN TỪNG NGƯỜI (SCRFD + ARCFACE)
         # ------------------------------------------------------------------
         for track_id, bbox in detected_tracks:
             if track_id < 0:
@@ -920,7 +950,7 @@ class VideoPipeline:
             in_roi, roi_label = self.is_bbox_in_roi(bbox, w, h)
 
             # Tối ưu hiệu năng: Nếu Track ID này đã nhận diện được danh tính trong active_tracks,
-            # ByteTrack tiếp tục bám theo mượt mà mà không cần chạy lại YuNet + ArcFace + pgvector mỗi frame!
+            # ByteTrack tiếp tục bám theo mượt mà mà không cần chạy lại SCRFD + ArcFace + pgvector mỗi frame!
             existing = self.analysis_engine.active_tracks.get(track_id)
             if not existing and hasattr(self.analysis_engine, "find_matching_parent_track"):
                 parent_res = self.analysis_engine.find_matching_parent_track(
@@ -1103,6 +1133,9 @@ class VideoPipeline:
                                 # POINT-08b: Reset cảnh báo vi phạm
                                 existing.alert_unauthorized_sent = False
                                 existing.alert_unknown_sent = False
+                                existing.unknown_verdict_time = None
+                                existing.unknown_verdict_session_id = None
+                                existing.identity_update_sent = False
                                 # Cooldown cảnh báo vi phạm theo track nằm ở engine (track_last_unauthorized_alert_time),
                                 # không phải thuộc tính trên person: xoá đúng chỗ engine đọc để B không bị chặn bởi
                                 # cooldown 30s còn lại của A.
@@ -1199,6 +1232,8 @@ class VideoPipeline:
                             )
                             self._maybe_revoke_inherited_identity(existing, is_reverifying, face_result, last_sc)
 
+                        # Mặt đã qua lọc kích thước và độ mờ: engine dùng mốc này để quyết định có giữ thêm (hold) trước khi chốt UNKNOWN
+                        face_result.seen_at = current_time
                         self.analysis_engine.associate_face(track_id, face_result)
                 else:
                     track_stats["drop_no_face"] += 1
@@ -1240,9 +1275,12 @@ class VideoPipeline:
             alerts = early_alerts + alerts
 
         # 4b. Xử lý ghi log sự kiện RA / VÀO vùng ROI ngầm (Async qua ThreadPoolExecutor)
+        # Lưu ý: Chức năng ghi log khi out ROI đã bị xoá, bỏ qua toàn bộ sự kiện EXIT
         if roi_events and self.face_matcher:
             log_executor = getattr(self, "access_log_executor", None) or self.access_executor
             for ev in roi_events:
+                if ev.get("direction") == "EXIT":
+                    continue
                 if log_executor and not getattr(log_executor, "_shutdown", False):
                     log_executor.submit(
                         self.face_matcher.check_camera_access,
@@ -1262,7 +1300,12 @@ class VideoPipeline:
         annotated_frame = None
         has_alerts = bool(alerts)
         is_client_active = getattr(self, "has_active_client", False)
-        render_required = (need_annotated is True) or has_alerts or is_client_active
+        is_incident_busy = (
+            self._incident_first_detected_at is not None
+            or self._incident_recording_active
+            or incident_recording_manager.is_recording(self.camera_code)
+        )
+        render_required = (need_annotated is True) or has_alerts or is_client_active or is_incident_busy
 
         if render_required:
             annotated_frame = self._render_overlay(
@@ -1272,6 +1315,117 @@ class VideoPipeline:
                 motion_boxes=motion_res.motion_boxes if motion_res else []
             )
 
+        # ------------------------------------------------------------------
+        # 5a. QUẢN LÝ VÒNG ĐỜI GHI HÌNH SỰ CỐ (INCIDENT RECORDING):
+        # - Bắt đầu ghi hình sau 2 giây kể từ phát hiện đầu tiên (2s start delay)
+        # - Kết thúc ghi hình khi không còn phát hiện sự cố (end when no detection anymore)
+        # - Bảo vệ click "Đã xem" không ngắt video
+        # ------------------------------------------------------------------
+        active_incident_alert = None
+        if alerts:
+            for alert in alerts:
+                ev_type = str(alert.event_type or "").upper()
+                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "OUT_OF_TIME", "UNKNOWN", "SUSPICIOUS_MOTION", "SUSPICIOUS_MOVING_OBJECT"]):
+                    active_incident_alert = alert
+                    break
+
+        has_violating_person = False
+        for p in self.analysis_engine.active_tracks.values():
+            if getattr(p, "is_currently_visible", True) and (current_time - p.last_seen_time <= 2.0):
+                p_state = str(getattr(p, "security_display_state", "NEUTRAL")).upper()
+                if p_state in ("UNAUTHORIZED", "INTRUSION", "UNKNOWN"):
+                    if self.roi_polygons or self.roi_polygon:
+                        if getattr(p, "is_in_roi", False) or getattr(p, "has_entered_roi", False):
+                            has_violating_person = True
+                            break
+                    else:
+                        has_violating_person = True
+                        break
+
+        has_suspicious_motion = bool(is_suspicious_candidate) or (
+            self._suspicious_motion_start_time is not None and (current_time - self._suspicious_motion_start_time <= 2.0)
+        )
+
+        has_incident_detection = (active_incident_alert is not None) or has_violating_person or has_suspicious_motion
+        is_rec_running = incident_recording_manager.is_recording(self.camera_code)
+
+        if has_incident_detection:
+            self._incident_last_detected_at = current_time
+
+            # Ghi nhận lần phát hiện đầu tiên
+            if self._incident_first_detected_at is None:
+                self._incident_first_detected_at = current_time
+                if active_incident_alert:
+                    self._pending_incident_params = {
+                        "incident_id": active_incident_alert.event_id or f"EVT-{int(current_time * 1000)}",
+                        "event_type": active_incident_alert.event_type,
+                        "details": active_incident_alert.details or "Phát hiện sự cố an ninh",
+                    }
+                else:
+                    self._pending_incident_params = {
+                        "incident_id": f"EVT-{int(current_time * 1000)}",
+                        "event_type": "SECURITY_INCIDENT",
+                        "details": "Phát hiện sự cố an ninh trên camera",
+                    }
+            elif active_incident_alert and not self._pending_incident_params:
+                self._pending_incident_params = {
+                    "incident_id": active_incident_alert.event_id or f"EVT-{int(current_time * 1000)}",
+                    "event_type": active_incident_alert.event_type,
+                    "details": active_incident_alert.details or "Phát hiện sự cố an ninh",
+                }
+
+            # Quy tắc 1: Bắt đầu ghi hình sau 2 giây kể từ phát hiện đầu tiên
+            elapsed_from_first = current_time - self._incident_first_detected_at
+            if not is_rec_running and not self._incident_recording_active:
+                if elapsed_from_first >= self.incident_start_delay_seconds:
+                    params = self._pending_incident_params or {
+                        "incident_id": f"EVT-{int(current_time * 1000)}",
+                        "event_type": "SECURITY_INCIDENT",
+                        "details": "Phát hiện sự cố an ninh",
+                    }
+                    try:
+                        logger.info(
+                            f"🚨 [VideoPipeline:{self.camera_code}] Đã đủ {self.incident_start_delay_seconds}s từ phát hiện đầu tiên "
+                            f"({elapsed_from_first:.2f}s). Bắt đầu phiên ghi hình sự cố!"
+                        )
+                        incident_recording_manager.start_incident_recording(
+                            incident_id=params["incident_id"],
+                            camera_code=self.camera_code,
+                            event_type=params["event_type"],
+                            details=params["details"],
+                        )
+                        self._incident_recording_active = True
+                    except Exception as e:
+                        logger.error(f"Lỗi kích hoạt ghi hình sự cố cho camera [{self.camera_code}]: {e}")
+            else:
+                self._incident_recording_active = True
+
+        else:
+            # Không còn phát hiện sự cố trong frame này
+            if not is_rec_running and not self._incident_recording_active:
+                if self._incident_first_detected_at is not None:
+                    # Sự cố tự biến mất trước ngưỡng 2s -> Huỷ đếm ngược (tránh file video rác)
+                    self._incident_first_detected_at = None
+                    self._incident_last_detected_at = None
+                    self._pending_incident_params = None
+            else:
+                # Quy tắc 2: Đang ghi hình sự cố -> Dừng khi không còn phát hiện nữa
+                silent_elapsed = current_time - (self._incident_last_detected_at or current_time)
+                if silent_elapsed >= self.incident_no_detection_timeout_seconds:
+                    logger.info(
+                        f"⏹️ [VideoPipeline:{self.camera_code}] Không còn phát hiện sự cố ({silent_elapsed:.2f}s không có detection). "
+                        f"Kết thúc phiên ghi hình sự cố!"
+                    )
+                    try:
+                        incident_recording_manager.stop_camera_recordings(self.camera_code)
+                    except Exception as e:
+                        logger.error(f"Lỗi dừng ghi hình sự cố cho camera [{self.camera_code}]: {e}")
+                    finally:
+                        self._incident_recording_active = False
+                        self._incident_first_detected_at = None
+                        self._incident_last_detected_at = None
+                        self._pending_incident_params = None
+
         if alerts:
             # Tái sử dụng kết quả vẽ giữa snapshot và annotated (P1-05)
             snapshot_frame = annotated_frame if annotated_frame is not None else frame
@@ -1280,18 +1434,6 @@ class VideoPipeline:
                     f"🚨 [VideoPipeline:{self.camera_code}] [SecurityAlert] PHÁT HIỆN SỰ CỐ AN NINH: "
                     f"Loại=[{alert.event_type}], Track=#{alert.track_id}, Vị trí=[{alert.camera_code}], Chi tiết: {alert.details}"
                 )
-                ev_type = str(alert.event_type or "").upper()
-                if any(k in ev_type for k in ["UNAUTHORIZED", "INTRUSION", "AFTER_HOUR", "OUT_OF_TIME", "UNKNOWN", "SUSPICIOUS_MOTION", "SUSPICIOUS_MOVING_OBJECT"]):
-                    try:
-                        incident_recording_manager.start_incident_recording(
-                            incident_id=alert.event_id or f"EVT-{int(time.time()*1000)}",
-                            camera_code=self.camera_code,
-                            event_type=alert.event_type,
-                            details=alert.details or "Phát hiện sự cố an ninh",
-                        )
-                    except Exception as e:
-                        logger.error(f"Lỗi kích hoạt ghi hình sự cố cho camera [{self.camera_code}]: {e}")
-
                 if self.io_executor and not getattr(self.io_executor, "_shutdown", False):
                     self.io_executor.submit(self._dispatch_alert_async, alert, snapshot_frame)
 

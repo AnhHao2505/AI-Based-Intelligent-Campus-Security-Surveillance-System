@@ -214,6 +214,16 @@
   margin-bottom: 12px;
 }
 
+/* Lọc theo lô import: tên file dài thì cắt, không đẩy vỡ hàng lọc */
+.access-level-batch-filter {
+  max-width: 100%;
+}
+
+.access-level-batch-filter .ui-select__field {
+  max-width: 360px;
+  text-overflow: ellipsis;
+}
+
 .access-level-bulk-bar {
   display: flex;
   align-items: center;

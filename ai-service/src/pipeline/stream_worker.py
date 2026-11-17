@@ -89,7 +89,7 @@ class CameraStreamWorker:
     Worker xử lý ngầm luồng video RTSP từ MediaMTX:
     - Kéo frame liên tục từ RTSP stream theo từng camera
     - Ghi hình liên tục vào ổ đĩa, cắt chuẩn xác 1 phút/session
-    - Phân tích qua VideoPipeline (YOLO26 + YuNet)
+    - Phân tích qua VideoPipeline (YOLO26 + SCRFD + ArcFace)
     - Gửi Incident Event sang MQTT Broker khi phát hiện vi phạm
     """
     def __init__(
@@ -329,7 +329,11 @@ class CameraStreamWorker:
 
             last_analysis_time = time.time()
             try:
-                need_annotated = self.has_active_client or incident_recording_manager.is_recording(self.camera_code)
+                need_annotated = (
+                    self.has_active_client
+                    or incident_recording_manager.is_recording(self.camera_code)
+                    or getattr(self.pipeline, "is_incident_active_or_pending", False)
+                )
                 annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(
                     frame,
                     need_annotated=need_annotated

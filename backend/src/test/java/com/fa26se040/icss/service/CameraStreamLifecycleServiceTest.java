@@ -2,13 +2,11 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.dto.camera.CameraStreamLifecycleResponse;
 import com.fa26se040.icss.entity.Camera;
-import com.fa26se040.icss.entity.CameraHealthLog;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
-import com.fa26se040.icss.repository.CameraHealthLogRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.CameraStreamConfigurationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,9 +38,6 @@ class CameraStreamLifecycleServiceTest {
     private CameraStreamConfigurationRepository streamConfigRepo;
 
     @Mock
-    private CameraHealthLogRepository healthLogRepo;
-
-    @Mock
     private CameraService cameraService;
 
     @Mock
@@ -53,6 +48,9 @@ class CameraStreamLifecycleServiceTest {
 
     @Mock
     private EdgeMqttControlService edgeMqttControlService;
+
+    @Mock
+    private EdgeStatusService edgeStatusService;
 
     @InjectMocks
     private CameraStreamLifecycleService cameraStreamLifecycleService;
@@ -81,32 +79,32 @@ class CameraStreamLifecycleServiceTest {
 
         ReflectionTestUtils.setField(cameraStreamLifecycleService, "aiServiceUrl", "http://ai-service:8000");
         ReflectionTestUtils.setField(cameraStreamLifecycleService, "edgeMqttControlService", edgeMqttControlService);
+        ReflectionTestUtils.setField(cameraStreamLifecycleService, "edgeStatusService", edgeStatusService);
         ReflectionTestUtils.setField(cameraStreamLifecycleService, "restTemplate", restTemplate);
     }
 
     @Test
-    @DisplayName("Phân tầng 1 (Valid Transition): startStream kích hoạt MediaMTX, AI Worker, chuyển ONLINE và ghi HealthLog")
+    @DisplayName("Phân tầng 1 (Valid Transition): startStream kích hoạt MediaMTX, AI Worker, chuyển ONLINE")
     void startStream_Success_ShouldSyncMediaMtxStartAiSetOnlineAndLog() {
         when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
         when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
         when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.READY);
         when(mediaMtxService.getGatewayRtspUrl("CAM-001")).thenReturn("rtsp://mediamtx:8554/cam-001");
 
         CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertTrue(response.isAiWorkerRunning());
+        assertTrue(response.isAiWorkerRunning());
         assertEquals(OperationalStatus.ONLINE, response.getOperationalStatus());
         assertEquals("CAM-001", response.getCameraCode());
 
         // Kiểm tra side-effects
-        verify(mediaMtxService).syncCameraPath("CAM-001", "rtsp://192.168.1.50:554/stream1");
+        verify(mediaMtxService).syncCameraPathStrict("CAM-001", "rtsp://192.168.1.50:554/stream1");
         verify(restTemplate).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(Map.class), eq(Map.class));
         verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.ONLINE));
-
-        ArgumentCaptor<CameraHealthLog> logCaptor = ArgumentCaptor.forClass(CameraHealthLog.class);
-        verify(healthLogRepo).save(logCaptor.capture());
-        assertEquals(OperationalStatus.ONLINE, logCaptor.getValue().getStatus());
     }
 
     @Test
@@ -124,16 +122,18 @@ class CameraStreamLifecycleServiceTest {
         when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(dualConfig));
         when(cameraService.buildRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
         when(cameraService.buildSubRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.READY);
         when(mediaMtxService.getGatewayRtspUrl("CAM-001_main")).thenReturn("rtsp://mediamtx:8554/cam-001_main");
 
         CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertTrue(response.isAiWorkerRunning());
 
         // Kiểm tra đồng bộ 2 luồng: Luồng phụ gán vào CAM-001 cho WHEP UI, Luồng chính gán vào CAM-001_main
-        verify(mediaMtxService).syncCameraPath("CAM-001", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
-        verify(mediaMtxService).syncCameraPath("CAM-001_main", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
+        verify(mediaMtxService).syncCameraPathStrict("CAM-001", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
+        verify(mediaMtxService).syncCameraPathStrict("CAM-001_main", "rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
 
         // Kiểm tra AI Worker nhận luồng Main Stream
         ArgumentCaptor<Map> bodyCaptor = ArgumentCaptor.forClass(Map.class);
@@ -158,11 +158,13 @@ class CameraStreamLifecycleServiceTest {
         when(cameraService.buildRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=0");
         when(cameraService.buildSubRtspUrl(dualConfig)).thenReturn("rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1");
         when(edgeMqttControlService.isConnected()).thenReturn(true);
+        when(edgeStatusService.hasActiveOnlineEdge()).thenReturn(true);
 
         CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertTrue(response.isAiWorkerRunning());
 
         verify(edgeMqttControlService).publishCameraStreamConfig(
                 eq("CAM-001"),
@@ -171,12 +173,31 @@ class CameraStreamLifecycleServiceTest {
                 eq(true),
                 any()
         );
-        // Không gọi mediaMtxService vì đã handled qua MQTT
+        // Không gọi mediaMtxService vì đã handled qua MQTT với Edge ONLINE
         verify(mediaMtxService, never()).syncCameraPath(anyString(), anyString());
     }
 
     @Test
-    @DisplayName("Phân tầng 1 (Valid Transition): stopStream xóa MediaMTX path, dừng AI Worker, chuyển OFFLINE và ghi HealthLog")
+    @DisplayName("Smart Fallback: Khi Broker MQTT bật nhưng Edge OFFLINE, vẫn publish retained config và chạy MediaMTX + AI REST fallback")
+    void startStream_WhenMqttConnectedButEdgeOffline_ShouldPublishMqttAndFallbackToMediaMtx() {
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(edgeMqttControlService.isConnected()).thenReturn(true);
+        when(edgeStatusService.hasActiveOnlineEdge()).thenReturn(false);
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.READY);
+        when(mediaMtxService.getGatewayRtspUrl("CAM-001")).thenReturn("rtsp://mediamtx:8554/cam-001");
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertTrue(response.isSuccess());
+        verify(edgeMqttControlService).publishCameraStreamConfig(eq("CAM-001"), eq("rtsp://192.168.1.50:554/stream1"), eq(true), any());
+        verify(mediaMtxService).syncCameraPathStrict("CAM-001", "rtsp://192.168.1.50:554/stream1");
+        verify(restTemplate).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(Map.class), eq(Map.class));
+    }
+
+    @Test
+    @DisplayName("Phân tầng 1 (Valid Transition): stopStream xóa MediaMTX path, dừng AI Worker, chuyển OFFLINE")
     void stopStream_Success_ShouldDeleteMediaMtxStopAiSetOfflineAndLog() {
         camera.setOperationalStatus(OperationalStatus.ONLINE);
         when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
@@ -185,15 +206,12 @@ class CameraStreamLifecycleServiceTest {
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertFalse(response.isAiWorkerRunning());
         assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
 
         verify(mediaMtxService).deleteCameraPath("CAM-001");
         verify(restTemplate).postForObject(contains("/api/v1/stream/stop?camera_code=CAM-001"), isNull(), eq(Map.class));
         verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
-
-        ArgumentCaptor<CameraHealthLog> logCaptor = ArgumentCaptor.forClass(CameraHealthLog.class);
-        verify(healthLogRepo).save(logCaptor.capture());
-        assertEquals(OperationalStatus.OFFLINE, logCaptor.getValue().getStatus());
     }
 
     @Test
@@ -206,6 +224,7 @@ class CameraStreamLifecycleServiceTest {
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertFalse(response.isAiWorkerRunning());
         assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
     }
 
@@ -220,6 +239,66 @@ class CameraStreamLifecycleServiceTest {
 
         verify(mediaMtxService, never()).syncCameraPath(anyString(), anyString());
         verify(cameraRepository, never()).save(any());
-        verify(healthLogRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("MediaMTX NOT_READY sau khi sync: startStream dọn path, giữ OFFLINE và trả success=false")
+    void startStream_WhenMediaMtxNotReady_ShouldRollbackPathAndStayOffline() {
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.NOT_READY);
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertNotNull(response);
+        assertFalse(response.isSuccess());
+        assertFalse(response.isAiWorkerRunning());
+        assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
+        verify(mediaMtxService).deleteCameraPath("CAM-001");
+        verify(restTemplate, never()).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(), eq(Map.class));
+        verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+    }
+
+    @Test
+    @DisplayName("MediaMTX UNAVAILABLE sau khi sync: startStream dọn path, giữ OFFLINE và trả success=false")
+    void startStream_WhenMediaMtxUnavailable_ShouldRollbackPathAndStayOffline() {
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.UNAVAILABLE);
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertNotNull(response);
+        assertFalse(response.isSuccess());
+        assertFalse(response.isAiWorkerRunning());
+        assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
+        verify(mediaMtxService).deleteCameraPath("CAM-001");
+        verify(restTemplate, never()).postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(), eq(Map.class));
+        verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+    }
+
+    @Test
+    @DisplayName("AI Service lỗi khi start: Vẫn chuyển ONLINE (Graceful Degraded) nhưng aiWorkerRunning=false và có cảnh báo trong message")
+    void startStream_WhenAiServiceFails_ShouldStillSetOnlineWithAiWorkerRunningFalseAndWarningMessage() {
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.READY);
+        when(mediaMtxService.getGatewayRtspUrl("CAM-001")).thenReturn("rtsp://mediamtx:8554/cam-001");
+        when(restTemplate.postForObject(eq("http://ai-service:8000/api/v1/stream/start"), any(Map.class), eq(Map.class)))
+                .thenThrow(new RuntimeException("Connection refused to AI Service"));
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+        assertEquals(OperationalStatus.ONLINE, response.getOperationalStatus());
+        assertFalse(response.isAiWorkerRunning());
+        assertTrue(response.getMessage().contains("Cảnh báo: AI Worker chưa sẵn sàng"));
+
+        verify(mediaMtxService).syncCameraPathStrict("CAM-001", "rtsp://192.168.1.50:554/stream1");
+        verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.ONLINE));
     }
 }

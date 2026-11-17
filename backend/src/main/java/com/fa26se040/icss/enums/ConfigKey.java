@@ -39,6 +39,10 @@ public enum ConfigKey {
     AI_IDENTITY_GRACE_SECONDS("AI_IDENTITY_GRACE_SECONDS", "1.5"),
     AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS("AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS", "30"),
     AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS("AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS", "5"),
+    // V127: giữ thêm trước khi chốt cảnh báo người lạ khi đang thấy mặt nhưng chưa khớp
+    AI_IDENTITY_HOLD_SECONDS("AI_IDENTITY_HOLD_SECONDS", "1.0"),
+    // V128: khoảng cách tối thiểu giữa 2 cảnh báo người lạ trên cùng một camera (trước đây ghi cứng 3.0 trong AI)
+    AI_CAMERA_UNKNOWN_MIN_INTERVAL_SECONDS("AI_CAMERA_UNKNOWN_MIN_INTERVAL_SECONDS", "3"),
     // V115 (EV-N1, EV-N2): bỏ EVENT_MODE_MAX_HOURS, EVENT_MODE_WINDOW_DAYS, EVENT_MODE_BUDGET_HOURS,
     // EVENT_MODE_MAX_SCHEDULES_PER_AREA (không còn trần giờ / ngân sách / số lịch chờ)
     EVENT_MODE_MIN_MINUTES("EVENT_MODE_MIN_MINUTES", "15"),
@@ -85,6 +89,11 @@ public enum ConfigKey {
     ANNOTATED_STREAM_TOKEN_SECONDS("ANNOTATED_STREAM_TOKEN_SECONDS", "60"),
     // V126 (Checklist 6.1): thời hạn lưu trữ video ghi hình camera định kỳ (giờ), mặc định 0.5 giờ = 30 phút
     RECORDING_RETENTION_HOURS("RECORDING_RETENTION_HOURS", "0.5"),
+    // V128: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
+    RECORDING_SEGMENT_SECONDS("RECORDING_SEGMENT_SECONDS", "60"),
+    // V127: độ trễ bắt đầu và kết thúc ghi hình sự cố an ninh (mặc định 0s)
+    INCIDENT_RECORDING_START_DELAY_SECONDS("INCIDENT_RECORDING_START_DELAY_SECONDS", "0.0"),
+    INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS("INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS", "0.0"),
     // V123 (P-MAP-2, MM-05): ước tính thời gian di chuyển trên bản đồ (web + app bảo vệ)
     WALKING_SPEED_MPS("WALKING_SPEED_MPS", "1.45"),
     FLOOR_CHANGE_SECONDS("FLOOR_CHANGE_SECONDS", "14"),

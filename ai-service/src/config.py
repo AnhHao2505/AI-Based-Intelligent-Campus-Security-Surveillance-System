@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     FACE_SCAN_BACKOFF_INTERVAL: float = Field(default=0.05, validation_alias="FACE_SCAN_BACKOFF_INTERVAL")
     FACE_MIN_CROP_SIZE: int = Field(default=24, validation_alias="FACE_MIN_CROP_SIZE")
     FACE_CROP_UPSCALE_THRESHOLD: int = Field(default=160, validation_alias="FACE_CROP_UPSCALE_THRESHOLD")
-    # Crop nửa trên cơ thể có cạnh dài > giá trị này thì thu nhỏ trước khi chạy YuNet (camera độ phân giải cao). 0 = tắt
+    # Crop nửa trên cơ thể có cạnh dài > giá trị này thì thu nhỏ trước khi chạy Face Detector (camera độ phân giải cao). 0 = tắt
     FACE_CROP_MAX_DIM: int = Field(default=480, validation_alias="FACE_CROP_MAX_DIM")
     # SCRFD: đệm mọi ảnh <= cạnh này về đúng kích thước vuông cố định (ONNX CUDA chậm ~5 lần khi input đổi cỡ). 0 = tắt
     FACE_DETECT_FIXED_INPUT: int = Field(default=480, validation_alias="FACE_DETECT_FIXED_INPUT")
@@ -121,7 +121,12 @@ class Settings(BaseSettings):
     DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS: float = 30.0
     DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS: float = Field(default=30.0, validation_alias="DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS")
     ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS: float = Field(default=1.5, validation_alias="ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS")
-    CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS: float = 3.0
+    ACCESS_RESOLUTION_HOLD_SECONDS: float = Field(default=1.0, validation_alias="ACCESS_RESOLUTION_HOLD_SECONDS")
+    CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS")
+    # Cấu hình ghi hình sự cố an ninh (Incident Recording)
+    INCIDENT_RECORDING_START_DELAY_SECONDS: float = Field(default=0.0, validation_alias="INCIDENT_RECORDING_START_DELAY_SECONDS")
+    INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS: float = Field(default=0.0, validation_alias="INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS")
+    INCIDENT_RECORDING_MAX_DURATION_SECONDS: float = Field(default=300.0, validation_alias="INCIDENT_RECORDING_MAX_DURATION_SECONDS")
     # V125: khoảng cách tối thiểu giữa 2 cảnh báo vật chuyển động lạ trên cùng camera (sửa được trên màn Cấu hình)
     SUSPICIOUS_MOTION_COOLDOWN_SECONDS: float = Field(default=5.0, validation_alias="SUSPICIOUS_MOTION_COOLDOWN_SECONDS")
     MAX_MOTION_TRACK_HOLD_SECONDS: float = Field(default=1.0, validation_alias="MAX_MOTION_TRACK_HOLD_SECONDS")

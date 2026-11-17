@@ -1,61 +1,67 @@
 @startuml activity_workflow_5
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI", Arial, sans-serif
-skinparam defaultFontSize 12
+skinparam defaultFontSize 11
 skinparam wrapWidth 180
-skinparam maxMessageSize 100
+skinparam maxMessageSize 120
 skinparam conditionStyle diamond
 skinparam roundCorner 8
 skinparam shadowing false
-skinparam swimlaneWidth 145
+skinparam swimlaneWidth 170
 
 skinparam ActivityBackgroundColor #F8FAFC
-skinparam ActivityBorderColor #334155
-skinparam ActivityBorderThickness 1.4
-skinparam ArrowColor #1E293B
-skinparam ArrowThickness 1.3
+skinparam ActivityBorderColor #475569
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1.1
 
-title **WORKFLOW 5: INCIDENT ALERT HANDLING & DISPATCH**
+title **Workflow 5: Detect, Handle and Close a Security Incident**
 
-|#FCE7F3|AI Service & Kafka|
-|#F0FDF4|Backend (Spring Boot)|
-|#E0F2FE|Bảo vệ A (Mobile & Livestream)|
-|#FEE2E2|Bảo vệ B (Mobile App)|
+|#FEF3C7|Camera & AI Service|
+|#F0FDF4|Backend & Storage|
+|#EDE9FE|Guard|
+|#E0F2FE|Facility Manager / Admin|
 
-|AI Service & Kafka|
+|Camera & AI Service|
 start
-:Phát hiện vi phạm qua Camera IP\n(Lưu ảnh evidence MinIO, gửi alert sang Kafka);
+:Step 1: The AI finds a stranger or\nan unauthorized person in an area;\nthe system creates an incident\nwhose severity follows the\nincident policy;
 
-|Backend (Spring Boot)|
-:Consumer nhận message từ\ntopic **security-incidents**;
-:Tạo SecurityIncident (status = NEW);\n:Bắt đầu ghi hình video sự cố (.mp4);
-:Dispatch WebSocket tới Bảo vệ trực ca\n(/topic/guards/{id}/alerts);
+|Backend & Storage|
+:Step 2: The system invites the guards\non duty in the same building;
 
-split
-  |Bảo vệ A (Mobile & Livestream)|
-  -[#0066cc]-> **[KỊCH BẢN CHÍNH: DS-05a]**;
-  :Màn hình livestream chớp viền đỏ & hú còi;\n:Điện thoại nhận chuông cảnh báo khẩn cấp;
-  :Bấm **"Tiếp nhận (Claim)"**;
+if (Claimed before invitation expires?) then (Yes)
+  :Assign incident to claiming guard;
+else (No)
+  :Send invitation to all guards on duty;
+  if (Claimed by any guard?) then (Yes)
+    :Assign incident;
+  else (No)
+    |Facility Manager / Admin|
+    :Notify Facility Manager;
+    |Backend & Storage|
+  endif
+endif
 
-  |Backend (Spring Boot)|
-  :Cập nhật **status = CLAIMED**;\n:Lưu DB (version tăng từ 0 lên 1);\n:Broadcast /topic/incidents/updates;
+|Guard|
+:Step 3: One guard taps Claim.\nOther guards see that the incident\nhas already been claimed;
 
-  |Bảo vệ A (Mobile & Livestream)|
-  :Màn hình livestream hiện "Đang xử lý";\n:Đến hiện trường kiểm tra đối tượng;\n:Mở form Resolve, chọn Outcome & phân loại;\n:Bấm **"Hoàn tất xử lý"**;
+:Step 4: The guard taps Find Route;\nthe mobile application shows the\nwalking route to the area;
 
-  |Backend (Spring Boot)|
-  :Cập nhật **RESOLVED_VERIFIED**;\n:Lưu DB & chốt video bằng chứng;\n:Broadcast đóng sự cố;
+fork
+  |Camera & AI Service|
+  :Step 5: The system records evidence\nvideo from the moment the incident\nstarts until there is no detection;
+fork again
+  |Guard|
+  :Step 6: The guard handles the\nsituation on site and Camera guard\nchecks the live view to make sure\nthe area is safe;
 
-  |Bảo vệ A (Mobile & Livestream)|
-  :Màn hình livestream gỡ viền đỏ & tắt còi;\n:Sự cố hoàn tất và lưu trữ lịch sử;
-  stop
+  :Step 7: The guard concludes:\nVerified (real intrusion) or\nDismissed (false alarm), with a\ncategory and a note;
+end fork
 
-split again
-  |Bảo vệ B (Mobile App)|
-  -[#cc0000]-> **[NGOẠI LỆ: DS-05b]**;
-  :Điện thoại nhận chuông cảnh báo;\n:Bấm **"Tiếp nhận (Claim)"** đồng thời;
-  :Backend từ chối với lỗi **409 CONFLICT**:\n*"Sự việc vừa được tiếp nhận bởi Guard A"*;\n:App tự động cập nhật UI đã có người nhận;\n:Dừng xử lý, tránh trùng lặp hiện trường;
-  stop
+|Backend & Storage|
+:Step 8: The system closes the incident,\nstores the evidence video and updates\nthe false alarm statistics;
 
-end split
+|Facility Manager / Admin|
+:Step 9: The Facility Manager or\nAdministrator selects a date range,\nviews the security summary report and\ndownloads it as PDF (number of incidents,\nfalse alarm rate, average response time,\nareas with most incidents, guards with\nmost resolved incidents);
+
+stop
 @enduml

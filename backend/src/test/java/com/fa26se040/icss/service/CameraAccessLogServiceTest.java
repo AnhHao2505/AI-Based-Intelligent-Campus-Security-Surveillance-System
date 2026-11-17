@@ -263,7 +263,7 @@ class CameraAccessLogServiceTest {
     }
 
     @Test
-    @DisplayName("Người lạ ra khỏi khu vực (EXIT) có ghi thời gian lưu lại vẫn phải phân loại là UNKNOWN_PERSON (không nhầm thành ACCESS_OUT_OF_TIME hay AUTHORIZED_ACCESS)")
+    @DisplayName("Bỏ qua ghi nhật ký ra khỏi ROI: entryResponse có lý do chứa RA KHỎI ROI -> trả về null, không lưu CSDL")
     void testRecordAccessLog_UnknownPersonExit_ClassifiedAsUnknownPerson() {
         OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 14, 14, 0, 0, 0, ZoneOffset.ofHours(7));
         CheckCameraEntryResponse entryResponse = CheckCameraEntryResponse.builder()
@@ -276,17 +276,10 @@ class CameraAccessLogServiceTest {
                 .fullName("Người lạ / Chưa rõ mặt")
                 .build();
 
-        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
-        when(userRepository.findByUserCodeAndDeletedAtIsNull("UNKNOWN")).thenReturn(Optional.empty());
-        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
         CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(entryResponse, daytime);
 
-        assertNotNull(result);
-        assertEquals(AccessResult.UNKNOWN_PERSON, result.getAccessResult(), "Người lạ rời ROI phải được phân loại là UNKNOWN_PERSON, không được thành ACCESS_OUT_OF_TIME hay AUTHORIZED_ACCESS");
-        assertEquals("UNKNOWN", result.getUserCode());
-        assertEquals("Người lạ / Chưa rõ mặt", result.getFullName());
-        assertEquals("[RA KHỎI ROI: Vùng giám sát 1] Người lạ rời khu vực (Thời gian lưu lại: 7s)", result.getReasonDetails());
+        assertNull(result);
+        verify(cameraAccessLogRepository, never()).save(any());
     }
 
     @Test
@@ -314,14 +307,13 @@ class CameraAccessLogServiceTest {
         assertEquals(user, captor.getValue().getUser());
     }
 
-    /** Đúng chuỗi AccessDecisionService trả khi user rời khu sau khi đơn đã hết hạn (xem AccessDecisionServiceTest T3/T4). */
-    private static final String EXPIRED_EXIT_REASON = "[RA KHỎI ROI: Vùng 1] Rời khu vực (Thời gian lưu lại: 10s) (Không có thẩm quyền)";
+    private static final String EXPIRED_ENTRY_REASON = "[VÀO ROI: Vùng 1] Đơn bảo lãnh đã hết hạn (Không có thẩm quyền)";
 
-    private CheckCameraEntryResponse expiredRequestExit() {
+    private CheckCameraEntryResponse expiredRequestEntry() {
         return CheckCameraEntryResponse.builder()
                 .allowed(false)
                 .source(AccessSource.NONE)
-                .reason(EXPIRED_EXIT_REASON)
+                .reason(EXPIRED_ENTRY_REASON)
                 .cameraCode("CAM-001")
                 .areaId(areaId)
                 .userCode("SE170123")
@@ -330,14 +322,14 @@ class CameraAccessLogServiceTest {
     }
 
     @Test
-    @DisplayName("T3: User rời khu khi đơn đã hết hạn, trong giờ hoạt động -> UNAUTHORIZED_PERSON")
+    @DisplayName("T3: User vào khu khi đơn đã hết hạn, trong giờ hoạt động -> UNAUTHORIZED_PERSON")
     void testRecordAccessLog_ExpiredRequestExitDuringHours_UnauthorizedPerson() {
         OffsetDateTime daytime = OffsetDateTime.of(2026, 10, 14, 11, 0, 0, 0, ZoneOffset.ofHours(7));
         when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
         when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
         when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(expiredRequestExit(), daytime);
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(expiredRequestEntry(), daytime);
 
         assertNotNull(result);
         assertEquals(AccessResult.UNAUTHORIZED_PERSON, result.getAccessResult());
@@ -345,14 +337,14 @@ class CameraAccessLogServiceTest {
     }
 
     @Test
-    @DisplayName("T4: User rời khu khi đơn đã hết hạn, ngoài giờ hoạt động (23:00) -> PERSON_INTRUSION, giữ tên user")
+    @DisplayName("T4: User vào khu khi đơn đã hết hạn, ngoài giờ hoạt động (23:00) -> PERSON_INTRUSION, giữ tên user")
     void testRecordAccessLog_ExpiredRequestExitAfterHours_PersonIntrusion() {
         OffsetDateTime night = OffsetDateTime.of(2026, 10, 14, 23, 0, 0, 0, ZoneOffset.ofHours(7));
         when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
         when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
         when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(expiredRequestExit(), night);
+        CameraAccessLogResponse result = cameraAccessLogService.recordAccessLog(expiredRequestEntry(), night);
 
         assertNotNull(result);
         assertEquals(AccessResult.PERSON_INTRUSION, result.getAccessResult());

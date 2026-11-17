@@ -96,6 +96,9 @@ public class UserService {
     private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
     // BE-06: độ dài mật khẩu tạm = max(12, PASSWORD_MIN_LENGTH)
     private final SystemConfigService systemConfigService;
+    // Lọc theo lô ở màn Cấp truy cập: tên file và luồng của lô đọc từ audit IMPORT / USER_IMPORT_BATCH
+    private final com.fa26se040.icss.repository.AuditLogRepository auditLogRepository;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
@@ -775,6 +778,90 @@ public class UserService {
         Pageable cappedPageable = PageRequest.of(pageable.getPageNumber(), cappedSize, pageable.getSort());
         return userRepository.searchActiveUsersByAccessLevel(cleanQ, accessLevel, cappedPageable)
                 .map(u -> new UserSearchResponse(u.getId(), u.getUserCode(), u.getFullName(), u.getRole(), u.getAccessLevel()));
+    }
+
+    /** Lọc theo lô import ở màn Cấp truy cập: cùng quy tắc tìm kiếm, lọc thêm theo lô (bắt buộc) và cấp (tuỳ chọn). */
+    @Transactional(readOnly = true)
+    public Page<UserSearchResponse> searchUsers(String q, Integer accessLevel, UUID importBatchId, Pageable pageable) {
+        if (importBatchId == null) {
+            return searchUsers(q, accessLevel, pageable);
+        }
+        String cleanQ = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+        int cappedSize = Math.min(Math.max(1, pageable.getPageSize()), 20);
+        Pageable cappedPageable = PageRequest.of(pageable.getPageNumber(), cappedSize, pageable.getSort());
+        return userRepository.searchActiveUsersByImportBatch(cleanQ, accessLevel, importBatchId, cappedPageable)
+                .map(u -> new UserSearchResponse(u.getId(), u.getUserCode(), u.getFullName(), u.getRole(), u.getAccessLevel()));
+    }
+
+    /**
+     * Ô lọc "Lô import" ở màn Cấp truy cập (FM, ADMIN): lô còn người hoạt động, mới nhất trước. Không trả tên / email người
+     * trong lô. Tên file và luồng lấy từ audit IMPORT (một truy vấn cho mọi lô); lô không có audit đó thì để null.
+     */
+    @Transactional(readOnly = true)
+    public List<com.fa26se040.icss.dto.user.ImportBatchOptionResponse> getImportBatchOptions() {
+        List<UserRepository.ImportBatchActiveRow> rows = userRepository.findActiveImportBatchRows();
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        List<String> batchIds = rows.stream().map(r -> r.getImportBatchId().toString()).toList();
+        Map<String, com.fasterxml.jackson.databind.JsonNode> importAudits = new HashMap<>();
+        for (com.fa26se040.icss.entity.AuditLog a : auditLogRepository.findByTargetTypeAndActionAndTargetIdIn(
+                com.fa26se040.icss.enums.AuditTargetType.USER_IMPORT_BATCH, com.fa26se040.icss.enums.AuditAction.IMPORT, batchIds)) {
+            com.fasterxml.jackson.databind.JsonNode node = readJson(a.getNewValue());
+            if (node != null) {
+                importAudits.putIfAbsent(a.getTargetId(), node);
+            }
+        }
+        return rows.stream().map(r -> {
+            com.fasterxml.jackson.databind.JsonNode node = importAudits.get(r.getImportBatchId().toString());
+            return new com.fa26se040.icss.dto.user.ImportBatchOptionResponse(
+                    r.getImportBatchId(), r.getCreatedAt(), r.getActiveCount() != null ? r.getActiveCount() : 0L,
+                    textOrNull(node, "flow"), textOrNull(node, "fileName"));
+        }).toList();
+    }
+
+    /**
+     * "Chọn tất cả kết quả lọc" ở màn Cấp truy cập (FM): id những người FM được đổi cấp theo bộ lọc — đang hoạt động, chưa xoá,
+     * không phải ADMIN / FACILITY_MANAGER (BR-AL-32), không phải người gọi (BR-AL-21). Vượt giới hạn đổi cấp mỗi lần
+     * (cùng khoá với đổi cấp nhiều người) -> 400, không cắt bớt.
+     */
+    @Transactional(readOnly = true)
+    public List<UUID> findAccessLevelAssignableIds(String q, Integer accessLevel, UUID importBatchId, String actorEmail) {
+        if (actorEmail == null) {
+            throw new UnauthorizedException("Phiên đăng nhập không hợp lệ");
+        }
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new UnauthorizedException("Phiên đăng nhập không hợp lệ"));
+        String cleanQ = (q != null && !q.trim().isEmpty()) ? q.trim() : null;
+        boolean filterByBatch = importBatchId != null;
+        Set<Role> roles = EnumSet.complementOf(EnumSet.of(Role.ADMIN, Role.FACILITY_MANAGER));
+        int max = systemConfigService.getInt(com.fa26se040.icss.enums.ConfigKey.USER_BULK_IMPORT_MAX_ROWS);
+        long total = userRepository.countAccessLevelAssignable(cleanQ, accessLevel, filterByBatch, importBatchId, roles, actor.getId());
+        if (total > max) {
+            throw new IllegalArgumentException("Kết quả lọc có " + total + " người, vượt giới hạn " + max
+                    + " mỗi lần; hãy lọc hẹp hơn");
+        }
+        return userRepository.findAccessLevelAssignableIds(cleanQ, accessLevel, filterByBatch, importBatchId, roles, actor.getId());
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode readJson(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(json);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            log.warn("Import batch audit has unreadable new_value: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private static String textOrNull(com.fasterxml.jackson.databind.JsonNode node, String field) {
+        if (node == null) {
+            return null;
+        }
+        com.fasterxml.jackson.databind.JsonNode v = node.get(field);
+        return v != null && v.isTextual() ? v.asText() : null;
     }
 
     public int resolveDefaultAccessLevel(Role role) {
