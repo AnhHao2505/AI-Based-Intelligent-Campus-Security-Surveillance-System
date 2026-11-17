@@ -19,6 +19,7 @@ public enum CameraErrorCode {
     ERR_ROI_007("ERR_ROI_007", HttpStatus.BAD_REQUEST, "Camera phải có ít nhất 1 vùng giám sát ROI"),
     ERR_SNAPSHOT_001("ERR_SNAPSHOT_001", HttpStatus.BAD_GATEWAY, "Không thể trích xuất khung hình từ camera: Vui lòng kiểm tra lại thiết bị hoặc đường truyền luồng RTSP"),
     ERR_STREAM_003("ERR_STREAM_003", HttpStatus.BAD_REQUEST, "Camera đang ở trạng thái ngừng hoạt động (INACTIVE), không thể thao tác luồng stream"),
+    ERR_STREAM_004("ERR_STREAM_004", HttpStatus.BAD_REQUEST, "Camera đang phát trực tiếp (ONLINE), vui lòng ngắt stream trước khi thay đổi cấu hình kết nối"),
     ERR_RECORDING_001("ERR_RECORDING_001", HttpStatus.BAD_REQUEST, "Thông tin bản ghi video không hợp lệ hoặc thiếu đường dẫn lưu trữ"),
     ERR_RECORDING_002("ERR_RECORDING_002", HttpStatus.CONFLICT, "Chuyển trạng thái bản ghi video không hợp lệ"),
     ERR_EDGE_001("ERR_EDGE_001", HttpStatus.BAD_GATEWAY, "Không thể gửi lệnh điều khiển tới trạm Edge qua MQTT Broker"),

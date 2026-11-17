@@ -13,6 +13,7 @@ import {
 	Check,
 	Play,
 	Square,
+	Lock,
 } from "lucide-react";
 
 // UI-00: che "user:pass@" trong URL luồng khi hiển thị (giá trị gửi API giữ nguyên)
@@ -39,6 +40,9 @@ export default function CameraStreamTab({
 	onStopStream,
 	isDirty = false,
 }) {
+	const isOnline =
+		camera?.operationalStatus === "ONLINE" &&
+		camera?.status !== "DECOMMISSIONED";
 	const [editingPath, setEditingPath] = useState(false);
 	const [showPlainPreviewPassword, setShowPlainPreviewPassword] =
 		useState(false);
@@ -134,6 +138,7 @@ export default function CameraStreamTab({
 						onChange={(e) =>
 							setStreamForm({ ...streamForm, host: e.target.value })
 						}
+						disabled={isOnline || saving || startingStream || stoppingStream}
 						required
 					/>
 				</div>
@@ -147,6 +152,7 @@ export default function CameraStreamTab({
 						onChange={(e) =>
 							setStreamForm({ ...streamForm, port: e.target.value })
 						}
+						disabled={isOnline || saving || startingStream || stoppingStream}
 						required
 					/>
 				</div>
@@ -180,6 +186,7 @@ export default function CameraStreamTab({
 								username: e.target.value,
 							})
 						}
+						disabled={isOnline || saving || startingStream || stoppingStream}
 					/>
 				</div>
 
@@ -191,7 +198,7 @@ export default function CameraStreamTab({
 							gap: "0.25rem",
 						}}
 					>
-						Mật khẩu RTSP / Khóa bảo mật
+						Mật khẩu
 						<span
 							data-tooltip="Mật khẩu tài khoản camera (được mã hóa AES-256 an toàn)"
 							className="help-icon-wrapper"
@@ -217,6 +224,7 @@ export default function CameraStreamTab({
 								credentialRef: e.target.value,
 							})
 						}
+						disabled={isOnline || saving || startingStream || stoppingStream}
 					/>
 				</div>
 
@@ -232,12 +240,22 @@ export default function CameraStreamTab({
 								readOnly
 								aria-label="Main Stream Path (đã che tài khoản)"
 								style={{ flex: 1, minWidth: 0 }}
+								disabled={
+									isOnline || saving || startingStream || stoppingStream
+								}
 							/>
 							<button
 								type="button"
 								className="btn-test-stream"
 								onClick={() => setEditingPath(true)}
-								title="Hiện đường dẫn đầy đủ để sửa"
+								title={
+									isOnline
+										? "Vui lòng ngắt stream trước khi sửa đường dẫn"
+										: "Hiện đường dẫn đầy đủ để sửa"
+								}
+								disabled={
+									isOnline || saving || startingStream || stoppingStream
+								}
 							>
 								Sửa
 							</button>
@@ -253,6 +271,7 @@ export default function CameraStreamTab({
 									mainStreamPath: e.target.value,
 								})
 							}
+							disabled={isOnline || saving || startingStream || stoppingStream}
 							required
 						/>
 					)}
@@ -369,9 +388,17 @@ export default function CameraStreamTab({
 					className="btn-test-stream"
 					onClick={onTestConnection}
 					disabled={
-						testingConnection || saving || startingStream || stoppingStream
+						isOnline ||
+						testingConnection ||
+						saving ||
+						startingStream ||
+						stoppingStream
 					}
-					title="Kiểm tra tín hiệu cổng RTSP"
+					title={
+						isOnline
+							? "Vui lòng ngắt stream trước khi thử kết nối lại"
+							: "Kiểm tra tín hiệu cổng RTSP"
+					}
 				>
 					{testingConnection ? (
 						<>
@@ -436,18 +463,14 @@ export default function CameraStreamTab({
 										size={16}
 									/>
 									<span>
-										{isDirty
-											? "Đang lưu & kết nối..."
-											: "Đang kích hoạt..."}
+										{isDirty ? "Đang lưu & kết nối..." : "Đang kích hoạt..."}
 									</span>
 								</>
 							) : (
 								<>
 									<Play size={16} />
 									<span>
-										{isDirty
-											? "Lưu & Kết nối Stream"
-											: "Kết nối Stream"}
+										{isDirty ? "Lưu & Kết nối Stream" : "Kết nối Stream"}
 									</span>
 								</>
 							)}
@@ -458,7 +481,16 @@ export default function CameraStreamTab({
 					type="submit"
 					className="btn-save"
 					disabled={
-						saving || testingConnection || startingStream || stoppingStream
+						isOnline ||
+						saving ||
+						testingConnection ||
+						startingStream ||
+						stoppingStream
+					}
+					title={
+						isOnline
+							? "Vui lòng ngắt stream trước khi lưu thay đổi cấu hình"
+							: "Lưu stream"
 					}
 				>
 					{saving ? (
