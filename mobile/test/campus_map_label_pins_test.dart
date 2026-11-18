@@ -158,11 +158,33 @@ void main() {
     final temp = AreaPinModel(
       id: 'incident_target',
       name: 'Vị trí sự cố (CAM-006)',
-      areaLevel: 'RESTRICTED',
+      areaLevel: AreaPinModel.unknownLevel,
       centerLatitude: room0.point[1],
       centerLongitude: room0.point[0],
       isActive: true,
     );
+
+    test('cấp chưa xác định: nhãn "Chưa xác định cấp", màu xám mặc định, không phải cấp cũ RESTRICTED', () {
+      expect(AreaPinModel.unknownLevel, isNot('RESTRICTED'));
+      expect(temp.levelDisplayName, 'Chưa xác định cấp');
+      expect(temp.levelColor.toARGB32(), 0xFF6B7280);
+      expect(temp.levelColor, AreaPinModel.levelColorOf('KHONG-CO'), reason: 'cùng màu mặc định của cấp lạ');
+    });
+
+    test('provider: sự cố không khớp khu → ghim tạm cấp chưa xác định; payload có cấp → dùng cấp đó', () {
+      final provider = MapProvider(ApiClient(), campusRepository: _DiskCampusRepository(campus));
+      final noLevel = provider.findPinForIncident(areaId: 'khu-khong-ton-tai', cameraCode: 'CAM-006')!;
+      expect(noLevel.id, 'khu-khong-ton-tai');
+      expect(noLevel.name, 'Vị trí sự cố (CAM-006)');
+      expect(noLevel.areaLevel, AreaPinModel.unknownLevel);
+      expect(noLevel.levelDisplayName, 'Chưa xác định cấp');
+
+      expect(provider.findPinForIncident(areaId: 'khu-khong-ton-tai', areaLevel: '   ')!.areaLevel,
+          AreaPinModel.unknownLevel, reason: 'cấp rỗng coi như không có');
+      final withLevel = provider.findPinForIncident(areaId: 'khu-khong-ton-tai', areaLevel: 'confidential')!;
+      expect(withLevel.areaLevel, 'CONFIDENTIAL');
+      expect(withLevel.levelDisplayName, 'Bảo mật (Cấp 2)');
+    });
 
     test('ghim tạm sự cố không còn trong GeoJSON ghim khu; nằm ở nguồn ghim sự cố', () {
       final split = splitIncidentPin(pins, selected: temp, incidentAreaId: 'incident_target');

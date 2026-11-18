@@ -42,6 +42,10 @@ class AreaPinModel {
 
   LatLng get latLng => LatLng(centerLatitude, centerLongitude);
 
+  /// Cấp của ghim tạm sự cố khi không biết cấp khu (sự cố không khớp khu nào, payload không mang cấp). Không phải
+  /// cấp nghiệp vụ: hiển thị "Chưa xác định cấp", màu / icon mặc định (xám). Không đoán cấp.
+  static const String unknownLevel = 'UNSPECIFIED';
+
   // V83 (gộp loại 19/10): PUBLIC / CONFIDENTIAL / HIGHLY_CONFIDENTIAL, nhãn trùng web.
   // INTERNAL_CONFIDENTIAL và CONFIDENTIAL_CONTACT_REQUIRED là tên cũ, hiển thị như Bảo mật.
   String get levelDisplayName {
@@ -54,6 +58,8 @@ class AreaPinModel {
         return 'Bảo mật (Cấp 2)';
       case 'HIGHLY_CONFIDENTIAL':
         return 'Bảo mật cao (Cấp 3)';
+      case unknownLevel:
+        return 'Chưa xác định cấp';
       default:
         return 'Cấp $areaLevel';
     }

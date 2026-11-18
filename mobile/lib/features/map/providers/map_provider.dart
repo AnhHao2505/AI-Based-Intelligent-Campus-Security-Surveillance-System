@@ -361,12 +361,14 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Tìm hoặc tạo pin tương ứng với sự cố (dùng để preview trên bản đồ)
+  /// Tìm hoặc tạo pin tương ứng với sự cố (dùng để preview trên bản đồ).
+  /// Ghim tạm (không khớp khu nào) lấy [areaLevel] nếu payload sự cố có; không có → [AreaPinModel.unknownLevel].
   AreaPinModel? findPinForIncident({
     String? areaId,
     String? areaName,
     String? cameraCode,
     LatLng? targetLatLng,
+    String? areaLevel,
   }) {
     AreaPinModel? matchedPin;
 
@@ -393,7 +395,9 @@ class MapProvider extends ChangeNotifier {
       matchedPin = AreaPinModel(
         id: areaId ?? 'incident_target',
         name: areaName ?? 'Vị trí sự cố (${cameraCode ?? "CAM"})',
-        areaLevel: 'RESTRICTED',
+        areaLevel: (areaLevel != null && areaLevel.trim().isNotEmpty)
+            ? areaLevel.trim().toUpperCase()
+            : AreaPinModel.unknownLevel,
         centerLatitude: latLng.latitude,
         centerLongitude: latLng.longitude,
         isActive: true,
