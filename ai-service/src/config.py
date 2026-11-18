@@ -113,6 +113,7 @@ class Settings(BaseSettings):
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"
+    IS_24_7_RESTRICTED: bool = Field(default=False, validation_alias="IS_24_7_RESTRICTED")
     NIGHT_ALLOWED_ACCESS_SOURCES: List[str] = Field(
         default=["ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"],
         validation_alias="NIGHT_ALLOWED_ACCESS_SOURCES"
