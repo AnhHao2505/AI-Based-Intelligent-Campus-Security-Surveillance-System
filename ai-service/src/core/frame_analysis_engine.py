@@ -89,7 +89,8 @@ class FrameAnalysisEngine:
         bbox: BoundingBox,
         current_time: float,
         exclude_tids: Optional[Set[int]] = None,
-        user_code: Optional[str] = None
+        user_code: Optional[str] = None,
+        frame_size: Optional[Tuple[int, int]] = None
     ) -> Optional[Tuple[int, TrackedPerson]]:
         """
         Tìm kiếm track cha gần đây để kế thừa danh tính và vòng đời trạng thái (Sticky Security State):
@@ -139,13 +140,23 @@ class FrameAnalysisEngine:
 
             if best_candidate is not None:
                 tid, p = best_candidate
+                # G3.4: Chuẩn hoá ngưỡng khoảng cách theo đường chéo khung hình (chuẩn base 1080p: đường chéo ~2202.9px)
+                scale_factor = 1.0
+                if frame_size and frame_size[0] > 0 and frame_size[1] > 0:
+                    diag = (frame_size[0] ** 2 + frame_size[1] ** 2) ** 0.5
+                    scale_factor = diag / 2202.9
+
+                thresh_single = 1000.0 * scale_factor
+                thresh_normal = 500.0 * scale_factor
+                thresh_alert = 800.0 * scale_factor
+
                 # Nếu chỉ có 1 người duy nhất gần đây: Cho phép khoảng cách nhảy vọt lên tới 1000px
                 # (đặc biệt khi người lao nhanh, nhảy qua ROI vào phòng trong khung hình 1080p/2K)
-                if len(active_recent) == 1 and min_dist < 1000.0:
+                if len(active_recent) == 1 and min_dist < thresh_single:
                     return tid, p
-                elif min_dist < 500.0:
+                elif min_dist < thresh_normal:
                     return tid, p
-                elif getattr(p, 'security_display_state', 'NEUTRAL') in ('VERIFYING', 'UNKNOWN', 'UNAUTHORIZED', 'INTRUSION') and min_dist < 800.0:
+                elif getattr(p, 'security_display_state', 'NEUTRAL') in ('VERIFYING', 'UNKNOWN', 'UNAUTHORIZED', 'INTRUSION') and min_dist < thresh_alert:
                     return tid, p
 
         return None
@@ -570,7 +581,8 @@ class FrameAnalysisEngine:
                     bbox=bbox,
                     current_time=current_time,
                     exclude_tids=detected_tids,
-                    user_code=person.face_info.matched_code if (person.face_detected and person.face_info and getattr(person.face_info, "matched_code", None)) else None
+                    user_code=person.face_info.matched_code if (person.face_detected and person.face_info and getattr(person.face_info, "matched_code", None)) else None,
+                    frame_size=frame_size
                 )
                 best_match_tid = parent_match[0] if parent_match else None
 

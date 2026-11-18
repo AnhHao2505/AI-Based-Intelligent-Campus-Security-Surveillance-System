@@ -974,7 +974,8 @@ class VideoPipeline:
                 parent_res = self.analysis_engine.find_matching_parent_track(
                     bbox=bbox,
                     current_time=current_time,
-                    exclude_tids=current_frame_tids
+                    exclude_tids=current_frame_tids,
+                    frame_size=(w, h)
                 )
                 if parent_res:
                     existing = parent_res[1]

@@ -225,3 +225,58 @@ def test_g3_3_coasting_nms_stranger_does_not_borrow_authorized_state():
     # G3.3 Fix verification: p2 tuyệt đối KHÔNG được mang trạng thái AUTHORIZED từ p1
     assert p2.security_display_state != "AUTHORIZED", "LỖI AN NINH G3.3: Người lạ Track 2 đã mượn cờ xanh AUTHORIZED qua Coasting NMS!"
     assert p2.security_display_state in ("VERIFYING", "NEUTRAL")
+
+
+def test_parent_track_distance_thresholds_scale_with_resolution():
+    """
+    G3.4: Ngưỡng khoảng cách tìm track cha phải co giãn tỷ lệ theo đường chéo khung hình (chuẩn 1080p ~2202.9px).
+    Ví dụ khoảng cách 400px:
+    - Ở 1080p (1920x1080): ngưỡng bình thường là 500px -> 400px < 500px nên KHỚP.
+    - Ở 720p (1280x720): đường chéo ~1468.6px -> scale ~0.667 -> ngưỡng bình thường ~333px -> 400px > 333px nên KHÔNG KHỚP.
+    """
+    engine = FrameAnalysisEngine()
+    # Gán Track 1 là nhân viên hợp lệ (AUTHORIZED, không rơi vào alert_state)
+    engine.associate_face(
+        track_id=1,
+        face_result=FaceDetectionResult(
+            bbox=BoundingBox(100, 100, 200, 300),
+            score=0.90,
+            matched_code="NV001",
+            matched_name="Staff 1",
+            is_authorized=True,
+            access_checked=True
+        )
+    )
+    # Tạo 2 track cha gần đây để len(active_recent) > 1 (tránh nhánh len(active_recent)==1 với ngưỡng 1000px)
+    engine.process_frame(
+        detected_tracks=[
+            (1, BoundingBox(100, 100, 200, 300)),
+            (2, BoundingBox(800, 800, 900, 1000))
+        ],
+        camera_code="CAM-001",
+        current_time=10.0
+    )
+
+    # Frame 2 tại t=10.5 (trong vòng 3s cửa sổ gần đây):
+    # Track 1 và 2 đều biến mất khỏi detected_tracks.
+    # Một track mới xuất hiện cách vị trí cũ của Track 1 đúng 400px theo trục X:
+    new_bbox = BoundingBox(500, 100, 600, 300)  # tâm cũ (150, 200), tâm mới (550, 200) -> khoảng cách đúng 400px
+
+    # 1. Thử với độ phân giải 1080p (1920, 1080)
+    match_1080p = engine.find_matching_parent_track(
+        bbox=new_bbox,
+        current_time=10.5,
+        exclude_tids=set(),
+        frame_size=(1920, 1080)
+    )
+    assert match_1080p is not None, "Tại 1080p, khoảng cách 400px < 500px phải tìm thấy track cha!"
+    assert match_1080p[0] == 1
+
+    # 2. Thử với độ phân giải 720p (1280, 720)
+    match_720p = engine.find_matching_parent_track(
+        bbox=new_bbox,
+        current_time=10.5,
+        exclude_tids=set(),
+        frame_size=(1280, 720)
+    )
+    assert match_720p is None, "Tại 720p, ngưỡng ~333px nên khoảng cách 400px không được coi là cùng một người!"
