@@ -474,7 +474,9 @@ class FrameAnalysisEngine:
         roi_access_events: List[Dict[str, Any]] = []
         current_frame_track_ids = set()
 
-        active_pixel_polys: List[Tuple[List[Point], List[str], str]] = []
+        # G2.4: alert_rules là tính năng thừa/dead-code (Backend và Frontend không hỗ trợ),
+        # ROI surveillance chỉ cần lưu toạ độ đỉnh và tên nhãn.
+        active_pixel_polys: List[Tuple[List[Point], str]] = []
 
         fw = frame_size[0] if frame_size else 0
         fh = frame_size[1] if frame_size else 0
@@ -484,26 +486,23 @@ class FrameAnalysisEngine:
             for poly in roi_polygons:
                 if isinstance(poly, RoiPolygonConfig):
                     pts = poly.to_pixel_points(fw, fh) if (fw > 0 and fh > 0) else poly.vertices
-                    rules = poly.alert_rules or ["ENTRY_EXIT_TRACKING", "AFTER_HOURS"]
                     lbl = poly.label or ""
                 elif isinstance(poly, dict):
                     raw_pts = poly.get("vertices", [])
                     pts = scale_polygon_to_frame(raw_pts, fw, fh) if (fw > 0 and fh > 0) else [Point(p["x"], p["y"]) for p in raw_pts if "x" in p and "y" in p]
-                    rules = poly.get("alert_rules", ["ENTRY_EXIT_TRACKING", "AFTER_HOURS"])
                     lbl = poly.get("label", "")
                 elif isinstance(poly, (list, tuple)):
                     pts = scale_polygon_to_frame(poly, fw, fh) if (fw > 0 and fh > 0) else poly
-                    rules = ["ENTRY_EXIT_TRACKING", "AFTER_HOURS"]
                     lbl = ""
                 else:
                     continue
 
                 if len(pts) >= 3:
-                    active_pixel_polys.append((pts, rules, lbl))
+                    active_pixel_polys.append((pts, lbl))
 
         elif roi_polygon and len(roi_polygon) >= 3:
             pts = scale_polygon_to_frame(roi_polygon, fw, fh) if (fw > 0 and fh > 0) else roi_polygon
-            active_pixel_polys.append((pts, ["ENTRY_EXIT_TRACKING", "AFTER_HOURS"], "Vùng ROI"))
+            active_pixel_polys.append((pts, "Vùng ROI"))
 
         # Khử trùng lặp bounding box kép (double-box glitch) do detector sinh ra trong cùng frame
         filtered_detected_tracks: List[Tuple[int, BoundingBox]] = []
@@ -646,20 +645,17 @@ class FrameAnalysisEngine:
 
             # Kiểm tra nằm trong Surveillance Polygons
             in_roi = False
-            matched_rules: List[str] = []
             matched_label = ""
 
             if active_pixel_polys:
                 bc = person.bbox.bottom_center
-                for poly_pts, rules, lbl in active_pixel_polys:
+                for poly_pts, lbl in active_pixel_polys:
                     if is_point_in_polygon(bc, poly_pts):
                         in_roi = True
-                        matched_rules.extend(rules)
                         if not matched_label:
                             matched_label = lbl
             else:
                 in_roi = True
-                matched_rules = ["ENTRY_EXIT_TRACKING", "AFTER_HOURS"]
 
             # Theo dõi chuyển trạng thái ra vào vùng ROI
             if in_roi:
@@ -873,9 +869,7 @@ class FrameAnalysisEngine:
                         # - Khu vực thông thường (is_public_area=False): Bất kỳ người lạ nào cũng bị cảnh báo UNKNOWN_PERSON (hoặc PERSON_INTRUSION ngoài giờ).
                         # - Ngoài giờ (after_hours=True): Mọi đối tượng lạ hoặc không được duyệt đều là PERSON_INTRUSION.
                         # - Khu vực công cộng (is_public_area=True) ban ngày: Cho phép người lạ tự do đi lại (0 cảnh báo UNKNOWN_PERSON).
-                        #   Chỉ cảnh báo nếu vùng ROI cụ thể mà người đó bước vào có gắn alert_rules hạn chế (ví dụ "RESTRICTED_ACCESS", "UNKNOWN_PERSON").
-                        has_restricted_roi_rule = any(r in ("RESTRICTED_ACCESS", "UNKNOWN_PERSON", "SECURITY_ALERT") for r in matched_rules)
-                        should_alert_stranger = (not is_public_area) or after_hours or (active_pixel_polys and person.is_in_roi and has_restricted_roi_rule)
+                        should_alert_stranger = (not is_public_area) or after_hours
                         if should_alert_stranger:
                             roi_start = person.roi_enter_time if person.roi_enter_time is not None else (person.roi_first_entered_time if getattr(person, "roi_first_entered_time", None) is not None else current_time)
                             elapsed_in_roi = current_time - roi_start

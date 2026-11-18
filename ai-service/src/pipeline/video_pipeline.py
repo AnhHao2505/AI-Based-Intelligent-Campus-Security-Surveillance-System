@@ -313,7 +313,6 @@ class VideoPipeline:
         self.roi_polygons = [
             RoiPolygonConfig(
                 label="Vùng ROI",
-                alert_rules=["ENTRY_EXIT_TRACKING"],
                 vertices=polygon
             )
         ]
@@ -339,7 +338,6 @@ class VideoPipeline:
                     configs.append(
                         RoiPolygonConfig(
                             label=p.get("label", ""),
-                            alert_rules=p.get("alert_rules", ["ENTRY_EXIT_TRACKING"]),
                             target_area_id=p.get("target_area_id"),
                             vertices=pts
                         )
