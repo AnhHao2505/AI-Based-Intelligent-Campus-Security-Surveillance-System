@@ -188,6 +188,8 @@ class FrameAnalysisEngine:
         """
         receiver.face_detected = True
         receiver.face_info = copy.copy(donor.face_info)
+        receiver.expires_at = getattr(donor, "expires_at", None)
+        receiver.starts_at = getattr(donor, "starts_at", None)
         receiver.is_inherited_identity = True
         receiver.inherited_mismatch_count = getattr(donor, "inherited_mismatch_count", 0)
         if hasattr(receiver.face_info, "is_inherited"):
@@ -355,6 +357,76 @@ class FrameAnalysisEngine:
             person, "AUTHORIZED", camera_code, generated_alerts,
             f"[IDENTITY_UPDATE] Tên: {name} ({code})\nKết quả: Có quyền ra vào", location
         )
+
+    def _check_access_window_timers(
+        self,
+        person: TrackedPerson,
+        current_time: float,
+        roi_label: str,
+        roi_access_events: List[Dict[str, Any]],
+    ) -> None:
+        """
+        Tới mốc starts_at (bắt đầu hiệu lực) hoặc expires_at (hết hiệu lực) backend trả về: KHÔNG tự đổi quyền,
+        chỉ gửi lượt ENTRY hỏi lại backend (backend ghi nhật ký ra vào). Màu, cảnh báo, IDENTITY_UPDATE do kết quả
+        backend quyết định (VideoPipeline đặt cờ window_recheck_result_ready khi có kết quả).
+        Lý do: đơn có thể bị huỷ sát giờ, hoặc người còn nguồn quyền khác phủ tiếp, AI không biết được.
+        """
+        face = person.face_info
+        if not (person.face_detected and face and getattr(face, "matched_code", None)):
+            return
+        starts_at = person.starts_at or getattr(face, "starts_at", None)
+        expires_at = person.expires_at or getattr(face, "expires_at", None)
+        starts_due = starts_at is not None and current_time >= starts_at
+        expires_due = expires_at is not None and current_time >= expires_at
+        if not (starts_due or expires_due):
+            return
+        if starts_due:
+            person.starts_at = None
+            face.starts_at = None
+        if expires_due:
+            person.expires_at = None
+            face.expires_at = None
+        logger.info(
+            f"⏱️ [FrameAnalysisEngine] Track #{person.track_id} ({face.matched_code}) chạm mốc "
+            f"{'bắt đầu' if starts_due else 'hết'} hiệu lực quyền -> hỏi lại Backend"
+        )
+        roi_access_events.append({
+            "user_code": face.matched_code,
+            "roi_label": roi_label,
+            "direction": "ENTRY",
+            "duration": 0.0,
+            "track_id": person.track_id,
+            "force_recheck": True,
+        })
+
+    def _consume_window_recheck_result(
+        self,
+        person: TrackedPerson,
+        after_hours: bool,
+        camera_code: str,
+        current_time: float,
+    ) -> bool:
+        """
+        Xử lý kết quả backend của lượt hỏi lại do chạm mốc thời gian. Trả True khi kết quả khác trạng thái đang hiển thị
+        (xanh -> không còn quyền, hoặc đỏ/vàng -> có quyền), để nơi gọi xét lại trạng thái và cảnh báo.
+        Khi mất quyền: xoá cooldown cảnh báo vi phạm để cảnh báo hết hạn được phát ngay.
+        """
+        if not getattr(person, "window_recheck_result_ready", False):
+            return False
+        person.window_recheck_result_ready = False
+        face = person.face_info
+        if not (person.face_detected and face and getattr(face, "matched_code", None)
+                and getattr(face, "access_checked", False)):
+            return False
+        authorized_now = self._check_is_night_authorized(person, after_hours, camera_code, current_time)
+        showing_authorized = getattr(person, "security_display_state", "NEUTRAL") == "AUTHORIZED"
+        if authorized_now == showing_authorized:
+            return False
+        if not authorized_now:
+            person.alert_unauthorized_sent = False
+            self.track_last_unauthorized_alert_time.pop(person.track_id, None)
+            self.user_last_unauthorized_alert_time.pop(face.matched_code, None)
+        return True
 
     def _check_is_night_authorized(
         self,
@@ -570,6 +642,8 @@ class FrameAnalysisEngine:
                 if track_id in self.pending_faces:
                     person.face_detected = True
                     person.face_info = self.pending_faces.pop(track_id)
+                    person.expires_at = getattr(person.face_info, "expires_at", None)
+                    person.starts_at = getattr(person.face_info, "starts_at", None)
 
                 # Kế thừa danh tính và trạng thái cảnh báo nếu track mới đè lên vị trí track cũ (ByteTrack switch ID)
                 detected_tids = {tid for tid, _ in detected_tracks}
@@ -652,6 +726,8 @@ class FrameAnalysisEngine:
                 if track_id in self.pending_faces:
                     person.face_detected = True
                     person.face_info = self.pending_faces.pop(track_id)
+                    person.expires_at = getattr(person.face_info, "expires_at", None)
+                    person.starts_at = getattr(person.face_info, "starts_at", None)
 
             # Kiểm tra nằm trong Surveillance Polygons
             in_roi = False
@@ -770,6 +846,13 @@ class FrameAnalysisEngine:
                         access_source = str(access_source).strip().upper()
 
                     deny_reason_code = getattr(person.face_info, "access_deny_reason", None)
+
+                    # Mốc starts_at / expires_at: chỉ hỏi lại backend; kết quả về thì các nhánh bên dưới tự xét màu và
+                    # cảnh báo theo face_info.is_authorized (mất quyền -> cooldown đã được xoá để cảnh báo phát ngay).
+                    self._check_access_window_timers(
+                        person, current_time, person.entered_roi_label or matched_label or "Vùng giám sát", roi_access_events
+                    )
+                    self._consume_window_recheck_result(person, after_hours, camera_code, current_time)
 
                     # Luật ban đêm (BR-294, Lucas chốt P4-a): chỉ xét miễn trừ khi Backend ĐÃ CHO PHÉP (is_authorized=True).
                     is_night_authorized = self._check_is_night_authorized(person, after_hours, camera_code, current_time)
@@ -946,6 +1029,16 @@ class FrameAnalysisEngine:
                     self._set_security_display_state(person, "NEUTRAL", camera_code)
                 else:
                     # Đã từng vào ROI và nay bước ra ngoài vào phòng (Sticky Security State):
+                    # Mốc starts_at / expires_at khi người đang ở trong phòng sau khi qua ROI: chỉ hỏi lại backend.
+                    # Kết quả backend khác trạng thái đang hiển thị -> đưa về VERIFYING để khối Late Identity Upgrade
+                    # bên dưới xét lại ngay trong frame này (có quyền -> AUTHORIZED; mất quyền -> UNAUTHORIZED/INTRUSION + cảnh báo
+                    # với lý do backend trả).
+                    self._check_access_window_timers(
+                        person, current_time, person.entered_roi_label or "Vùng giám sát", roi_access_events
+                    )
+                    if self._consume_window_recheck_result(person, after_hours, camera_code, current_time):
+                        self._set_security_display_state(person, "VERIFYING", camera_code, "Kết quả xét lại quyền theo mốc thời gian")
+
                     # 1. Late Identity Upgrade: CHỈ nâng cấp nếu trước đó là UNKNOWN, VERIFYING, hoặc INTRUSION (người lạ ngoài giờ),
                     # VÀ danh tính mới được xác thực CÓ QUYỀN (is_night_authorized == True và access_checked == True)
                     if getattr(person, "security_display_state", "NEUTRAL") in ("UNKNOWN", "VERIFYING", "INTRUSION"):
@@ -1171,5 +1264,7 @@ class FrameAnalysisEngine:
                 return
             self.active_tracks[track_id].face_detected = True
             self.active_tracks[track_id].face_info = face_result
+            self.active_tracks[track_id].expires_at = getattr(face_result, "expires_at", None)
+            self.active_tracks[track_id].starts_at = getattr(face_result, "starts_at", None)
         else:
             self.pending_faces[track_id] = face_result

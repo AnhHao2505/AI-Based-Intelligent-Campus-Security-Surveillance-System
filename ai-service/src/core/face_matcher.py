@@ -14,6 +14,28 @@ from ..config import settings, INTERNAL_SERVICE_KEY_HEADER
 
 logger = logging.getLogger(__name__)
 
+class AccessCheckResult(tuple):
+    """
+    Bộ kết quả kiểm tra quyền truy cập 5 phần tử tương thích ngược (allowed, reason, area_name, source, deny_reason)
+    kèm thuộc tính expires_at và starts_at để quản lý mốc thời gian tức thì.
+    """
+    def __new__(cls, allowed: bool, reason: str, area_name: Optional[str] = None, source: Optional[str] = None, deny_reason: Optional[str] = None, expires_at: Optional[float] = None, starts_at: Optional[float] = None):
+        instance = super().__new__(cls, (allowed, reason, area_name, source, deny_reason))
+        instance.expires_at = expires_at
+        instance.starts_at = starts_at
+        return instance
+
+class CacheEntry(tuple):
+    """
+    Bộ đệm quyền truy cập 6 phần tử tương thích ngược (allowed, reason, area_name, cache_expire, source, deny_reason)
+    kèm thuộc tính expires_at và starts_at. Đảm bảo len(entry) == 6 đối với các kiểm thử cũ.
+    """
+    def __new__(cls, allowed: bool, reason: str, area_name: Optional[str], cache_expire: float, source: Optional[str], deny_reason: Optional[str], expires_at: Optional[float] = None, starts_at: Optional[float] = None):
+        instance = super().__new__(cls, (allowed, reason, area_name, cache_expire, source, deny_reason))
+        instance.expires_at = expires_at
+        instance.starts_at = starts_at
+        return instance
+
 class FaceMatcher:
     """
     Module so khớp đặc trưng khuôn mặt (Face Recognition) trực tiếp với PostgreSQL pgvector hoặc API Backend.
@@ -221,8 +243,10 @@ class FaceMatcher:
                 expire_at = entry[3]
                 source = entry[4] if len(entry) >= 5 else None
                 deny_reason = entry[5] if len(entry) >= 6 else None
+                cached_expires_at = getattr(entry, "expires_at", None) if hasattr(entry, "expires_at") else (entry[6] if len(entry) >= 7 else None)
+                cached_starts_at = getattr(entry, "starts_at", None) if hasattr(entry, "starts_at") else (entry[7] if len(entry) >= 8 else None)
                 if now < expire_at:
-                    return allowed, reason, area_name, source, deny_reason
+                    return AccessCheckResult(allowed, reason, area_name, source, deny_reason, expires_at=cached_expires_at, starts_at=cached_starts_at)
         return None
 
     def check_camera_access(
@@ -243,7 +267,7 @@ class FaceMatcher:
         INCIDENT_RESPONSE, NONE); None khi không gọi được backend. deny_reason = mã GuestEntryDenyReason (chỉ khách bị từ chối).
         """
         if not camera_code or not user_code:
-            return False, "Thiếu thông tin camera hoặc người dùng", None, None, None
+            return AccessCheckResult(False, "Thiếu thông tin camera hoặc người dùng", None, None, None, expires_at=None, starts_at=None)
 
         cache_key = f"{camera_code}:{user_code}"
         now = time.time()
@@ -259,8 +283,10 @@ class FaceMatcher:
                     expire_at = entry[3]
                     source = entry[4] if len(entry) >= 5 else None
                     deny_reason = entry[5] if len(entry) >= 6 else None
+                    cached_expires_at = getattr(entry, "expires_at", None) if hasattr(entry, "expires_at") else (entry[6] if len(entry) >= 7 else None)
+                    cached_starts_at = getattr(entry, "starts_at", None) if hasattr(entry, "starts_at") else (entry[7] if len(entry) >= 8 else None)
                     if now < expire_at:
-                        return allowed, reason, area_name, source, deny_reason
+                        return AccessCheckResult(allowed, reason, area_name, source, deny_reason, expires_at=cached_expires_at, starts_at=cached_starts_at)
 
         # 2. Gọi API Backend Spring Boot (có retry 1 lần khi timeout/lỗi mạng)
         backend_url = getattr(settings, "BACKEND_API_URL", "http://localhost:8080")
@@ -310,6 +336,10 @@ class FaceMatcher:
                 raw_source = data.get("source")
                 source = str(raw_source).strip().upper() if raw_source else None
                 deny_reason = data.get("denyReason")
+                raw_expires_at = data.get("expiresAt")
+                expires_at = float(raw_expires_at) if raw_expires_at is not None else None
+                raw_starts_at = data.get("startsAt")
+                starts_at = float(raw_starts_at) if raw_starts_at is not None else None
 
                 # Tự động loại bỏ khỏi Face RAM Cache nếu Backend phản hồi người dùng không tồn tại / đã bị xoá
                 reason_lower = (reason or "").lower()
@@ -320,11 +350,25 @@ class FaceMatcher:
                         self.access_cache.pop(cache_key, None)
                 else:
                     ttl = decision_ttl if allowed else deny_ttl
+                    cache_expire = now + ttl
+                    # Nếu có mốc expires_at định trước (hết đơn / hết ca), không cache quá mốc này
+                    if allowed and expires_at is not None and expires_at < cache_expire:
+                        cache_expire = expires_at
+                    # Khi bị từ chối kèm mốc starts_at (chưa tới giờ duyệt), cache TTL không được vượt quá starts_at
+                    # để ngay khi chạm starts_at, cache từ chối hết hạn và hệ thống gọi lại backend
+                    if not allowed and starts_at is not None:
+                        if starts_at <= now:
+                            cache_expire = now
+                        elif starts_at < cache_expire:
+                            cache_expire = starts_at
                     with self._access_cache_lock:
-                        self.access_cache[cache_key] = (allowed, reason, area_name, now + ttl, source, deny_reason)
+                        self.access_cache[cache_key] = CacheEntry(
+                            allowed, reason, area_name, cache_expire, source, deny_reason,
+                            expires_at=expires_at, starts_at=starts_at
+                        )
 
-                logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}, source={source}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
-                return allowed, reason, area_name, source, deny_reason
+                logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}, source={source}, starts_at={starts_at}, expires_at={expires_at}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
+                return AccessCheckResult(allowed, reason, area_name, source, deny_reason, expires_at=expires_at, starts_at=starts_at)
             else:
                 last_error = f"HTTP {resp.status_code}"
                 logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code}")
@@ -348,8 +392,16 @@ class FaceMatcher:
                 max_stale_allowed = settings.ACCESS_STALE_ALLOWED_MAX_SECONDS
 
                 can_use_stale = False
+                c_expires_at = getattr(entry, "expires_at", None) if hasattr(entry, "expires_at") else (entry[6] if len(entry) >= 7 else None)
+                c_starts_at = getattr(entry, "starts_at", None) if hasattr(entry, "starts_at") else (entry[7] if len(entry) >= 8 else None)
                 if not c_allowed:
-                    if stale_elapsed <= max_stale:
+                    if c_starts_at is not None and now >= c_starts_at:
+                        # Lý do từ chối trước đó là do "chưa tới giờ"; nay đã tới hoặc quá giờ, không dùng lại denial cũ
+                        logger.warning(
+                            f"⚠️ [FaceMatcher] Backend không phản hồi ({last_error}). Cache cũ từ chối do chưa tới giờ "
+                            f"(starts_at={c_starts_at}) cho [{user_code}] đã tới hạn lúc {now} -> Bỏ qua stale denial."
+                        )
+                    elif stale_elapsed <= max_stale:
                         can_use_stale = True
                     else:
                         logger.warning(
@@ -357,7 +409,12 @@ class FaceMatcher:
                             f"đã hết hạn quá {max_stale}s ({stale_elapsed:.1f}s) -> Bỏ qua stale cache."
                         )
                 else:
-                    if stale_elapsed <= max_stale_allowed:
+                    if c_expires_at is not None and now >= c_expires_at:
+                        logger.warning(
+                            f"⚠️ [FaceMatcher] Backend không phản hồi ({last_error}). Cache cũ cho phép cho [{user_code}] "
+                            f"đã hết hạn hiệu lực lúc {c_expires_at} -> Bỏ qua stale approval."
+                        )
+                    elif stale_elapsed <= max_stale_allowed:
                         can_use_stale = True
                     else:
                         logger.warning(
@@ -370,7 +427,7 @@ class FaceMatcher:
                         f"⚠️ [FaceMatcher] Backend không phản hồi ({last_error}). Dùng tạm cache cũ (stale-if-error) "
                         f"cho [{user_code}] tại [{camera_code}]: allowed={c_allowed}, reason={c_reason}"
                     )
-                    return c_allowed, f"[Backend không phản hồi - Dùng tạm cache] {c_reason}", c_area, c_source, c_deny_reason
+                    return AccessCheckResult(c_allowed, f"[Backend không phản hồi - Dùng tạm cache] {c_reason}", c_area, c_source, c_deny_reason, expires_at=c_expires_at, starts_at=c_starts_at)
 
         # (iii) Nếu hoàn toàn không có cache hoặc cache không dùng được (quá hạn stale):
         is_public = self.is_camera_public(camera_code)
@@ -381,7 +438,7 @@ class FaceMatcher:
                 f"⚠️ [FaceMatcher] Backend không phản hồi khi xét quyền cho [{user_code}] "
                 f"tại camera công cộng [{camera_code}] ({last_error}). Cho phép lưu thông và chỉ ghi log."
             )
-            return True, f"[Backend không phản hồi] Khu vực công cộng - Cho phép lưu thông ({last_error})", area_name, None, None
+            return AccessCheckResult(True, f"[Backend không phản hồi] Khu vực công cộng - Cho phép lưu thông ({last_error})", area_name, None, None, expires_at=None, starts_at=None)
         else:
             # Khu vực hạn chế: duy trì Fail-Closed (allowed=False), ghi rõ 'Backend không phản hồi'
             area_name = self.get_camera_area_name(camera_code) or "Khu vực hạn chế"
@@ -389,4 +446,4 @@ class FaceMatcher:
                 f"🛑 [FaceMatcher] Backend không phản hồi khi xét quyền cho [{user_code}] "
                 f"tại khu vực hạn chế [{camera_code}] ({last_error}). Áp dụng Fail-Closed."
             )
-            return False, f"[Backend không phản hồi] Không thể xác thực quyền truy cập ({last_error})", area_name, None, None
+            return AccessCheckResult(False, f"[Backend không phản hồi] Không thể xác thực quyền truy cập ({last_error})", area_name, None, None, expires_at=None, starts_at=None)

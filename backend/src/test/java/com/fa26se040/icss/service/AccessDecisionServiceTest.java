@@ -5,6 +5,7 @@ import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.AccessRequestMember;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
+import com.fa26se040.icss.entity.AreaEventSchedule;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.Guest;
 import com.fa26se040.icss.entity.SecurityIncident;
@@ -44,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -928,6 +930,69 @@ class AccessDecisionServiceTest {
         assertEquals(AccessSource.NONE, res.getSource());
         assertTrue(res.getReason().contains("không nằm trong danh sách tiếp đón"));
         assertEquals("AREA_NOT_IN_VISIT", res.getDenyReason(), "L4: khách bị từ chối -> denyReason = mã lý do");
+        assertNull(res.getStartsAt());
+    }
+
+    @Test
+    @DisplayName("checkCameraEntry: Khách đến sớm trước giờ tiếp đón (visit APPROVED, đúng khu vực) -> trả startsAt")
+    void checkCameraEntry_GuestEarly_ReturnsStartsAt() {
+        UUID guestId = UUID.randomUUID();
+        com.fa26se040.icss.entity.GuestVisit visit = com.fa26se040.icss.entity.GuestVisit.builder()
+                .id(UUID.randomUUID())
+                .status(com.fa26se040.icss.enums.GuestVisitStatus.APPROVED)
+                .startTime(at(10))
+                .endTime(at(12))
+                .areas(Set.of(lab))
+                .build();
+        com.fa26se040.icss.entity.Guest guest = com.fa26se040.icss.entity.Guest.builder()
+                .id(guestId)
+                .fullName("Khách Thăm Quan C")
+                .visit(visit)
+                .build();
+        Camera cam = Camera.builder().cameraCode("CAM-01").area(lab).build();
+
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-01")).thenReturn(Optional.of(cam));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull(guestId.toString())).thenReturn(Optional.empty());
+        when(guestRepository.findById(guestId)).thenReturn(Optional.of(guest));
+        when(guestAccessDecisionService.checkGuestEntry(eq(guestId), eq(lab.getId()), any()))
+                .thenReturn(com.fa26se040.icss.dto.guest.GuestAccessDecision.deny(
+                        com.fa26se040.icss.enums.GuestEntryDenyReason.OUTSIDE_WINDOW, visit.getId()));
+
+        var res = accessDecisionService.checkCameraEntry("CAM-01", guestId.toString(), at(9));
+        assertFalse(res.isAllowed());
+        assertNotNull(res.getStartsAt());
+        double expectedEpochSec = (double) at(10).toInstant().toEpochMilli() / 1000.0;
+        assertEquals(expectedEpochSec, res.getStartsAt(), 0.001);
+    }
+
+    @Test
+    @DisplayName("checkCameraEntry: Khách đến sớm nhưng visit PENDING -> không cấp startsAt")
+    void checkCameraEntry_GuestEarly_PendingVisit_ReturnsNoStartsAt() {
+        UUID guestId = UUID.randomUUID();
+        com.fa26se040.icss.entity.GuestVisit visit = com.fa26se040.icss.entity.GuestVisit.builder()
+                .id(UUID.randomUUID())
+                .status(com.fa26se040.icss.enums.GuestVisitStatus.PENDING)
+                .startTime(at(10))
+                .endTime(at(12))
+                .areas(Set.of(lab))
+                .build();
+        com.fa26se040.icss.entity.Guest guest = com.fa26se040.icss.entity.Guest.builder()
+                .id(guestId)
+                .fullName("Khách Thăm Quan D")
+                .visit(visit)
+                .build();
+        Camera cam = Camera.builder().cameraCode("CAM-01").area(lab).build();
+
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-01")).thenReturn(Optional.of(cam));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull(guestId.toString())).thenReturn(Optional.empty());
+        when(guestRepository.findById(guestId)).thenReturn(Optional.of(guest));
+        when(guestAccessDecisionService.checkGuestEntry(eq(guestId), eq(lab.getId()), any()))
+                .thenReturn(com.fa26se040.icss.dto.guest.GuestAccessDecision.deny(
+                        com.fa26se040.icss.enums.GuestEntryDenyReason.VISIT_NOT_ACTIVE, visit.getId()));
+
+        var res = accessDecisionService.checkCameraEntry("CAM-01", guestId.toString(), at(9));
+        assertFalse(res.isAllowed());
+        assertNull(res.getStartsAt());
     }
 
     @Test
@@ -1325,6 +1390,24 @@ class AccessDecisionServiceTest {
         assertFalse(d.allowed());
         assertEquals(AccessSource.NONE, d.source());
         assertEquals("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: 08:00 05/10/2026)", d.reason());
+        assertEquals(at(8), d.startsAt());
+    }
+
+    @Test
+    @DisplayName("SD-01b: checkCameraEntry trả startsAt (Epoch seconds) khi đến sớm trước giờ bắt đầu của đơn")
+    void sd01b_checkCameraEntry_ReturnsStartsAtSeconds() {
+        stubAnyApprovedRequests();
+        request(student, RequestStatus.APPROVED, at(8), at(10));
+        Camera cam = Camera.builder().cameraCode("CAM-01").area(lab).build();
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-01")).thenReturn(Optional.of(cam));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull(student.getUserCode())).thenReturn(Optional.of(student));
+
+        var res = accessDecisionService.checkCameraEntry("CAM-01", student.getUserCode(), at(7));
+
+        assertFalse(res.isAllowed());
+        assertNotNull(res.getStartsAt());
+        double expectedEpochSec = (double) at(8).toInstant().toEpochMilli() / 1000.0;
+        assertEquals(expectedEpochSec, res.getStartsAt(), 0.001);
     }
 
     @Test
@@ -1386,6 +1469,98 @@ class AccessDecisionServiceTest {
         request(student, RequestStatus.APPROVED, at(20), at(22));
         AccessDecision other = accessDecisionService.checkEntry(student.getId(), lab.getId(), utc2330);
         assertEquals(LEVEL_DENY, other.reason());
+    }
+
+    @Test
+    @DisplayName("SD-06: Hai đơn APPROVED cùng ngày (08:00–10:00 đã qua và 14:00–16:00 sắp tới), lúc 13:00 → ưu tiên đơn sắp tới, trả startsAt = 14:00")
+    void sd06_multipleApprovedRequests_PrioritizesUpcomingOverExpired() {
+        stubAnyApprovedRequests();
+        request(student, RequestStatus.APPROVED, at(8), at(10));
+        request(student, RequestStatus.APPROVED, at(14), at(16));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(13));
+        assertFalse(d.allowed());
+        assertEquals("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: 14:00 05/10/2026)", d.reason());
+        assertEquals(at(14), d.startsAt());
+    }
+
+    @Test
+    @DisplayName("SCHED-01: Sự kiện đã lên lịch (CONFIDENTIAL area), trong khung giờ → allowed với expiresAt = sched.endAt")
+    void sched01_openEventSchedule_ReturnsExpiresAt() {
+        Area confArea = Area.builder()
+                .id(UUID.randomUUID())
+                .name("Hội trường B")
+                .areaLevel(AreaLevel.CONFIDENTIAL)
+                .isActive(true)
+                .build();
+        lenient().when(areaRepository.findById(confArea.getId())).thenReturn(Optional.of(confArea));
+        student.setAccessLevel(1);
+
+        AreaEventSchedule sched = AreaEventSchedule.builder()
+                .id(UUID.randomUUID())
+                .area(confArea)
+                .status(com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED)
+                .startAt(at(14))
+                .endAt(at(16))
+                .build();
+        when(areaEventScheduleRepository.existsByAreaIdAndStatusAndStartAtLessThanEqualAndEndAtGreaterThan(
+                confArea.getId(), com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED, at(15), at(15)))
+                .thenReturn(true);
+        when(areaEventScheduleRepository.findByAreaIdAndStatusOrderByStartAtAsc(confArea.getId(), com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED))
+                .thenReturn(List.of(sched));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), confArea.getId(), at(15));
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.OPEN_EVENT, d.source());
+        assertEquals(sched.getId(), d.sourceRefId());
+        assertEquals(at(16), d.expiresAt());
+    }
+
+    @Test
+    @DisplayName("EXP-01: Hai đơn APPROVED chồng nhau 08–10 và 09–12, lúc 09:30 → expiresAt = 12:00 (mốc muộn nhất)")
+    void exp01_overlappingRequests_ExpiresAtLatestEnd() {
+        request(student, RequestStatus.APPROVED, at(8), at(10));
+        request(student, RequestStatus.APPROVED, at(9), at(12));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(9).plusMinutes(30));
+
+        assertTrue(d.allowed());
+        assertEquals(AccessSource.ACCESS_REQUEST, d.source());
+        assertEquals(at(12), d.expiresAt());
+    }
+
+    @Test
+    @DisplayName("EXP-02: Phân công 08–17 và đơn APPROVED 16–18, lúc 16:30 → nguồn ASSIGNED_PERSONNEL, expiresAt = 18:00")
+    void exp02_assignmentAndLongerRequest_ExpiresAtLatestEnd() {
+        assign(student, at(8), at(17));
+        request(student, RequestStatus.APPROVED, at(16), at(18));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(16).plusMinutes(30));
+
+        assertEquals(AccessSource.ASSIGNED_PERSONNEL, d.source());
+        assertEquals(at(18), d.expiresAt());
+    }
+
+    @Test
+    @DisplayName("EXP-03: Phân công không hạn (validTo NULL) kèm đơn có hạn → expiresAt = null (không hẹn giờ)")
+    void exp03_unlimitedAssignment_NoExpiresAt() {
+        assign(student, DAY.minusDays(10), null);
+        request(student, RequestStatus.APPROVED, at(8), at(12));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(10));
+
+        assertEquals(AccessSource.ASSIGNED_PERSONNEL, d.source());
+        assertNull(d.expiresAt());
+    }
+
+    @Test
+    @DisplayName("EXP-04: Đơn APPROVED 08–12, lúc 10:00 → expiresAt = 12:00")
+    void exp04_singleRequest_ExpiresAtEnd() {
+        request(student, RequestStatus.APPROVED, at(8), at(12));
+
+        AccessDecision d = accessDecisionService.checkEntry(student.getId(), lab.getId(), at(10));
+
+        assertEquals(at(12), d.expiresAt());
     }
 
     @Test

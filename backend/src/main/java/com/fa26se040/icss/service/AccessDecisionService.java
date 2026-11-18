@@ -5,12 +5,15 @@ import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
 import com.fa26se040.icss.entity.AccessRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
+import com.fa26se040.icss.entity.AreaEventSchedule;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.ConfigKey;
+import com.fa26se040.icss.enums.GuestEntryDenyReason;
+import com.fa26se040.icss.enums.GuestVisitStatus;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.RequestStatus;
@@ -108,10 +111,12 @@ public class AccessDecisionService {
         // 3. Assigned Personnel còn hiệu lực tại at (validTo NULL = không hạn)
         List<AreaAssignedPersonnel> assignments = assignedPersonnelRepository.findEffectiveAt(userId, areaId, at);
         if (!assignments.isEmpty()) {
+            AreaAssignedPersonnel ap = assignments.get(0);
             return AccessDecision.allowed(
                     AccessSource.ASSIGNED_PERSONNEL,
-                    assignments.get(0).getId(),
-                    "Người dùng được gán vào khu vực"
+                    ap.getId(),
+                    "Người dùng được gán vào khu vực",
+                    latestCoverageEnd(user, area, userId, areaId, at)
             );
         }
 
@@ -142,10 +147,12 @@ public class AccessDecisionService {
         if (eventApplicable && areaEventScheduleRepository != null
                 && areaEventScheduleRepository.existsByAreaIdAndStatusAndStartAtLessThanEqualAndEndAtGreaterThan(
                 areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED, at, at)) {
+            AreaEventSchedule covering = findCoveringSchedules(areaId, at).stream().findFirst().orElse(null);
             return AccessDecision.allowed(
                     AccessSource.OPEN_EVENT,
-                    null,
-                    "Khu vực trong khung lịch sự kiện"
+                    covering != null ? covering.getId() : null,
+                    "Khu vực trong khung lịch sự kiện",
+                    latestCoverageEnd(user, area, userId, areaId, at)
             );
         }
 
@@ -168,10 +175,12 @@ public class AccessDecisionService {
         List<AccessRequest> requests = accessRequestRepository.findCoveringRequestsForUser(
                 userId, areaId, at, RequestStatus.APPROVED);
         if (!requests.isEmpty()) {
+            AccessRequest ar = requests.get(0);
             return AccessDecision.allowed(
                     AccessSource.ACCESS_REQUEST,
-                    requests.get(0).getId(),
-                    "Có đơn xin quyền đã được duyệt trong khung thời gian"
+                    ar.getId(),
+                    "Có đơn xin quyền đã được duyệt trong khung thời gian",
+                    latestCoverageEnd(user, area, userId, areaId, at)
             );
         }
 
@@ -182,6 +191,8 @@ public class AccessDecisionService {
             List<AccessRequest> approvedRequests = accessRequestRepository.findAnyApprovedRequestsForUser(
                     userId, areaId, RequestStatus.APPROVED);
             if (approvedRequests != null) {
+                AccessRequest upcomingRequest = null;
+                AccessRequest expiredRequest = null;
                 for (AccessRequest ar : approvedRequests) {
                     if (ar.getStartTime() == null || ar.getEndTime() == null) {
                         continue;
@@ -193,13 +204,23 @@ public class AccessDecisionService {
                     boolean isSameDay = !accessDate.isBefore(reqStartDate) && !accessDate.isAfter(reqEndDate);
                     if (isSameDay) {
                         if (at.isBefore(ar.getStartTime())) {
-                            return AccessDecision.denied("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: "
-                                    + TIME_DATE_FORMATTER.format(ar.getStartTime()) + ")");
+                            if (upcomingRequest == null || ar.getStartTime().isBefore(upcomingRequest.getStartTime())) {
+                                upcomingRequest = ar;
+                            }
                         } else if (!at.isBefore(ar.getEndTime())) {
-                            return AccessDecision.denied("Đơn xin quyền đã hết hạn sử dụng trong ngày (Đã kết thúc lúc: "
-                                    + TIME_DATE_FORMATTER.format(ar.getEndTime()) + ")");
+                            if (expiredRequest == null || ar.getEndTime().isAfter(expiredRequest.getEndTime())) {
+                                expiredRequest = ar;
+                            }
                         }
                     }
+                }
+                // Ưu tiên đơn sắp diễn ra (upcoming) trước để người đến sớm được cấp startsAt chuẩn xác
+                if (upcomingRequest != null) {
+                    return AccessDecision.denied("Chưa tới khung giờ được cấp phép theo đơn (Bắt đầu lúc: "
+                            + TIME_DATE_FORMATTER.format(upcomingRequest.getStartTime()) + ")", upcomingRequest.getStartTime());
+                } else if (expiredRequest != null) {
+                    return AccessDecision.denied("Đơn xin quyền đã hết hạn sử dụng trong ngày (Đã kết thúc lúc: "
+                            + TIME_DATE_FORMATTER.format(expiredRequest.getEndTime()) + ")");
                 }
             }
         }
@@ -208,13 +229,45 @@ public class AccessDecisionService {
         if (assignedPersonnelRepository != null) {
             List<AreaAssignedPersonnel> assignmentsAll = assignedPersonnelRepository.findByAreaIdWithDetails(areaId);
             if (assignmentsAll != null) {
+                AreaAssignedPersonnel upcomingAssignment = null;
+                AreaAssignedPersonnel expiredAssignment = null;
                 for (AreaAssignedPersonnel ap : assignmentsAll) {
                     if (ap.getUser() != null && ap.getUser().getId().equals(userId) && ap.getRevokedAt() == null) {
                         if (ap.getValidFrom() != null && at.isBefore(ap.getValidFrom())) {
-                            return AccessDecision.denied("Phân công nhân sự chưa tới ngày hiệu lực (Bắt đầu: " + DATE_FORMATTER.format(ap.getValidFrom()) + ")");
+                            if (upcomingAssignment == null || ap.getValidFrom().isBefore(upcomingAssignment.getValidFrom())) {
+                                upcomingAssignment = ap;
+                            }
+                        } else if (ap.getValidTo() != null && !at.isBefore(ap.getValidTo())) {
+                            if (expiredAssignment == null || ap.getValidTo().isAfter(expiredAssignment.getValidTo())) {
+                                expiredAssignment = ap;
+                            }
                         }
-                        if (ap.getValidTo() != null && !at.isBefore(ap.getValidTo())) {
-                            return AccessDecision.denied("Phân công nhân sự đã hết hạn hiệu lực (Đã kết thúc: " + DATE_FORMATTER.format(ap.getValidTo()) + ")");
+                    }
+                }
+                if (upcomingAssignment != null) {
+                    return AccessDecision.denied("Phân công nhân sự chưa tới ngày hiệu lực (Bắt đầu: "
+                            + DATE_FORMATTER.format(upcomingAssignment.getValidFrom()) + ")", upcomingAssignment.getValidFrom());
+                } else if (expiredAssignment != null) {
+                    return AccessDecision.denied("Phân công nhân sự đã hết hạn hiệu lực (Đã kết thúc: "
+                            + DATE_FORMATTER.format(expiredAssignment.getValidTo()) + ")");
+                }
+            }
+        }
+
+        // C. Kiểm tra sự kiện đã lên lịch cho hôm nay nhưng chưa tới giờ bắt đầu
+        if (eventApplicable && areaEventScheduleRepository != null) {
+            List<AreaEventSchedule> schedules = areaEventScheduleRepository.findByAreaIdAndStatusOrderByStartAtAsc(
+                    areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED);
+            if (schedules != null) {
+                LocalDate accessDate = at.atZoneSameInstant(VN_ZONE).toLocalDate();
+                for (AreaEventSchedule sched : schedules) {
+                    if (sched.getStartAt() != null && at.isBefore(sched.getStartAt())) {
+                        LocalDate schedDate = sched.getStartAt().atZoneSameInstant(VN_ZONE).toLocalDate();
+                        if (accessDate.equals(schedDate)) {
+                            return AccessDecision.denied(
+                                    "Chưa tới khung giờ diễn ra sự kiện (Bắt đầu lúc: " + TIME_DATE_FORMATTER.format(sched.getStartAt()) + ")",
+                                    sched.getStartAt()
+                            );
                         }
                     }
                 }
@@ -238,6 +291,75 @@ public class AccessDecisionService {
      * </ul>
      * Số phút đọc qua SystemConfigService mỗi lần gọi nên đổi cấu hình có hiệu lực ngay.
      */
+    /** Các lịch sự kiện SCHEDULED của area phủ thời điểm at (startAt &lt;= at &lt; endAt). */
+    private List<AreaEventSchedule> findCoveringSchedules(UUID areaId, OffsetDateTime at) {
+        if (areaEventScheduleRepository == null) {
+            return List.of();
+        }
+        List<AreaEventSchedule> schedules = areaEventScheduleRepository.findByAreaIdAndStatusOrderByStartAtAsc(
+                areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED);
+        if (schedules == null) {
+            return List.of();
+        }
+        return schedules.stream()
+                .filter(s -> s.getStartAt() != null && s.getEndAt() != null
+                        && !at.isBefore(s.getStartAt()) && at.isBefore(s.getEndAt()))
+                .toList();
+    }
+
+    /**
+     * Mốc hết hiệu lực muộn nhất trong mọi nguồn đang cho phép user vào area tại at, để AI hẹn giờ hỏi lại backend.
+     * Trả null khi có ít nhất một nguồn không giới hạn thời gian (cấp độ, phân công không hạn, phiên sự kiện,
+     * bảo vệ xử lý sự cố): khi đó AI không hẹn giờ, quyền vẫn được xét lại theo TTL cache như cũ.
+     * Lấy mốc muộn nhất (không phải mốc của nguồn đầu tiên) để không báo hết hạn khi còn nguồn khác phủ.
+     */
+    private OffsetDateTime latestCoverageEnd(User user, Area area, UUID userId, UUID areaId, OffsetDateTime at) {
+        if (user.getAccessLevel() != null && area.getAreaAccessLevel() != null
+                && user.getAccessLevel() >= area.getAreaAccessLevel()) {
+            return null;
+        }
+        OffsetDateTime latest = null;
+        List<AreaAssignedPersonnel> assignments = assignedPersonnelRepository.findEffectiveAt(userId, areaId, at);
+        if (assignments != null) {
+            for (AreaAssignedPersonnel ap : assignments) {
+                if (ap.getValidTo() == null) {
+                    return null;
+                }
+                latest = later(latest, ap.getValidTo());
+            }
+        }
+        boolean eventApplicable = area.getAreaLevel() == AreaLevel.CONFIDENTIAL;
+        if (eventApplicable) {
+            if (areaEventSessionRepository != null && areaEventSessionRepository.existsSessionCoveringAt(areaId, at)) {
+                return null;
+            }
+            for (AreaEventSchedule sched : findCoveringSchedules(areaId, at)) {
+                latest = later(latest, sched.getEndAt());
+            }
+        }
+        if (user.getRole() == Role.GUARD && findIncidentCoveringGuard(userId, areaId, at).isPresent()) {
+            return null;
+        }
+        List<AccessRequest> requests = accessRequestRepository.findCoveringRequestsForUser(
+                userId, areaId, at, RequestStatus.APPROVED);
+        if (requests != null) {
+            for (AccessRequest ar : requests) {
+                if (ar.getEndTime() == null) {
+                    return null;
+                }
+                latest = later(latest, ar.getEndTime());
+            }
+        }
+        return latest;
+    }
+
+    private static OffsetDateTime later(OffsetDateTime a, OffsetDateTime b) {
+        if (a == null) {
+            return b;
+        }
+        return b != null && b.isAfter(a) ? b : a;
+    }
+
     private Optional<SecurityIncident> findIncidentCoveringGuard(UUID userId, UUID areaId, OffsetDateTime at) {
         if (guardIncidentAccessRepository == null || systemConfigService == null) {
             return Optional.empty();
@@ -343,9 +465,19 @@ public class AccessDecisionService {
             if (cleanRoi != null) {
                 entryReason = "[VÀO ROI: " + cleanRoi + "] " + entryReason;
             }
+            Double expiresAtSec = null;
+            if (decision.expiresAt() != null) {
+                expiresAtSec = (double) decision.expiresAt().toInstant().toEpochMilli() / 1000.0;
+            }
+            Double startsAtSec = null;
+            if (decision.startsAt() != null) {
+                startsAtSec = (double) decision.startsAt().toInstant().toEpochMilli() / 1000.0;
+            }
             CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
                     .allowed(decision.allowed())
                     .source(decision.source())
+                    .expiresAt(expiresAtSec)
+                    .startsAt(startsAtSec)
                     .reason(entryReason)
                     .cameraCode(camera.getCameraCode())
                     .areaId(area.getId())
@@ -385,9 +517,31 @@ public class AccessDecisionService {
                         reasonText = "[VÀO ROI: " + cleanRoi + "] " + reasonText;
                     }
 
+                    Double guestExpiresAtSec = null;
+                    if (guestDecision.allowed() && guest.getVisit() != null && guest.getVisit().getEndTime() != null) {
+                        guestExpiresAtSec = (double) guest.getVisit().getEndTime().toInstant().toEpochMilli() / 1000.0;
+                    }
+
+                    Double guestStartsAtSec = null;
+                    if (!guestDecision.allowed() && guestDecision.reason() == GuestEntryDenyReason.OUTSIDE_WINDOW
+                            && guest.getVisit() != null && guest.getVisit().getStatus() == GuestVisitStatus.APPROVED
+                            && guest.getVisit().getStartTime() != null && at.isBefore(guest.getVisit().getStartTime())) {
+                        boolean areaInVisit = guest.getVisit().getAreas() != null &&
+                                guest.getVisit().getAreas().stream().anyMatch(a -> a.getId().equals(area.getId()));
+                        if (areaInVisit) {
+                            LocalDate accessDate = at.atZoneSameInstant(VN_ZONE).toLocalDate();
+                            LocalDate visitDate = guest.getVisit().getStartTime().atZoneSameInstant(VN_ZONE).toLocalDate();
+                            if (accessDate.equals(visitDate)) {
+                                guestStartsAtSec = (double) guest.getVisit().getStartTime().toInstant().toEpochMilli() / 1000.0;
+                            }
+                        }
+                    }
+
                     CheckCameraEntryResponse response = CheckCameraEntryResponse.builder()
                             .allowed(guestDecision.allowed())
                             .source(guestDecision.allowed() ? AccessSource.GUEST_VISIT : AccessSource.NONE)
+                            .expiresAt(guestExpiresAtSec)
+                            .startsAt(guestStartsAtSec)
                             .reason(reasonText)
                             .denyReason(guestDenyReasonCode(guestDecision))
                             .cameraCode(camera.getCameraCode())

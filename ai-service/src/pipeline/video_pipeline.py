@@ -21,6 +21,10 @@ from .incident_recorder import incident_recording_manager
 
 logger = logging.getLogger(__name__)
 
+# Hẹn hỏi lại backend sau bấy nhiêu giây khi mốc starts_at/expires_at đã qua theo đồng hồ AI (lệch giờ giữa hai máy).
+# Tham số kỹ thuật chống lặp gọi backend, không phải tham số nghiệp vụ.
+WINDOW_RECHECK_RETRY_SECONDS = 1.0
+
 class VideoPipeline:
     """
     Pipeline tích hợp toàn diện quy trình phân tích luồng Video:
@@ -203,7 +207,19 @@ class VideoPipeline:
 
     def _apply_access_decision(self, face_info, is_allowed: bool, access_reason: str, area_name: Optional[str],
                                access_source: Optional[str] = None, access_deny_reason: Optional[str] = None,
-                               track_id: Optional[int] = None):
+                               track_id: Optional[int] = None, expires_at: Optional[float] = None,
+                               starts_at: Optional[float] = None):
+        # starts_at chỉ có nghĩa khi bị từ chối, expires_at chỉ khi được phép. Backend chỉ trả mốc nằm sau thời điểm
+        # nó xét; nếu mốc đã qua theo đồng hồ AI thì hai máy lệch giờ -> hẹn hỏi lại sau WINDOW_RECHECK_RETRY_SECONDS
+        # thay vì bỏ mốc (bỏ mốc sẽ làm người kẹt màu cũ tới lượt quét lại kế tiếp).
+        now_ts = time.time()
+        effective_starts_at = None
+        if starts_at is not None and not is_allowed:
+            effective_starts_at = starts_at if starts_at > now_ts else now_ts + WINDOW_RECHECK_RETRY_SECONDS
+        effective_expires_at = None
+        if expires_at is not None and is_allowed:
+            effective_expires_at = expires_at if expires_at > now_ts else now_ts + WINDOW_RECHECK_RETRY_SECONDS
+
         reason_lower = (access_reason or "").lower()
         if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
             face_info.matched_code = None
@@ -212,22 +228,30 @@ class VideoPipeline:
             face_info.access_reason = "Đối tượng không xác định"
             face_info.access_source = None
             face_info.access_deny_reason = None
+            face_info.expires_at = None
+            face_info.starts_at = None
         else:
             face_info.is_authorized = is_allowed
             face_info.access_reason = access_reason
             face_info.area_name = area_name
             face_info.access_source = access_source
             face_info.access_deny_reason = access_deny_reason
+            face_info.expires_at = effective_expires_at
+            face_info.starts_at = effective_starts_at
         face_info.access_checked = True
         target_name = face_info.matched_name or face_info.matched_code or "Đối tượng"
         logger.info(
             f"🚪 [VideoPipeline:{self.camera_code}] [AccessDecision] Thẩm quyền của [{target_name}] tại [{area_name or self.camera_code}]: "
-            f"{'✅ HỢP LỆ' if face_info.is_authorized else '⛔ TỪ CHỐI'} (Lý do: {face_info.access_reason}, Nguồn: {face_info.access_source or 'N/A'})"
+            f"{'✅ HỢP LỆ' if face_info.is_authorized else '⛔ TỪ CHỐI'} (Lý do: {face_info.access_reason}, Nguồn: {face_info.access_source or 'N/A'}, Bắt đầu: {face_info.starts_at}, Hết hạn: {face_info.expires_at})"
         )
         # Không dò track_id bằng cách duyệt active_tracks: hàm này chạy cả trên luồng access_executor / API,
         # duyệt dict trong lúc luồng phân tích sửa sẽ gây "dictionary changed size during iteration".
         if track_id is not None:
             self._record_access_checked(track_id, face_info.matched_code)
+            existing = self.analysis_engine.active_tracks.get(track_id)
+            if existing is not None:
+                existing.expires_at = effective_expires_at
+                existing.starts_at = effective_starts_at
 
     def _handle_identity_switch(
         self,
@@ -257,9 +281,11 @@ class VideoPipeline:
                 area_name = res[2]
                 access_source = res[3] if len(res) >= 4 else None
                 deny_reason = res[4] if len(res) >= 5 else None
+                expires_at = getattr(res, "expires_at", None) if hasattr(res, "expires_at") else (res[5] if len(res) >= 6 else None)
+                starts_at = getattr(res, "starts_at", None) if hasattr(res, "starts_at") else (res[6] if len(res) >= 7 else None)
                 existing = self.analysis_engine.active_tracks.get(track_id)
                 if existing and existing.face_info and existing.face_info.matched_code == new_code:
-                    self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id)
+                    self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id, expires_at=expires_at, starts_at=starts_at)
                     existing.roi_entry_logged = True
             except Exception as e:
                 logger.warning(f"[VideoPipeline] Lỗi khi ghi ENTRY cho mã mới {new_code}: {e}")
@@ -277,14 +303,67 @@ class VideoPipeline:
             area_name = res[2]
             access_source = res[3] if len(res) >= 4 else None
             deny_reason = res[4] if len(res) >= 5 else None
+            expires_at = getattr(res, "expires_at", None) if hasattr(res, "expires_at") else (res[5] if len(res) >= 6 else None)
+            starts_at = getattr(res, "starts_at", None) if hasattr(res, "starts_at") else (res[6] if len(res) >= 7 else None)
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing and existing.face_info and existing.face_info.matched_code == user_code:
-                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id)
+                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id, expires_at=expires_at, starts_at=starts_at)
         except Exception as e:
             logger.warning(f"[VideoPipeline] Lỗi kiểm tra quyền bất đồng bộ cho user {user_code}: {e}")
         finally:
             with self._pending_checks_lock:
                 self._pending_access_checks.discard(f"{self.camera_code}:{user_code}")
+
+    def _async_record_roi_access(
+        self,
+        user_code: str,
+        roi_label: str,
+        direction: str,
+        duration: Optional[float] = None,
+        track_id: Optional[int] = None,
+        force_recheck: bool = False
+    ):
+        """
+        Ghi nhận sự kiện ROI về backend (backend ghi nhật ký ra vào). Với lượt hỏi lại do chạm mốc starts_at /
+        expires_at (force_recheck, có track_id): áp kết quả vào đúng track đó và đặt cờ window_recheck_result_ready
+        để engine xét lại màu / cảnh báo. Không dò track theo mã người bằng cách duyệt active_tracks (luồng này chạy
+        song song với luồng phân tích).
+        """
+        try:
+            res = self.face_matcher.check_camera_access(
+                self.camera_code,
+                user_code,
+                roi_label=roi_label,
+                event_direction=direction,
+                duration_seconds=duration,
+                skip_cache=True
+            )
+            is_allowed = res[0]
+            access_reason = res[1]
+            area_name = res[2]
+            access_source = res[3] if len(res) >= 4 else None
+            deny_reason = res[4] if len(res) >= 5 else None
+            expires_at = getattr(res, "expires_at", None) if hasattr(res, "expires_at") else (res[5] if len(res) >= 6 else None)
+            starts_at = getattr(res, "starts_at", None) if hasattr(res, "starts_at") else (res[6] if len(res) >= 7 else None)
+
+            if not force_recheck or track_id is None:
+                return
+            target_track = self.analysis_engine.active_tracks.get(track_id)
+            if target_track and target_track.face_info and target_track.face_info.matched_code == user_code:
+                self._apply_access_decision(
+                    target_track.face_info,
+                    is_allowed,
+                    access_reason,
+                    area_name,
+                    access_source,
+                    deny_reason,
+                    track_id=target_track.track_id,
+                    expires_at=expires_at,
+                    starts_at=starts_at
+                )
+                target_track.window_recheck_result_ready = True
+        except Exception as e:
+            logger.warning(f"[VideoPipeline] Lỗi khi ghi nhận ROI access cho {user_code}: {e}")
 
     def _resolve_access_for_person(self, track_id: int, face_info, user_code: str, roi_label: str):
         if not self.face_matcher:
@@ -299,7 +378,9 @@ class VideoPipeline:
             area_name = cached[2]
             access_source = cached[3] if len(cached) >= 4 else None
             deny_reason = cached[4] if len(cached) >= 5 else None
-            self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id)
+            expires_at = getattr(cached, "expires_at", None) if hasattr(cached, "expires_at") else (cached[5] if len(cached) >= 6 else None)
+            starts_at = getattr(cached, "starts_at", None) if hasattr(cached, "starts_at") else (cached[6] if len(cached) >= 7 else None)
+            self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id, expires_at=expires_at, starts_at=starts_at)
             return
 
         cache_key = f"{self.camera_code}:{user_code}"
@@ -452,10 +533,14 @@ class VideoPipeline:
                                 face_res.score = score
                                 # check_camera_access trả 5 phần tử (allowed, reason, area, source, deny_reason)
                                 res = self.face_matcher.check_camera_access(self.camera_code, code)
+                                expires_at = getattr(res, "expires_at", None) if hasattr(res, "expires_at") else (res[5] if len(res) >= 6 else None)
+                                starts_at = getattr(res, "starts_at", None) if hasattr(res, "starts_at") else (res[6] if len(res) >= 7 else None)
                                 self._apply_access_decision(
                                     face_res, res[0], res[1], res[2],
                                     res[3] if len(res) >= 4 else None,
-                                    res[4] if len(res) >= 5 else None
+                                    res[4] if len(res) >= 5 else None,
+                                    expires_at=expires_at,
+                                    starts_at=starts_at
                                 )
                             else:
                                 face_res.is_authorized = False
@@ -1348,13 +1433,13 @@ class VideoPipeline:
                     continue
                 if log_executor and not getattr(log_executor, "_shutdown", False):
                     log_executor.submit(
-                        self.face_matcher.check_camera_access,
-                        self.camera_code,
+                        self._async_record_roi_access,
                         ev["user_code"],
                         ev["roi_label"],
                         ev["direction"],
                         ev.get("duration"),
-                        True
+                        ev.get("track_id"),
+                        bool(ev.get("force_recheck", False))
                     )
 
         has_roi = bool(self.roi_polygons or self.roi_polygon)
