@@ -209,31 +209,16 @@ class VideoPipeline:
         old_code: str,
         new_code: str,
         roi_label: str,
-        need_exit: bool,
-        need_entry: bool
+        need_entry: bool = True
     ):
         """
-        Xử lý đổi danh tính từ old_code sang new_code tuần tự trong MỘT task duy nhất (POINT-08):
-        1. Ghi EXIT(old_code) nếu need_exit=True
-        2. Sau khi EXIT hoàn tất, ghi ENTRY(new_code) nếu need_entry=True
-        Đảm bảo không bao giờ có 2 task chạy song song làm đảo lộn thứ tự EXIT/ENTRY.
+        Xử lý đổi danh tính từ old_code sang new_code (POINT-08):
+        Ghi ENTRY(new_code) nếu need_entry=True.
+        (Lưu ý: Không gửi EXIT vì Backend đã bỏ chức năng ghi nhận EXIT).
         """
-        if need_exit and self.face_matcher and old_code:
-            try:
-                logger.info(f"🔄 [Identity Switch] Ghi nhận EXIT tuần tự cho mã cũ: {old_code}")
-                self.face_matcher.check_camera_access(
-                    self.camera_code,
-                    old_code,
-                    roi_label=roi_label,
-                    event_direction="EXIT",
-                    skip_cache=True,
-                )
-            except Exception as e:
-                logger.warning(f"[VideoPipeline] Lỗi khi ghi EXIT cho mã cũ {old_code}: {e}")
-
         if need_entry and self.face_matcher and new_code:
             try:
-                logger.info(f"🔄 [Identity Switch] Ghi nhận ENTRY tuần tự cho mã mới: {new_code}")
+                logger.info(f"🔄 [Identity Switch] Ghi nhận ENTRY cho mã mới: {new_code} (thay thế {old_code})")
                 res = self.face_matcher.check_camera_access(
                     self.camera_code,
                     new_code,
@@ -269,8 +254,6 @@ class VideoPipeline:
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing and existing.face_info and existing.face_info.matched_code == user_code:
                 self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id)
-                if getattr(existing, "is_in_roi", False):
-                    existing.roi_entry_logged = True
         except Exception as e:
             logger.warning(f"[VideoPipeline] Lỗi kiểm tra quyền bất đồng bộ cho user {user_code}: {e}")
         finally:
@@ -291,9 +274,6 @@ class VideoPipeline:
             access_source = cached[3] if len(cached) >= 4 else None
             deny_reason = cached[4] if len(cached) >= 5 else None
             self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id)
-            existing = self.analysis_engine.active_tracks.get(track_id)
-            if existing:
-                existing.roi_entry_logged = True
             return
 
         cache_key = f"{self.camera_code}:{user_code}"
@@ -452,11 +432,9 @@ class VideoPipeline:
                                     res[4] if len(res) >= 5 else None
                                 )
                             else:
-                                res = self.face_matcher.check_camera_access(self.camera_code, "UNKNOWN")
-                                is_allowed, reason, area_name = res[0], res[1], res[2]
-                                face_res.is_authorized = is_allowed
-                                face_res.access_reason = reason
-                                face_res.area_name = area_name
+                                face_res.is_authorized = False
+                                face_res.access_reason = "Người lạ chưa xác thực"
+                                face_res.area_name = self.face_matcher.get_camera_area_name(self.camera_code) if self.face_matcher else None
                                 face_res.access_checked = True
                         temp_engine.associate_face(track_id, face_res)
 
@@ -1204,11 +1182,10 @@ class VideoPipeline:
                                     # cooldown 30s còn lại của A.
                                     self.analysis_engine.track_last_unauthorized_alert_time.pop(track_id, None)
 
-                                    # POINT-08c: Đổi danh tính A -> B: Ghi EXIT(A) rồi ENTRY(B) tuần tự trong MỘT task
-                                    need_exit = getattr(existing, "roi_entry_logged", False)
+                                    # POINT-08c: Đổi danh tính A -> B: Ghi ENTRY(B) nếu đang trong ROI (Backend không ghi nhận EXIT)
                                     need_entry = in_roi
 
-                                    if (need_exit or need_entry) and self.face_matcher:
+                                    if need_entry and self.face_matcher:
                                         if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
                                             self.access_executor.submit(
                                                 self._handle_identity_switch,
@@ -1216,7 +1193,6 @@ class VideoPipeline:
                                                 prev_code,
                                                 code,
                                                 roi_label or "Vùng giám sát",
-                                                need_exit,
                                                 need_entry
                                             )
                                         else:
@@ -1225,13 +1201,12 @@ class VideoPipeline:
                                                 prev_code,
                                                 code,
                                                 roi_label or "Vùng giám sát",
-                                                need_exit,
                                                 need_entry
                                             )
-                                        # Đang trong ROI: ENTRY(B) do chính _handle_identity_switch gửi (sau EXIT(A)) -> đánh dấu đã ghi
-                                        # để engine không gửi thêm một ENTRY(B) thứ hai, có thể tới Backend trước EXIT(A).
+                                        # Đang trong ROI: ENTRY(B) do chính _handle_identity_switch gửi -> đánh dấu đã ghi
+                                        # để engine không gửi thêm một ENTRY(B) thứ hai.
                                         # Ngoài ROI: chưa ghi ENTRY(B), engine tự ghi khi B bước vào ROI.
-                                        existing.roi_entry_logged = bool(need_entry)
+                                        existing.roi_entry_logged = True
                                         identity_switched = True
 
                             face_result.matched_code = code

@@ -212,7 +212,6 @@ def test_identity_switch_calls_exit_then_entry_sequentially_in_one_task(
     # Đợi task trong access_executor hoàn tất
     time.sleep(0.3)
 
-    # Kiểm tra thứ tự lời gọi: EXIT(USER_A) phải chạy trước ENTRY(USER_B)
-    assert len(call_log) == 2, f"Kỳ vọng 2 lời gọi (EXIT và ENTRY), thực tế: {call_log}"
-    assert call_log[0] == ("USER_A", "EXIT"), f"Lời gọi đầu tiên phải là EXIT(USER_A), thực tế: {call_log[0]}"
-    assert call_log[1] == ("USER_B", "ENTRY"), f"Lời gọi thứ hai phải là ENTRY(USER_B), thực tế: {call_log[1]}"
+    # G4.2: Không còn gọi EXIT(USER_A) vì Backend đã bỏ ghi nhận EXIT. Chỉ gọi ENTRY(USER_B).
+    assert len(call_log) == 1, f"Kỳ vọng 1 lời gọi (ENTRY), thực tế: {call_log}"
+    assert call_log[0] == ("USER_B", "ENTRY"), f"Lời gọi phải là ENTRY(USER_B), thực tế: {call_log[0]}"
