@@ -345,6 +345,51 @@ class FrameAnalysisEngine:
             f"[IDENTITY_UPDATE] Tên: {name} ({code})\nKết quả: Có quyền ra vào", location
         )
 
+    def _check_is_night_authorized(
+        self,
+        person: TrackedPerson,
+        after_hours: bool,
+        camera_code: str,
+        current_time: float,
+    ) -> bool:
+        """
+        Luật ban đêm (BR-294, Lucas chốt P4-a): chỉ xét miễn trừ khi Backend ĐÃ CHO PHÉP (is_authorized=True).
+        - Backend từ chối -> luôn vi phạm (ban đêm PERSON_INTRUSION), kể cả role GUARD hay source nằm trong danh sách miễn.
+        - Backend cho phép + ngoài giờ: GUARD được miễn không cần source; người khác phải có source thuộc
+          NIGHT_ALLOWED_ACCESS_SOURCES (ACCESS_LEVEL, OPEN_EVENT hay thiếu source đều bị PERSON_INTRUSION).
+        """
+        if not person.face_info or not person.face_info.is_authorized:
+            return False
+        if not after_hours:
+            return True
+
+        role = getattr(person.face_info, "role", "NORMAL_USER")
+        if role == "GUARD":
+            return True
+
+        access_source = getattr(person.face_info, "access_source", None)
+        if access_source:
+            access_source = str(access_source).strip().upper()
+
+        if not access_source:
+            matched_code = getattr(person.face_info, "matched_code", None)
+            matched_name = getattr(person.face_info, "matched_name", matched_code)
+            warn_key = f"{camera_code}:{matched_code}"
+            last_warn = self._missing_source_warn_times.get(warn_key, 0.0)
+            if (current_time - last_warn) >= 60.0:
+                self._missing_source_warn_times[warn_key] = current_time
+                logger.warning(
+                    f"[CAM: {camera_code}] Người dùng {matched_name} ({matched_code}) "
+                    f"được Backend cho phép nhưng thiếu trường access_source ngoài giờ. "
+                    f"Xử lý như ACCESS_LEVEL (từ chối ngoài giờ, phát cảnh báo PERSON_INTRUSION)."
+                )
+            return False
+
+        allowed_night_sources = getattr(settings, "NIGHT_ALLOWED_ACCESS_SOURCES", [
+            "ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"
+        ])
+        return access_source in allowed_night_sources
+
     def _set_security_display_state(
         self,
         person: TrackedPerson,
@@ -723,36 +768,9 @@ class FrameAnalysisEngine:
                         access_source = str(access_source).strip().upper()
 
                     deny_reason_code = getattr(person.face_info, "access_deny_reason", None)
-                    allowed_night_sources = getattr(settings, "NIGHT_ALLOWED_ACCESS_SOURCES", [
-                        "ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"
-                    ])
 
                     # Luật ban đêm (BR-294, Lucas chốt P4-a): chỉ xét miễn trừ khi Backend ĐÃ CHO PHÉP (is_authorized=True).
-                    # - Backend từ chối -> luôn vi phạm (ban đêm PERSON_INTRUSION), kể cả role GUARD hay source nằm trong danh sách miễn.
-                    # - Backend cho phép + ngoài giờ: GUARD được miễn không cần source; người khác phải có source thuộc
-                    #   NIGHT_ALLOWED_ACCESS_SOURCES (ACCESS_LEVEL, OPEN_EVENT hay thiếu source đều bị PERSON_INTRUSION).
-                    is_night_authorized = False
-                    if is_authorized:
-                        if after_hours:
-                            if role == "GUARD":
-                                is_night_authorized = True
-                            elif not access_source:
-                                warn_key = f"{camera_code}:{matched_code}"
-                                last_warn = self._missing_source_warn_times.get(warn_key, 0.0)
-                                if (current_time - last_warn) >= 60.0:
-                                    self._missing_source_warn_times[warn_key] = current_time
-                                    logger.warning(
-                                        f"[CAM: {camera_code}] Người dùng {matched_name} ({matched_code}) "
-                                        f"được Backend cho phép nhưng thiếu trường access_source ngoài giờ. "
-                                        f"Xử lý như ACCESS_LEVEL (từ chối ngoài giờ, phát cảnh báo PERSON_INTRUSION)."
-                                    )
-                                is_night_authorized = False
-                            elif access_source in allowed_night_sources:
-                                is_night_authorized = True
-                            else:
-                                is_night_authorized = False
-                        else:
-                            is_night_authorized = True
+                    is_night_authorized = self._check_is_night_authorized(person, after_hours, camera_code, current_time)
 
                     if is_night_authorized:
                         # Người có thẩm quyền hợp lệ: Không sinh sự cố vi phạm (AUTHORIZED_PERSON chỉ ghi lịch sử ra vào)
@@ -928,12 +946,13 @@ class FrameAnalysisEngine:
                     self._set_security_display_state(person, "NEUTRAL", camera_code)
                 else:
                     # Đã từng vào ROI và nay bước ra ngoài vào phòng (Sticky Security State):
-                    # 1. Late Identity Upgrade: CHỈ nâng cấp nếu trước đó là UNKNOWN hoặc VERIFYING,
-                    # VÀ danh tính mới được Backend xác thực CÓ QUYỀN (is_authorized == True và access_checked == True)
-                    if getattr(person, "security_display_state", "NEUTRAL") in ("UNKNOWN", "VERIFYING"):
+                    # 1. Late Identity Upgrade: CHỈ nâng cấp nếu trước đó là UNKNOWN, VERIFYING, hoặc INTRUSION (người lạ ngoài giờ),
+                    # VÀ danh tính mới được xác thực CÓ QUYỀN (is_night_authorized == True và access_checked == True)
+                    if getattr(person, "security_display_state", "NEUTRAL") in ("UNKNOWN", "VERIFYING", "INTRUSION"):
                         if person.face_detected and person.face_info and getattr(person.face_info, "matched_code", None):
                             if getattr(person.face_info, "access_checked", False):
-                                if person.face_info.is_authorized:
+                                is_night_authorized = self._check_is_night_authorized(person, after_hours, camera_code, current_time)
+                                if is_night_authorized:
                                     self._set_security_display_state(person, "AUTHORIZED", camera_code, "Có thẩm quyền hợp lệ")
                                     person.alert_unauthorized_sent = False
                                     person.alert_unknown_sent = False
@@ -941,26 +960,52 @@ class FrameAnalysisEngine:
                                         person, camera_code, generated_alerts, {"label": person.entered_roi_label or "Vùng giám sát"}
                                     )
                                 else:
-                                    self._set_security_display_state(person, "UNAUTHORIZED", camera_code, "Từ chối truy cập / Không có quyền")
-                                    late_absorb = (not person.alert_unauthorized_sent) and self._unknown_verdict_active(person, current_time)
-                                    if not person.alert_unauthorized_sent:
-                                        matched_code = person.face_info.matched_code
-                                        matched_name = getattr(person.face_info, "matched_name", matched_code)
-                                        reason_str = getattr(person.face_info, "access_reason", "Cấp độ không đủ")
-                                        clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
+                                    matched_code = person.face_info.matched_code
+                                    matched_name = getattr(person.face_info, "matched_name", matched_code)
+                                    reason_str = getattr(person.face_info, "access_reason", None) or "Không có quyền ra vào khu vực này."
+                                    clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
+                                    target_area_name = getattr(person.face_info, "area_name", None)
+                                    raw_loc = target_area_name or area_name or "Khu vực giám sát"
+                                    location_display = re.sub(r"\s*\([^)]*(?:vùng|roi)[^)]*\)", "", raw_loc, flags=re.IGNORECASE).strip() or raw_loc
+
+                                    if after_hours:
+                                        self._set_security_display_state(person, "INTRUSION", camera_code, "Đột nhập ngoài giờ")
+                                        event_type = "PERSON_INTRUSION"
+                                        detail_msg = f"[PERSON_INTRUSION] Tên: {matched_name} ({matched_code})\nLý do: Ngoài giờ hoạt động\nVị trí: {location_display}"
+                                    else:
+                                        self._set_security_display_state(person, "UNAUTHORIZED", camera_code, "Từ chối truy cập / Không có quyền")
+                                        event_type = "UNAUTHORIZED_PERSON"
                                         r_low = (clean_reason or "").lower()
-                                        if "cấp độ" in r_low or "level" in r_low:
-                                            minimal_reason = "Cấp độ không đủ"
-                                        elif "backend không phản hồi" in r_low:
+                                        deny_reason_code = getattr(person.face_info, "access_deny_reason", None)
+                                        is_active = getattr(person.face_info, "is_active", True)
+                                        if deny_reason_code:
+                                            minimal_reason = GUEST_DENY_REASON_LABELS.get(deny_reason_code, "Không có quyền")
+                                        elif not is_active:
+                                            minimal_reason = "Tài khoản bị khóa"
+                                        elif "backend không phản hồi" in r_low or "không thể kết nối" in r_low:
                                             minimal_reason = "Backend không phản hồi"
+                                        elif "cấp độ" in r_low or "level" in r_low:
+                                            minimal_reason = "Cấp độ không đủ"
+                                        elif "chưa tới" in r_low and any(k in r_low for k in ["giờ", "đơn", "khung"]):
+                                            minimal_reason = "Chưa tới giờ duyệt"
+                                        elif "hết hạn" in r_low and any(k in r_low for k in ["đơn", "lượt", "sử dụng"]):
+                                            minimal_reason = "Hết hạn đơn duyệt"
+                                        elif "phân công" in r_low:
+                                            minimal_reason = "Chưa tới ngày trực" if ("chưa" in r_low) else "Hết hạn phân công"
+                                        elif "khách" in r_low:
+                                            minimal_reason = "Ngoài giờ tiếp khách"
                                         else:
                                             minimal_reason = clean_reason or "Không có quyền"
-
-                                        target_area_name = getattr(person.face_info, "area_name", None)
-                                        raw_loc = target_area_name or area_name or "Khu vực giám sát"
-                                        location_display = re.sub(r"\s*\([^)]*(?:vùng|roi)[^)]*\)", "", raw_loc, flags=re.IGNORECASE).strip() or raw_loc
-
                                         detail_msg = f"[UNAUTHORIZED_PERSON] Tên: {matched_name} ({matched_code})\nLý do: {minimal_reason}\nVị trí: {location_display}"
+
+                                    last_unauth_track_ts = self.track_last_unauthorized_alert_time.get(person.track_id)
+                                    last_unauth_user_ts = self.user_last_unauthorized_alert_time.get(matched_code) if matched_code else None
+                                    track_unauth_cooldown_ok = (last_unauth_track_ts is None) or ((current_time - last_unauth_track_ts) >= self.unauthorized_alert_cooldown)
+                                    user_unauth_cooldown_ok = (last_unauth_user_ts is None) or ((current_time - last_unauth_user_ts) >= self.unauthorized_alert_cooldown)
+                                    should_alert_unauth = (not person.alert_unauthorized_sent) if (last_unauth_track_ts is None and last_unauth_user_ts is None) else (track_unauth_cooldown_ok and user_unauth_cooldown_ok)
+
+                                    late_absorb = should_alert_unauth and self._unknown_verdict_active(person, current_time)
+                                    if should_alert_unauth:
                                         if late_absorb:
                                             # Đã chốt cảnh báo người lạ -> không phát cảnh báo thứ hai, gửi IDENTITY_UPDATE
                                             self._absorb_late_identity(person, matched_code, camera_code)
@@ -968,24 +1013,26 @@ class FrameAnalysisEngine:
                                                 person, "UNAUTHORIZED", camera_code, generated_alerts, detail_msg,
                                                 {"label": person.entered_roi_label or "Vùng giám sát"}
                                             )
-                                    if not person.alert_unauthorized_sent:
-                                        alert = SecurityAlertEvent(
-                                            camera_code=camera_code,
-                                            event_type="UNAUTHORIZED_PERSON",
-                                            track_id=person.track_id,
-                                            confidence=person.bbox.confidence,
-                                            details=detail_msg,
-                                            location={"label": person.entered_roi_label or "Vùng giám sát"}
-                                        )
-                                        generated_alerts.append(alert)
-                                        logger.warning(
-                                            f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH (Cập nhật danh tính): [UNAUTHORIZED_PERSON] "
-                                            f"Người: {matched_name} ({matched_code}), Lý do: {minimal_reason}, Vị trí: {location_display}"
-                                        )
+                                        else:
+                                            alert = SecurityAlertEvent(
+                                                camera_code=camera_code,
+                                                event_type=event_type,
+                                                track_id=person.track_id,
+                                                confidence=person.bbox.confidence,
+                                                details=detail_msg,
+                                                location={"label": person.entered_roi_label or "Vùng giám sát"}
+                                            )
+                                            generated_alerts.append(alert)
+                                            logger.warning(
+                                                f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH (Cập nhật danh tính): [{event_type}] "
+                                                f"Người: {matched_name} ({matched_code}), Lý do: {'Ngoài giờ hoạt động' if after_hours else minimal_reason}, Vị trí: {location_display}"
+                                            )
                                         person.alert_unauthorized_sent = True
                                         self.track_last_unauthorized_alert_time[person.track_id] = current_time
                                         if matched_code:
                                             self.user_last_unauthorized_alert_time[matched_code] = current_time
+                                        if after_hours:
+                                            person.alert_after_hours_sent = True
                     # 2. Nếu đã là UNAUTHORIZED hoặc INTRUSION: Chốt khóa giữ nguyên trạng thái ĐỎ (Sticky State),
                     # tuyệt đối KHÔNG bao giờ tự động chuyển thành AUTHORIZED!
 

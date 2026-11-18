@@ -1,9 +1,17 @@
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import numpy as np
 import pytest
+from src.config import settings
 from src.core.entity import TrackedPerson, BoundingBox, FaceDetectionResult, RoiPolygonConfig, Point
 from src.core.frame_analysis_engine import FrameAnalysisEngine
 from src.utils.visualizer import FrameVisualizer
+
+
+def _get_night_timestamp(hour: int = 23) -> float:
+    tz = ZoneInfo(settings.TIMEZONE)
+    return datetime.now(tz).replace(hour=hour, minute=0, second=0, microsecond=0).timestamp()
 
 
 def test_neutral_outside_roi():
@@ -640,3 +648,118 @@ def test_late_resolution_in_room_updates_state_without_second_alert():
     # 3. Khi quay lưng đi ra ngoài lúc 105.0s: KHÔNG bắn lặp lại
     _, alerts_out, _ = engine.process_frame([(601, bbox_doorway)], roi_polygons=[polygon], current_time=105.0, camera_code="CAM-LAB1", frame_size=(1000, 1000))
     assert len(alerts_out) == 0
+
+
+def test_late_resolution_night_unauthorized_source_alerts_person_intrusion():
+    """
+    G2.2: Ban đêm, người có cờ is_authorized=True nhưng access_source là ACCESS_LEVEL
+    khi được nhận diện muộn ngoài ROI PHẢI bị coi là vi phạm ngoài giờ (INTRUSION),
+    tuyệt đối KHÔNG được nâng cấp lên AUTHORIZED (tẩy trắng vi phạm).
+    """
+    engine = FrameAnalysisEngine(
+        unknown_alert_cooldown=30.0,
+        unauthorized_alert_cooldown=30.0,
+        after_hour_start="22:00",
+        after_hour_end="06:00"
+    )
+    polygon = RoiPolygonConfig(
+        label="Cửa Phòng Server",
+        vertices=[Point(0.4, 0.7), Point(0.6, 0.7), Point(0.6, 0.85), Point(0.4, 0.85)]
+    )
+
+    # 1. Ban đêm (23:00): lướt qua cửa vào phòng nhanh (Early exit) -> Bị chốt PERSON_INTRUSION
+    t0 = _get_night_timestamp(23)
+    bbox_door = BoundingBox(450, 720, 550, 840, confidence=0.9)
+    engine.process_frame([(701, bbox_door)], roi_polygons=[polygon], current_time=t0, camera_code="CAM-SERVER", frame_size=(1000, 1000))
+
+    bbox_room = BoundingBox(450, 880, 550, 980, confidence=0.9)
+    _, alerts_exit, _ = engine.process_frame([(701, bbox_room)], roi_polygons=[polygon], current_time=t0 + 0.3, camera_code="CAM-SERVER", frame_size=(1000, 1000))
+    assert len(alerts_exit) == 1
+    assert alerts_exit[0].event_type == "PERSON_INTRUSION"
+
+    # 2. Ở trong phòng, camera nhận diện ra sinh viên có thẻ ngày hợp lệ nhưng không có quyền đêm:
+    face_student = FaceDetectionResult(
+        bbox=bbox_room,
+        score=0.95,
+        matched_code="SE194249",
+        matched_name="Nguyễn Văn A",
+        role="NORMAL_USER",
+        is_authorized=True,  # Backend cho phép ban ngày
+        access_source="ACCESS_LEVEL",  # Nguồn quyền ban ngày, không nằm trong NIGHT_ALLOWED_ACCESS_SOURCES
+        access_checked=True
+    )
+    engine.associate_face(701, face_student)
+    persons_upgraded, alerts_upgraded, _ = engine.process_frame(
+        [(701, bbox_room)],
+        roi_polygons=[polygon],
+        current_time=t0 + 1.0,
+        camera_code="CAM-SERVER",
+        frame_size=(1000, 1000)
+    )
+
+    # Hệ thống KHÔNG được nâng cấp lên AUTHORIZED! Phải giữ nguyên INTRUSION
+    p = persons_upgraded[0]
+    assert p.security_display_state == "INTRUSION"
+    assert p.alert_after_hours_sent is True
+
+    # Chỉ gửi IDENTITY_UPDATE cập nhật danh tính cho sự cố cũ, không tẩy trắng thành AUTHORIZED
+    assert len(alerts_upgraded) == 1
+    assert alerts_upgraded[0].event_type == "IDENTITY_UPDATE"
+    assert alerts_upgraded[0].identity_outcome == "UNAUTHORIZED"
+    assert "PERSON_INTRUSION" in alerts_upgraded[0].details
+    assert "Nguyễn Văn A" in alerts_upgraded[0].details
+
+
+def test_late_resolution_night_guard_upgrades_to_authorized():
+    """
+    G2.3: Ban đêm, bảo vệ (role=GUARD) đi tuần tra qua ROI bị chốt INTRUSION (người lạ ban đêm).
+    Khi vào phòng nhận diện được mặt -> PHẢI được nâng cấp thành AUTHORIZED và tự đóng sự cố.
+    """
+    engine = FrameAnalysisEngine(
+        unknown_alert_cooldown=30.0,
+        unauthorized_alert_cooldown=30.0,
+        after_hour_start="22:00",
+        after_hour_end="06:00"
+    )
+    polygon = RoiPolygonConfig(
+        label="Cửa Phòng Server",
+        vertices=[Point(0.4, 0.7), Point(0.6, 0.7), Point(0.6, 0.85), Point(0.4, 0.85)]
+    )
+
+    # 1. Ban đêm lướt qua cửa -> Bị chốt PERSON_INTRUSION
+    t0 = _get_night_timestamp(23)
+    bbox_door = BoundingBox(450, 720, 550, 840, confidence=0.9)
+    engine.process_frame([(702, bbox_door)], roi_polygons=[polygon], current_time=t0, camera_code="CAM-SERVER", frame_size=(1000, 1000))
+
+    bbox_room = BoundingBox(450, 880, 550, 980, confidence=0.9)
+    _, alerts_exit, _ = engine.process_frame([(702, bbox_room)], roi_polygons=[polygon], current_time=t0 + 0.3, camera_code="CAM-SERVER", frame_size=(1000, 1000))
+    assert len(alerts_exit) == 1
+    assert alerts_exit[0].event_type == "PERSON_INTRUSION"
+
+    # 2. Ở trong phòng, camera nhận diện rõ là Bảo vệ (role=GUARD)
+    face_guard = FaceDetectionResult(
+        bbox=bbox_room,
+        score=0.96,
+        matched_code="BV001",
+        matched_name="Bảo vệ Trần Văn B",
+        role="GUARD",
+        is_authorized=True,
+        access_source="ASSIGNED_PERSONNEL",
+        access_checked=True
+    )
+    engine.associate_face(702, face_guard)
+    persons_upgraded, alerts_upgraded, _ = engine.process_frame(
+        [(702, bbox_room)],
+        roi_polygons=[polygon],
+        current_time=t0 + 1.0,
+        camera_code="CAM-SERVER",
+        frame_size=(1000, 1000)
+    )
+
+    # Bảo vệ được nâng cấp thành AUTHORIZED và gửi IDENTITY_UPDATE [AUTHORIZED]
+    p = persons_upgraded[0]
+    assert p.security_display_state == "AUTHORIZED"
+    assert len(alerts_upgraded) == 1
+    assert alerts_upgraded[0].event_type == "IDENTITY_UPDATE"
+    assert alerts_upgraded[0].identity_outcome == "AUTHORIZED"
+
