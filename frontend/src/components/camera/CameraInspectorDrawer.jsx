@@ -5,7 +5,6 @@ import {
 	Info,
 	MapPin,
 	Layers,
-	Activity,
 	Power,
 	PowerOff,
 	Trash2,
@@ -34,7 +33,6 @@ import RoiEditorModal from "./RoiEditorModal";
 import CameraGeneralTab from "./CameraGeneralTab";
 import CameraStreamTab from "./CameraStreamTab";
 import CameraSurveillanceTab from "./CameraSurveillanceTab";
-import CameraAccessLogsTab from "./CameraAccessLogsTab";
 import { LoadingState, ErrorState, Modal, Button } from "../ui";
 import "../../styles/cameraShared.css";
 import "../../styles/CameraDetailPage.css";
@@ -43,7 +41,6 @@ const VALID_TABS = [
 	"general",
 	"stream",
 	"surveillance",
-	"access-logs",
 ];
 
 export default function CameraInspectorDrawer({
@@ -542,16 +539,6 @@ export default function CameraInspectorDrawer({
 							<Layers size={14} />
 							<span>Vùng ROI</span>
 						</button>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={activeTab === "access-logs"}
-							className={`cam-inspector-tab ${activeTab === "access-logs" ? "cam-inspector-tab--active" : ""}`}
-							onClick={() => setActiveTab("access-logs")}
-						>
-							<Activity size={14} />
-							<span>Ra vào</span>
-						</button>
 					</div>
 
 					<div className="cam-inspector-drawer__body">
@@ -597,10 +584,6 @@ export default function CameraInspectorDrawer({
 								camera={camera}
 								onOpenRoiEditor={isAdmin ? handleOpenRoiEditor : undefined}
 							/>
-						)}
-
-						{activeTab === "access-logs" && (
-							<CameraAccessLogsTab camera={camera} />
 						)}
 					</div>
 				</>

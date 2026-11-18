@@ -109,19 +109,22 @@ export default function AccessHistoryAdminPage() {
 	};
 
 	const columns = [
-		{ key: "loggedAt", title: "Thời gian", width: "150px", render: (v) => <span className="ahp-time">{formatDateTime(v)}</span> },
+		{ key: "loggedAt", title: "Thời gian", width: "170px", render: (v) => <span className="ahp-time">{formatDateTime(v, true)}</span> },
 		{
 			key: "userCode",
 			title: "Người",
 			render: (v, record) => {
 				const placeholder = placeholderUserCodeLabel(v);
+				if (placeholder) {
+					return (
+						<span className="ahp-person">
+							<span className="ahp-person__placeholder">{record.fullName || placeholder}</span>
+						</span>
+					);
+				}
 				return (
 					<span className="ahp-person">
-						{placeholder ? (
-							<span className="ahp-person__placeholder">{placeholder}</span>
-						) : (
-							<span className="ahp-person__code">{v || "—"}</span>
-						)}
+						<span className="ahp-person__code">{v || "—"}</span>
 						{record.fullName && <span className="ahp-person__name">{record.fullName}</span>}
 					</span>
 				);
