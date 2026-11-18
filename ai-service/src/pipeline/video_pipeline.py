@@ -100,9 +100,11 @@ class VideoPipeline:
         self._last_occupied_motion_time: float = 0.0
         self._cached_motion_res = None
         self._suspicious_motion_start_time: Optional[float] = None
+        self._last_suspicious_candidate_time: Optional[float] = None
         self._last_suspicious_motion_time: float = 0.0
         self._suspicious_motion_cooldown: float = float(getattr(settings, "SUSPICIOUS_MOTION_COOLDOWN_SECONDS", 5.0))
         self.suspicious_motion_min_duration: float = float(getattr(settings, "SUSPICIOUS_MOTION_MIN_DURATION", 0.5))
+        self.suspicious_motion_gap_tolerance: float = float(getattr(settings, "SUSPICIOUS_MOTION_GAP_TOLERANCE", 0.6))
         self._pending_access_checks = set()
         self._pending_checks_lock = threading.Lock()
         self.heartbeat_interval_seconds: float = float(getattr(settings, "MOTION_GATING_HEARTBEAT_SECONDS", 4.0))
@@ -913,6 +915,12 @@ class VideoPipeline:
         if is_suspicious_candidate:
             if self._suspicious_motion_start_time is None:
                 self._suspicious_motion_start_time = current_time
+            elif self._last_suspicious_candidate_time is not None:
+                if (current_time - self._last_suspicious_candidate_time) > self.suspicious_motion_gap_tolerance:
+                    self._suspicious_motion_start_time = current_time
+
+            self._last_suspicious_candidate_time = current_time
+
             if (current_time - self._suspicious_motion_start_time) >= self.suspicious_motion_min_duration:
                 if (current_time - self._last_suspicious_motion_time) >= self._suspicious_motion_cooldown:
                     self._last_suspicious_motion_time = current_time
@@ -931,7 +939,10 @@ class VideoPipeline:
                     )
                     early_alerts.append(anomaly_alert)
         else:
-            self._suspicious_motion_start_time = None
+            if self._last_suspicious_candidate_time is not None:
+                if (current_time - self._last_suspicious_candidate_time) > self.suspicious_motion_gap_tolerance:
+                    self._suspicious_motion_start_time = None
+                    self._last_suspicious_candidate_time = None
 
         # ------------------------------------------------------------------
         # 3. QUÉT KHUÔN MẶT TRÊN TỪNG NGƯỜI (SCRFD + ARCFACE)
