@@ -40,6 +40,8 @@ public class AiFaceCacheRefreshNotifier {
     private Consumer<String> refreshHttpCaller = url -> {
         try {
             HttpClient client = HttpClient.newBuilder()
+                    // uvicorn không hỗ trợ h2c: ép HTTP/1.1, không gửi Upgrade: h2c
+                    .version(HttpClient.Version.HTTP_1_1)
                     .connectTimeout(Duration.ofMillis(1000))
                     .build();
             HttpRequest.Builder reqBuilder = HttpRequest.newBuilder();
