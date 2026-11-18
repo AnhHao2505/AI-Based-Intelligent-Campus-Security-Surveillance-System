@@ -681,7 +681,9 @@ export default function GuestVisitPage() {
 				title="Huỷ lượt khách"
 				subtitle={
 					cancelTarget?.status === "APPROVED"
-						? "Lượt đã được duyệt: huỷ sẽ thu hồi quyền của khách và xóa ngay dữ liệu khuôn mặt đã gắn."
+						? new Date(cancelTarget.startTime) <= new Date()
+							? "Lượt đã bắt đầu: huỷ sẽ thu hồi quyền của khách ngay. Ảnh và dữ liệu khuôn mặt đã gắn được giữ thêm theo thời hạn lưu trong cấu hình hệ thống, sau đó tự động xóa."
+							: "Lượt đã được duyệt, chưa tới giờ bắt đầu: huỷ sẽ thu hồi quyền của khách và xóa ngay dữ liệu khuôn mặt đã gắn."
 						: "Lượt đang chờ duyệt sẽ bị huỷ."
 				}
 				icon={Ban}

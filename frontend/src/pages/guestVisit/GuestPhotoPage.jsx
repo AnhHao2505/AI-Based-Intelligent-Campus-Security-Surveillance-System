@@ -13,16 +13,32 @@ import Badge from '../../components/ui/Badge';
 import PageHeader from '../../components/ui/PageHeader';
 import { LoadingState, EmptyState, ErrorState } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
+import StatusTabs from '../../components/ui/StatusTabs';
 import guestVisitService from '../../services/guestVisitService';
 import systemConfigService from '../../services/systemConfigService';
 import {
   getGuestBiometricStatus,
+  getGuestVisitStatus,
   formatDateTime,
   getMissingPhotoInfo,
 } from '../../utils/guestHelpers';
 import '../../styles/GuestVisitPage.css';
 
 const PAGE_SIZE = 10;
+
+// BR-194 (BR-GV-27): lượt đã hết quyền mà khách còn ảnh trong thời hạn lưu -> ADMIN chỉ xem ảnh để điều tra
+const ENDED_STATUSES = ['COMPLETED', 'REVOKED', 'CANCELLED'];
+const ENDED_FETCH_SIZE = 100; // GuestVisitController giới hạn size tối đa 100
+const ENDED_MAX_PAGES = 20;
+
+const guestHasPhoto = (g) => g.biometricStatus === 'PHOTO_READY' || g.biometricStatus === 'PHOTO_ONLY';
+
+/** Thời điểm khách hết quyền, lấy từ dữ liệu API: thu hồi -> revokedAt, huỷ -> cancelledAt, kết thúc -> endTime. */
+function getAccessEnd(v) {
+  if (v.status === 'REVOKED') return { label: 'Bị thu hồi lúc', at: v.revokedAt };
+  if (v.status === 'CANCELLED') return { label: 'Bị huỷ lúc', at: v.cancelledAt };
+  return { label: 'Hết giờ lượt lúc', at: v.endTime };
+}
 
 export default function GuestPhotoPage() {
   const [page, setPage] = useState(0);
@@ -51,12 +67,23 @@ export default function GuestPhotoPage() {
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoError, setPhotoError] = useState(null);
 
+  // Tab: lượt đang hiệu lực (gắn / xem ảnh) | lượt đã kết thúc còn ảnh (chỉ xem)
+  const [tab, setTab] = useState('ACTIVE');
+  const [endedVisits, setEndedVisits] = useState([]);
+  const [endedLoading, setEndedLoading] = useState(false);
+  const [endedError, setEndedError] = useState(null);
+  const [endedLoaded, setEndedLoaded] = useState(false);
+  const [endedTruncated, setEndedTruncated] = useState(false);
+  const [retentionHours, setRetentionHours] = useState(null);
+
   // Load consent version configuration
   const loadConsentConfig = useCallback(async () => {
 
     setConfigError(null);
     try {
       const configs = await systemConfigService.getSystemConfigs();
+      const retention = (configs || []).find((c) => c.configKey === 'GUEST_FACE_RETENTION_HOURS');
+      setRetentionHours(retention?.configValue ?? null);
       const cfg = (configs || []).find((c) => c.configKey === 'GUEST_CONSENT_NOTICE_VERSION');
       if (cfg && cfg.configValue && cfg.configValue.trim()) {
         setConsentVersion(cfg.configValue.trim());
@@ -98,10 +125,51 @@ export default function GuestPhotoPage() {
     }
   }, []);
 
+  // Lượt COMPLETED / REVOKED / CANCELLED còn khách có ảnh. API chỉ lọc một trạng thái mỗi lần -> gọi lần lượt, đọc hết các trang.
+  const loadEndedVisits = useCallback(async () => {
+    setEndedLoading(true);
+    setEndedError(null);
+    try {
+      const found = [];
+      let truncated = false;
+      for (const status of ENDED_STATUSES) {
+        let p = 0;
+        let pages = 1;
+        while (p < pages) {
+          if (p >= ENDED_MAX_PAGES) {
+            truncated = true;
+            break;
+          }
+          const res = await guestVisitService.listVisits({ status, page: p, size: ENDED_FETCH_SIZE });
+          (res?.content || []).forEach((v) => {
+            if ((v.guests || []).some(guestHasPhoto)) found.push(v);
+          });
+          pages = res?.totalPages || 0;
+          p += 1;
+        }
+      }
+      found.sort((a, b) => new Date(getAccessEnd(b).at) - new Date(getAccessEnd(a).at));
+      setEndedVisits(found);
+      setEndedTruncated(truncated);
+    } catch (err) {
+      setEndedVisits([]);
+      setEndedError(err?.message || 'Không thể tải danh sách lượt khách đã kết thúc.');
+    } finally {
+      setEndedLoaded(true);
+      setEndedLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadConsentConfig();
     loadVisits(0);
   }, [loadConsentConfig, loadVisits]);
+
+  useEffect(() => {
+    if (tab === 'ENDED' && !endedLoaded) {
+      loadEndedVisits();
+    }
+  }, [tab, endedLoaded, loadEndedVisits]);
 
   // Clean up preview object URL
   useEffect(() => {
@@ -216,15 +284,19 @@ export default function GuestPhotoPage() {
     <div className="guest-visit">
       <PageHeader
         title="Ảnh khách"
-        description="Gắn ảnh nhận diện khuôn mặt và quản lý dữ liệu sinh trắc học cho khách của các lượt đã duyệt."
+        description="Gắn ảnh nhận diện khuôn mặt và quản lý dữ liệu sinh trắc học cho khách của các lượt đã duyệt; xem lại ảnh của lượt đã kết thúc trong thời hạn lưu."
         actions={
           <Button
             variant="secondary"
             icon={RefreshCw}
-            loading={loading}
+            loading={tab === 'ENDED' ? endedLoading : loading}
             onClick={() => {
               loadConsentConfig();
-              loadVisits(page);
+              if (tab === 'ENDED') {
+                loadEndedVisits();
+              } else {
+                loadVisits(page);
+              }
             }}
           >
             Làm mới
@@ -242,8 +314,18 @@ export default function GuestPhotoPage() {
         </div>
       )}
 
+      <StatusTabs
+        ariaLabel="Nhóm lượt khách"
+        items={[
+          { key: 'ACTIVE', label: 'Lượt đang hiệu lực' },
+          { key: 'ENDED', label: 'Lượt đã kết thúc (còn ảnh)', count: endedLoaded ? endedVisits.length : null },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+
       {/* List of Visits */}
-      <div className="guest-visit__card">
+      <div className="guest-visit__card" hidden={tab !== 'ACTIVE'}>
         {loading && visits.length === 0 ? (
           <LoadingState size="sm" text="Đang tải danh sách lượt khách..." />
         ) : error ? (
@@ -389,6 +471,139 @@ export default function GuestPhotoPage() {
           />
         )}
       </div>
+
+      {/* Lượt đã hết quyền còn ảnh (BR-194 (BR-GV-27)): chỉ xem ảnh để điều tra, không gắn / gắn lại */}
+      {tab === 'ENDED' && (
+        <div className="guest-visit__card">
+          <div className="guest-visit__hint" style={{ marginBottom: '12px' }}>
+            Lượt đã kết thúc, bị thu hồi hoặc bị huỷ mà ảnh khách còn trong thời hạn lưu
+            {retentionHours ? ` (cấu hình hiện hành: ${retentionHours} giờ kể từ khi hết quyền)` : ''}.
+            Hết thời hạn, hệ thống tự động xóa ảnh. Ở đây chỉ xem ảnh, không gắn ảnh mới.
+          </div>
+
+          {endedTruncated && (
+            <div className="guest-visit__alert guest-visit__alert--warning">
+              <AlertTriangle size={16} />
+              <span>
+                Danh sách có thể chưa đầy đủ: chỉ đọc {ENDED_MAX_PAGES * ENDED_FETCH_SIZE} lượt gần nhất của mỗi trạng thái.
+              </span>
+            </div>
+          )}
+
+          {endedLoading && endedVisits.length === 0 ? (
+            <LoadingState size="sm" text="Đang tải lượt khách đã kết thúc..." />
+          ) : endedError ? (
+            <ErrorState size="sm" message={endedError} onRetry={loadEndedVisits} />
+          ) : endedVisits.length === 0 ? (
+            <EmptyState size="sm" icon={Users} title="Không có lượt đã kết thúc nào còn ảnh khách" />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {endedVisits.map((v) => {
+                const areaNames = (v.areas || []).map((a) => a.name).join(', ');
+                const visitStatus = getGuestVisitStatus(v.status);
+                const accessEnd = getAccessEnd(v);
+                const guestsWithPhoto = (v.guests || []).filter(guestHasPhoto);
+                const endReason = v.status === 'REVOKED' ? v.revokeReason : v.status === 'CANCELLED' ? v.cancelReason : null;
+                return (
+                  <div
+                    key={v.id}
+                    style={{
+                      border: '1px solid var(--theme-border)',
+                      borderRadius: '6px',
+                      padding: '16px',
+                      background: 'var(--theme-bg-surface-elevated, var(--theme-bg-surface))',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                        paddingBottom: '12px',
+                        borderBottom: '1px solid var(--theme-border)',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--theme-text-primary)' }}>
+                          Người mời: {v.hostName} <span className="guest-visit__muted">({v.hostCode})</span>
+                        </div>
+                        <div className="guest-visit__muted" style={{ marginTop: '4px', fontSize: '13px' }}>
+                          Mục đích: {v.purpose}
+                        </div>
+                        {endReason && (
+                          <div className="guest-visit__muted" style={{ marginTop: '4px', fontSize: '13px' }}>
+                            Lý do {v.status === 'REVOKED' ? 'thu hồi' : 'huỷ'}: {endReason}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <Badge variant={visitStatus.variant}>{visitStatus.label}</Badge>
+                        <div style={{ fontSize: '13px', fontWeight: 500, marginTop: '6px' }}>
+                          {formatDateTime(v.startTime)} → {formatDateTime(v.endTime)}
+                        </div>
+                        <div className="guest-visit__muted" style={{ fontSize: '12px', marginTop: '2px' }}>
+                          Khu vực: {areaNames || '—'}
+                        </div>
+                        <div style={{ fontSize: '12px', marginTop: '2px', color: 'var(--theme-text-primary)' }}>
+                          {accessEnd.label}: <strong>{formatDateTime(accessEnd.at)}</strong>
+                          {v.status === 'REVOKED' && v.revokedByName ? ` (${v.revokedByName})` : ''}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '12px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: 'var(--theme-text-secondary)' }}>
+                        Khách còn ảnh ({guestsWithPhoto.length}/{(v.guests || []).length})
+                      </div>
+                      <table className="guest-visit__table">
+                        <thead>
+                          <tr>
+                            <th>Họ tên</th>
+                            <th>Đơn vị</th>
+                            <th>Trạng thái ảnh</th>
+                            <th>Thời điểm gắn</th>
+                            <th style={{ textAlign: 'right' }}>Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {guestsWithPhoto.map((g) => {
+                            const bio = getGuestBiometricStatus(g.biometricStatus);
+                            return (
+                              <tr key={g.id}>
+                                <td style={{ fontWeight: 500 }}>{g.fullName}</td>
+                                <td>{g.organization || '—'}</td>
+                                <td>
+                                  <Badge variant={bio.variant}>{bio.label}</Badge>
+                                </td>
+                                <td className="guest-visit__muted">
+                                  {g.photoAttachedAt ? formatDateTime(g.photoAttachedAt) : '—'}
+                                </td>
+                                <td className="guest-visit__actions">
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    icon={Eye}
+                                    onClick={() => openViewModal(v, g)}
+                                    title="Xem ảnh khách"
+                                  >
+                                    Xem ảnh
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ATTACH PHOTO MODAL */}
       <Modal

@@ -390,7 +390,7 @@ public class GuestVisitHostTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("GV-09 + 27: huỷ APPROVED -> xoá sinh trắc ngay: khách DELETED, embedding bị xoá, ảnh bị xoá khỏi kho, audit DELETE_BIOMETRIC")
+    @DisplayName("GV-09 + 27: huỷ APPROVED trước giờ bắt đầu -> xoá sinh trắc ngay: khách DELETED, embedding bị xoá, ảnh bị xoá khỏi kho, audit DELETE_BIOMETRIC")
     void cancel_approved_deletesBiometrics() throws Exception {
         GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, future(0), future(120), List.of(internalArea), "Khách có ảnh");
         Guest g = withPhoto(guestsOf(v.getId()).get(0), future(120).plusHours(24));
@@ -408,6 +408,29 @@ public class GuestVisitHostTest extends GuestTestSupport {
         assertFalse(embeddingRepository.existsById(g.getId()), "embedding bị xoá");
         verify(photoStorage).removeObject(key);
         assertEquals(1, audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC).size());
+    }
+
+    @Test
+    @DisplayName("GV-09 + 27: huỷ APPROVED khi lượt đã bắt đầu -> hết quyền như thu hồi: ảnh + embedding còn, không DELETE_BIOMETRIC, vẫn báo AI làm mới kho khuôn mặt")
+    void cancel_approvedAfterStart_keepsBiometrics() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, now.minusHours(1), now.plusHours(2), List.of(internalArea), "Khách đang trong lượt");
+        Guest g = withPhoto(guestsOf(v.getId()).get(0), v.getEndTime().plusHours(systemConfigService.getInt(ConfigKey.GUEST_FACE_RETENTION_HOURS)));
+        String key = g.getPhotoObjectKey();
+        resetRefreshCalls();
+        MvcResult r = cancel(hostL2, v.getId(), 0L, null);
+        assertEquals(200, status(r), r.getResponse().getContentAsString());
+        assertEquals(List.of(true), refreshCallsInTransaction, "L3: huỷ lượt đã duyệt -> báo AI làm mới kho khuôn mặt sau commit");
+        GuestVisit after = visit(v.getId());
+        assertEquals(GuestVisitStatus.CANCELLED, after.getStatus());
+        assertFalse(after.getCancelledAt().isBefore(after.getStartTime()), "tiền đề: huỷ sau giờ bắt đầu");
+        Guest ga = guest(g.getId());
+        assertEquals(GuestBiometricStatus.PHOTO_READY, ga.getBiometricStatus(), "biometricStatus không đổi");
+        assertEquals(key, ga.getPhotoObjectKey());
+        assertNull(ga.getBiometricDeletedAt());
+        assertTrue(embeddingRepository.existsById(g.getId()), "embedding còn tới cancelledAt + retention");
+        verify(photoStorage, never()).removeObject(key);
+        assertTrue(audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC).isEmpty());
     }
 
     @Test

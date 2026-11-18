@@ -1,10 +1,14 @@
 package com.fa26se040.icss.guest;
 
+import com.fa26se040.icss.dto.guest.GuestVisitRevokeRequest;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.service.GuestFaceEmbeddingClient;
+import com.fa26se040.icss.service.GuestVisitJobService;
+import com.fa26se040.icss.service.GuestVisitService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -24,6 +28,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 public class GuestPhotoTest extends GuestTestSupport {
 
     private static final byte[] JPEG = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x10, 0x20, 0x30};
+
+    @Autowired
+    private GuestVisitService guestVisitService;
+
+    @Autowired
+    private GuestVisitJobService jobService;
 
     private static List<Float> vec(float v) {
         List<Float> l = new ArrayList<>();
@@ -59,7 +69,7 @@ public class GuestPhotoTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("GV-14..17: ADMIN gắn ảnh đúng đồng ý -> PHOTO_READY, lưu ADMIN + thời điểm + phiên bản, embedding bảng riêng expires = end + 24h, audit ATTACH_PHOTO, response không có key / URL")
+    @DisplayName("GV-14..17: ADMIN gắn ảnh đúng đồng ý -> PHOTO_READY, lưu ADMIN + thời điểm + phiên bản, embedding bảng riêng expires = end + GUEST_FACE_RETENTION_HOURS, audit ATTACH_PHOTO, response không có key / URL")
     void attach_ok() throws Exception {
         when(faceClient.extract(any(), any(), any())).thenReturn(new GuestFaceEmbeddingClient.Result(1, vec(0.02f)));
         GuestVisit v = approved();
@@ -78,7 +88,8 @@ public class GuestPhotoTest extends GuestTestSupport {
         assertNotNull(after.getConsentConfirmedAt());
         assertEquals("v1", after.getConsentNoticeVersion());
         GuestFaceEmbedding e = embeddingRepository.findById(g.getId()).orElseThrow();
-        assertEquals(0, Duration.between(v.getEndTime().plusHours(24), e.getExpiresAt()).getSeconds(), "expires_at = end + GUEST_FACE_RETENTION_HOURS");
+        assertEquals(0, Duration.between(v.getEndTime().plusHours(systemConfigService.getInt(ConfigKey.GUEST_FACE_RETENTION_HOURS)),
+                e.getExpiresAt()).getSeconds(), "expires_at = end + GUEST_FACE_RETENTION_HOURS");
         verify(photoStorage).upload(eq(after.getPhotoObjectKey()), any(), eq("image/jpeg"));
 
         List<AuditLog> a = audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.ATTACH_PHOTO);
@@ -193,5 +204,32 @@ public class GuestPhotoTest extends GuestTestSupport {
         assertEquals(403, status(viewUrl(fm, v, g)));
         assertEquals(403, status(viewUrl(hostL2, v, g)));
         verifyNoInteractions(photoStorage, faceClient);
+    }
+
+    @Test
+    @DisplayName("GV-18 + BR-194 (GV-27): lượt REVOKED còn ảnh trong thời hạn lưu -> ADMIN xin được URL xem, audit VIEW_PHOTO; FM vẫn 403; job xoá xong -> 404 ERR_GUEST_037, không audit thêm")
+    void viewUrl_revokedVisitWithinRetention_thenDeleted() throws Exception {
+        when(photoStorage.presignedGetUrl(any(), anyInt())).thenReturn("http://minio.local/guest-photos/x?X-Amz-Signature=abc");
+        int retention = systemConfigService.getInt(ConfigKey.GUEST_FACE_RETENTION_HOURS);
+        int ttl = systemConfigService.getInt(ConfigKey.GUEST_PHOTO_URL_TTL_SECONDS);
+        OffsetDateTime now = OffsetDateTime.now();
+        GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, now.minusHours(1), now.plusHours(2), List.of(internalArea), "Khách bị thu hồi");
+        Guest g = withPhoto(guestsOf(v.getId()).get(0), v.getEndTime().plusHours(retention));
+        String key = g.getPhotoObjectKey();
+        guestVisitService.revoke(v.getId(), new GuestVisitRevokeRequest(0L, REASON), fm.getEmail());
+        assertEquals(GuestVisitStatus.REVOKED, visit(v.getId()).getStatus());
+
+        MvcResult r = viewUrl(admin, v, g);
+        assertEquals(200, status(r), r.getResponse().getContentAsString());
+        assertTrue(json(r).path("data").path("url").asText().contains("X-Amz-Signature"));
+        verify(photoStorage).presignedGetUrl(key, ttl);
+        assertEquals(1, audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.VIEW_PHOTO).size());
+        assertEquals(403, status(viewUrl(fm, v, g)), "chỉ ADMIN xem ảnh");
+
+        jobService.deleteDueBiometrics(visit(v.getId()).getRevokedAt().plusHours(retention));
+        assertEquals(GuestBiometricStatus.DELETED, guest(g.getId()).getBiometricStatus());
+        assertRejected(viewUrl(admin, v, g), 404, "ERR_GUEST_037");
+        assertEquals(1, audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.VIEW_PHOTO).size(),
+                "không cấp URL -> không audit thêm");
     }
 }

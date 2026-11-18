@@ -151,7 +151,7 @@ The diagrams follow the code. Differences found with `r3-draft` (II-5-1 business
 |---|---|---|
 | D1 | II-5-1 §6 intro: guest entry decision "not yet called by any entry flow" | `AccessDecisionService.checkCameraEntry` calls `GuestAccessDecisionService.checkGuestEntry` for guest codes, and `ai-service/src/core/face_matcher.py` loads `guest_face_embeddings` of APPROVED, PHOTO_READY guests. BR-CE-03 in the same draft already says so |
 | D2 | BR-GV-04: selectable areas are "Internal Confidential and Contact-Required Confidential" | Since V83 only `CONFIDENTIAL` (`GuestRules.GUEST_AREA_LEVELS`) |
-| D3 | BR-GV-27: immediate deletion for CANCELLED / REVOKED / EXPIRED | Also REJECTED (`GuestVisitJobService.CLOSED_WITHOUT_VISIT`) |
+| D3 | BR-GV-27: immediate deletion for CANCELLED / REVOKED / EXPIRED | Immediate for EXPIRED / REJECTED (`GuestVisitJobService.CLOSED_WITHOUT_VISIT`) and CANCELLED before startTime; REVOKED and CANCELLED after startTime kept until revokedAt / cancelledAt + `GUEST_FACE_RETENTION_HOURS` (V133) |
 | D4 | BR-GV-38 describes a "photo without a valid embedding" status | `PHOTO_ONLY` exists in `GuestBiometricStatus` but no code sets it; `GuestPhotoService.attach` rejects a photo without a valid embedding |
 | D5 | (not stated) | Resolved on `84c7760`: the job `finishElapsedApprovedRequests` moves elapsed APPROVED requests to FINISHED |
 | D6 | (task brief) review returns 400 for a wrong status | Non-PENDING gives 409 (`ConcurrentReviewException`); 400 only for bad input or failed re-check (matches BR-RQ-40) |
@@ -294,9 +294,9 @@ stateDiagram-v2
     PENDING --> CANCELLED : Administrator deactivates an area of the visit [now before endTime]
     PENDING --> EXPIRED : System job expirePendingVisits every minute [now at or after startTime]
 
-    APPROVED --> CANCELLED : Host cancels [version matches, now before endTime] / biometrics deleted
-    APPROVED --> REVOKED : Facility Manager revokes [version matches, reviewer is not host, reason required, now before endTime] / biometrics deleted
-    APPROVED --> REVOKED : Administrator deactivates an area of the visit [now before endTime] / biometrics deleted
+    APPROVED --> CANCELLED : Host cancels [version matches, now before endTime] / biometrics deleted if before startTime, else kept until cancelledAt + retention
+    APPROVED --> REVOKED : Facility Manager revokes [version matches, reviewer is not host, reason required, now before endTime] / biometrics kept until revokedAt + retention
+    APPROVED --> REVOKED : Administrator deactivates an area of the visit [now before endTime] / biometrics kept until revokedAt + retention
     APPROVED --> COMPLETED : System job completeApprovedVisits every minute [now at or after endTime]
 
     REJECTED --> [*]
@@ -309,8 +309,8 @@ stateDiagram-v2
         Biometric deletion is not a visit state.
         It is Guest.biometricStatus (GuestBiometricStatus):
         NO_PHOTO, PHOTO_READY after Administrator attaches photo with consent,
-        DELETED on cancel or revoke of an APPROVED visit, on expiry,
-        or by job deleteDueBiometrics at endTime + GUEST_FACE_RETENTION_HOURS.
+        DELETED on cancel of an APPROVED visit before startTime, on expiry, or by job deleteDueBiometrics
+        at endTime (REVOKED: revokedAt; CANCELLED after startTime: cancelledAt) + GUEST_FACE_RETENTION_HOURS.
         PHOTO_ONLY exists in the enum but no code sets it.
     end note
 ```
