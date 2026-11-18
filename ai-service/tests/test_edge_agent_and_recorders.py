@@ -255,7 +255,11 @@ class TestEdgeAgentAndRecorders(unittest.TestCase):
             tag = py_hmac.new(mac_key, nonce + bytes(cipher), hashlib.sha256).digest()
             return ENC_ETM_PREFIX + base64.b64encode(nonce + bytes(cipher) + tag).decode("ascii")
 
-        key = os.environ["INTERNAL_SERVICE_KEY"]
+        from src.config import settings
+
+        orig_key = getattr(settings, "INTERNAL_SERVICE_KEY", "")
+        key = os.environ.get("INTERNAL_SERVICE_KEY") or orig_key or "test-internal-service-key-32-chars!"
+        settings.INTERNAL_SERVICE_KEY = key
         plain_sub = "rtsp://admin:SecretPass123@192.168.1.105:554/sub"
         enc_sub = _encrypt_etm(plain_sub, key)
 
@@ -284,12 +288,15 @@ class TestEdgeAgentAndRecorders(unittest.TestCase):
             active_workers=active_workers,
             worker_factory=fake_worker_factory,
         )
-        with patch.object(agent, "_sync_local_mediamtx_path") as mock_sync:
-            mock_sync.side_effect = lambda code, url: f"rtsp://localhost:8554/{code.lower()}"
-            cfg = {"camera_code": "CAM-003", "rtsp_url": enc_sub, "enabled": True}
-            agent.handle_message("campus/edge/config/cameras/CAM-003", json.dumps(cfg).encode("utf-8"))
-            mock_sync.assert_called_once_with("CAM-003", plain_sub)
-            self.assertEqual(len(created_workers), 1)
+        try:
+            with patch.object(agent, "_sync_local_mediamtx_path") as mock_sync:
+                mock_sync.side_effect = lambda code, url: f"rtsp://localhost:8554/{code.lower()}"
+                cfg = {"camera_code": "CAM-003", "rtsp_url": enc_sub, "enabled": True}
+                agent.handle_message("campus/edge/config/cameras/CAM-003", json.dumps(cfg).encode("utf-8"))
+                mock_sync.assert_called_once_with("CAM-003", plain_sub)
+                self.assertEqual(len(created_workers), 1)
+        finally:
+            settings.INTERNAL_SERVICE_KEY = orig_key
 
 
 if __name__ == "__main__":
