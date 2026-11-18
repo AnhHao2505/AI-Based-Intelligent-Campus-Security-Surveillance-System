@@ -1,7 +1,7 @@
 import os
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field, AliasChoices
+from pydantic import Field, AliasChoices, model_validator
 
 AI_SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO_DIR = os.path.dirname(AI_SERVICE_DIR)
@@ -113,7 +113,16 @@ class Settings(BaseSettings):
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"
-    IS_24_7_RESTRICTED: bool = Field(default=False, validation_alias="IS_24_7_RESTRICTED")
+
+    @model_validator(mode="after")
+    def validate_after_hours_not_equal(self):
+        start = (self.DEFAULT_AFTER_HOUR_START or "").strip()
+        end = (self.DEFAULT_AFTER_HOUR_END or "").strip()
+        if start and end and start == end:
+            raise ValueError(
+                f"DEFAULT_AFTER_HOUR_START ({start}) và DEFAULT_AFTER_HOUR_END ({end}) không được trùng nhau!"
+            )
+        return self
     NIGHT_ALLOWED_ACCESS_SOURCES: List[str] = Field(
         default=["ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"],
         validation_alias="NIGHT_ALLOWED_ACCESS_SOURCES"

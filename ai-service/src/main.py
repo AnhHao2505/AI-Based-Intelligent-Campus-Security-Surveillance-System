@@ -26,7 +26,7 @@ import asyncio
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import List, Optional, Dict, Any
 
 import logging
@@ -105,9 +105,18 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
 
                     if threshold is not None:
                         settings.FACE_MATCH_THRESHOLD = float(threshold)
-                    if ah_start:
+                    if ah_start and ah_end:
+                        if str(ah_start).strip() == str(ah_end).strip():
+                            logger.warning(
+                                f"⚠️ Giờ ngoài giờ nhận được từ Backend bị trùng nhau ({ah_start} == {ah_end}), "
+                                "bỏ qua không cập nhật để tránh vô hiệu hoá bảo vệ."
+                            )
+                        else:
+                            settings.DEFAULT_AFTER_HOUR_START = str(ah_start)
+                            settings.DEFAULT_AFTER_HOUR_END = str(ah_end)
+                    elif ah_start:
                         settings.DEFAULT_AFTER_HOUR_START = str(ah_start)
-                    if ah_end:
+                    elif ah_end:
                         settings.DEFAULT_AFTER_HOUR_END = str(ah_end)
                     if max_inactive is not None:
                         settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS = float(max_inactive)
@@ -333,9 +342,22 @@ class ROIConfigRequest(BaseModel):
     after_hour_start: Optional[str] = None
     after_hour_end: Optional[str] = None
 
+    @model_validator(mode="after")
+    def validate_after_hours_differ(self):
+        if self.after_hour_start and self.after_hour_end:
+            if self.after_hour_start.strip() == self.after_hour_end.strip():
+                raise ValueError("Giờ bắt đầu và kết thúc ngoài giờ không được trùng nhau")
+        return self
+
 class AfterHourConfigRequest(BaseModel):
     start: str
     end: str
+
+    @model_validator(mode="after")
+    def validate_after_hours_differ(self):
+        if self.start.strip() == self.end.strip():
+            raise ValueError("Giờ bắt đầu và kết thúc ngoài giờ không được trùng nhau")
+        return self
 
 @app.post("/api/v1/system-config/after-hour", dependencies=[Depends(require_service_key)])
 async def update_after_hour_config(req: AfterHourConfigRequest):
@@ -345,6 +367,8 @@ async def update_after_hour_config(req: AfterHourConfigRequest):
         datetime.time.fromisoformat(req.end)
     except ValueError:
         raise HTTPException(status_code=400, detail="after-hour times must use HH:mm")
+    if req.start.strip() == req.end.strip():
+        raise HTTPException(status_code=400, detail="Giờ bắt đầu và kết thúc ngoài giờ không được trùng nhau")
     if default_pipeline:
         default_pipeline.analysis_engine.after_hour_start = req.start
         default_pipeline.analysis_engine.after_hour_end = req.end

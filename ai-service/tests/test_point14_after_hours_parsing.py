@@ -155,23 +155,20 @@ def test_after_hours_start_equals_end_fails_safe_when_default_also_equal():
         assert alerts[0].event_type == "PERSON_INTRUSION"
 
 
-def test_after_hours_is_24_7_restricted():
-    # G2.1: Cấu hình IS_24_7_RESTRICTED = True ép toàn bộ thời gian thành sau giờ
-    with patch("src.core.frame_analysis_engine.settings.IS_24_7_RESTRICTED", True):
-        engine = FrameAnalysisEngine(after_hour_start="22:00", after_hour_end="06:00")
-        t_14h = datetime(2026, 11, 4, 14, 0, 0, tzinfo=timezone(timedelta(hours=7))).timestamp()
-        t_14h_after_grace = t_14h + 2.0
+def test_settings_raises_error_if_default_start_equals_end():
+    from pydantic import ValidationError
+    from src.config import Settings
+    with pytest.raises((ValidationError, ValueError), match="không được trùng nhau"):
+        Settings(
+            POSTGRES_PASSWORD="dummy",
+            DEFAULT_AFTER_HOUR_START="22:00",
+            DEFAULT_AFTER_HOUR_END="22:00"
+        )
 
-        engine.process_frame(
-            detected_tracks=[(1, BoundingBox(10, 10, 50, 100))],
-            camera_code="CAM-001",
-            current_time=t_14h,
-        )
-        _, alerts, _ = engine.process_frame(
-            detected_tracks=[(1, BoundingBox(10, 10, 50, 100))],
-            camera_code="CAM-001",
-            current_time=t_14h_after_grace,
-        )
-        assert len(alerts) == 1
-        assert alerts[0].event_type == "PERSON_INTRUSION"
+
+def test_after_hour_config_request_validates_different_hours():
+    from pydantic import ValidationError
+    from src.main import AfterHourConfigRequest
+    with pytest.raises((ValidationError, ValueError), match="không được trùng nhau"):
+        AfterHourConfigRequest(start="22:00", end="22:00")
 

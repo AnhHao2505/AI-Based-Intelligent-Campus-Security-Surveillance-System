@@ -155,6 +155,16 @@ export default function SystemConfigPage() {
 	};
 
 	const handleOpenSaveModal = (config) => {
+		const key = config.configKey;
+		const value = editedValues[key];
+		if (key === "AI_AFTER_HOUR_START" || key === "AI_AFTER_HOUR_END") {
+			const otherKey = key === "AI_AFTER_HOUR_START" ? "AI_AFTER_HOUR_END" : "AI_AFTER_HOUR_START";
+			const otherVal = editedValues[otherKey];
+			if (value && otherVal && value.trim() === otherVal.trim()) {
+				setErrorMsg("Giờ bắt đầu và kết thúc ngoài giờ không được trùng nhau!");
+				return;
+			}
+		}
 		setConfirmModalConfig(config);
 		setConfirmReason("");
 		setConfirmReasonError("");
@@ -166,6 +176,15 @@ export default function SystemConfigPage() {
 		const key = confirmModalConfig.configKey;
 		const value = editedValues[key];
 		const trimmedReason = confirmReason.trim();
+
+		if (key === "AI_AFTER_HOUR_START" || key === "AI_AFTER_HOUR_END") {
+			const otherKey = key === "AI_AFTER_HOUR_START" ? "AI_AFTER_HOUR_END" : "AI_AFTER_HOUR_START";
+			const otherVal = editedValues[otherKey];
+			if (value && otherVal && value.trim() === otherVal.trim()) {
+				setConfirmError("Giờ bắt đầu và kết thúc ngoài giờ không được trùng nhau!");
+				return;
+			}
+		}
 
 		if (!reasonLimits.isValid(trimmedReason)) {
 			setConfirmReasonError(reasonLimits.error(trimmedReason));

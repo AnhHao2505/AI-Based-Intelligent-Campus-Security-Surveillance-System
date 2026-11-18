@@ -446,42 +446,38 @@ class FrameAnalysisEngine:
         end = parse_time_str(self.after_hour_end)
         after_hours = False
 
-        # G2.1: Giới nghiêm 24/7 cấu hình qua IS_24_7_RESTRICTED
-        if getattr(settings, "IS_24_7_RESTRICTED", False):
-            after_hours = True
-        else:
-            if start is None or end is None or start == end:
-                # Fallback về DEFAULT_AFTER_HOUR_START / END trong settings trước
-                fb_start = parse_time_str(settings.DEFAULT_AFTER_HOUR_START)
-                fb_end = parse_time_str(settings.DEFAULT_AFTER_HOUR_END)
+        if start is None or end is None or start == end:
+            # Không cho phép start == end (tránh vô hiệu hoá bảo vệ ngoài giờ). Fallback về DEFAULT_AFTER_HOUR_START / END
+            fb_start = parse_time_str(settings.DEFAULT_AFTER_HOUR_START)
+            fb_end = parse_time_str(settings.DEFAULT_AFTER_HOUR_END)
 
-                error_key = f"{self.after_hour_start}:{self.after_hour_end}"
-                last_warn = self._last_parse_warning_time.get(error_key, 0.0)
-                should_warn = (current_time - last_warn) >= 60.0
+            error_key = f"{self.after_hour_start}:{self.after_hour_end}"
+            last_warn = self._last_parse_warning_time.get(error_key, 0.0)
+            should_warn = (current_time - last_warn) >= 60.0
 
-                if fb_start is not None and fb_end is not None and fb_start != fb_end:
-                    start = fb_start
-                    end = fb_end
-                    if should_warn:
-                        logger.warning(
-                            f"⚠️ [FrameAnalysisEngine] Cấu hình giờ giới nghiêm không hợp lệ (start='{self.after_hour_start}', end='{self.after_hour_end}'). "
-                            f"Fallback về cấu hình mặc định: start='{settings.DEFAULT_AFTER_HOUR_START}', end='{settings.DEFAULT_AFTER_HOUR_END}'."
-                        )
-                        self._last_parse_warning_time[error_key] = current_time
-                else:
-                    if should_warn:
-                        logger.warning(
-                            f"⚠️ [FrameAnalysisEngine] Cấu hình giờ giới nghiêm không hợp lệ và cấu hình mặc định cũng không khả dụng "
-                            f"(start='{self.after_hour_start}', end='{self.after_hour_end}'). Kích hoạt chế độ an ninh Fail-Safe: after_hours = True."
-                        )
-                        self._last_parse_warning_time[error_key] = current_time
-                    after_hours = True
+            if fb_start is not None and fb_end is not None and fb_start != fb_end:
+                start = fb_start
+                end = fb_end
+                if should_warn:
+                    logger.warning(
+                        f"⚠️ [FrameAnalysisEngine] Cấu hình giờ giới nghiêm không hợp lệ (start='{self.after_hour_start}', end='{self.after_hour_end}'). "
+                        f"Không cho phép 2 giờ trùng nhau. Fallback về cấu hình mặc định: start='{settings.DEFAULT_AFTER_HOUR_START}', end='{settings.DEFAULT_AFTER_HOUR_END}'."
+                    )
+                    self._last_parse_warning_time[error_key] = current_time
+            else:
+                if should_warn:
+                    logger.warning(
+                        f"⚠️ [FrameAnalysisEngine] Cấu hình giờ giới nghiêm không hợp lệ và cấu hình mặc định cũng không khả dụng "
+                        f"(start='{self.after_hour_start}', end='{self.after_hour_end}'). Kích hoạt chế độ an ninh Fail-Safe: after_hours = True."
+                    )
+                    self._last_parse_warning_time[error_key] = current_time
+                after_hours = True
 
-            if not after_hours and start is not None and end is not None:
-                if start < end:
-                    after_hours = (start <= now < end)
-                else:
-                    after_hours = (now >= start or now < end)
+        if not after_hours and start is not None and end is not None:
+            if start < end:
+                after_hours = (start <= now < end)
+            else:
+                after_hours = (now >= start or now < end)
 
         generated_alerts: List[SecurityAlertEvent] = []
         roi_access_events: List[Dict[str, Any]] = []
