@@ -66,6 +66,8 @@ export default function CameraInspectorDrawer({
 	isPickingLocationOnMap = false,
 	onRequestPickLocationOnMap,
 	onRemoveMapLocation,
+	canUndoRemovedMapLocation = false,
+	onUndoRemoveMapLocation = null,
 }) {
 	const liveOperationalStatusRef = useRef(liveOperationalStatus);
 	liveOperationalStatusRef.current = liveOperationalStatus;
@@ -566,6 +568,8 @@ export default function CameraInspectorDrawer({
 								isPickingLocationOnMap={isPickingLocationOnMap}
 								onPickLocationOnMap={isAdmin ? onRequestPickLocationOnMap : null}
 								onRemoveMapLocation={onRemoveMapLocation}
+								canUndoRemovedMapLocation={canUndoRemovedMapLocation}
+								onUndoRemoveMapLocation={onUndoRemoveMapLocation}
 							/>
 						)}
 

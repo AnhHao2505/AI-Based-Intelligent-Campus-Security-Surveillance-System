@@ -18,10 +18,8 @@ webrtcAllowOrigins: ['*']
 webrtcLocalUDPAddress: :8189
 webrtcAdditionalHosts: ['127.0.0.1']
 
-# 3. Playback Server (Cổng 9996 - hỗ trợ truy xuất fMP4 segment chuẩn công nghiệp)
-playback: yes
-playbackAddress: :9996
-playbackAllowOrigins: ['*']
+# 3. Playback Server (Tắt để tránh truy cập fMP4 không qua Backend RecordingStreamTokenService V2)
+playback: no
 
 # 4. Cấu hình định dạng ghi hình fMP4 mặc định (an toàn khi mất điện, không mất moov atom)
 pathDefaults:
@@ -30,11 +28,11 @@ pathDefaults:
   recordSegmentDuration: 1m
   recordDeleteAfter: 72h
 
-# 5. API Quản trị (Cổng 9997)
+# 5. API Quản trị (Cổng 9997 — xác thực qua authHTTPAddress Basic Auth icss-internal)
 api: yes
 apiAddress: :9997
 
-# 5.1 Xác thực WHEP WebRTC Stream Token qua Backend ICSS
+# 5.1 Xác thực toàn diện (WHEP WebRTC, RTSP read/publish nội bộ, và Control API) qua Backend ICSS
 # Giá trị authHTTPAddress mặc định dưới đây có thể được ghi đè động bằng biến môi trường
 # MTX_AUTHHTTPADDRESS (ví dụ cấu hình trong docker-compose.yml hoặc qua file .env với MEDIAMTX_AUTH_HTTP_ADDRESS).
 # - Chạy MediaMTX nhị phân trên Windows host: trỏ tới http://127.0.0.1:8080/api/cameras/whep-auth
@@ -42,10 +40,6 @@ apiAddress: :9997
 # - Chạy MediaMTX trong mạng Docker Linux: trỏ tới http://backend:8080/api/cameras/whep-auth
 authMethod: http
 authHTTPAddress: http://host.docker.internal:8080/api/cameras/whep-auth
-authHTTPExclude:
-  - action: api
-  - action: publish
-  - action: playback
 
 # 6. Danh sách Kênh Camera
 # Tất cả các camera sẽ được Edge AI Agent / Backend tự động đồng bộ qua MediaMTX API (/v3/config/paths/add)

@@ -167,6 +167,38 @@ public class AnnotatedStreamTokenService {
         );
     }
 
+    /**
+     * F-01: Sinh mật khẩu HMAC tĩnh cho kết nối MediaMTX Control API (/v3/*).
+     */
+    public static String generateInternalApiSecret(String key) {
+        if (key == null || key.isBlank()) {
+            return "";
+        }
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] hash = mac.doFinal("mediamtx-api".getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi sinh internal MediaMTX API secret", e);
+        }
+    }
+
+    /**
+     * F-01: Xác thực credential gọi MediaMTX Control API (/v3/*) qua authHTTPAddress callback.
+     */
+    public boolean verifyInternalApiSecret(String providedSecret) {
+        if (providedSecret == null || providedSecret.isBlank()
+                || this.serviceKey == null || this.serviceKey.isBlank()) {
+            return false;
+        }
+        String expected = generateInternalApiSecret(this.serviceKey);
+        return java.security.MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                providedSecret.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
     private static String normalizeCameraCode(String cameraCode) {
         String normalizedCode = cameraCode.trim().toUpperCase();
         if (normalizedCode.endsWith("_MAIN")) {

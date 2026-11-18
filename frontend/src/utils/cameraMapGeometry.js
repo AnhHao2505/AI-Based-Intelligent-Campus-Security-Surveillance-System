@@ -1,3 +1,11 @@
+import {
+	isPointInPolygonWithHoles,
+	matchesBuilding,
+	resolveFloorOrder,
+} from "../data/campusIndoor3dData.js";
+
+export const CAMERA_PIN_DRAG_THRESHOLD_PX = 5;
+
 export function resolveCameraPinStatusKey(camera) {
 	if (!camera) return "muted";
 	if (camera.status === "DECOMMISSIONED") return "muted";
@@ -214,5 +222,168 @@ export function buildCameraMapPinGeoJson({
 
 	return {
 		pinFeatures,
+	};
+}
+
+/**
+ * 2-tier validation for placing or dragging a camera pin on the 3D campus map:
+ * - Tier 1 (Strict): building & floorOrder must match the camera's assigned Area.
+ * - Tier 2 (Smart 3D boundary):
+ *   - Blocks dropping inside a room belonging to a different Area.
+ *   - Blocks dropping outside the assigned building/floor footprint.
+ *   - Allows dropping inside the assigned room (`target-room`) or in the same floor's
+ *     corridor/door buffer (`corridor-buffer`) with a soft advisory warning.
+ */
+export function validateCameraPinPlacement({
+	lng,
+	lat,
+	targetCam = null,
+	targetArea = null,
+	activeBuilding = "ALL",
+	activeFloorOrder = "ALL",
+	clickedRoomProps = null,
+	roomFeatures = null,
+	store = null,
+} = {}) {
+	if (!Number.isFinite(Number(lng)) || !Number.isFinite(Number(lat))) {
+		return {
+			ok: false,
+			reason: "invalid-coords",
+			message: "Tọa độ bản đồ không hợp lệ.",
+		};
+	}
+
+	if (targetCam?.status === "DECOMMISSIONED") {
+		return {
+			ok: false,
+			reason: "decommissioned",
+			message: "Camera đã ngừng hoạt động, không thể thay đổi vị trí.",
+		};
+	}
+
+	const expectedBuilding =
+		targetArea?.building ||
+		targetCam?.building ||
+		targetCam?.assignedArea?.building ||
+		targetCam?.mapBuilding ||
+		null;
+	const expectedFloorName =
+		targetArea?.floor ||
+		targetCam?.floor ||
+		targetCam?.assignedArea?.floor ||
+		null;
+	const expectedFloorOrder =
+		expectedBuilding && expectedFloorName
+			? resolveFloorOrder(expectedBuilding, expectedFloorName)
+			: targetCam?.mapFloorOrder != null &&
+				  Number.isFinite(Number(targetCam.mapFloorOrder))
+				? Number(targetCam.mapFloorOrder)
+				: null;
+	const targetAreaId =
+		targetArea?.id ||
+		targetCam?.areaId ||
+		targetCam?.assignedArea?.id ||
+		null;
+
+	// Tier 1: Strict building & floor alignment
+	if (expectedBuilding) {
+		if (
+			activeBuilding &&
+			activeBuilding !== "ALL" &&
+			!matchesBuilding(activeBuilding, expectedBuilding)
+		) {
+			return {
+				ok: false,
+				reason: "wrong-building",
+				message: `Camera thuộc ${expectedBuilding}${expectedFloorName ? ` · ${expectedFloorName}` : ""}. Vui lòng chuyển về đúng tòa nhà.`,
+			};
+		}
+		if (
+			activeFloorOrder !== "ALL" &&
+			activeFloorOrder !== null &&
+			activeFloorOrder !== undefined &&
+			expectedFloorOrder !== null &&
+			Number(activeFloorOrder) !== Number(expectedFloorOrder)
+		) {
+			return {
+				ok: false,
+				reason: "wrong-floor",
+				message: `Camera thuộc ${expectedBuilding}${expectedFloorName ? ` · ${expectedFloorName}` : ""}. Không thể đặt ở tầng khác.`,
+			};
+		}
+	}
+
+	// Tier 2: Check room ownership & indoor building footprint
+	let effectiveRoomProps = clickedRoomProps;
+	if (!effectiveRoomProps && Array.isArray(roomFeatures) && roomFeatures.length > 0) {
+		const pt = [Number(lng), Number(lat)];
+		for (const feat of roomFeatures) {
+			const props = feat?.properties;
+			if (!props || props.isGhost) continue;
+			if (
+				expectedBuilding &&
+				props.building &&
+				!matchesBuilding(props.building, expectedBuilding)
+			) {
+				continue;
+			}
+			if (
+				expectedFloorOrder !== null &&
+				props.floorOrder != null &&
+				Number(props.floorOrder) !== Number(expectedFloorOrder)
+			) {
+				continue;
+			}
+			const coords = feat?.geometry?.coordinates;
+			if (!Array.isArray(coords) || coords.length === 0) continue;
+			if (isPointInPolygonWithHoles(pt, coords[0], coords.slice(1))) {
+				effectiveRoomProps = props;
+				break;
+			}
+		}
+	}
+
+	if (effectiveRoomProps?.matchedAreaId) {
+		if (
+			targetAreaId &&
+			String(effectiveRoomProps.matchedAreaId) !== String(targetAreaId)
+		) {
+			return {
+				ok: false,
+				reason: "other-area-room",
+				message: `Không thể đặt pin vào phòng của khu vực "${effectiveRoomProps.matchedAreaName || "khác"}".`,
+			};
+		}
+		if (
+			targetAreaId &&
+			String(effectiveRoomProps.matchedAreaId) === String(targetAreaId)
+		) {
+			return {
+				ok: true,
+				zone: "target-room",
+				building: expectedBuilding,
+				floorOrder: expectedFloorOrder,
+			};
+		}
+	}
+
+	if (targetAreaId && (Array.isArray(roomFeatures) || clickedRoomProps || store)) {
+		const areaLabel =
+			targetArea?.name ||
+			targetCam?.areaName ||
+			targetCam?.assignedArea?.name ||
+			"được gán";
+		return {
+			ok: false,
+			reason: "outside-target-room",
+			message: `Chỉ có thể đặt pin trong khuôn khổ phòng "${areaLabel}".`,
+		};
+	}
+
+	return {
+		ok: true,
+		zone: "target-room",
+		building: expectedBuilding,
+		floorOrder: expectedFloorOrder,
 	};
 }

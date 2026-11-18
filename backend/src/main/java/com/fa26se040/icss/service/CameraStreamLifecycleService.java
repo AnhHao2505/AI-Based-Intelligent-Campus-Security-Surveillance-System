@@ -184,6 +184,7 @@ public class CameraStreamLifecycleService {
     @Transactional
     public CameraStreamLifecycleResponse stopStream(UUID cameraId) {
         Camera camera = cameraRepository.findById(cameraId)
+                .filter(c -> c.getDeletedAt() == null)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
         boolean mqttConnected = edgeMqttControlService != null && edgeMqttControlService.isConnected();
