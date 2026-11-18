@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import '../models/area_pin_model.dart';
 import 'campus_map_overlays.dart';
 
 // Ảnh vẽ bằng Canvas cho lớp symbol của MapLibre (P-MAP-3): biểu tượng cầu thang / thang máy và nhãn tên phòng.
@@ -136,12 +137,9 @@ Future<CampusSprite?> renderPortalIcon(String id) {
 /// Độ dài tối đa tên trên nhãn (web DEFAULT_MAX_LABEL_LENGTH, mapRoomLabelSprites.js:8).
 const int roomLabelMaxLength = 24;
 
-/// Màu chấm cấp khu trên nhãn (web LEVEL_ACCENT_COLORS, mapRoomLabelSprites.js:10-14); cấp khác → màu PUBLIC.
-const Map<String, int> roomLabelAccentColors = {
-  'PUBLIC': 0x16A34A,
-  'CONFIDENTIAL': 0xD97706,
-  'HIGHLY_CONFIDENTIAL': 0xDC2626,
-};
+/// Màu chấm cấp khu trên nhãn: cùng nguồn với ghim khu và chú giải ([AreaPinModel.levelColorOf]), không giữ bảng màu
+/// riêng. Cấp trống → PUBLIC ([roomLabelLevelCode]); cấp lạ → xám mặc định của levelColorOf.
+ui.Color roomLabelAccentColor(String? levelCode) => AreaPinModel.levelColorOf(roomLabelLevelCode(levelCode));
 
 /// Lề trong suốt quanh viên nhãn để chừa chỗ cho bóng (đơn vị logic = điểm ảnh / [campusSpritePixelRatio]).
 const double roomLabelShadowPad = 3;
@@ -272,8 +270,7 @@ Future<CampusSprite?> renderRoomLabel({required String name, required String lev
 
   const dotCx = shadowPad + padX + dotRadius;
   const centerY = shadowPad + pillHeight / 2;
-  final accent = roomLabelAccentColors[roomLabelLevelCode(levelCode)] ?? roomLabelAccentColors['PUBLIC']!;
-  canvas.drawCircle(const ui.Offset(dotCx, centerY), dotRadius, ui.Paint()..color = _hex(accent));
+  canvas.drawCircle(const ui.Offset(dotCx, centerY), dotRadius, ui.Paint()..color = roomLabelAccentColor(levelCode));
 
   // textBaseline = "middle" của web: giữa dòng chữ nằm ở centerY + 0.5
   canvas.drawParagraph(paragraph, ui.Offset(dotCx + dotRadius + dotGap, centerY + 0.5 - paragraph.height / 2));
