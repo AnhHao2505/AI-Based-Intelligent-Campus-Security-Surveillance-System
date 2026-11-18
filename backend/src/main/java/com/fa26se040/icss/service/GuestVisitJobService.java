@@ -32,8 +32,9 @@ import java.util.function.Supplier;
 public class GuestVisitJobService {
 
     public static final String SOURCE = "GUEST_VISIT_JOB";
+    // CANCELLED trước giờ bắt đầu cũng thuộc nhóm này nhưng lọc theo cancelledAt < startTime trong query
     private static final Set<GuestVisitStatus> CLOSED_WITHOUT_VISIT = Set.of(
-            GuestVisitStatus.CANCELLED, GuestVisitStatus.EXPIRED, GuestVisitStatus.REJECTED);
+            GuestVisitStatus.EXPIRED, GuestVisitStatus.REJECTED);
 
     private final GuestVisitRepository guestVisitRepository;
     private final GuestRepository guestRepository;
@@ -153,14 +154,15 @@ public class GuestVisitJobService {
     }
 
     /**
-     * BR-GV-27: xoá ảnh + embedding tại mốc sớm nhất: end + GUEST_FACE_RETENTION_HOURS (config hiện hành), với lượt
-     * REVOKED là revokedAt + GUEST_FACE_RETENTION_HOURS, hoặc expires_at của embedding;
-     * lượt khách chưa từng có quyền (CANCELLED / EXPIRED / REJECTED) thì xoá ngay.
+     * BR-194 (BR-GV-27): xoá ảnh + embedding tại mốc sớm nhất: end + GUEST_FACE_RETENTION_HOURS (config hiện hành), với lượt
+     * REVOKED là revokedAt + GUEST_FACE_RETENTION_HOURS, lượt CANCELLED khi đã bắt đầu là cancelledAt + GUEST_FACE_RETENTION_HOURS,
+     * hoặc expires_at của embedding; lượt khách chưa từng có quyền (EXPIRED / REJECTED / CANCELLED trước giờ bắt đầu) thì xoá ngay.
      */
     public int deleteDueBiometrics(OffsetDateTime now) {
         int retention = systemConfigService.getInt(ConfigKey.GUEST_FACE_RETENTION_HOURS);
         Set<UUID> ids = new LinkedHashSet<>(guestRepository.findIdsNeedingBiometricDeletion(
-                GuestBiometricService.WITH_PHOTO, CLOSED_WITHOUT_VISIT, GuestVisitStatus.REVOKED, now.minusHours(retention)));
+                GuestBiometricService.WITH_PHOTO, CLOSED_WITHOUT_VISIT, GuestVisitStatus.REVOKED, GuestVisitStatus.CANCELLED,
+                now.minusHours(retention)));
         ids.addAll(embeddingRepository.findGuestIdsExpiredAt(now));
         int n = 0;
         for (UUID guestId : ids) {

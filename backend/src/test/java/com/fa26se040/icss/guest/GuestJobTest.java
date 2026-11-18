@@ -1,5 +1,6 @@
 package com.fa26se040.icss.guest;
 
+import com.fa26se040.icss.dto.guest.GuestVisitCancelRequest;
 import com.fa26se040.icss.dto.guest.GuestVisitRevokeRequest;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
@@ -127,7 +128,7 @@ public class GuestJobTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("GV-27: lượt khách chưa từng có quyền (CANCELLED / EXPIRED / REJECTED) còn sót ảnh -> job xoá ngay")
+    @DisplayName("GV-27: lượt khách chưa từng có quyền (CANCELLED trước giờ bắt đầu / EXPIRED / REJECTED) còn sót ảnh -> job xoá ngay")
     void deleteForClosedVisits() {
         OffsetDateTime now = OffsetDateTime.now();
         for (GuestVisitStatus st : List.of(GuestVisitStatus.CANCELLED, GuestVisitStatus.EXPIRED, GuestVisitStatus.REJECTED)) {
@@ -205,6 +206,39 @@ public class GuestJobTest extends GuestTestSupport {
             // GuestSchemaTest đọc thẳng giá trị trong DB: trả về mặc định
             setConfig(ConfigKey.GUEST_FACE_RETENTION_HOURS, ConfigKey.GUEST_FACE_RETENTION_HOURS.getDefaultValue());
         }
+    }
+
+    @Test
+    @DisplayName("GV-09/27: host huỷ lượt APPROVED khi đã bắt đầu -> còn ảnh; job chưa xoá tại cancelledAt + retention − 1 phút, xoá tại cancelledAt + retention (audit SYSTEM, ảnh xoá khỏi kho sau commit)")
+    void deleteCancelledAfterStartAtRetention() throws Exception {
+        int retention = systemConfigService.getInt(ConfigKey.GUEST_FACE_RETENTION_HOURS);
+        OffsetDateTime now = OffsetDateTime.now();
+        GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, now.minusHours(1), now.plusHours(2), List.of(internalArea), "Khách bị huỷ giữa lượt");
+        // expires_at như lúc gắn ảnh: end + retention, muộn hơn cancelledAt + retention -> chỉ nhánh CANCELLED xoá được
+        Guest g = withPhoto(guestsOf(v.getId()).get(0), v.getEndTime().plusHours(retention));
+        String key = g.getPhotoObjectKey();
+        guestVisitService.cancel(v.getId(), new GuestVisitCancelRequest(0L, null), hostL2.getEmail());
+        GuestVisit cancelled = visit(v.getId());
+        assertEquals(GuestVisitStatus.CANCELLED, cancelled.getStatus());
+        OffsetDateTime cancelledAt = cancelled.getCancelledAt();
+        assertFalse(cancelledAt.isBefore(cancelled.getStartTime()), "tiền đề: huỷ sau giờ bắt đầu");
+        assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus(), "huỷ khi đã bắt đầu: không xoá ngay");
+
+        OffsetDateTime mark = cancelledAt.plusHours(retention);
+        jobService.deleteDueBiometrics(mark.minusMinutes(1));
+        assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus(), "cancelledAt + retention − 1 phút: chưa xoá");
+        assertTrue(embeddingRepository.existsById(g.getId()));
+        verify(photoStorage, never()).removeObject(key);
+        assertTrue(audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC).isEmpty());
+
+        jobService.deleteDueBiometrics(mark);
+        Guest after = guest(g.getId());
+        assertEquals(GuestBiometricStatus.DELETED, after.getBiometricStatus());
+        assertNull(after.getPhotoObjectKey());
+        assertFalse(embeddingRepository.existsById(g.getId()));
+        verify(photoStorage).removeObject(key);
+        assertNull(after.getPendingDeleteObjectKey(), "xoá ảnh sau commit thành công -> bỏ đánh dấu");
+        assertSystemAudit(audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC));
     }
 
     @Test

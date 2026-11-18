@@ -35,7 +35,7 @@ PENDING --> CANCELLED : Host cancels\n[version matches, now < endTime]
 PENDING --> CANCELLED : Administrator deactivates an area\nof the visit [now < endTime]
 PENDING --> EXPIRED : System job every minute\n[now >= startTime]
 
-APPROVED --> CANCELLED : Host cancels\n[version matches, now < endTime]\n/ biometrics deleted
+APPROVED --> CANCELLED : Host cancels\n[version matches, now < endTime]\n/ biometrics deleted if before startTime,\nelse kept until cancelledAt + retention
 APPROVED --> REVOKED : Facility Manager revokes\n[version matches, reviewer is not host,\nreason, now < endTime]\n/ biometrics kept until revokedAt + retention
 APPROVED --> REVOKED : Administrator deactivates an area\nof the visit [now < endTime]\n/ biometrics kept until revokedAt + retention
 APPROVED --> COMPLETED : System job every minute\n[now >= endTime]
@@ -51,9 +51,9 @@ note right of APPROVED
   It is Guest.biometricStatus (GuestBiometricStatus):
   NO_PHOTO -> PHOTO_READY after the Administrator
   attaches a photo with recorded consent;
-  DELETED on cancel of an APPROVED visit,
-  on expiry, or by job at endTime (REVOKED: revokedAt)
-  + GUEST_FACE_RETENTION_HOURS.
+  DELETED on cancel of an APPROVED visit before startTime,
+  on expiry, or by job at endTime (REVOKED: revokedAt;
+  CANCELLED after startTime: cancelledAt) + GUEST_FACE_RETENTION_HOURS.
   PHOTO_ONLY exists in the enum but no code sets it.
 end note
 @enduml

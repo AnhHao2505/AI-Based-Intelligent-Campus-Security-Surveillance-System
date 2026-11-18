@@ -17,7 +17,8 @@ import java.time.OffsetDateTime;
 import java.util.Set;
 
 /**
- * Xoá sinh trắc khách (BR-GV-27). Chạy trong transaction của thao tác gọi (huỷ, job; thu hồi không xoá, job xoá sau retention).
+ * Xoá sinh trắc khách (BR-194 (BR-GV-27)). Chạy trong transaction của thao tác gọi (huỷ trước giờ bắt đầu, job;
+ * thu hồi / huỷ khi lượt đã bắt đầu không xoá, job xoá sau retention).
  * Thứ tự: xoá embedding → khách DELETED + đánh dấu object cần xoá → commit → xoá ảnh trên kho (A9: chỉ sau commit);
  * kho lỗi thì đánh dấu còn nguyên để job thử lại.
  */

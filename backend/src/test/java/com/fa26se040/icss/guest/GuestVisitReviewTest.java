@@ -202,7 +202,7 @@ public class GuestVisitReviewTest extends GuestTestSupport {
         GuestVisit after = visit(v.getId());
         assertEquals(GuestVisitStatus.REVOKED, after.getStatus());
         assertEquals(REASON, after.getRevokeReason());
-        // BR-GV-27 (V133): thu hồi không xoá ngay, job xoá tại revokedAt + GUEST_FACE_RETENTION_HOURS (GuestJobTest)
+        // BR-194 (BR-GV-27), V133: thu hồi không xoá ngay, job xoá tại revokedAt + GUEST_FACE_RETENTION_HOURS (GuestJobTest)
         assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus());
         assertTrue(embeddingRepository.existsById(g.getId()));
         verify(photoStorage, never()).removeObject(key);

@@ -512,7 +512,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         assertEquals("REVOKED", a.get("status"));
         assertEquals(admin.getId(), a.get("revoked_by"));
         assertEquals(PREFIX + REASON, a.get("revoke_reason"));
-        // BR-GV-27 (V133): thu hồi không xoá sinh trắc ngay; job xoá tại revokedAt + GUEST_FACE_RETENTION_HOURS
+        // BR-194 (BR-GV-27), V133: thu hồi không xoá sinh trắc ngay; job xoá tại revokedAt + GUEST_FACE_RETENTION_HOURS
         assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus());
         assertTrue(embeddingRepository.existsById(g.getId()), "embedding giữ tới revokedAt + retention");
         assertEquals(key, guest(g.getId()).getPhotoObjectKey());
