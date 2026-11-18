@@ -62,6 +62,7 @@ import {
 	extractCameraAreaInfo,
 	resolveCameraInspectorAccess,
 	fetchAllPaginatedPages,
+	mergeCameraStatusUpdate,
 } from "../../utils/campusCameraHelpers";
 import { buildCameraPlacementsMap } from "../../utils/cameraMapGeometry";
 import {
@@ -137,6 +138,7 @@ export default function AreaListPage() {
 	const [pickingCameraLocation, setPickingCameraLocation] = useState(false);
 	const [pickedAreaOverride, setPickedAreaOverride] = useState(null);
 	const [optimisticMapPlacements, setOptimisticMapPlacements] = useState({});
+	const [removedMapPlacementUndo, setRemovedMapPlacementUndo] = useState(null);
 	const cameraMapPlacements = useMemo(
 		() => buildCameraPlacementsMap(cameras, optimisticMapPlacements),
 		[cameras, optimisticMapPlacements],
@@ -484,8 +486,10 @@ export default function AreaListPage() {
 	}, [areas]);
 
 	// Unified Camera fetch & stats (Option 1 merge)
-	const fetchAllCameras = useCallback(async () => {
-		setCamerasLoading(true);
+	const fetchAllCameras = useCallback(async ({ silent = false } = {}) => {
+		if (!silent) {
+			setCamerasLoading(true);
+		}
 		setCamerasError(null);
 		try {
 			const list = await fetchAllPaginatedPages(
@@ -500,15 +504,36 @@ export default function AreaListPage() {
 			setCameras(Array.isArray(list) ? list : []);
 		} catch (err) {
 			console.error("Error fetching workspace cameras:", err);
-			setCamerasError(getErrorMessage(err));
+			if (!silent) {
+				setCamerasError(getErrorMessage(err));
+			}
 		} finally {
-			setCamerasLoading(false);
+			if (!silent) {
+				setCamerasLoading(false);
+			}
 		}
 	}, []);
 
 	useEffect(() => {
 		fetchAllCameras();
 	}, [fetchAllCameras]);
+
+	useEffect(() => {
+		const timer = setInterval(() => {
+			if (typeof document !== "undefined" && document.hidden) return;
+			fetchAllCameras({ silent: true });
+		}, 15000);
+		return () => clearInterval(timer);
+	}, [fetchAllCameras]);
+
+	const syncCameraStatusInState = useCallback((updatedCam) => {
+		setCameras((prev) => mergeCameraStatusUpdate(prev, updatedCam));
+	}, []);
+
+	const selectedCameraSummary = useMemo(
+		() => cameras.find((c) => c && c.id === selectedCameraId) || null,
+		[cameras, selectedCameraId],
+	);
 
 	const { statsByArea: cameraStatsByArea, countsByArea: derivedCameraCounts } =
 		useMemo(() => buildCameraStatsByArea(cameras), [cameras]);
@@ -700,19 +725,50 @@ export default function AreaListPage() {
 		async ({ lng, lat, building, floorOrder }) => {
 			if (!selectedCameraId || !isAdmin) return;
 			const targetCam = cameras.find((c) => c.id === selectedCameraId);
+			const areaInfo = targetCam ? extractCameraAreaInfo(targetCam, areaById) : null;
+			const matchedArea = areaInfo?.areaId ? areaById.get(areaInfo.areaId) : null;
+			const assignedBuilding = matchedArea?.building || areaInfo?.building || null;
+			const assignedFloor = matchedArea?.floor || areaInfo?.floor || null;
+			const assignedFloorOrder =
+				assignedBuilding && assignedFloor
+					? resolveFloorOrder(assignedBuilding, assignedFloor)
+					: null;
+
 			const resolvedBuilding =
+				assignedBuilding ||
 				building ||
 				(selectedBuilding !== "ALL" ? selectedBuilding : null) ||
-				targetCam?.building ||
 				null;
 			const resolvedOrder =
-				floorOrder != null
-					? floorOrder
-					: selectedFloor !== "ALL"
-						? resolveFloorOrder(resolvedBuilding, selectedFloor)
-						: targetCam?.floor
-							? resolveFloorOrder(resolvedBuilding, targetCam.floor)
+				assignedFloorOrder != null
+					? assignedFloorOrder
+					: floorOrder != null
+						? floorOrder
+						: selectedFloor !== "ALL"
+							? resolveFloorOrder(resolvedBuilding, selectedFloor)
 							: null;
+
+			if (
+				assignedBuilding &&
+				building &&
+				!matchesBuilding(building, assignedBuilding)
+			) {
+				toast.error(
+					`Camera thuộc ${assignedBuilding}${assignedFloor ? ` · ${assignedFloor}` : ""}. Không thể đặt ở tòa nhà khác.`,
+				);
+				return;
+			}
+			if (
+				assignedFloorOrder != null &&
+				floorOrder != null &&
+				Number(floorOrder) !== Number(assignedFloorOrder)
+			) {
+				toast.error(
+					`Camera thuộc ${assignedBuilding || ""}${assignedFloor ? ` · ${assignedFloor}` : ""}. Không thể đặt ở tầng khác.`,
+				);
+				return;
+			}
+
 			const optimistic = {
 				cameraId: selectedCameraId,
 				lng,
@@ -733,6 +789,9 @@ export default function AreaListPage() {
 					floorOrder: resolvedOrder,
 				});
 				syncCameraCoordinatesInState(selectedCameraId, updated);
+				setRemovedMapPlacementUndo((prev) =>
+					prev?.cameraId === selectedCameraId ? null : prev,
+				);
 				toast.success("Đã lưu vị trí camera trên bản đồ.");
 			} catch (err) {
 				setOptimisticMapPlacements((prev) => {
@@ -744,6 +803,7 @@ export default function AreaListPage() {
 			}
 		},
 		[
+			areaById,
 			cameras,
 			isAdmin,
 			selectedBuilding,
@@ -771,12 +831,24 @@ export default function AreaListPage() {
 	const handleCommitCameraLocation = useCallback(
 		async (cameraId, { lng, lat, building, floorOrder }) => {
 			if (!cameraId || !isAdmin) return;
+			const targetCam = cameras.find((c) => c.id === cameraId);
+			const areaInfo = targetCam ? extractCameraAreaInfo(targetCam, areaById) : null;
+			const matchedArea = areaInfo?.areaId ? areaById.get(areaInfo.areaId) : null;
+			const resolvedBuilding =
+				matchedArea?.building || areaInfo?.building || building || null;
+			const resolvedFloorOrder =
+				resolvedBuilding && (matchedArea?.floor || areaInfo?.floor)
+					? resolveFloorOrder(
+							resolvedBuilding,
+							matchedArea?.floor || areaInfo?.floor,
+						)
+					: floorOrder ?? null;
 			try {
 				const updated = await updateCameraMapLocation(cameraId, {
 					longitude: lng,
 					latitude: lat,
-					building: building ?? null,
-					floorOrder: floorOrder ?? null,
+					building: resolvedBuilding,
+					floorOrder: resolvedFloorOrder,
 				});
 				syncCameraCoordinatesInState(cameraId, updated);
 				toast.success("Đã cập nhật vị trí icon camera.");
@@ -789,17 +861,71 @@ export default function AreaListPage() {
 				toast.error(err?.message || "Không thể cập nhật vị trí camera.");
 			}
 		},
+		[areaById, cameras, isAdmin, syncCameraCoordinatesInState],
+	);
+
+	const handleRestoreCameraLocation = useCallback(
+		async (cameraId, previousPlacement) => {
+			if (!cameraId || !previousPlacement || !isAdmin) return;
+			setOptimisticMapPlacements((prev) => ({
+				...prev,
+				[cameraId]: { ...previousPlacement, cameraId },
+			}));
+			try {
+				const updated = await updateCameraMapLocation(cameraId, {
+					longitude: previousPlacement.lng,
+					latitude: previousPlacement.lat,
+					building: previousPlacement.building ?? null,
+					floorOrder: previousPlacement.floorOrder ?? null,
+				});
+				syncCameraCoordinatesInState(cameraId, updated);
+				setRemovedMapPlacementUndo((prev) =>
+					prev?.cameraId === cameraId ? null : prev,
+				);
+				toast.success("Đã khôi phục vị trí icon camera.");
+			} catch (err) {
+				setOptimisticMapPlacements((prev) => {
+					const next = { ...prev };
+					delete next[cameraId];
+					return next;
+				});
+				toast.error(err?.message || "Không thể khôi phục vị trí camera.");
+			}
+		},
 		[isAdmin, syncCameraCoordinatesInState],
 	);
 
 	const handleRemoveCameraLocation = useCallback(
 		async (cameraId) => {
 			if (!cameraId || !isAdmin) return;
+			const previousPlacement = cameraMapPlacements?.[cameraId] || null;
 			setOptimisticMapPlacements((prev) => ({ ...prev, [cameraId]: null }));
 			try {
 				const updated = await clearCameraMapLocation(cameraId);
 				syncCameraCoordinatesInState(cameraId, updated);
-				toast.success("Đã xóa vị trí icon camera khỏi bản đồ.");
+				setRemovedMapPlacementUndo(
+					previousPlacement ? { cameraId, placement: previousPlacement } : null,
+				);
+				toast.success(
+					"Đã xóa vị trí icon camera khỏi bản đồ.",
+					previousPlacement
+						? {
+								duration: 8000,
+								actionButtonStyle: {
+									background: "#15803d",
+									color: "#ffffff",
+									fontWeight: 600,
+									padding: "4px 10px",
+									borderRadius: "4px",
+								},
+								action: {
+									label: "Hoàn tác",
+									onClick: () =>
+										handleRestoreCameraLocation(cameraId, previousPlacement),
+								},
+							}
+						: undefined,
+				);
 			} catch (err) {
 				setOptimisticMapPlacements((prev) => {
 					const next = { ...prev };
@@ -809,7 +935,12 @@ export default function AreaListPage() {
 				toast.error(err?.message || "Không thể xóa vị trí camera.");
 			}
 		},
-		[isAdmin, syncCameraCoordinatesInState],
+		[
+			cameraMapPlacements,
+			handleRestoreCameraLocation,
+			isAdmin,
+			syncCameraCoordinatesInState,
+		],
 	);
 
 	const handleSelectCameraPin = useCallback(
@@ -1398,6 +1529,7 @@ export default function AreaListPage() {
 							pickingCameraLocation={pickingCameraLocation}
 							onCancelPickCameraLocation={() => setPickingCameraLocation(false)}
 							onCameraLocationPicked={handleCameraLocationPicked}
+							onCameraPlacementRejected={(msg) => toast.error(msg)}
 							onSelectCameraPin={handleSelectCameraPin}
 							onUpdateCameraMapLocation={handleUpdateCameraLocation}
 							onCommitCameraLocation={handleCommitCameraLocation}
@@ -1408,7 +1540,10 @@ export default function AreaListPage() {
 										initialTab={selectedCameraInitialTab}
 										availableAreas={areas}
 										isAdmin={isAdmin}
+										liveOperationalStatus={selectedCameraSummary?.operationalStatus}
+										liveStatus={selectedCameraSummary?.status}
 										onClose={handleCloseCameraInspector}
+										onCameraLoaded={syncCameraStatusInState}
 										onCameraMutated={fetchAllCameras}
 										onCameraDeleted={() => {
 											handleCloseCameraInspector();
@@ -1428,11 +1563,41 @@ export default function AreaListPage() {
 										isPickingLocationOnMap={pickingCameraLocation}
 										onRequestPickLocationOnMap={() => {
 											setPickingCameraArea(false);
-											setPickingCameraLocation((v) => !v);
+											setPickingCameraLocation((prev) => {
+												const next = !prev;
+												if (next && selectedCameraSummary) {
+													const areaInfo = extractCameraAreaInfo(
+														selectedCameraSummary,
+														areaById,
+													);
+													const matchedArea = areaInfo?.areaId
+														? areaById.get(areaInfo.areaId)
+														: null;
+													const bldg =
+														matchedArea?.building || areaInfo?.building;
+													const fl = matchedArea?.floor || areaInfo?.floor;
+													if (bldg) setSelectedBuilding(bldg);
+													if (fl) setSelectedFloor(fl);
+													if (areaInfo?.areaId) setSelectedAreaId(areaInfo.areaId);
+												}
+												return next;
+											});
 										}}
 										onRemoveMapLocation={() =>
 											handleRemoveCameraLocation(selectedCameraId)
 										}
+										canUndoRemovedMapLocation={Boolean(
+											removedMapPlacementUndo &&
+												removedMapPlacementUndo.cameraId === selectedCameraId,
+										)}
+										onUndoRemoveMapLocation={() => {
+											if (removedMapPlacementUndo?.placement) {
+												handleRestoreCameraLocation(
+													removedMapPlacementUndo.cameraId,
+													removedMapPlacementUndo.placement,
+												);
+											}
+										}}
 									/>
 								) : null
 							}
@@ -1455,7 +1620,7 @@ export default function AreaListPage() {
 								setIsCreatingOnMap(false);
 								await fetchData(newArea.id);
 							}}
-							hideRail={!selectedCameraId}
+							hideRail={!isAdmin || !selectedCameraId}
 							isLeftSidebarCollapsed={isLeftSidebarCollapsed}
 							onToggleLeftSidebar={() =>
 								setIsLeftSidebarCollapsed((prev) => !prev)

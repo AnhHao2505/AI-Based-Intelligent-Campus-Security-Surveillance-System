@@ -5,6 +5,7 @@ import com.fa26se040.icss.dto.camera.TestConnectionResponse;
 import com.fa26se040.icss.dto.edge.EdgeRpcReplyDto;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
+import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
@@ -38,9 +39,6 @@ public class CameraConnectionService {
     @Autowired(required = false)
     private com.fa26se040.icss.util.AesEncryptionUtil aesEncryptionUtil;
 
-    @Value("${ai.service.url:http://localhost:8000}")
-    private String aiServiceUrl;
-
     @Value("${camera.rtsp.timeout-ms:10000}")
     private int defaultTimeoutMs;
 
@@ -52,7 +50,11 @@ public class CameraConnectionService {
     @Transactional(readOnly = true)
     public TestConnectionResponse testConnection(UUID cameraId, CameraStreamConfigRequest customReq) {
         Camera camera = cameraRepository.findById(cameraId)
+                .filter(c -> c.getDeletedAt() == null)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+        if (camera.getStatus() == CameraStatus.DECOMMISSIONED) {
+            throw new CameraException(CameraErrorCode.ERR_STREAM_003);
+        }
 
         CameraStreamConfiguration config = streamConfigRepo.findByCameraId(cameraId).orElse(null);
 

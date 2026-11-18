@@ -2,7 +2,6 @@ package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.config.AiServiceRestTemplate;
 import com.fa26se040.icss.dto.FaceDataResponseDto;
-import com.fa26se040.icss.dto.camera.CameraSnapshotResponse;
 import com.fa26se040.icss.dto.camera.CameraStreamLifecycleResponse;
 import com.fa26se040.icss.dto.camera.TestConnectionResponse;
 import com.fa26se040.icss.dto.edge.EdgeRpcReplyDto;
@@ -149,56 +148,13 @@ class CloudEdgeServiceRoutingTest {
     }
 
     @Test
-    @DisplayName("2. Happy Path (Cloud-Edge Snapshot via MQTT RPC + MinIO): Trích xuất snapshot qua NAT bằng MQTT RPC và tải ảnh từ MinIO")
-    void captureSnapshot_inCloudEdgeMode_usesMqttRpcAndMinio() throws Exception {
-        CameraSnapshotService snapshotService = new CameraSnapshotService(
-                cameraRepository, streamConfigRepo, cameraService, restTemplate
-        );
-        ReflectionTestUtils.setField(snapshotService, "edgeMqttControlService", edgeMqttControlService);
-        ReflectionTestUtils.setField(snapshotService, "minioStorageService", minioStorageService);
-        ReflectionTestUtils.setField(snapshotService, "aiServiceUrl", "");
-        ReflectionTestUtils.setField(snapshotService, "defaultTimeoutMs", 5000);
-
-        when(edgeMqttControlService.isConnected()).thenReturn(true);
-        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
-        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
-        when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://admin:pass@192.168.1.105:554/cam/realmonitor");
-
-        EdgeRpcReplyDto reply = EdgeRpcReplyDto.builder()
-                .correlationId("corr-1")
-                .success(true)
-                .latencyMs(120L)
-                .data(Map.of(
-                        "bucket", "camera-snapshots",
-                        "object_key", "CAM-001/snap.jpg",
-                        "width", 854,
-                        "height", 480
-                ))
-                .build();
-        when(edgeMqttControlService.sendRpcRequest(eq("CAPTURE_SNAPSHOT"), eq("CAM-001"), anyMap(), anyLong()))
-                .thenReturn(reply);
-        when(minioStorageService.getObject("camera-snapshots", "CAM-001/snap.jpg"))
-                .thenReturn(new ByteArrayInputStream("fake-jpeg-bytes".getBytes(StandardCharsets.UTF_8)));
-
-        CameraSnapshotResponse response = snapshotService.captureSnapshot(cameraId);
-
-        assertTrue(response.isSuccess());
-        assertTrue(response.getSnapshotBase64().startsWith("data:image/jpeg;base64,"));
-        assertEquals(854, response.getWidth());
-        assertEquals(480, response.getHeight());
-        assertEquals(120L, response.getLatencyMs());
-        verify(restTemplate, never()).postForObject(anyString(), any(), any());
-    }
-
-    @Test
-    @DisplayName("3. Boundary / Domain Error (Cloud-Edge RTSP Test): Khi camera LAN từ chối kết nối tại Edge, trả đúng mã lỗi từ Edge mà không gọi socket trực tiếp từ Cloud")
+    @DisplayName("2. Boundary / Domain Error (Cloud-Edge RTSP Test): Khi camera LAN từ chối kết nối tại Edge, trả đúng mã lỗi từ Edge mà không gọi socket trực tiếp từ Cloud")
     void testConnection_inCloudEdgeMode_delegatesToEdgeAgentOverMqttRpc() {
         CameraConnectionService connService = new CameraConnectionService(
                 cameraRepository, streamConfigRepo, rtspHandshakeChecker
         );
         ReflectionTestUtils.setField(connService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(connService, "edgeStatusService", edgeStatusService);
-        ReflectionTestUtils.setField(connService, "aiServiceUrl", "");
         ReflectionTestUtils.setField(connService, "defaultTimeoutMs", 5000);
 
         when(edgeMqttControlService.isConnected()).thenReturn(true);
@@ -224,34 +180,7 @@ class CloudEdgeServiceRoutingTest {
     }
 
     @Test
-    @DisplayName("4. Exception Error: Khi Edge trả về lỗi trích xuất snapshot qua MQTT RPC, ném đúng CameraException(ERR_SNAPSHOT_001)")
-    void captureSnapshot_whenEdgeReturnsFailure_throwsErrSnapshot001() {
-        CameraSnapshotService snapshotService = new CameraSnapshotService(
-                cameraRepository, streamConfigRepo, cameraService, restTemplate
-        );
-        ReflectionTestUtils.setField(snapshotService, "edgeMqttControlService", edgeMqttControlService);
-        ReflectionTestUtils.setField(snapshotService, "aiServiceUrl", "");
-        ReflectionTestUtils.setField(snapshotService, "defaultTimeoutMs", 5000);
-
-        when(edgeMqttControlService.isConnected()).thenReturn(true);
-        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
-        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
-        when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.105:554/live");
-
-        EdgeRpcReplyDto failedReply = EdgeRpcReplyDto.builder()
-                .correlationId("corr-3")
-                .success(false)
-                .errorMessage("Cannot open RTSP stream")
-                .build();
-        when(edgeMqttControlService.sendRpcRequest(eq("CAPTURE_SNAPSHOT"), eq("CAM-001"), anyMap(), anyLong()))
-                .thenReturn(failedReply);
-
-        CameraException ex = assertThrows(CameraException.class, () -> snapshotService.captureSnapshot(cameraId));
-        assertEquals(CameraErrorCode.ERR_SNAPSHOT_001, ex.getErrorCode());
-    }
-
-    @Test
-    @DisplayName("5. Happy Path (Cloud-Edge Face Registration via MinIO Staging + MQTT RPC): Đăng ký khuôn mặt qua NAT không cần gọi HTTP vào Edge và tự dọn staging object")
+    @DisplayName("3. Happy Path (Cloud-Edge Face Registration via MinIO Staging + MQTT RPC): Đăng ký khuôn mặt qua NAT không cần gọi HTTP vào Edge và tự dọn staging object")
     void registerFace_inCloudEdgeMode_usesMinioStagingAndMqttRpc() {
         FaceDataService faceDataService = new FaceDataService(faceDataRepository, userRepository, minioStorageService, restTemplate);
         ReflectionTestUtils.setField(faceDataService, "edgeMqttControlService", edgeMqttControlService);

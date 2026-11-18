@@ -35,10 +35,15 @@ RUNTIME_FIELDS: Dict[str, Tuple[str, Optional[Tuple[str, str]]]] = {
     "suspicious_motion_min_duration": ("SUSPICIOUS_MOTION_MIN_DURATION", ("pipeline", "suspicious_motion_min_duration")),
     # V126: thời hạn lưu trữ video ghi hình (giờ)
     "recording_retention_hours": ("RECORDING_RETENTION_HOURS", None),
-    # V127: thời gian giữ thêm (hold) khi đang thấy mặt nhưng chưa khớp, trước khi chốt cảnh báo người lạ
+    # V127 (origin/main): thời gian giữ thêm (hold) khi đang thấy mặt nhưng chưa khớp, trước khi chốt cảnh báo người lạ
     "identity_hold_seconds": ("ACCESS_RESOLUTION_HOLD_SECONDS", ("engine", "identity_hold_seconds")),
-    # V128: khoảng cách tối thiểu giữa 2 cảnh báo người lạ trên cùng một camera
+    # V128 (origin/main): khoảng cách tối thiểu giữa 2 cảnh báo người lạ trên cùng một camera
     "camera_unknown_min_interval": ("CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS", ("engine", "camera_unknown_min_interval")),
+    # V130: độ trễ bắt đầu và kết thúc ghi hình sự cố an ninh
+    "incident_start_delay_seconds": ("INCIDENT_RECORDING_START_DELAY_SECONDS", ("pipeline", "incident_start_delay_seconds")),
+    "incident_no_detection_timeout_seconds": ("INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS", ("pipeline", "incident_no_detection_timeout_seconds")),
+    # V131: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
+    "recording_segment_seconds": ("RECORDING_SEGMENT_SECONDS", None),
 }
 
 
@@ -58,7 +63,12 @@ def parse_runtime_config(data: Dict[str, Any]) -> Tuple[Dict[str, float], List[s
         except (TypeError, ValueError):
             errors.append(f"{key} không hợp lệ: {raw}")
             continue
-        if not math.isfinite(val) or val <= 0:
+        # Cho phép các tham số độ trễ sự cố bằng 0 (ghi hình ngay lập tức hoặc ngắt ngay khi hết sự cố)
+        if key in ("incident_start_delay_seconds", "incident_no_detection_timeout_seconds"):
+            if not math.isfinite(val) or val < 0:
+                errors.append(f"{key}={raw} phải là số không âm (>= 0)")
+                continue
+        elif not math.isfinite(val) or val <= 0:
             errors.append(f"{key}={raw} phải là số dương")
             continue
         if key == "face_match_threshold" and val > 1.0:

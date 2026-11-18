@@ -182,6 +182,77 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     )
     Page<com.fa26se040.icss.dto.user.ImportBatchSummaryResponse> findImportBatchSummaries(Pageable pageable);
 
+    /** Tóm tắt lô cho ô lọc ở màn Cấp truy cập: chỉ lô còn ít nhất một người hoạt động, chưa xoá. */
+    interface ImportBatchActiveRow {
+        UUID getImportBatchId();
+        java.time.OffsetDateTime getCreatedAt();
+        Long getActiveCount();
+    }
+
+    @Query("""
+            SELECT u.importBatchId AS importBatchId,
+                   MIN(u.createdAt) AS createdAt,
+                   COUNT(CASE WHEN u.deletedAt IS NULL AND u.isActive = true THEN 1 ELSE null END) AS activeCount
+            FROM User u
+            WHERE u.importBatchId IS NOT NULL
+            GROUP BY u.importBatchId
+            HAVING COUNT(CASE WHEN u.deletedAt IS NULL AND u.isActive = true THEN 1 ELSE null END) > 0
+            ORDER BY MIN(u.createdAt) DESC
+            """)
+    List<ImportBatchActiveRow> findActiveImportBatchRows();
+
+    /** Lọc theo lô import ở màn Cấp truy cập: cùng điều kiện searchActiveUsers, thêm lô bắt buộc và cấp tuỳ chọn. */
+    @Query(
+        value = """
+            SELECT u FROM User u
+            WHERE u.deletedAt IS NULL
+              AND u.isActive = true
+              AND u.importBatchId = :importBatchId
+              AND (:accessLevel IS NULL OR u.accessLevel = :accessLevel)
+              AND (CAST(:q AS string) IS NULL OR :q = ''
+                   OR LOWER(u.userCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')))
+            """,
+        countQuery = """
+            SELECT COUNT(u) FROM User u
+            WHERE u.deletedAt IS NULL
+              AND u.isActive = true
+              AND u.importBatchId = :importBatchId
+              AND (:accessLevel IS NULL OR u.accessLevel = :accessLevel)
+              AND (CAST(:q AS string) IS NULL OR :q = ''
+                   OR LOWER(u.userCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')))
+            """
+    )
+    Page<User> searchActiveUsersByImportBatch(@Param("q") String q, @Param("accessLevel") Integer accessLevel,
+                                              @Param("importBatchId") UUID importBatchId, Pageable pageable);
+
+    /**
+     * Chọn tất cả kết quả lọc (màn Cấp truy cập): người hoạt động, chưa xoá, thuộc role FM được đổi cấp, trừ người gọi.
+     * filterByBatch = false thì bỏ điều kiện lô (không dùng ":importBatchId IS NULL" vì PostgreSQL không suy ra kiểu uuid).
+     */
+    String ACCESS_LEVEL_ASSIGNABLE_WHERE = """
+            WHERE u.deletedAt IS NULL
+              AND u.isActive = true
+              AND u.role IN :roles
+              AND u.id <> :excludeUserId
+              AND (:accessLevel IS NULL OR u.accessLevel = :accessLevel)
+              AND (:filterByBatch = false OR u.importBatchId = :importBatchId)
+              AND (CAST(:q AS string) IS NULL OR :q = ''
+                   OR LOWER(u.userCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
+                   OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')))
+            """;
+
+    @Query("SELECT COUNT(u) FROM User u " + ACCESS_LEVEL_ASSIGNABLE_WHERE)
+    long countAccessLevelAssignable(@Param("q") String q, @Param("accessLevel") Integer accessLevel,
+                                    @Param("filterByBatch") boolean filterByBatch, @Param("importBatchId") UUID importBatchId,
+                                    @Param("roles") Collection<Role> roles, @Param("excludeUserId") UUID excludeUserId);
+
+    @Query("SELECT u.id FROM User u " + ACCESS_LEVEL_ASSIGNABLE_WHERE + " ORDER BY u.userCode ASC")
+    List<UUID> findAccessLevelAssignableIds(@Param("q") String q, @Param("accessLevel") Integer accessLevel,
+                                            @Param("filterByBatch") boolean filterByBatch, @Param("importBatchId") UUID importBatchId,
+                                            @Param("roles") Collection<Role> roles, @Param("excludeUserId") UUID excludeUserId);
+
     boolean existsByImportBatchId(UUID importBatchId);
 
     java.util.List<User> findByImportBatchIdOrderByUserCodeAsc(UUID importBatchId);

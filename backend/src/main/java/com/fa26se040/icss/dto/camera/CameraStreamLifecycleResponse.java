@@ -21,6 +21,7 @@ public class CameraStreamLifecycleResponse {
     private UUID cameraId;
     private String cameraCode;
     private OperationalStatus operationalStatus;
+    private boolean aiWorkerRunning;
     private String message;
     private OffsetDateTime timestamp;
 }

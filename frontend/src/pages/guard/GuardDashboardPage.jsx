@@ -22,6 +22,7 @@ import {
 	Camera as CameraIcon,
 	X,
 	Film,
+	CirclePlay,
 	Download,
 	ExternalLink,
 	RefreshCw,
@@ -30,6 +31,7 @@ import {
 	Layers,
 	Filter,
 	ChevronDown,
+	VideoOff,
 } from "lucide-react";
 import { fetchDiskRecordings, withRecordingStreamToken } from "../../services/recordingService";
 import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
@@ -549,16 +551,21 @@ export function SecuritySurveillancePage() {
 		setTimeout(() => setStatusNotification(null), 4500);
 	};
 
-	// Tải danh sách camera đang hoạt động từ Backend CSDL
+	// Tải danh sách camera đang hoạt động từ Backend CSDL và đồng bộ định kỳ mỗi 15 giây
 	useEffect(() => {
-		async function loadActiveCameras() {
-			setCamerasLoading(true);
+		let isMounted = true;
+
+		async function loadActiveCameras(silent = false) {
+			if (!silent) {
+				setCamerasLoading(true);
+			}
 			try {
 				const response = await fetchCameras({
 					page: 0,
 					size: 50,
 					status: "ACTIVE",
 				});
+				if (!isMounted) return;
 				const list = (response?.content || []).map((cam) => ({
 					id: cam.id,
 					code: (cam.cameraCode || "")
@@ -568,7 +575,7 @@ export function SecuritySurveillancePage() {
 					cameraCode: cam.cameraCode,
 					name: cam.name,
 					zone: "Khuôn viên trường",
-					status: cam.operationalStatus || "ONLINE",
+					status: cam.operationalStatus || "OFFLINE",
 				}));
 
 				// Sắp xếp tự nhiên tăng dần theo mã camera (CAM-001, CAM-002, CAM-003, ...)
@@ -579,7 +586,17 @@ export function SecuritySurveillancePage() {
 					}),
 				);
 
-				setCameraList(list);
+				setCameraList((prev) => {
+					const unchanged =
+						prev.length === list.length &&
+						prev.every(
+							(c, idx) =>
+								c.id === list[idx].id &&
+								c.status === list[idx].status &&
+								c.name === list[idx].name,
+						);
+					return unchanged ? prev : list;
+				});
 				if (list.length > 0) {
 					const firstOnline = list.find((c) => c.status === "ONLINE") || list[0];
 					setSelectedCamera((prev) =>
@@ -589,11 +606,26 @@ export function SecuritySurveillancePage() {
 			} catch (err) {
 				console.error("Không thể tải danh sách camera:", err);
 			} finally {
-				setCamerasLoading(false);
+				if (!silent && isMounted) {
+					setCamerasLoading(false);
+				}
 			}
 		}
 
-		loadActiveCameras();
+		loadActiveCameras(false);
+		const pollId = setInterval(() => loadActiveCameras(true), 15000);
+		const handleVisibility = () => {
+			if (document.visibilityState === "visible") {
+				loadActiveCameras(true);
+			}
+		};
+		document.addEventListener("visibilitychange", handleVisibility);
+
+		return () => {
+			isMounted = false;
+			clearInterval(pollId);
+			document.removeEventListener("visibilitychange", handleVisibility);
+		};
 	}, []);
 
 	// Tính toán tóm tắt sự cố & mức độ ưu tiên của từng camera dựa trên activeAlerts PENDING
@@ -1030,9 +1062,9 @@ export function SecuritySurveillancePage() {
 
 		try {
 			await acknowledgeIncident(strId, camCode);
-			triggerNotification("Đã ghi nhận sự cố. Video bằng chứng đã được lưu vào thư mục evidence!");
+			triggerNotification("Đã ghi nhận sự cố");
 		} catch (err) {
-			console.warn("Lỗi khi kết thúc ghi hình sự cố:", err);
+			console.warn("Lỗi khi ghi nhận sự cố:", err);
 			triggerNotification("Đã ghi nhận sự cố");
 		}
 	};
@@ -1057,9 +1089,9 @@ export function SecuritySurveillancePage() {
 
 		try {
 			await acknowledgeAllIncidents();
-			triggerNotification("Đã ghi nhận tất cả sự cố. Toàn bộ video bằng chứng đã được lưu vào thư mục evidence!");
+			triggerNotification("Đã ghi nhận tất cả sự cố");
 		} catch (err) {
-			console.warn("Lỗi khi kết thúc toàn bộ ghi hình sự cố:", err);
+			console.warn("Lỗi khi ghi nhận tất cả sự cố:", err);
 			triggerNotification("Đã ghi nhận tất cả sự cố");
 		}
 	};
@@ -1107,32 +1139,65 @@ export function SecuritySurveillancePage() {
 			const alertTime = alert.detectedAt
 				? new Date(alert.detectedAt).getTime()
 				: (alert.rawTime || Date.now());
-			const incidentVideos = list.filter(
-				(v) =>
+			// Cửa sổ thời gian hợp lệ:
+			// - Video phải bắt đầu tối đa 30 giây TRƯỚC alert (buffer nhỏ cho độ trễ hệ thống)
+			// - Video phải bắt đầu tối đa 10 phút SAU alert (ghi hình bắt đầu sau 2s, cộng thêm buffer)
+			// Điều này đảm bảo không nhận nhầm video từ sự cố khác cùng camera
+			const BEFORE_ALERT_BUFFER_MS = 30 * 1000;       // 30 giây trước alert
+			const AFTER_ALERT_WINDOW_MS  = 10 * 60 * 1000;  // 10 phút sau alert
+
+			// Ưu tiên 1: Video sự cố (SECURITY_EVENT hoặc tên file bắt đầu "incident")
+			// bắt đầu trong cửa sổ [-30s, +10min] so với thời điểm alert
+			const incidentVideos = list.filter((v) => {
+				const isSecurityEvent =
 					v.eventType === "SECURITY_EVENT" ||
-					(v.filename && v.filename.toLowerCase().startsWith("incident")),
-			);
+					(v.filename && v.filename.toLowerCase().startsWith("incident"));
+				if (!isSecurityEvent) return false;
+				const videoTime = new Date(v.startTime).getTime();
+				// Video phải bắt đầu sau (alertTime - 30s) và trước (alertTime + 10min)
+				return (
+					videoTime >= alertTime - BEFORE_ALERT_BUFFER_MS &&
+					videoTime <= alertTime + AFTER_ALERT_WINDOW_MS
+				);
+			});
+
+			// Ưu tiên 2: Fallback — bất kỳ bản ghi nào trong cửa sổ [-30s, +10min]
+			const nearbyVideos = list.filter((v) => {
+				const videoTime = new Date(v.startTime).getTime();
+				return (
+					videoTime >= alertTime - BEFORE_ALERT_BUFFER_MS &&
+					videoTime <= alertTime + AFTER_ALERT_WINDOW_MS
+				);
+			});
 
 			let bestMatch = null;
 			if (incidentVideos.length > 0) {
+				// Sắp xếp theo khoảng cách thời gian nhỏ nhất so với alert
 				incidentVideos.sort((a, b) => {
 					const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
 					const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
 					return diffA - diffB;
 				});
 				bestMatch = incidentVideos[0];
-			} else {
-				// Fallback: Bản ghi định kỳ gần thời điểm sự cố nhất
-				list.sort((a, b) => {
+			} else if (nearbyVideos.length > 0) {
+				// Fallback: Bản ghi định kỳ gần thời điểm sự cố nhất (trong ±1 giờ)
+				nearbyVideos.sort((a, b) => {
 					const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
 					const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
 					return diffA - diffB;
 				});
-				bestMatch = list[0];
+				bestMatch = nearbyVideos[0];
+			} else {
+				// Không tìm thấy video nào trong cửa sổ thời gian hợp lệ
+				bestMatch = null;
 			}
 
 			if (!bestMatch || !bestMatch.videoUrl) {
-				setIncidentVideoError("Không tìm thấy tệp video sự cố phù hợp.");
+				// Không có video nào trong cửa sổ [-30s, +10min] — tránh hiển thị video sai sự cố
+				setIncidentVideoError(
+					"Không tìm thấy video sự cố trong vòng 10 phút sau thời điểm phát hiện. " +
+					"Video có thể chưa được lưu hoặc đã bị xoá khỏi hệ thống.",
+				);
 				return;
 			}
 
@@ -1886,7 +1951,7 @@ export function SecuritySurveillancePage() {
 															onClick={() => handleOpenIncidentMedia(alert, "video")}
 															title="Xem video hiện trường sự cố ngay trong tab này"
 														>
-															<Film size={12} />
+															<CirclePlay size={12} />
 														</button>
 													</div>
 
@@ -2039,29 +2104,11 @@ export function SecuritySurveillancePage() {
 										</div>
 									) : incidentVideoError ? (
 										<div className="soc-video-empty-box">
-											<AlertTriangle size={36} color="#ef4444" />
-											<p className="soc-video-error-text">{incidentVideoError}</p>
-											<div className="soc-video-error-actions">
-												<button
-													type="button"
-													className="btn-soc-retry-video"
-													onClick={() => loadIncidentVideo(evidenceModalAlert)}
-												>
-													<RefreshCw size={13} /> Thử tải lại
-												</button>
-												<button
-													type="button"
-													className="btn-soc-open-archive"
-													onClick={() =>
-														window.open(
-															`/recordings?cameraId=${evidenceModalAlert.camCodeClean || evidenceModalAlert.cameraCode}`,
-															"_blank",
-														)
-													}
-												>
-													<ExternalLink size={13} /> Mở Kho lưu trữ ghi hình
-												</button>
-											</div>
+											<VideoOff size={48} color="#94a3b8" strokeWidth={1.5} />
+											<p className="soc-video-unavailable-title">Video không khả dụng</p>
+											<p className="soc-video-unavailable-sub">
+												Không tìm thấy video sự cố tương ứng với thời điểm phát hiện.
+											</p>
 										</div>
 									) : incidentVideoData?.signedUrl ? (
 										<div className="soc-video-player-wrapper">

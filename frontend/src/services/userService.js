@@ -169,17 +169,42 @@ export async function restoreImportBatch(batchId) {
 
 /**
  * Tìm kiếm người dùng theo từ khoá (FACILITY_MANAGER, ADMIN)
- * GET /api/users/search?q=&page=&size=&accessLevel=
+ * GET /api/users/search?q=&page=&size=&accessLevel=&importBatchId=
  * @param {number} [accessLevel] - BR-AL-28: lọc theo cấp hiện tại (bỏ trống = mọi cấp)
+ * @param {string} [importBatchId] - lọc theo lô import (bỏ trống = mọi lô)
  */
-export async function searchUsers(q, page = 0, size = 20, accessLevel) {
+export async function searchUsers(q, page = 0, size = 20, accessLevel, importBatchId) {
   const query = new URLSearchParams({
     page: String(page),
     size: String(size),
   });
   if (q && q.trim()) query.append('q', q.trim());
   if (accessLevel) query.append('accessLevel', String(accessLevel));
+  if (importBatchId) query.append('importBatchId', importBatchId);
   return apiGet(`/api/users/search?${query.toString()}`);
+}
+
+/**
+ * Danh sách lô import cho ô lọc ở màn Cấp truy cập (FACILITY_MANAGER, ADMIN) — không có tên / email người trong lô
+ * GET /api/users/search/import-batches
+ * @returns {Array<{importBatchId, createdAt, activeCount, flow, fileName}>} flow: NORMAL | STAFF | null
+ */
+export async function getImportBatchOptions() {
+  return apiGet('/api/users/search/import-batches');
+}
+
+/**
+ * Id mọi người FM được đổi cấp theo bộ lọc hiện tại (FACILITY_MANAGER) — vượt giới hạn mỗi lần thì backend trả 400
+ * GET /api/users/search/ids?q=&accessLevel=&importBatchId=
+ * @returns {string[]}
+ */
+export async function getAccessLevelFilterIds(q, accessLevel, importBatchId) {
+  const query = new URLSearchParams();
+  if (q && q.trim()) query.append('q', q.trim());
+  if (accessLevel) query.append('accessLevel', String(accessLevel));
+  if (importBatchId) query.append('importBatchId', importBatchId);
+  const qs = query.toString();
+  return apiGet(`/api/users/search/ids${qs ? `?${qs}` : ''}`);
 }
 
 /**

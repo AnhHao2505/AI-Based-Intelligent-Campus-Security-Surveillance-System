@@ -190,6 +190,28 @@ class CameraServiceTest {
     }
 
     @Test
+    @DisplayName("UpsertStreamConfig: Throws ERR_STREAM_004 when camera is ONLINE to prevent hot-reload stream breakage")
+    void testUpsertStreamConfig_rejectedWhenCameraIsOnline() {
+        testCamera.setOperationalStatus(OperationalStatus.ONLINE);
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+
+        CameraStreamConfigRequest req = CameraStreamConfigRequest.builder()
+                .host("192.168.1.50")
+                .port(554)
+                .username("admin")
+                .password("Secret123")
+                .mainStreamPath("/live/ch0")
+                .build();
+
+        CameraException ex = assertThrows(CameraException.class, () ->
+                cameraService.upsertStreamConfig(testCameraId, req));
+        assertEquals(CameraErrorCode.ERR_STREAM_004, ex.getErrorCode());
+
+        verify(cameraStreamConfigurationRepository, never()).save(any());
+        verify(mediaMtxService, never()).syncCameraPath(any(), any());
+    }
+
+    @Test
     @DisplayName("DeleteCamera: happy path should soft-delete, keep the original area, and clean MediaMTX path")
     void testDeleteCamera_happyPath_keepsAreaAndCleansGateway() {
         when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
@@ -299,7 +321,7 @@ class CameraServiceTest {
 
         when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Map.of("cam-001", false));
-        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
 
         cameraService.syncLiveOperationalStatuses();
 
@@ -316,7 +338,7 @@ class CameraServiceTest {
 
         when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Map.of("cam-001", false));
-        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
 
         cameraService.syncLiveOperationalStatuses();
 
@@ -333,11 +355,137 @@ class CameraServiceTest {
 
         when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
         when(mediaMtxService.getLivePathStatuses()).thenReturn(Collections.emptyMap());
-        when(cameraRepository.findAll()).thenReturn(List.of(testCamera));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
 
         cameraService.syncLiveOperationalStatuses();
 
         assertEquals(OperationalStatus.OFFLINE, testCamera.getOperationalStatus());
         verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+    }
+
+    @Test
+    @DisplayName("F-03: Camera đã xóa mềm (deletedAt != null) bị chặn ở getCameraDetail, updateCamera, decommissionCamera")
+    void softDeletedCamera_isRejectedAcrossDetailUpdateDecommission() {
+        testCamera.setDeletedAt(java.time.OffsetDateTime.now().minusMinutes(5));
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+
+        CameraException exDetail = assertThrows(CameraException.class, () -> cameraService.getCameraDetail(testCameraId));
+        assertEquals(CameraErrorCode.ERR_CAM_002, exDetail.getErrorCode());
+
+        com.fa26se040.icss.dto.camera.UpdateCameraRequest updateReq =
+                com.fa26se040.icss.dto.camera.UpdateCameraRequest.builder().name("Updated").build();
+        CameraException exUpdate = assertThrows(CameraException.class, () -> cameraService.updateCamera(testCameraId, updateReq));
+        assertEquals(CameraErrorCode.ERR_CAM_002, exUpdate.getErrorCode());
+
+        CameraException exDecomm = assertThrows(CameraException.class, () -> cameraService.decommissionCamera(testCameraId));
+        assertEquals(CameraErrorCode.ERR_CAM_002, exDecomm.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("F-03: Camera DECOMMISSIONED bị chặn ở updateCamera với ERR_STREAM_003")
+    void decommissionedCamera_isRejectedOnUpdate() {
+        testCamera.setStatus(CameraStatus.DECOMMISSIONED);
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+
+        com.fa26se040.icss.dto.camera.UpdateCameraRequest updateReq =
+                com.fa26se040.icss.dto.camera.UpdateCameraRequest.builder().name("Updated").build();
+        CameraException ex = assertThrows(CameraException.class, () -> cameraService.updateCamera(testCameraId, updateReq));
+        assertEquals(CameraErrorCode.ERR_STREAM_003, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("F-04: Camera ONLINE + MediaMTX ready nhưng AI Worker chưa chạy -> tự động retry /api/v1/stream/start")
+    void syncLiveOperationalStatuses_onlineCameraWithStoppedAiWorker_retriesAiWorkerStart() {
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraService, "aiServiceUrl", "http://localhost:8000");
+        testCamera.setStatus(CameraStatus.ACTIVE);
+        testCamera.setOperationalStatus(OperationalStatus.ONLINE);
+
+        when(mediaMtxService.formatPathName("CAM-001")).thenReturn("cam-001");
+        when(mediaMtxService.getLivePathStatuses()).thenReturn(Map.of("cam-001", true));
+        when(mediaMtxService.getGatewayRtspUrl("CAM-001")).thenReturn("rtsp://mediamtx:8554/cam-001");
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-001")).thenReturn(Optional.of(testCamera));
+        when(restTemplate.getForObject("http://localhost:8000/api/v1/stream/status?camera_code=CAM-001", Map.class))
+                .thenReturn(Map.of("is_running", false));
+
+        cameraService.syncLiveOperationalStatuses();
+
+        verify(restTemplate).postForObject(
+                eq("http://localhost:8000/api/v1/stream/start"),
+                argThat((Map<String, Object> body) -> "CAM-001".equals(body.get("camera_code"))),
+                eq(Map.class)
+        );
+    }
+
+    @Test
+    @DisplayName("F-04: Cloud-Edge mode (Edge ONLINE) đọc trạng thái từ EdgeStatusService, không lật sai về OFFLINE khi MediaMTX local rỗng")
+    void syncLiveOperationalStatuses_cloudEdgeOnline_usesEdgeHeartbeatWithoutFlippingOffline() {
+        EdgeMqttControlService mockMqtt = mock(EdgeMqttControlService.class);
+        EdgeStatusService mockEdgeStatus = mock(EdgeStatusService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraService, "edgeMqttControlService", mockMqtt);
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraService, "edgeStatusService", mockEdgeStatus);
+
+        testCamera.setStatus(CameraStatus.ACTIVE);
+        testCamera.setOperationalStatus(OperationalStatus.ONLINE);
+        testCamera.setUpdatedAt(java.time.OffsetDateTime.now().minusMinutes(5));
+
+        when(mockMqtt.isConnected()).thenReturn(true);
+        when(mockEdgeStatus.hasActiveOnlineEdge()).thenReturn(true);
+        when(mockEdgeStatus.getOnlineEdgeCameraStatuses()).thenReturn(Map.of("CAM-001", true));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
+
+        cameraService.syncLiveOperationalStatuses();
+
+        assertEquals(OperationalStatus.ONLINE, testCamera.getOperationalStatus());
+        verify(mediaMtxService, never()).getLivePathStatuses();
+        verify(cameraRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("F-04: Cloud-Edge mode đánh OFFLINE khi worker trên Edge ngừng chạy quá cửa sổ grace")
+    void syncLiveOperationalStatuses_cloudEdgeWorkerStoppedPastGrace_marksOffline() {
+        EdgeMqttControlService mockMqtt = mock(EdgeMqttControlService.class);
+        EdgeStatusService mockEdgeStatus = mock(EdgeStatusService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraService, "edgeMqttControlService", mockMqtt);
+        org.springframework.test.util.ReflectionTestUtils.setField(cameraService, "edgeStatusService", mockEdgeStatus);
+
+        testCamera.setStatus(CameraStatus.ACTIVE);
+        testCamera.setOperationalStatus(OperationalStatus.ONLINE);
+        testCamera.setUpdatedAt(java.time.OffsetDateTime.now().minusMinutes(5));
+
+        when(mockMqtt.isConnected()).thenReturn(true);
+        when(mockEdgeStatus.hasActiveOnlineEdge()).thenReturn(true);
+        when(mockEdgeStatus.getOnlineEdgeCameraStatuses()).thenReturn(Map.of("CAM-001", false));
+        when(cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE)).thenReturn(List.of(testCamera));
+
+        cameraService.syncLiveOperationalStatuses();
+
+        assertEquals(OperationalStatus.OFFLINE, testCamera.getOperationalStatus());
+        verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+    }
+
+    @Test
+    @DisplayName("F-08: upsertStreamConfig ném ERR_STREAM_005 (409) khi (host, port, mainStreamPath) đã bị camera ACTIVE khác sử dụng")
+    void upsertStreamConfig_duplicateRtspEndpoint_throwsErrStream005() {
+        testCamera.setStatus(CameraStatus.ACTIVE);
+        testCamera.setOperationalStatus(OperationalStatus.OFFLINE);
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(testCamera));
+        when(cameraStreamConfigurationRepository.existsActiveRtspConflict(
+                testCameraId,
+                "192.168.1.8",
+                554,
+                "/stream",
+                CameraStatus.DECOMMISSIONED
+        )).thenReturn(true);
+
+        CameraStreamConfigRequest req = CameraStreamConfigRequest.builder()
+                .host(" 192.168.1.8 ")
+                .port(554)
+                .mainStreamPath("stream")
+                .build();
+
+        CameraException ex = assertThrows(CameraException.class, () -> cameraService.upsertStreamConfig(testCameraId, req));
+        assertEquals(CameraErrorCode.ERR_STREAM_005, ex.getErrorCode());
+        verify(cameraStreamConfigurationRepository, never()).save(any());
     }
 }

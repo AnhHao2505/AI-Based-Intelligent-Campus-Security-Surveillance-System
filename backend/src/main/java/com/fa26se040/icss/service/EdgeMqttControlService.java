@@ -6,15 +6,23 @@ import com.fa26se040.icss.dto.edge.EdgeRpcRequestDto;
 import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.OffsetDateTime;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -31,8 +39,10 @@ import java.util.concurrent.TimeoutException;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class EdgeMqttControlService {
+
+    public static final String ENC_ETM_PREFIX = "ENC_ETM:";
+    private static final int ETM_NONCE_BYTES = 16;
 
     public static final String TOPIC_RPC_REQUEST = "campus/edge/rpc/request";
     public static final String TOPIC_RPC_REPLY_WILDCARD = "campus/edge/rpc/reply/+";
@@ -44,9 +54,23 @@ public class EdgeMqttControlService {
     public static final String TOPIC_EVENTS_FACES = "campus/edge/events/faces";
 
     private final ObjectMapper objectMapper;
+    private final String internalServiceKey;
     private final ConcurrentHashMap<String, CompletableFuture<EdgeRpcReplyDto>> pendingRequests = new ConcurrentHashMap<>();
+    private final SecureRandom secureRandom = new SecureRandom();
 
     private volatile MqttClient mqttClient;
+
+    @Autowired
+    public EdgeMqttControlService(
+            ObjectMapper objectMapper,
+            @Value("${icss.internal.service-key:}") String internalServiceKey) {
+        this.objectMapper = objectMapper;
+        this.internalServiceKey = internalServiceKey != null ? internalServiceKey : "";
+    }
+
+    public EdgeMqttControlService(ObjectMapper objectMapper) {
+        this(objectMapper, "");
+    }
 
     public void bindMqttClient(MqttClient client) {
         this.mqttClient = client;
@@ -96,11 +120,12 @@ public class EdgeMqttControlService {
         long effectiveTimeout = timeoutMs > 0 ? timeoutMs : 5000L;
 
         try {
+            Map<String, Object> safePayload = sanitizeAndEncryptRpcPayload(payload);
             EdgeRpcRequestDto reqDto = EdgeRpcRequestDto.builder()
                     .correlationId(correlationId)
                     .action(action)
                     .cameraCode(cameraCode)
-                    .payload(payload != null ? payload : Map.of())
+                    .payload(safePayload)
                     .timestamp(System.currentTimeMillis())
                     .build();
 
@@ -151,9 +176,9 @@ public class EdgeMqttControlService {
         String normCode = cameraCode.trim().toUpperCase();
         Map<String, Object> body = new HashMap<>();
         body.put("camera_code", normCode);
-        body.put("rtsp_url", rtspSourceUrl != null ? rtspSourceUrl : "");
+        body.put("rtsp_url", encryptMqttSecret(rtspSourceUrl != null ? rtspSourceUrl : ""));
         if (mainRtspUrl != null && !mainRtspUrl.isBlank()) {
-            body.put("main_rtsp_url", mainRtspUrl);
+            body.put("main_rtsp_url", encryptMqttSecret(mainRtspUrl));
         }
         body.put("enabled", enabled);
         if (roiGeometry != null) {
@@ -223,6 +248,73 @@ public class EdgeMqttControlService {
             log.info("📡 [Edge MQTT] Đã publish {} (retained={})", topic, retained);
         } catch (Exception e) {
             log.warn("⚠️ [Edge MQTT] Không thể publish tới {}: {}", topic, e.getMessage());
+        }
+    }
+
+    private Map<String, Object> sanitizeAndEncryptRpcPayload(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> copy = new HashMap<>(payload);
+        for (String sensitiveKey : java.util.List.of("rtsp_url", "main_rtsp_url", "password")) {
+            Object val = copy.get(sensitiveKey);
+            if (val instanceof String s && !s.isBlank()) {
+                copy.put(sensitiveKey, encryptMqttSecret(s));
+            }
+        }
+        return copy;
+    }
+
+    /**
+     * F-02: Mã hóa xác thực (Encrypt-then-MAC: SHA-256 CTR + HMAC-SHA256) cho thông tin RTSP nhạy cảm
+     * trước khi đẩy lên MQTT Broker (đặc biệt các bản tin Retained=true), dùng khóa dẫn xuất từ INTERNAL_SERVICE_KEY.
+     */
+    String encryptMqttSecret(String plaintext) {
+        if (plaintext == null || plaintext.isBlank()
+                || internalServiceKey == null || internalServiceKey.isBlank()
+                || plaintext.startsWith(ENC_ETM_PREFIX)) {
+            return plaintext;
+        }
+        try {
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            byte[] encKey = sha.digest(("mqtt-enc|" + internalServiceKey).getBytes(StandardCharsets.UTF_8));
+            sha.reset();
+            byte[] macKey = sha.digest(("mqtt-mac|" + internalServiceKey).getBytes(StandardCharsets.UTF_8));
+
+            byte[] nonce = new byte[ETM_NONCE_BYTES];
+            secureRandom.nextBytes(nonce);
+
+            byte[] plainBytes = plaintext.getBytes(StandardCharsets.UTF_8);
+            byte[] cipherBytes = new byte[plainBytes.length];
+            int offset = 0;
+            int counter = 0;
+            while (offset < plainBytes.length) {
+                sha.reset();
+                sha.update(encKey);
+                sha.update(nonce);
+                sha.update(ByteBuffer.allocate(4).putInt(counter++).array());
+                byte[] block = sha.digest();
+                int chunk = Math.min(block.length, plainBytes.length - offset);
+                for (int i = 0; i < chunk; i++) {
+                    cipherBytes[offset + i] = (byte) (plainBytes[offset + i] ^ block[i]);
+                }
+                offset += chunk;
+            }
+
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(macKey, "HmacSHA256"));
+            mac.update(nonce);
+            mac.update(cipherBytes);
+            byte[] tag = mac.doFinal();
+
+            byte[] packed = new byte[nonce.length + cipherBytes.length + tag.length];
+            System.arraycopy(nonce, 0, packed, 0, nonce.length);
+            System.arraycopy(cipherBytes, 0, packed, nonce.length, cipherBytes.length);
+            System.arraycopy(tag, 0, packed, nonce.length + cipherBytes.length, tag.length);
+
+            return ENC_ETM_PREFIX + Base64.getEncoder().encodeToString(packed);
+        } catch (Exception e) {
+            throw new IllegalStateException("Lỗi mã hóa thông tin RTSP cho MQTT", e);
         }
     }
 }

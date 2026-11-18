@@ -74,6 +74,36 @@ class RoleRestrictedEndpointsAuthorizationTest extends AbstractIntegrationTest {
 
     private static final Set<String> BE03_ENDPOINTS = Set.of("POST /api/cameras/recordings/stream-token");
 
+    private static final Set<String> CAMERA_MUTATION_ENDPOINTS = Set.of(
+            "POST /api/cameras",
+            "PUT /api/cameras/{id}",
+            "PATCH /api/cameras/{id}/decommission",
+            "PATCH /api/cameras/{id}/reactivate",
+            "DELETE /api/cameras/{id}",
+            "PUT /api/cameras/{id}/stream-config",
+            "POST /api/cameras/{id}/stream/start",
+            "POST /api/cameras/{id}/stream/stop",
+            "POST /api/cameras/{id}/test-connection",
+            "PUT /api/cameras/{id}/roi",
+            "PATCH /api/cameras/{id}/map-location",
+            "DELETE /api/cameras/{id}/map-location",
+            "POST /api/cameras/stream/cloud-relay",
+            "POST /api/cameras/{cameraCode}/annotated-stream-token"
+    );
+
+    /** Các endpoint Camera không có @Valid @RequestBody bắt buộc -> vai trò hợp lệ với UUID ngẫu nhiên trả 404/400/200 chứ không 403/500. */
+    private static final Set<String> CAMERA_FLEXIBLE_BODY_ENDPOINTS = Set.of(
+            "PATCH /api/cameras/{id}/decommission",
+            "PATCH /api/cameras/{id}/reactivate",
+            "DELETE /api/cameras/{id}",
+            "POST /api/cameras/{id}/stream/start",
+            "POST /api/cameras/{id}/stream/stop",
+            "POST /api/cameras/{id}/test-connection",
+            "PUT /api/cameras/{id}/roi",
+            "DELETE /api/cameras/{id}/map-location",
+            "POST /api/cameras/{cameraCode}/annotated-stream-token"
+    );
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -139,7 +169,7 @@ class RoleRestrictedEndpointsAuthorizationTest extends AbstractIntegrationTest {
         Set<String> actual = RoleRestrictedEndpoints.RULES.stream()
                 .map(RoleRestrictedEndpointsAuthorizationTest::key)
                 .collect(Collectors.toSet());
-        Set<String> expected = Stream.of(BE01_ENDPOINTS, BE02_MULTIPART_ENDPOINTS, BE03_ENDPOINTS)
+        Set<String> expected = Stream.of(BE01_ENDPOINTS, BE02_MULTIPART_ENDPOINTS, BE03_ENDPOINTS, CAMERA_MUTATION_ENDPOINTS)
                 .flatMap(Set::stream).collect(Collectors.toSet());
         assertEquals(22, BE01_ENDPOINTS.size());
         assertEquals(expected, actual);
@@ -166,6 +196,12 @@ class RoleRestrictedEndpointsAuthorizationTest extends AbstractIntegrationTest {
             mockMvc.perform(jsonEmptyBody(rule).header("Authorization", bearer(role)))
                     .andExpect(status().isUnsupportedMediaType())
                     .andExpect(jsonPath("$.httpCode").value(415));
+        } else if (CAMERA_FLEXIBLE_BODY_ENDPOINTS.contains(endpoint)) {
+            int status = mockMvc.perform(jsonEmptyBody(rule).header("Authorization", bearer(role)))
+                    .andReturn().getResponse().getStatus();
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    status == 200 || status == 400 || status == 404,
+                    "Expected 200/400/404 for " + endpoint + " as " + role + ", got " + status);
         } else {
             mockMvc.perform(jsonEmptyBody(rule).header("Authorization", bearer(role)))
                     .andExpect(status().isBadRequest())

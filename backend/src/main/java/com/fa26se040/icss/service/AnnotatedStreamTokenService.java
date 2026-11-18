@@ -102,4 +102,108 @@ public class AnnotatedStreamTokenService {
             throw new RuntimeException("Lỗi sinh stream token", e);
         }
     }
+
+    /**
+     * Xác thực token ngắn hạn (dùng cho MediaMTX WHEP HTTP Auth callback).
+     */
+    public boolean verifyToken(String cameraCode, String token) {
+        if (cameraCode == null || cameraCode.isBlank() || token == null || token.isBlank()
+                || this.serviceKey == null || this.serviceKey.isBlank()) {
+            return false;
+        }
+        int dotIdx = token.indexOf('.');
+        if (dotIdx <= 0 || dotIdx >= token.length() - 1) {
+            return false;
+        }
+        long exp;
+        try {
+            exp = Long.parseLong(token.substring(0, dotIdx));
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        if (exp < Instant.now(clock).getEpochSecond()) {
+            return false;
+        }
+        String normalizedCode = normalizeCameraCode(cameraCode);
+        String expectedToken = generateToken(normalizedCode, exp, this.serviceKey);
+        return java.security.MessageDigest.isEqual(
+                expectedToken.getBytes(StandardCharsets.UTF_8),
+                token.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    /**
+     * Sinh mật khẩu HMAC tĩnh theo từng camera cho kết nối RTSP nội bộ (AI Service / Edge Relay) tới MediaMTX.
+     * Không truyền trực tiếp INTERNAL_SERVICE_KEY vào URL RTSP và không bị hết hạn khi worker reconnect.
+     */
+    public static String generateInternalRtspSecret(String cameraCode, String key) {
+        if (cameraCode == null || cameraCode.isBlank() || key == null || key.isBlank()) {
+            return "";
+        }
+        try {
+            String msg = "rtsp-internal|" + normalizeCameraCode(cameraCode);
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] hash = mac.doFinal(msg.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi sinh internal RTSP secret", e);
+        }
+    }
+
+    /**
+     * Xác thực credential RTSP nội bộ từ MediaMTX authHTTPAddress callback.
+     */
+    public boolean verifyInternalRtspSecret(String cameraCode, String providedSecret) {
+        if (cameraCode == null || cameraCode.isBlank()
+                || providedSecret == null || providedSecret.isBlank()
+                || this.serviceKey == null || this.serviceKey.isBlank()) {
+            return false;
+        }
+        String expected = generateInternalRtspSecret(cameraCode, this.serviceKey);
+        return java.security.MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                providedSecret.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    /**
+     * F-01: Sinh mật khẩu HMAC tĩnh cho kết nối MediaMTX Control API (/v3/*).
+     */
+    public static String generateInternalApiSecret(String key) {
+        if (key == null || key.isBlank()) {
+            return "";
+        }
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] hash = mac.doFinal("mediamtx-api".getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi sinh internal MediaMTX API secret", e);
+        }
+    }
+
+    /**
+     * F-01: Xác thực credential gọi MediaMTX Control API (/v3/*) qua authHTTPAddress callback.
+     */
+    public boolean verifyInternalApiSecret(String providedSecret) {
+        if (providedSecret == null || providedSecret.isBlank()
+                || this.serviceKey == null || this.serviceKey.isBlank()) {
+            return false;
+        }
+        String expected = generateInternalApiSecret(this.serviceKey);
+        return java.security.MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                providedSecret.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    private static String normalizeCameraCode(String cameraCode) {
+        String normalizedCode = cameraCode.trim().toUpperCase();
+        if (normalizedCode.endsWith("_MAIN")) {
+            normalizedCode = normalizedCode.substring(0, normalizedCode.length() - 5);
+        }
+        return normalizedCode;
+    }
 }

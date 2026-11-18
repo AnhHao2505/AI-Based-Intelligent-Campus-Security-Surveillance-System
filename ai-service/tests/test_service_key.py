@@ -121,4 +121,5 @@ def test_main_app_routes_have_require_service_key():
                 f"Sót dependency require_service_key tại route: {path}"
             )
 
-    assert found_api_v1_routes >= 14, f"Số lượng route /api/v1/* kiểm tra được: {found_api_v1_routes}"
+    # Đã gỡ /api/v1/cameras/snapshot nên tổng số route /api/v1/* còn 13
+    assert found_api_v1_routes >= 13, f"Số lượng route /api/v1/* kiểm tra được: {found_api_v1_routes}"

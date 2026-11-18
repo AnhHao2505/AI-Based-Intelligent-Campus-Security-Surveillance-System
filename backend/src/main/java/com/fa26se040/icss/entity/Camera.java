@@ -22,7 +22,7 @@ import java.util.UUID;
 @Table(name = "cameras")
 @Getter
 @Setter
-@ToString(exclude = {"streamConfiguration", "healthLogs", "area"})
+@ToString(exclude = {"streamConfiguration", "area"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

@@ -44,7 +44,7 @@ class EdgeMqttControlServiceTest {
     }
 
     @Test
-    @DisplayName("1. Happy Path (Main Workflow RPC): Gửi lệnh CAPTURE_SNAPSHOT qua MQTT Outbound-Only và khớp phản hồi theo correlationId")
+    @DisplayName("1. Happy Path (Main Workflow RPC): Gửi lệnh TEST_CONNECTION qua MQTT Outbound-Only và khớp phản hồi theo correlationId")
     void sendRpcRequest_happyPath_correlatesReplyAndCleansUpPendingMap() throws Exception {
         when(mqttClient.isConnected()).thenReturn(true);
 
@@ -62,10 +62,7 @@ class EdgeMqttControlServiceTest {
                                 "success": true,
                                 "latencyMs": 85,
                                 "data": {
-                                    "bucket": "camera-snapshots",
-                                    "objectKey": "CAM-001/snap.jpg",
-                                    "width": 854,
-                                    "height": 480
+                                    "fps": 15.0
                                 }
                             }
                             """.formatted(correlationId);
@@ -78,7 +75,7 @@ class EdgeMqttControlServiceTest {
             }).when(mqttClient).publish(eq("campus/edge/rpc/request"), any(MqttMessage.class));
 
             EdgeRpcReplyDto reply = edgeMqttControlService.sendRpcRequest(
-                    "CAPTURE_SNAPSHOT",
+                    "TEST_CONNECTION",
                     "CAM-001",
                     Map.of("rtsp_url", "rtsp://192.168.1.100:554/live"),
                     2000L
@@ -87,7 +84,7 @@ class EdgeMqttControlServiceTest {
             assertNotNull(reply);
             assertTrue(reply.isSuccess());
             assertEquals(85L, reply.getLatencyMs());
-            assertEquals("CAM-001/snap.jpg", reply.getData().get("objectKey"));
+            assertEquals(15.0, ((Number) reply.getData().get("fps")).doubleValue());
             assertEquals(0, edgeMqttControlService.getPendingRequestCount(), "Phải giải phóng hoàn toàn bộ nhớ pendingRequests");
         } finally {
             executor.shutdownNow();
@@ -138,5 +135,34 @@ class EdgeMqttControlServiceTest {
         assertEquals(CameraErrorCode.ERR_EDGE_002, ex.getErrorCode());
         assertTrue(elapsedMs < 5000L, "Thời gian ngắt timeout phải tuân thủ NFR <= 5000ms (thực tế: " + elapsedMs + "ms)");
         assertEquals(0, edgeMqttControlService.getPendingRequestCount(), "Phải dọn sạch pendingRequests khi timeout");
+    }
+
+    @Test
+    @DisplayName("5. F-02 Security: Khi có INTERNAL_SERVICE_KEY, publishCameraStreamConfig mã hóa ENC_ETM và không lộ mật khẩu RTSP lên MQTT Retained")
+    void publishCameraStreamConfig_encryptsRtspUrlsWithInternalServiceKey() throws Exception {
+        EdgeMqttControlService securedService = new EdgeMqttControlService(
+                objectMapper,
+                "0123456789abcdef0123456789abcdef"
+        );
+        securedService.bindMqttClient(mqttClient);
+        when(mqttClient.isConnected()).thenReturn(true);
+
+        securedService.publishCameraStreamConfig(
+                "CAM-001",
+                "rtsp://admin:SuperSecretPass@192.168.1.10:554/sub",
+                "rtsp://admin:SuperSecretPass@192.168.1.10:554/main",
+                true,
+                null
+        );
+
+        ArgumentCaptor<MqttMessage> msgCaptor = ArgumentCaptor.forClass(MqttMessage.class);
+        verify(mqttClient, times(1)).publish(eq("campus/edge/config/cameras/CAM-001"), msgCaptor.capture());
+
+        String rawPayload = new String(msgCaptor.getValue().getPayload(), StandardCharsets.UTF_8);
+        assertFalse(rawPayload.contains("SuperSecretPass"), "Mật khẩu RTSP không được xuất hiện dạng rõ trên MQTT");
+        assertFalse(rawPayload.contains("rtsp://"), "URL RTSP không được xuất hiện dạng rõ trên MQTT");
+        JsonNode json = objectMapper.readTree(rawPayload);
+        assertTrue(json.get("rtsp_url").asText().startsWith(EdgeMqttControlService.ENC_ETM_PREFIX));
+        assertTrue(json.get("main_rtsp_url").asText().startsWith(EdgeMqttControlService.ENC_ETM_PREFIX));
     }
 }
