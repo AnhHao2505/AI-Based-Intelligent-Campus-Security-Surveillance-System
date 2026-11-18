@@ -206,7 +206,7 @@ class SecurityAlertEvent:
 @dataclass
 class RoiPolygonConfig:
     label: str = ""
-    alert_rules: List[str] = field(default_factory=lambda: ["ENTRY_EXIT_TRACKING"])
+    alert_rules: Optional[List[str]] = None
     vertices: List[Point] = field(default_factory=list)
     target_area_id: Optional[str] = None
 

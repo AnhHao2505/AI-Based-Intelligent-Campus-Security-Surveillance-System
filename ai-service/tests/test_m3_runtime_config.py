@@ -217,3 +217,18 @@ def test_recording_retention_config_and_time_based_deletion():
     settings.RECORDING_RETENTION_HOURS = 0.5
 
 
+def test_suspicious_motion_min_duration_runtime_config():
+    """Kiểm tra cập nhật SUSPICIOUS_MOTION_MIN_DURATION qua AIRuntimeConfigRequest."""
+    import asyncio
+    old_val = settings.SUSPICIOUS_MOTION_MIN_DURATION
+    try:
+        req = AIRuntimeConfigRequest(suspicious_motion_min_duration=0.8)
+        res = asyncio.run(update_ai_runtime_config(req))
+        assert res["success"] is True
+        assert res["suspicious_motion_min_duration"] == 0.8
+        assert settings.SUSPICIOUS_MOTION_MIN_DURATION == 0.8
+    finally:
+        settings.SUSPICIOUS_MOTION_MIN_DURATION = old_val
+
+
+

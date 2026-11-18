@@ -336,10 +336,16 @@ class EdgeMqttAgent:
     def _handle_system_config(self, data: Dict[str, Any]):
         ah_start = data.get("after_hour_start")
         ah_end = data.get("after_hour_end")
-        if ah_start:
-            settings.DEFAULT_AFTER_HOUR_START = str(ah_start)
-        if ah_end:
-            settings.DEFAULT_AFTER_HOUR_END = str(ah_end)
+        if ah_start and ah_end and str(ah_start).strip() == str(ah_end).strip():
+            logger.warning(
+                f"⚠️ [EdgeAgent] after_hour_start và after_hour_end từ MQTT bị trùng ({ah_start} == {ah_end}), "
+                "bỏ qua cập nhật cấu hình mặc định để chống tắt bảo vệ."
+            )
+        else:
+            if ah_start:
+                settings.DEFAULT_AFTER_HOUR_START = str(ah_start)
+            if ah_end:
+                settings.DEFAULT_AFTER_HOUR_END = str(ah_end)
 
         default_pipe = self.default_pipeline_getter() if self.default_pipeline_getter else None
         if default_pipe is not None:

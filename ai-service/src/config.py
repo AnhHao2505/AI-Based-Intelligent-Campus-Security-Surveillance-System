@@ -1,7 +1,7 @@
 import os
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field, AliasChoices
+from pydantic import Field, AliasChoices, model_validator
 
 AI_SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO_DIR = os.path.dirname(AI_SERVICE_DIR)
@@ -113,6 +113,16 @@ class Settings(BaseSettings):
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"
+
+    @model_validator(mode="after")
+    def validate_after_hours_not_equal(self):
+        start = (self.DEFAULT_AFTER_HOUR_START or "").strip()
+        end = (self.DEFAULT_AFTER_HOUR_END or "").strip()
+        if start and end and start == end:
+            raise ValueError(
+                f"DEFAULT_AFTER_HOUR_START ({start}) và DEFAULT_AFTER_HOUR_END ({end}) không được trùng nhau!"
+            )
+        return self
     NIGHT_ALLOWED_ACCESS_SOURCES: List[str] = Field(
         default=["ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"],
         validation_alias="NIGHT_ALLOWED_ACCESS_SOURCES"
@@ -129,6 +139,8 @@ class Settings(BaseSettings):
     INCIDENT_RECORDING_MAX_DURATION_SECONDS: float = Field(default=300.0, validation_alias="INCIDENT_RECORDING_MAX_DURATION_SECONDS")
     # V125: khoảng cách tối thiểu giữa 2 cảnh báo vật chuyển động lạ trên cùng camera (sửa được trên màn Cấu hình)
     SUSPICIOUS_MOTION_COOLDOWN_SECONDS: float = Field(default=5.0, validation_alias="SUSPICIOUS_MOTION_COOLDOWN_SECONDS")
+    SUSPICIOUS_MOTION_MIN_DURATION: float = Field(default=0.5, validation_alias="SUSPICIOUS_MOTION_MIN_DURATION")
+    SUSPICIOUS_MOTION_GAP_TOLERANCE: float = Field(default=0.6, validation_alias="SUSPICIOUS_MOTION_GAP_TOLERANCE")
     MAX_MOTION_TRACK_HOLD_SECONDS: float = Field(default=1.0, validation_alias="MAX_MOTION_TRACK_HOLD_SECONDS")
     MOTION_GATING_HEARTBEAT_SECONDS: float = Field(default=4.0, validation_alias="MOTION_GATING_HEARTBEAT_SECONDS")
     MIN_MOTION_AREA: int = Field(default=3000, validation_alias="MIN_MOTION_AREA")

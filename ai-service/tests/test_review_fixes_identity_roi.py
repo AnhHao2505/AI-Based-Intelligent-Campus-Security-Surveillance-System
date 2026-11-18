@@ -96,10 +96,7 @@ def test_identity_switch_in_roi_logs_single_entry_after_exit_and_resets_cooldown
     entries_b = [c for c in _direction_calls(fm, "ENTRY") if c == "USER_B"]
     assert len(entries_b) == 1, f"ENTRY(B) phải đúng 1 lần, thực tế {len(entries_b)}"
     exits_a = [c for c in _direction_calls(fm, "EXIT") if c == "USER_A"]
-    assert exits_a, "Phải ghi EXIT(A)"
-    order = [args[1] for args, kwargs in fm.check_camera_access.call_args_list
-             if kwargs.get("event_direction", args[3] if len(args) > 3 else None) in ("ENTRY", "EXIT")]
-    assert order.index("USER_A", 1) < order.index("USER_B"), f"EXIT(A) phải trước ENTRY(B): {order}"
+    assert not exits_a, "Không được ghi EXIT(A) vì Backend đã bỏ chức năng ghi nhận EXIT"
 
 
 # ---------------------------------------------------------------- #1 grace tính từ lúc khớp mặt
