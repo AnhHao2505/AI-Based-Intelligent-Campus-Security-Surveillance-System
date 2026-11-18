@@ -549,31 +549,50 @@ class FrameAnalysisEngine:
                             person.is_inherited_identity = True
                             if hasattr(person.face_info, "is_inherited"):
                                 person.face_info.is_inherited = True
-                        # Kế thừa thông tin ROI và lịch sử cảnh báo (tránh spam sự cố lặp lại)
-                        person.is_in_roi = old_p.is_in_roi
-                        person.was_in_roi = getattr(old_p, 'was_in_roi', False) or getattr(old_p, 'is_in_roi', False)
-                        person.roi_enter_time = old_p.roi_enter_time
-                        person.entered_roi_label = old_p.entered_roi_label
-                        person.roi_entry_logged = old_p.roi_entry_logged
-                        person.alert_unauthorized_sent = old_p.alert_unauthorized_sent
-                        person.alert_unknown_sent = old_p.alert_unknown_sent
-                        person.alert_after_hours_sent = old_p.alert_after_hours_sent
-                        person.unknown_verdict_time = getattr(old_p, "unknown_verdict_time", None)
-                        person.unknown_verdict_session_id = getattr(old_p, "unknown_verdict_session_id", None)
-                        person.identity_update_sent = getattr(old_p, "identity_update_sent", False)
-                        person.entry_logged_as_unknown = getattr(old_p, "entry_logged_as_unknown", False)
-                        person.first_seen_time = old_p.first_seen_time
-                        person.has_entered_roi = getattr(old_p, "has_entered_roi", False)
-                        person.roi_first_entered_time = getattr(old_p, "roi_first_entered_time", None)
-                        old_state = getattr(old_p, "security_display_state", "NEUTRAL")
-                        # Không kế thừa danh tính thì cũng không kế thừa trạng thái "có quyền" của người kia
-                        if identity_safe or old_state != "AUTHORIZED":
-                            person.security_display_state = old_state
+                        if identity_safe:
+                            # Kế thừa thông tin ROI và lịch sử cảnh báo (tránh spam sự cố lặp lại khi cùng một người)
+                            person.is_in_roi = old_p.is_in_roi
+                            person.was_in_roi = getattr(old_p, 'was_in_roi', False) or getattr(old_p, 'is_in_roi', False)
+                            person.roi_enter_time = old_p.roi_enter_time
+                            person.entered_roi_label = old_p.entered_roi_label
+                            person.roi_entry_logged = old_p.roi_entry_logged
+                            person.alert_unauthorized_sent = old_p.alert_unauthorized_sent
+                            person.alert_unknown_sent = old_p.alert_unknown_sent
+                            person.alert_after_hours_sent = old_p.alert_after_hours_sent
+                            person.unknown_verdict_time = getattr(old_p, "unknown_verdict_time", None)
+                            person.unknown_verdict_session_id = getattr(old_p, "unknown_verdict_session_id", None)
+                            person.identity_update_sent = getattr(old_p, "identity_update_sent", False)
+                            person.entry_logged_as_unknown = getattr(old_p, "entry_logged_as_unknown", False)
+                            person.first_seen_time = old_p.first_seen_time
+                            person.has_entered_roi = getattr(old_p, "has_entered_roi", False)
+                            person.roi_first_entered_time = getattr(old_p, "roi_first_entered_time", None)
+                            old_state = getattr(old_p, "security_display_state", "NEUTRAL")
+                            # Không kế thừa danh tính thì cũng không kế thừa trạng thái "có quyền" của người kia
+                            if old_state != "AUTHORIZED" or (person.face_detected and person.face_info and person.face_info.is_authorized):
+                                person.security_display_state = old_state
+                            if best_match_tid in self.track_last_unknown_alert_time:
+                                self.track_last_unknown_alert_time[track_id] = self.track_last_unknown_alert_time.pop(best_match_tid)
+                            if best_match_tid in self.track_last_unauthorized_alert_time:
+                                self.track_last_unauthorized_alert_time[track_id] = self.track_last_unauthorized_alert_time.pop(best_match_tid)
+                        else:
+                            # G3.1: Khi không an toàn về danh tính (identity_safe = False), track mới là đối tượng riêng biệt:
+                            # Bắt buộc reset toàn bộ cờ cảnh báo và cooldown để không làm tắt cảnh báo của đối tượng mới
+                            person.alert_unknown_sent = False
+                            person.alert_unauthorized_sent = False
+                            person.alert_after_hours_sent = False
+                            person.unknown_verdict_time = None
+                            person.unknown_verdict_session_id = None
+                            person.identity_update_sent = False
+                            person.entry_logged_as_unknown = False
+                            person.roi_entry_logged = False
+                            self.track_last_unknown_alert_time.pop(track_id, None)
+                            self.track_last_unauthorized_alert_time.pop(track_id, None)
+                            self.track_last_unknown_alert_time.pop(best_match_tid, None)
+                            self.track_last_unauthorized_alert_time.pop(best_match_tid, None)
+
                         # Ẩn và xoá track cũ bị thay thế
                         old_p.is_currently_visible = False
                         del self.active_tracks[best_match_tid]
-                        if best_match_tid in self.track_last_unknown_alert_time:
-                            self.track_last_unknown_alert_time[track_id] = self.track_last_unknown_alert_time.pop(best_match_tid)
 
                 self.active_tracks[track_id] = person
             else:
