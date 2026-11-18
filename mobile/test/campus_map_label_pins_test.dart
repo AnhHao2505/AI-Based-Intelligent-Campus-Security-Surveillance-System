@@ -86,15 +86,23 @@ void main() {
       return i;
     }
 
-    test('nhãn → quầng sự cố → ghim sự cố → vị trí bảo vệ: ghim sự cố trên nhãn, dưới vị trí bảo vệ', () {
-      expect(at(campusIncidentHaloLayerId), at(campusRoomLabelsLayerId) + 1, reason: 'quầng ngay trên tên phòng');
-      expect(at(campusIncidentPinLayerId), at(campusIncidentHaloLayerId) + 1, reason: 'quầng ngay dưới ghim sự cố');
+    test('ghim khu → quầng sự cố → nhãn → ghim sự cố → vị trí bảo vệ: quầng dưới nhãn, ghim sự cố trên nhãn', () {
+      expect(at(campusIncidentHaloLayerId), at(campusPinsLayerId) + 1, reason: 'quầng ngay trên ghim khu');
+      expect(at(campusRoomLabelsLayerId), at(campusIncidentHaloLayerId) + 1, reason: 'quầng ngay dưới tên phòng');
+      expect(at(campusIncidentPinLayerId), at(campusRoomLabelsLayerId) + 1, reason: 'ghim sự cố ngay trên tên phòng');
       expect(at('campus-guard-halo'), at(campusIncidentPinLayerId) + 1);
+      expect(campusLayerOrder.sublist(at(campusPinsLayerId), at('campus-guard-halo') + 1), [
+        'campus-pins-layer',
+        'campus-incident-halo-layer',
+        'campus-room-labels-layer',
+        'campus-incident-pin-layer',
+        'campus-guard-halo',
+      ]);
     });
 
     test('id lớp quầng sự cố cố định; quầng đỏ đứng yên gấp đôi ghim khu đang chọn', () {
       expect(campusIncidentHaloLayerId, 'campus-incident-halo-layer');
-      expect(campusLayerOrder[campusLayerOrder.indexOf(campusIncidentPinLayerId) - 1], 'campus-incident-halo-layer');
+      expect(campusLayerOrder[campusLayerOrder.indexOf(campusRoomLabelsLayerId) - 1], 'campus-incident-halo-layer');
       expect(incidentHaloColor.toLowerCase(), '#ef4444');
       expect(incidentHaloRadius, areaPinMaxRadius * 2);
       expect(incidentHaloOpacity, 0.25);
@@ -102,8 +110,9 @@ void main() {
       expect(incidentHaloStrokeOpacity, 0.6);
     });
 
-    test('tên phòng nằm NGAY TRÊN ghim khu, dưới vị trí bảo vệ', () {
-      expect(at('campus-room-labels-layer'), at('campus-pins-layer') + 1);
+    test('tên phòng nằm trên ghim khu và quầng sự cố, dưới vị trí bảo vệ', () {
+      expect(at('campus-room-labels-layer'), greaterThan(at('campus-pins-layer')));
+      expect(at('campus-room-labels-layer'), greaterThan(at(campusIncidentHaloLayerId)));
       expect(at('campus-room-labels-layer'), lessThan(at('campus-guard-halo')));
       expect(at('campus-room-labels-layer'), lessThan(at('campus-guard-dot')));
     });

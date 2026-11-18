@@ -66,9 +66,9 @@ const String campusIncidentPinLayerId = 'campus-incident-pin-layer';
 const String campusIncidentHaloLayerId = 'campus-incident-halo-layer';
 
 /// Thứ tự các lớp bản đồ do app thêm, từ dưới lên (guard_map_screen.dart _onStyleLoaded thêm đúng thứ tự này và ghi
-/// log đối chiếu): khối 3D → cầu thang → tuyến đường → ghim khu → TÊN PHÒNG → QUẦNG SỰ CỐ → GHIM SỰ CỐ → vị trí bảo
-/// vệ. Tên phòng nằm ngay trên ghim khu để ghim không che chữ; quầng + ghim sự cố trên tên phòng để nhãn không che,
-/// quầng ngay dưới ghim sự cố; vị trí bảo vệ trên cùng.
+/// log đối chiếu): khối 3D → cầu thang → tuyến đường → ghim khu → QUẦNG SỰ CỐ → TÊN PHÒNG → GHIM SỰ CỐ → vị trí bảo
+/// vệ. Quầng nằm dưới tên phòng để vòng quầng không cắt chữ của nhãn; tên phòng trên ghim khu để ghim không che chữ;
+/// ghim sự cố trên tên phòng để nhãn không che ghim; vị trí bảo vệ trên cùng.
 const List<String> campusLayerOrder = [
   'campus-slab-layer',
   'campus-room-layer',
@@ -79,8 +79,8 @@ const List<String> campusLayerOrder = [
   'campus-route-direct',
   'campus-route-floors-layer',
   campusPinsLayerId,
-  campusRoomLabelsLayerId,
   campusIncidentHaloLayerId,
+  campusRoomLabelsLayerId,
   campusIncidentPinLayerId,
   'campus-guard-halo',
   'campus-guard-dot',

@@ -331,8 +331,25 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         _pinsLayer,
         _areaPinPaint,
       );
+      // Quầng đỏ đứng yên dưới ghim sự cố (cùng nguồn với lớp ghim sự cố), không nhận chạm. Nằm DƯỚI tên phòng
+      // (campusLayerOrder) để vòng quầng không cắt chữ của nhãn khu sự cố; ghim sự cố vẫn ở trên tên phòng.
+      await map.addGeoJsonSource(_incidentPinSource, empty);
+      await map.addCircleLayer(
+        _incidentPinSource,
+        campusIncidentHaloLayerId,
+        const ml.CircleLayerProperties(
+          circleColor: incidentHaloColor,
+          circleRadius: incidentHaloRadius,
+          circleOpacity: incidentHaloOpacity,
+          circleStrokeColor: incidentHaloColor,
+          circleStrokeWidth: incidentHaloStrokeWidth,
+          circleStrokeOpacity: incidentHaloStrokeOpacity,
+          circlePitchAlignment: 'viewport',
+        ),
+        enableInteraction: false,
+      );
       // Tên phòng: ảnh nhãn theo khu, khu đang chọn đặt trước (CampusMapView.jsx:1487-1528).
-      // Nằm NGAY TRÊN lớp ghim khu (campusLayerOrder): ghim không che được chữ; neo cạnh dưới + dịch lên
+      // Nằm trên lớp ghim khu và quầng sự cố (campusLayerOrder): ghim không che được chữ; neo cạnh dưới + dịch lên
       // roomLabelLiftAbovePin để nhãn không che ghim của chính khu đó.
       await map.addGeoJsonSource(_roomLabelsSource, empty);
       await map.addSymbolLayer(
@@ -352,23 +369,8 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         minzoom: roomLabelMinZoom,
         // Bấm nhãn mở thẻ khu như bấm ghim (_onFeatureTapped); chạm trúng cả nhãn lẫn ghim → nhãn (lớp trên)
       );
-      // Ghim sự cố đang mở (kể cả ghim tạm): trên tên phòng để nhãn không che, dưới vị trí bảo vệ. Cùng hình với ghim khu,
-      // thêm quầng đỏ đứng yên ngay dưới (cùng nguồn) để phân biệt với ghim khu đang chọn; quầng không nhận chạm.
-      await map.addGeoJsonSource(_incidentPinSource, empty);
-      await map.addCircleLayer(
-        _incidentPinSource,
-        campusIncidentHaloLayerId,
-        const ml.CircleLayerProperties(
-          circleColor: incidentHaloColor,
-          circleRadius: incidentHaloRadius,
-          circleOpacity: incidentHaloOpacity,
-          circleStrokeColor: incidentHaloColor,
-          circleStrokeWidth: incidentHaloStrokeWidth,
-          circleStrokeOpacity: incidentHaloStrokeOpacity,
-          circlePitchAlignment: 'viewport',
-        ),
-        enableInteraction: false,
-      );
+      // Ghim sự cố đang mở (kể cả ghim tạm): trên tên phòng để nhãn không che, dưới vị trí bảo vệ. Cùng hình với ghim khu;
+      // quầng đỏ của nó (lớp campusIncidentHaloLayerId, dưới tên phòng) phân biệt với ghim khu đang chọn.
       await map.addCircleLayer(_incidentPinSource, _incidentPinLayer, _areaPinPaint);
       await map.addGeoJsonSource(_guardSource, empty);
       await map.addCircleLayer(
