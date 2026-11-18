@@ -178,7 +178,7 @@ class FrameAnalysisEngine:
         receiver.face_detected = True
         receiver.face_info = copy.copy(donor.face_info)
         receiver.is_inherited_identity = True
-        receiver.inherited_mismatch_count = 0
+        receiver.inherited_mismatch_count = getattr(donor, "inherited_mismatch_count", 0)
         if hasattr(receiver.face_info, "is_inherited"):
             receiver.face_info.is_inherited = True
 
@@ -589,11 +589,7 @@ class FrameAnalysisEngine:
                     if not different_persons:
                         # Kế thừa nhận diện khuôn mặt (chỉ khi track cha đủ tin cậy về mặt không gian)
                         if identity_safe and old_p.face_detected and old_p.face_info and not person.face_detected:
-                            person.face_detected = True
-                            person.face_info = old_p.face_info
-                            person.is_inherited_identity = True
-                            if hasattr(person.face_info, "is_inherited"):
-                                person.face_info.is_inherited = True
+                            self._copy_identity_as_inherited(person, old_p)
                         if identity_safe:
                             # Kế thừa thông tin ROI và lịch sử cảnh báo (tránh spam sự cố lặp lại khi cùng một người)
                             person.is_in_roi = old_p.is_in_roi

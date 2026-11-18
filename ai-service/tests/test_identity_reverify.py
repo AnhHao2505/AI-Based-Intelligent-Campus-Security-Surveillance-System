@@ -95,6 +95,49 @@ def test_high_score_identity_is_not_reverified(*_mocks):
 
 
 @_with_patches
+def test_new_track_inheriting_high_score_parent_forces_reverify_on_first_frame(*_mocks):
+    """
+    G3.5: Track 1 ban đầu có điểm cao (0.90 >= 0.82), hợp lệ.
+    Track 1 mất dấu, Track 2 xuất hiện ở cùng vị trí (IoU/khoảng cách gần).
+    Bắt buộc phải kích hoạt kiểm tra khuôn mặt ngay ở frame đầu tiên của Track 2 (reverify_due = True),
+    không được mượn trọn vẹn danh tính mà bỏ qua nhận diện.
+    """
+    pipeline = _make_pipeline()
+    _identify(pipeline, score=0.90)
+    det = pipeline.face_detector.detect_best_face_in_crop
+
+    # Track 1 biến mất, Track 2 xuất hiện ở cùng vị trí
+    bbox2 = BoundingBox(102.0, 102.0, 302.0, 502.0)
+    pipeline.human_detector.detect_and_track.return_value = [(2, bbox2)]
+    det.reset_mock()
+
+    # t=1.0: Frame đầu tiên của Track 2
+    pipeline.process_frame(FRAME, current_time=1.0)
+    assert det.call_count == 1, "Track mới mượn danh tính cha phải bị quét mặt ngay frame 1!"
+
+
+@_with_patches
+def test_new_track_inheriting_parent_clears_inheritance_when_same_identity_verified(*_mocks):
+    """
+    Track 2 mượn danh tính cha và được nhận diện đúng là USER_A ngay ở frame 1:
+    Track 2 phải được xóa cờ kế thừa (is_inherited_identity = False).
+    """
+    pipeline = _make_pipeline()
+    _identify(pipeline, score=0.90)
+
+    # Track 2 xuất hiện, match tiếp USER_A
+    bbox2 = BoundingBox(102.0, 102.0, 302.0, 502.0)
+    pipeline.human_detector.detect_and_track.return_value = [(2, bbox2)]
+    pipeline.face_matcher.match_face.return_value = ("USER_A", "Nguyen Van A", 0.91, True, "NORMAL_USER")
+
+    pipeline.process_frame(FRAME, current_time=1.0)
+    p2 = pipeline.analysis_engine.active_tracks.get(2)
+    assert p2 is not None
+    assert p2.face_info.matched_code == "USER_A"
+    assert p2.is_inherited_identity is False
+
+
+@_with_patches
 def test_inherited_identity_kept_in_ambiguous_zone_and_revoked_when_clearly_someone_else(*_mocks):
     pipeline = _make_pipeline()
     p = _identify(pipeline)

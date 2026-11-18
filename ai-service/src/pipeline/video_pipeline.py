@@ -971,6 +971,7 @@ class VideoPipeline:
             # Tối ưu hiệu năng: Nếu Track ID này đã nhận diện được danh tính trong active_tracks,
             # ByteTrack tiếp tục bám theo mượt mà mà không cần chạy lại SCRFD + ArcFace + pgvector mỗi frame!
             existing = self.analysis_engine.active_tracks.get(track_id)
+            is_parent_inherited = False
             if not existing and hasattr(self.analysis_engine, "find_matching_parent_track"):
                 parent_res = self.analysis_engine.find_matching_parent_track(
                     bbox=bbox,
@@ -983,8 +984,19 @@ class VideoPipeline:
                     safe_check = getattr(self.analysis_engine, "parent_identity_is_safe", None)
                     if callable(safe_check) and not safe_check(bbox, existing, visible_count=len(current_frame_tids)):
                         existing = None
+                    else:
+                        is_parent_inherited = True
+
             is_reverifying = False
             if existing and existing.face_detected and existing.face_info and existing.face_info.matched_code:
+                if is_parent_inherited:
+                    # G3.5: Track mới mượn danh tính từ cha parent_res phải đánh dấu kế thừa
+                    # và bắt buộc kích hoạt kiểm tra khuôn mặt ngay ở frame đầu tiên (reverify_due = True)
+                    # bất kể điểm match trước đó của track cha cao bao nhiêu (kể cả >= 0.82).
+                    existing.is_inherited_identity = True
+                    if existing.face_info:
+                        existing.face_info.is_inherited = True
+
                 if track_stats.get("first_matched_time") is None:
                     # Danh tính có sẵn (kế thừa từ track cha / bộ đếm tạo lại sau khi track bị xoá rồi xuất hiện lại):
                     # độ trễ đã được đo và in ở lần nhận diện gốc. Không đo lại ở đây, vì first_seen_time của người
@@ -1003,7 +1015,7 @@ class VideoPipeline:
                     )
 
                 # Điểm 8: Kiểm tra điều kiện Re-verification / Face Quality Upgrade
-                if self._is_reverify_due(existing, current_time):
+                if is_parent_inherited or self._is_reverify_due(existing, current_time):
                     is_reverifying = True
                 else:
                     continue
@@ -1146,81 +1158,82 @@ class VideoPipeline:
                                     if score > prev_score:
                                         existing.face_info.score = score
                                         face_result.score = score
-                                    continue
-
-                                # Mã mới KHÁC danh tính hiện tại:
-                                # Điểm mới phải >= prev_score + 0.05. Riêng danh tính KẾ THỪA: prev_score là điểm mặt của
-                                # track cha (có thể là người khác đứng gần), không phải mặt quét được trên track này
-                                # -> không bắt vượt điểm đó, chỉ cần 2 lần khớp liên tiếp cùng mã mới.
-                                inherited_identity = (
-                                    getattr(existing, "is_inherited_identity", False)
-                                    or getattr(existing.face_info, "is_inherited", False)
-                                )
-                                if not inherited_identity and score < (prev_score + 0.05):
-                                    continue
-
-                                # Yêu cầu 2 lần match liên tiếp cùng mã mới trước khi đổi (POINT-08a)
-                                if getattr(existing, "pending_reverify_code", None) == code:
-                                    existing.pending_reverify_count = getattr(existing, "pending_reverify_count", 0) + 1
+                                    if not is_parent_inherited:
+                                        continue
                                 else:
-                                    existing.pending_reverify_code = code
-                                    existing.pending_reverify_count = 1
+                                    # Mã mới KHÁC danh tính hiện tại:
+                                    # Điểm mới phải >= prev_score + 0.05. Riêng danh tính KẾ THỪA: prev_score là điểm mặt của
+                                    # track cha (có thể là người khác đứng gần), không phải mặt quét được trên track này
+                                    # -> không bắt vượt điểm đó, chỉ cần 2 lần khớp liên tiếp cùng mã mới.
+                                    inherited_identity = (
+                                        getattr(existing, "is_inherited_identity", False)
+                                        or getattr(existing.face_info, "is_inherited", False)
+                                    )
+                                    if not inherited_identity and score < (prev_score + 0.05):
+                                        continue
 
-                                if existing.pending_reverify_count < 2:
-                                    # Lần 1: chưa đủ 2 lần liên tiếp -> BỎ QUA, không đổi
-                                    continue
-
-                                # Lần 2 liên tiếp cùng mã mới -> Thực hiện đổi danh tính:
-                                logger.info(
-                                    f"🔄 [Face Re-verify] Track #{track_id} đổi danh tính từ {prev_code} "
-                                    f"sang {code} (score mới: {score:.3f}, score cũ: {prev_score:.3f})"
-                                )
-                                existing.pending_reverify_code = None
-                                existing.pending_reverify_count = 0
-                                existing.is_inherited_identity = False
-                                if existing.face_info:
-                                    existing.face_info.is_inherited = False
-
-                                # POINT-08b: Reset cảnh báo vi phạm
-                                existing.alert_unauthorized_sent = False
-                                existing.alert_unknown_sent = False
-                                existing.unknown_verdict_time = None
-                                existing.unknown_verdict_session_id = None
-                                existing.identity_update_sent = False
-                                # Cooldown cảnh báo vi phạm theo track nằm ở engine (track_last_unauthorized_alert_time),
-                                # không phải thuộc tính trên person: xoá đúng chỗ engine đọc để B không bị chặn bởi
-                                # cooldown 30s còn lại của A.
-                                self.analysis_engine.track_last_unauthorized_alert_time.pop(track_id, None)
-
-                                # POINT-08c: Đổi danh tính A -> B: Ghi EXIT(A) rồi ENTRY(B) tuần tự trong MỘT task
-                                need_exit = getattr(existing, "roi_entry_logged", False)
-                                need_entry = in_roi
-
-                                if (need_exit or need_entry) and self.face_matcher:
-                                    if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
-                                        self.access_executor.submit(
-                                            self._handle_identity_switch,
-                                            track_id,
-                                            prev_code,
-                                            code,
-                                            roi_label or "Vùng giám sát",
-                                            need_exit,
-                                            need_entry
-                                        )
+                                    # Yêu cầu 2 lần match liên tiếp cùng mã mới trước khi đổi (POINT-08a)
+                                    if getattr(existing, "pending_reverify_code", None) == code:
+                                        existing.pending_reverify_count = getattr(existing, "pending_reverify_count", 0) + 1
                                     else:
-                                        self._handle_identity_switch(
-                                            track_id,
-                                            prev_code,
-                                            code,
-                                            roi_label or "Vùng giám sát",
-                                            need_exit,
-                                            need_entry
-                                        )
-                                    # Đang trong ROI: ENTRY(B) do chính _handle_identity_switch gửi (sau EXIT(A)) -> đánh dấu đã ghi
-                                    # để engine không gửi thêm một ENTRY(B) thứ hai, có thể tới Backend trước EXIT(A).
-                                    # Ngoài ROI: chưa ghi ENTRY(B), engine tự ghi khi B bước vào ROI.
-                                    existing.roi_entry_logged = bool(need_entry)
-                                    identity_switched = True
+                                        existing.pending_reverify_code = code
+                                        existing.pending_reverify_count = 1
+
+                                    if existing.pending_reverify_count < 2:
+                                        # Lần 1: chưa đủ 2 lần liên tiếp -> BỎ QUA, không đổi
+                                        continue
+
+                                    # Lần 2 liên tiếp cùng mã mới -> Thực hiện đổi danh tính:
+                                    logger.info(
+                                        f"🔄 [Face Re-verify] Track #{track_id} đổi danh tính từ {prev_code} "
+                                        f"sang {code} (score mới: {score:.3f}, score cũ: {prev_score:.3f})"
+                                    )
+                                    existing.pending_reverify_code = None
+                                    existing.pending_reverify_count = 0
+                                    existing.is_inherited_identity = False
+                                    if existing.face_info:
+                                        existing.face_info.is_inherited = False
+
+                                    # POINT-08b: Reset cảnh báo vi phạm
+                                    existing.alert_unauthorized_sent = False
+                                    existing.alert_unknown_sent = False
+                                    existing.unknown_verdict_time = None
+                                    existing.unknown_verdict_session_id = None
+                                    existing.identity_update_sent = False
+                                    # Cooldown cảnh báo vi phạm theo track nằm ở engine (track_last_unauthorized_alert_time),
+                                    # không phải thuộc tính trên person: xoá đúng chỗ engine đọc để B không bị chặn bởi
+                                    # cooldown 30s còn lại của A.
+                                    self.analysis_engine.track_last_unauthorized_alert_time.pop(track_id, None)
+
+                                    # POINT-08c: Đổi danh tính A -> B: Ghi EXIT(A) rồi ENTRY(B) tuần tự trong MỘT task
+                                    need_exit = getattr(existing, "roi_entry_logged", False)
+                                    need_entry = in_roi
+
+                                    if (need_exit or need_entry) and self.face_matcher:
+                                        if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
+                                            self.access_executor.submit(
+                                                self._handle_identity_switch,
+                                                track_id,
+                                                prev_code,
+                                                code,
+                                                roi_label or "Vùng giám sát",
+                                                need_exit,
+                                                need_entry
+                                            )
+                                        else:
+                                            self._handle_identity_switch(
+                                                track_id,
+                                                prev_code,
+                                                code,
+                                                roi_label or "Vùng giám sát",
+                                                need_exit,
+                                                need_entry
+                                            )
+                                        # Đang trong ROI: ENTRY(B) do chính _handle_identity_switch gửi (sau EXIT(A)) -> đánh dấu đã ghi
+                                        # để engine không gửi thêm một ENTRY(B) thứ hai, có thể tới Backend trước EXIT(A).
+                                        # Ngoài ROI: chưa ghi ENTRY(B), engine tự ghi khi B bước vào ROI.
+                                        existing.roi_entry_logged = bool(need_entry)
+                                        identity_switched = True
 
                             face_result.matched_code = code
                             face_result.matched_name = name
@@ -1285,7 +1298,8 @@ class VideoPipeline:
 
                         # Mặt đã qua lọc kích thước và độ mờ: engine dùng mốc này để quyết định có giữ thêm (hold) trước khi chốt UNKNOWN
                         face_result.seen_at = current_time
-                        self.analysis_engine.associate_face(track_id, face_result)
+                        if not (is_parent_inherited and not getattr(face_result, "matched_code", None) and getattr(existing, "face_info", None) and getattr(existing.face_info, "matched_code", None)):
+                            self.analysis_engine.associate_face(track_id, face_result)
                 else:
                     track_stats["drop_no_face"] += 1
             else:
