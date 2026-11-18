@@ -188,3 +188,40 @@ def test_two_real_persons_close_together_not_merged_into_one_track():
     assert 1 in visible_tids, "Track 1 phải hiển thị"
     assert 2 in visible_tids, "Track 2 phải hiển thị (không bị coi là double box glitch của Track 1)"
     assert len(visible_tids) == 2, f"Cả 2 người thật phải có 2 track riêng biệt, got {visible_tids}"
+
+
+def test_g3_3_coasting_nms_stranger_does_not_borrow_authorized_state():
+    """
+    G3.3: Người có quyền Track 1 (AUTHORIZED) đang coasting (vắng mặt 1 frame).
+    Người lạ Track 2 đứng ở vị trí chồng lấn (IoM > 0.55).
+    YÊU CẦU AN NINH:
+    - Track 2 (người lạ) TUYỆT ĐỐI KHÔNG được hiển thị là AUTHORIZED (xanh).
+    - Track 2 phải là VERIFYING (nếu trong ROI) hoặc NEUTRAL (nếu ngoài ROI),
+      chờ đối soát khuôn mặt độc lập.
+    """
+    engine = FrameAnalysisEngine()
+    behind = BoundingBox(100, 100, 200, 300)
+    front = BoundingBox(130, 100, 230, 300)  # IoM ~ 0.7 > 0.55
+
+    # Frame 1: Track 1 là nhân viên hợp lệ (AUTHORIZED), Track 2 là người lạ đứng cạnh
+    face1 = FaceDetectionResult(
+        bbox=behind,
+        score=0.92,
+        matched_code="SE194249",
+        matched_name="Nguyen Hoang Minh",
+        is_authorized=True,
+        access_checked=True
+    )
+    engine.associate_face(track_id=1, face_result=face1)
+    engine.process_frame(detected_tracks=[(1, behind), (2, front)], camera_code="CAM-001", current_time=10.0)
+
+    assert engine.active_tracks[1].security_display_state == "AUTHORIZED"
+    assert engine.active_tracks[2].security_display_state != "AUTHORIZED"
+
+    # Frame 2: Track 1 bị khuất (coasting), Track 2 vẫn hiện diện ở vị trí chồng lấn
+    engine.process_frame(detected_tracks=[(2, front)], camera_code="CAM-001", current_time=10.1)
+
+    p2 = engine.active_tracks[2]
+    # G3.3 Fix verification: p2 tuyệt đối KHÔNG được mang trạng thái AUTHORIZED từ p1
+    assert p2.security_display_state != "AUTHORIZED", "LỖI AN NINH G3.3: Người lạ Track 2 đã mượn cờ xanh AUTHORIZED qua Coasting NMS!"
+    assert p2.security_display_state in ("VERIFYING", "NEUTRAL")

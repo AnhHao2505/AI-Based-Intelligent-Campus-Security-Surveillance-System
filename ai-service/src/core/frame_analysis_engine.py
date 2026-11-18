@@ -1073,7 +1073,16 @@ class FrameAnalysisEngine:
                         pb.has_entered_roi = pb.has_entered_roi or getattr(pa, "has_entered_roi", False)
                         pb.roi_first_entered_time = pb.roi_first_entered_time if pb.roi_first_entered_time is not None else getattr(pa, "roi_first_entered_time", None)
                         if getattr(pa, "security_display_state", "NEUTRAL") != "NEUTRAL":
-                            pb.security_display_state = pa.security_display_state
+                            if pa.security_display_state == "AUTHORIZED":
+                                # G3.3: Tuyệt đối không cho track mới mượn cờ xanh AUTHORIZED qua Coasting NMS
+                                # trừ khi chính track mới đã được đối soát khuôn mặt độc lập và có quyền hợp lệ.
+                                if pb.face_detected and pb.face_info and pb.face_info.is_authorized and not getattr(pb, "is_inherited_identity", False):
+                                    pb.security_display_state = "AUTHORIZED"
+                                elif pb.security_display_state != "AUTHORIZED":
+                                    if pb.is_in_roi or getattr(pa, "is_in_roi", False):
+                                        pb.security_display_state = "VERIFYING"
+                            else:
+                                pb.security_display_state = pa.security_display_state
                         pb.alert_unauthorized_sent = pb.alert_unauthorized_sent or getattr(pa, "alert_unauthorized_sent", False)
                         pb.alert_unknown_sent = pb.alert_unknown_sent or getattr(pa, "alert_unknown_sent", False)
                         pb.alert_after_hours_sent = pb.alert_after_hours_sent or getattr(pa, "alert_after_hours_sent", False)
@@ -1086,7 +1095,16 @@ class FrameAnalysisEngine:
                         pa.has_entered_roi = pa.has_entered_roi or getattr(pb, "has_entered_roi", False)
                         pa.roi_first_entered_time = pa.roi_first_entered_time if pa.roi_first_entered_time is not None else getattr(pb, "roi_first_entered_time", None)
                         if getattr(pb, "security_display_state", "NEUTRAL") != "NEUTRAL":
-                            pa.security_display_state = pb.security_display_state
+                            if pb.security_display_state == "AUTHORIZED":
+                                # G3.3: Tuyệt đối không cho track mới mượn cờ xanh AUTHORIZED qua Coasting NMS
+                                # trừ khi chính track mới đã được đối soát khuôn mặt độc lập và có quyền hợp lệ.
+                                if pa.face_detected and pa.face_info and pa.face_info.is_authorized and not getattr(pa, "is_inherited_identity", False):
+                                    pa.security_display_state = "AUTHORIZED"
+                                elif pa.security_display_state != "AUTHORIZED":
+                                    if pa.is_in_roi or getattr(pb, "is_in_roi", False):
+                                        pa.security_display_state = "VERIFYING"
+                            else:
+                                pa.security_display_state = pb.security_display_state
                         pa.alert_unauthorized_sent = pa.alert_unauthorized_sent or getattr(pb, "alert_unauthorized_sent", False)
                         pa.alert_unknown_sent = pa.alert_unknown_sent or getattr(pb, "alert_unknown_sent", False)
                         pa.alert_after_hours_sent = pa.alert_after_hours_sent or getattr(pb, "alert_after_hours_sent", False)
