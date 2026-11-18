@@ -148,7 +148,7 @@ public class GuestSchemaTest extends AbstractIntegrationTest {
                 Map.entry("GUEST_MAX_PER_VISIT", "INTEGER:10"),
                 Map.entry("GUEST_VISIT_MAX_HOURS", "INTEGER:8"),
                 Map.entry("GUEST_MAX_ADVANCE_DAYS", "INTEGER:14"),
-                Map.entry("GUEST_FACE_RETENTION_HOURS", "INTEGER:24"),
+                Map.entry("GUEST_FACE_RETENTION_HOURS", "INTEGER:72"), // V133: 24 -> 72
                 Map.entry("GUEST_RECORD_RETENTION_DAYS", "INTEGER:90"),
                 Map.entry("GUEST_PHOTO_URL_TTL_SECONDS", "INTEGER:60"),
                 Map.entry("GUEST_CONSENT_NOTICE_VERSION", "STRING:v1"),

@@ -1,13 +1,16 @@
 package com.fa26se040.icss.guest;
 
+import com.fa26se040.icss.dto.guest.GuestVisitRevokeRequest;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.service.GuestVisitJobService;
+import com.fa26se040.icss.service.GuestVisitService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -21,6 +24,9 @@ public class GuestJobTest extends GuestTestSupport {
 
     @Autowired
     private GuestVisitJobService jobService;
+
+    @Autowired
+    private GuestVisitService guestVisitService;
 
     private void assertSystemAudit(List<AuditLog> logs) {
         assertEquals(1, logs.size(), "đúng 1 audit");
@@ -75,22 +81,21 @@ public class GuestJobTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("GV-27: xoá tại mốc sớm nhất end + GUEST_FACE_RETENTION_HOURS — chưa tới thì giữ, qua mốc thì xoá (ảnh + embedding), audit SYSTEM; chạy lại không audit thêm")
+    @DisplayName("GV-27: lượt kết thúc bình thường -> xoá tại end + GUEST_FACE_RETENTION_HOURS (mặc định 72 h, V133): trước mốc 1 phút còn giữ, tới mốc thì xoá (ảnh + embedding), audit SYSTEM; chạy lại không audit thêm")
     void deleteAtRetention() throws Exception {
-        OffsetDateTime now = OffsetDateTime.now();
-        GuestVisit v = newVisit(hostL2, GuestVisitStatus.COMPLETED, now.minusHours(25), now.minusHours(23), List.of(internalArea), "Khách hôm qua");
-        transactionTemplate.executeWithoutResult(tx -> {
-            GuestVisit x = guestVisitRepository.findById(v.getId()).orElseThrow();
-            x.setClosedAt(now.minusHours(23));
-            guestVisitRepository.save(x);
-        });
-        Guest g = withPhoto(guestsOf(v.getId()).get(0), now.minusHours(23).plusHours(24));
+        int retention = systemConfigService.getInt(ConfigKey.GUEST_FACE_RETENTION_HOURS);
+        assertEquals(72, retention, "V133: mặc định 72 giờ");
+        // tròn giây: mốc so sánh không lệch do DB làm tròn micro giây
+        OffsetDateTime now = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+        GuestVisit v = newVisit(hostL2, GuestVisitStatus.COMPLETED, now.minusHours(3), now.minusHours(1), List.of(internalArea), "Khách hôm qua");
+        OffsetDateTime mark = v.getEndTime().plusHours(retention);
+        Guest g = withPhoto(guestsOf(v.getId()).get(0), mark);
         String key = g.getPhotoObjectKey();
-        jobService.deleteDueBiometrics(now);
-        assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus(), "end + 24h chưa tới");
+        jobService.deleteDueBiometrics(mark.minusMinutes(1));
+        assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus(), "end + retention − 1 phút: chưa xoá");
         verify(photoStorage, never()).removeObject(key);
 
-        OffsetDateTime later = now.plusHours(1).plusMinutes(1);
+        OffsetDateTime later = mark;
         jobService.deleteDueBiometrics(later);
         Guest after = guest(g.getId());
         assertEquals(GuestBiometricStatus.DELETED, after.getBiometricStatus());
@@ -113,7 +118,7 @@ public class GuestJobTest extends GuestTestSupport {
         jobService.deleteDueBiometrics(now);
         assertEquals(GuestBiometricStatus.DELETED, guest(g1.getId()).getBiometricStatus(), "end + 1h đã qua");
 
-        setConfig(ConfigKey.GUEST_FACE_RETENTION_HOURS, "24");
+        setConfig(ConfigKey.GUEST_FACE_RETENTION_HOURS, ConfigKey.GUEST_FACE_RETENTION_HOURS.getDefaultValue());
         GuestVisit v2 = newVisit(hostL2, GuestVisitStatus.APPROVED, now.minusHours(1), now.minusMinutes(10), List.of(internalArea), "Khách embedding hết hạn");
         Guest g2 = withPhoto(guestsOf(v2.getId()).get(0), now.minusMinutes(1));
         jobService.deleteDueBiometrics(now);
@@ -122,24 +127,83 @@ public class GuestJobTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("GV-27: lượt CANCELLED / REVOKED / EXPIRED còn sót ảnh -> job xoá ngay")
+    @DisplayName("GV-27: lượt khách chưa từng có quyền (CANCELLED / EXPIRED / REJECTED) còn sót ảnh -> job xoá ngay")
     void deleteForClosedVisits() {
         OffsetDateTime now = OffsetDateTime.now();
-        for (GuestVisitStatus st : List.of(GuestVisitStatus.CANCELLED, GuestVisitStatus.REVOKED, GuestVisitStatus.EXPIRED)) {
+        for (GuestVisitStatus st : List.of(GuestVisitStatus.CANCELLED, GuestVisitStatus.EXPIRED, GuestVisitStatus.REJECTED)) {
             GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, now.plusHours(1), now.plusHours(3), List.of(internalArea), "Khách " + st);
-            Guest g = withPhoto(guestsOf(v.getId()).get(0), now.plusHours(27));
+            Guest g = withPhoto(guestsOf(v.getId()).get(0), now.plusHours(75));
             transactionTemplate.executeWithoutResult(tx -> {
                 GuestVisit x = guestVisitRepository.findById(v.getId()).orElseThrow();
                 x.setStatus(st);
                 x.setCancelledAt(now);
-                x.setRevokedAt(now);
-                x.setRevokedBy(fm);
-                x.setRevokeReason(REASON);
+                x.setReviewReason(REASON);
                 x.setClosedAt(now);
                 guestVisitRepository.save(x);
             });
             jobService.deleteDueBiometrics(now);
             assertEquals(GuestBiometricStatus.DELETED, guest(g.getId()).getBiometricStatus(), st.name());
+        }
+    }
+
+    @Test
+    @DisplayName("GV-13/27: lượt bị thu hồi -> job chưa xoá tại revokedAt + retention − 1 phút; tại revokedAt + retention thì xoá ảnh + embedding, audit DELETE_BIOMETRIC actor SYSTEM, ảnh xoá khỏi kho sau commit")
+    void deleteRevokedAtRetention() throws Exception {
+        int retention = systemConfigService.getInt(ConfigKey.GUEST_FACE_RETENTION_HOURS);
+        OffsetDateTime now = OffsetDateTime.now();
+        GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, now.minusHours(1), now.plusHours(2), List.of(internalArea), "Khách bị thu hồi");
+        // expires_at như lúc gắn ảnh: end + retention, muộn hơn revokedAt + retention -> chỉ nhánh REVOKED xoá được
+        Guest g = withPhoto(guestsOf(v.getId()).get(0), v.getEndTime().plusHours(retention));
+        String key = g.getPhotoObjectKey();
+        guestVisitService.revoke(v.getId(), new GuestVisitRevokeRequest(0L, REASON), fm.getEmail());
+        OffsetDateTime revokedAt = visit(v.getId()).getRevokedAt();
+        assertNotNull(revokedAt);
+        assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus(), "thu hồi không xoá ngay");
+
+        OffsetDateTime mark = revokedAt.plusHours(retention);
+        jobService.deleteDueBiometrics(mark.minusMinutes(1));
+        assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus(), "revokedAt + retention − 1 phút: chưa xoá");
+        assertTrue(embeddingRepository.existsById(g.getId()));
+        verify(photoStorage, never()).removeObject(key);
+        assertTrue(audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC).isEmpty());
+
+        jobService.deleteDueBiometrics(mark);
+        Guest after = guest(g.getId());
+        assertEquals(GuestBiometricStatus.DELETED, after.getBiometricStatus());
+        assertNull(after.getPhotoObjectKey());
+        assertFalse(embeddingRepository.existsById(g.getId()));
+        verify(photoStorage).removeObject(key);
+        assertNull(after.getPendingDeleteObjectKey(), "xoá ảnh sau commit thành công -> bỏ đánh dấu");
+        List<AuditLog> logs = audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC);
+        assertSystemAudit(logs);
+        assertTrue(logs.get(0).getNewValue().replace(" ", "").contains("\"photoDeletionScheduled\":true"),
+                "snapshot ghi photoDeletionScheduled = true (xoá ảnh sau commit)");
+
+        jobService.deleteDueBiometrics(mark);
+        assertEquals(1, audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC).size(), "idempotent");
+    }
+
+    @Test
+    @DisplayName("GV-13/27: GUEST_FACE_RETENTION_HOURS = 0 -> thu hồi không xoá ngay, job chạy kế tiếp thì xoá")
+    void retentionZero_revokedDeletedOnNextRun() throws Exception {
+        setConfig(ConfigKey.GUEST_FACE_RETENTION_HOURS, "0");
+        try {
+            OffsetDateTime now = OffsetDateTime.now();
+            GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, now.minusHours(1), now.plusHours(2), List.of(internalArea), "Khách retention 0");
+            Guest g = withPhoto(guestsOf(v.getId()).get(0), v.getEndTime());
+            String key = g.getPhotoObjectKey();
+            guestVisitService.revoke(v.getId(), new GuestVisitRevokeRequest(0L, REASON), fm.getEmail());
+            assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus(), "thu hồi không xoá ngay");
+            verify(photoStorage, never()).removeObject(key);
+
+            jobService.deleteDueBiometrics(OffsetDateTime.now());
+            assertEquals(GuestBiometricStatus.DELETED, guest(g.getId()).getBiometricStatus(), "job kế tiếp xoá");
+            assertFalse(embeddingRepository.existsById(g.getId()));
+            verify(photoStorage).removeObject(key);
+            assertSystemAudit(audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC));
+        } finally {
+            // GuestSchemaTest đọc thẳng giá trị trong DB: trả về mặc định
+            setConfig(ConfigKey.GUEST_FACE_RETENTION_HOURS, ConfigKey.GUEST_FACE_RETENTION_HOURS.getDefaultValue());
         }
     }
 

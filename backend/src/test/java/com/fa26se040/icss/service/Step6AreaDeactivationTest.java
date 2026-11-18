@@ -491,7 +491,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
     // ================================================================== BR-AD-09
 
     @Test
-    @DisplayName("BR-AD-09: lượt khách PENDING -> CANCELLED; APPROVED -> REVOKED (revoked_by ADMIN), ảnh + embedding xoá sau commit, báo host")
+    @DisplayName("BR-AD-09: lượt khách PENDING -> CANCELLED; APPROVED -> REVOKED (revoked_by ADMIN), ảnh + embedding giữ tới revokedAt + retention (BR-GV-27), báo host")
     void ad09_guestVisits() throws Exception {
         Area area = newArea(AreaLevel.CONFIDENTIAL);
         Area other = newArea(AreaLevel.CONFIDENTIAL);
@@ -512,10 +512,12 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         assertEquals("REVOKED", a.get("status"));
         assertEquals(admin.getId(), a.get("revoked_by"));
         assertEquals(PREFIX + REASON, a.get("revoke_reason"));
-        assertEquals(GuestBiometricStatus.DELETED, guest(g.getId()).getBiometricStatus());
-        assertFalse(embeddingRepository.existsById(g.getId()), "embedding phải bị xoá");
-        verify(photoStorage).removeObject(key);
-        assertNull(guest(g.getId()).getPendingDeleteObjectKey(), "xoá sau commit thành công -> bỏ đánh dấu");
+        // BR-GV-27 (V133): thu hồi không xoá sinh trắc ngay; job xoá tại revokedAt + GUEST_FACE_RETENTION_HOURS
+        assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus());
+        assertTrue(embeddingRepository.existsById(g.getId()), "embedding giữ tới revokedAt + retention");
+        assertEquals(key, guest(g.getId()).getPhotoObjectKey());
+        verify(photoStorage, never()).removeObject(key);
+        assertTrue(audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC).isEmpty());
         assertEquals(1, notificationsOf(hostL2, NotificationType.GUEST_VISIT_REVOKED).size(), "host nhận thông báo thu hồi");
         // H2 (BR-AD-09): host lượt PENDING bị huỷ nhận GUEST_VISIT_CANCELLED_BY_SYSTEM (tên khu vực + lý do)
         List<Map<String, Object>> cancelNotifs = notifs(otherHost, "GUEST_VISIT_CANCELLED_BY_SYSTEM");

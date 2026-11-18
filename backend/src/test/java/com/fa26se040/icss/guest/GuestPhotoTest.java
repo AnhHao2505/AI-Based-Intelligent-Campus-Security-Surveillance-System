@@ -78,7 +78,8 @@ public class GuestPhotoTest extends GuestTestSupport {
         assertNotNull(after.getConsentConfirmedAt());
         assertEquals("v1", after.getConsentNoticeVersion());
         GuestFaceEmbedding e = embeddingRepository.findById(g.getId()).orElseThrow();
-        assertEquals(0, Duration.between(v.getEndTime().plusHours(24), e.getExpiresAt()).getSeconds(), "expires_at = end + GUEST_FACE_RETENTION_HOURS");
+        assertEquals(0, Duration.between(v.getEndTime().plusHours(systemConfigService.getInt(ConfigKey.GUEST_FACE_RETENTION_HOURS)),
+                e.getExpiresAt()).getSeconds(), "expires_at = end + GUEST_FACE_RETENTION_HOURS");
         verify(photoStorage).upload(eq(after.getPhotoObjectKey()), any(), eq("image/jpeg"));
 
         List<AuditLog> a = audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.ATTACH_PHOTO);

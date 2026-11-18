@@ -22,12 +22,17 @@ public interface GuestRepository extends JpaRepository<Guest, UUID> {
 
     Optional<Guest> findByIdAndVisitId(UUID id, UUID visitId);
 
-    /** BR-GV-27: khách còn ảnh / embedding mà lượt đã CANCELLED / REVOKED / EXPIRED, hoặc đã quá end + retention. */
+    /**
+     * BR-GV-27: khách còn ảnh / embedding mà lượt đã CANCELLED / EXPIRED / REJECTED, hoặc đã quá end + retention,
+     * hoặc lượt REVOKED đã quá revokedAt + retention (retentionCutoff = now − retention).
+     */
     @Query("SELECT g.id FROM Guest g JOIN g.visit v WHERE g.biometricStatus IN :withPhoto "
-            + "AND (v.status IN :closedStatuses OR v.endTime <= :endBefore)")
+            + "AND (v.status IN :closedStatuses OR v.endTime <= :retentionCutoff "
+            + "OR (v.status = :revoked AND v.revokedAt <= :retentionCutoff))")
     List<UUID> findIdsNeedingBiometricDeletion(@Param("withPhoto") Collection<GuestBiometricStatus> withPhoto,
                                                @Param("closedStatuses") Collection<GuestVisitStatus> closedStatuses,
-                                               @Param("endBefore") OffsetDateTime endBefore);
+                                               @Param("revoked") GuestVisitStatus revoked,
+                                               @Param("retentionCutoff") OffsetDateTime retentionCutoff);
 
     /** A9: xoá object sau commit thành công -> bỏ đánh dấu, chỉ khi đánh dấu vẫn là đúng object đó. */
     @Modifying
