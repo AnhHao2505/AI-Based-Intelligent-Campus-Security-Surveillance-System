@@ -16,6 +16,8 @@ import numpy as np
 
 from ..config import settings
 from ..pipeline.incident_recorder import incident_recording_manager
+from ..security import INTERNAL_RTSP_USER, build_internal_rtsp_url, decrypt_mqtt_secret, make_internal_api_secret
+from ..utils.security import mask_rtsp_url
 
 logger = logging.getLogger(__name__)
 
@@ -215,10 +217,11 @@ class EdgeMqttAgent:
         }
         try:
             import requests
-            add_resp = requests.post(f"{api_base}/v3/config/paths/add/{path_name}", json=payload, timeout=2.0)
+            api_secret = make_internal_api_secret()
+            auth = (INTERNAL_RTSP_USER, api_secret) if api_secret else None
+            add_resp = requests.post(f"{api_base}/v3/config/paths/add/{path_name}", json=payload, auth=auth, timeout=2.0)
             if add_resp.status_code >= 400:
-                requests.patch(f"{api_base}/v3/config/paths/patch/{path_name}", json=payload, timeout=2.0)
-            from ..security import build_internal_rtsp_url
+                requests.patch(f"{api_base}/v3/config/paths/patch/{path_name}", json=payload, auth=auth, timeout=2.0)
             return build_internal_rtsp_url(rtsp_base, path_name)
         except Exception as e:
             logger.debug(f"[EdgeAgent] Không kết nối được Local MediaMTX ({api_base}), dùng trực tiếp RTSP camera: {e}")
@@ -231,15 +234,21 @@ class EdgeMqttAgent:
             return
         try:
             import requests
-            requests.delete(f"{api_base}/v3/config/paths/delete/{path_name}", timeout=2.0)
-            requests.delete(f"{api_base}/v3/config/paths/delete/{path_name}_main", timeout=2.0)
+            api_secret = make_internal_api_secret()
+            auth = (INTERNAL_RTSP_USER, api_secret) if api_secret else None
+            requests.delete(f"{api_base}/v3/config/paths/delete/{path_name}", auth=auth, timeout=2.0)
+            requests.delete(f"{api_base}/v3/config/paths/delete/{path_name}_main", auth=auth, timeout=2.0)
         except Exception:
             pass
 
     def _handle_camera_stream_config(self, data: Dict[str, Any]):
         camera_code = str(data.get("camera_code") or "").strip().upper()
-        rtsp_url = str(data.get("rtsp_url") or "").strip()
-        main_rtsp_url = str(data.get("main_rtsp_url") or "").strip()
+        try:
+            rtsp_url = decrypt_mqtt_secret(str(data.get("rtsp_url") or "").strip()).strip()
+            main_rtsp_url = decrypt_mqtt_secret(str(data.get("main_rtsp_url") or "").strip()).strip()
+        except Exception as dec_err:
+            logger.warning(f"⚠️ [EdgeAgent] Không thể giải mã cấu hình RTSP cho camera [{camera_code}]: {dec_err}")
+            return
         enabled = bool(data.get("enabled", False))
         roi_geometry = data.get("roi_geometry")
 
@@ -304,7 +313,7 @@ class EdgeMqttAgent:
         worker.start()  # Chạy start() ngoài lock để tránh giữ lock khi mở kết nối RTSP
         with self._lock:
             self.active_workers[camera_code] = worker
-        logger.info(f"✅ [EdgeAgent] Đã kích hoạt CameraStreamWorker [{camera_code}] -> {effective_rtsp}")
+        logger.info(f"✅ [EdgeAgent] Đã kích hoạt CameraStreamWorker [{camera_code}] -> {mask_rtsp_url(effective_rtsp)}")
 
     def _handle_roi_config(self, data: Dict[str, Any]):
         camera_code = str(data.get("camera_code") or "").strip().upper()
@@ -327,10 +336,16 @@ class EdgeMqttAgent:
     def _handle_system_config(self, data: Dict[str, Any]):
         ah_start = data.get("after_hour_start")
         ah_end = data.get("after_hour_end")
-        if ah_start:
-            settings.DEFAULT_AFTER_HOUR_START = str(ah_start)
-        if ah_end:
-            settings.DEFAULT_AFTER_HOUR_END = str(ah_end)
+        if ah_start and ah_end and str(ah_start).strip() == str(ah_end).strip():
+            logger.warning(
+                f"⚠️ [EdgeAgent] after_hour_start và after_hour_end từ MQTT bị trùng ({ah_start} == {ah_end}), "
+                "bỏ qua cập nhật cấu hình mặc định để chống tắt bảo vệ."
+            )
+        else:
+            if ah_start:
+                settings.DEFAULT_AFTER_HOUR_START = str(ah_start)
+            if ah_end:
+                settings.DEFAULT_AFTER_HOUR_END = str(ah_end)
 
         default_pipe = self.default_pipeline_getter() if self.default_pipeline_getter else None
         if default_pipe is not None:
@@ -379,12 +394,11 @@ class EdgeMqttAgent:
                 return
 
             path_name = _format_mediamtx_path(camera_code)
-            from ..security import build_internal_rtsp_url
             local_rtsp = build_internal_rtsp_url(
                 getattr(settings, 'MEDIAMTX_RTSP_URL', 'rtsp://localhost:8554'),
                 path_name,
             )
-            cloud_target = f"{cloud_rtsp_base}/{path_name}"
+            cloud_target = build_internal_rtsp_url(cloud_rtsp_base, path_name)
             cmd = [
                 "ffmpeg",
                 "-nostdin",
@@ -445,8 +459,6 @@ class EdgeMqttAgent:
         try:
             if action == "TEST_CONNECTION":
                 reply = self._rpc_test_connection(corr_id, camera_code, payload, t0)
-            elif action == "CAPTURE_SNAPSHOT":
-                reply = self._rpc_capture_snapshot(corr_id, camera_code, payload, t0)
             elif action == "EXTRACT_FACE_EMBEDDING":
                 reply = self._rpc_extract_face_embedding(corr_id, payload, t0)
             else:
@@ -469,10 +481,10 @@ class EdgeMqttAgent:
         self.mqtt.publish_json(reply_topic, reply, qos=1, retain=False)
 
     def _rpc_test_connection(self, corr_id: str, camera_code: Optional[str], payload: Dict[str, Any], t0: float) -> Dict[str, Any]:
-        rtsp_url = str(payload.get("rtsp_url") or "").strip()
+        rtsp_url = decrypt_mqtt_secret(str(payload.get("rtsp_url") or "").strip()).strip()
         timeout_ms = int(payload.get("timeout_ms") or 4000)
         username = str(payload.get("username") or "").strip()
-        password = str(payload.get("password") or payload.get("credentialRef") or "").strip()
+        password = decrypt_mqtt_secret(str(payload.get("password") or payload.get("credentialRef") or "").strip()).strip()
 
         if not rtsp_url:
             host = str(payload.get("host") or "").strip()
@@ -550,63 +562,6 @@ class EdgeMqttAgent:
             "success": True,
             "latencyMs": latency_ms,
             "data": {"fps": 15.0},
-        }
-
-    def _rpc_capture_snapshot(self, corr_id: str, camera_code: Optional[str], payload: Dict[str, Any], t0: float) -> Dict[str, Any]:
-        cam = (camera_code or "CAM-UNKNOWN").strip().upper()
-        rtsp_url = str(payload.get("rtsp_url") or "").strip()
-        timeout_ms = int(payload.get("timeout_ms") or 4000)
-
-        frame = None
-        worker = self.active_workers.get(cam)
-        if worker and getattr(worker, "is_running", False):
-            frame = worker.get_current_raw_frame()
-
-        if frame is None and rtsp_url:
-            frame = _read_rtsp_frame_once(rtsp_url, timeout_ms=timeout_ms)
-
-        if frame is None or frame.size == 0:
-            return {
-                "correlationId": corr_id,
-                "success": False,
-                "errorCode": "ERR_SNAPSHOT_001",
-                "errorMessage": f"Không thể trích xuất khung hình từ camera {cam}",
-                "latencyMs": int((time.time() - t0) * 1000),
-            }
-
-        h, w = frame.shape[:2]
-        ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-        if not ok:
-            return {
-                "correlationId": corr_id,
-                "success": False,
-                "errorCode": "ERR_SNAPSHOT_ENCODE",
-                "errorMessage": "Không thể nén JPEG khung hình snapshot",
-                "latencyMs": int((time.time() - t0) * 1000),
-            }
-
-        bucket = getattr(settings, "MINIO_BUCKET_SNAPSHOTS", "camera-snapshots")
-        object_key = f"{cam}/snap_{int(time.time() * 1000)}.jpg"
-        uploaded = self.storage.upload_bytes(bucket, object_key, buf.tobytes(), "image/jpeg")
-        if not uploaded:
-            return {
-                "correlationId": corr_id,
-                "success": False,
-                "errorCode": "ERR_SNAPSHOT_UPLOAD",
-                "errorMessage": "Không thể tải ảnh snapshot lên MinIO S3",
-                "latencyMs": int((time.time() - t0) * 1000),
-            }
-
-        return {
-            "correlationId": corr_id,
-            "success": True,
-            "latencyMs": int((time.time() - t0) * 1000),
-            "data": {
-                "bucket": bucket,
-                "object_key": object_key,
-                "width": int(w),
-                "height": int(h),
-            },
         }
 
     def _rpc_extract_face_embedding(self, corr_id: str, payload: Dict[str, Any], t0: float) -> Dict[str, Any]:

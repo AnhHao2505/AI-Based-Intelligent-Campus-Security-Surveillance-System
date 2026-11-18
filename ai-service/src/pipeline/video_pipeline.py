@@ -101,9 +101,11 @@ class VideoPipeline:
         self._last_occupied_motion_time: float = 0.0
         self._cached_motion_res = None
         self._suspicious_motion_start_time: Optional[float] = None
+        self._last_suspicious_candidate_time: Optional[float] = None
         self._last_suspicious_motion_time: float = 0.0
         self._suspicious_motion_cooldown: float = float(getattr(settings, "SUSPICIOUS_MOTION_COOLDOWN_SECONDS", 5.0))
-        self.suspicious_motion_min_duration: float = float(getattr(settings, "SUSPICIOUS_MOTION_MIN_DURATION", 0.0))
+        self.suspicious_motion_min_duration: float = float(getattr(settings, "SUSPICIOUS_MOTION_MIN_DURATION", 0.5))
+        self.suspicious_motion_gap_tolerance: float = float(getattr(settings, "SUSPICIOUS_MOTION_GAP_TOLERANCE", 0.6))
         self._pending_access_checks = set()
         self._pending_checks_lock = threading.Lock()
         self.heartbeat_interval_seconds: float = float(getattr(settings, "MOTION_GATING_HEARTBEAT_SECONDS", 4.0))
@@ -234,31 +236,16 @@ class VideoPipeline:
         old_code: str,
         new_code: str,
         roi_label: str,
-        need_exit: bool,
-        need_entry: bool
+        need_entry: bool = True
     ):
         """
-        Xử lý đổi danh tính từ old_code sang new_code tuần tự trong MỘT task duy nhất (POINT-08):
-        1. Ghi EXIT(old_code) nếu need_exit=True
-        2. Sau khi EXIT hoàn tất, ghi ENTRY(new_code) nếu need_entry=True
-        Đảm bảo không bao giờ có 2 task chạy song song làm đảo lộn thứ tự EXIT/ENTRY.
+        Xử lý đổi danh tính từ old_code sang new_code (POINT-08):
+        Ghi ENTRY(new_code) nếu need_entry=True.
+        (Lưu ý: Không gửi EXIT vì Backend đã bỏ chức năng ghi nhận EXIT).
         """
-        if need_exit and self.face_matcher and old_code:
-            try:
-                logger.info(f"🔄 [Identity Switch] Ghi nhận EXIT tuần tự cho mã cũ: {old_code}")
-                self.face_matcher.check_camera_access(
-                    self.camera_code,
-                    old_code,
-                    roi_label=roi_label,
-                    event_direction="EXIT",
-                    skip_cache=True,
-                )
-            except Exception as e:
-                logger.warning(f"[VideoPipeline] Lỗi khi ghi EXIT cho mã cũ {old_code}: {e}")
-
         if need_entry and self.face_matcher and new_code:
             try:
-                logger.info(f"🔄 [Identity Switch] Ghi nhận ENTRY tuần tự cho mã mới: {new_code}")
+                logger.info(f"🔄 [Identity Switch] Ghi nhận ENTRY cho mã mới: {new_code} (thay thế {old_code})")
                 res = self.face_matcher.check_camera_access(
                     self.camera_code,
                     new_code,
@@ -294,8 +281,6 @@ class VideoPipeline:
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing and existing.face_info and existing.face_info.matched_code == user_code:
                 self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id)
-                if getattr(existing, "is_in_roi", False):
-                    existing.roi_entry_logged = True
         except Exception as e:
             logger.warning(f"[VideoPipeline] Lỗi kiểm tra quyền bất đồng bộ cho user {user_code}: {e}")
         finally:
@@ -316,9 +301,6 @@ class VideoPipeline:
             access_source = cached[3] if len(cached) >= 4 else None
             deny_reason = cached[4] if len(cached) >= 5 else None
             self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id)
-            existing = self.analysis_engine.active_tracks.get(track_id)
-            if existing:
-                existing.roi_entry_logged = True
             return
 
         cache_key = f"{self.camera_code}:{user_code}"
@@ -338,7 +320,6 @@ class VideoPipeline:
         self.roi_polygons = [
             RoiPolygonConfig(
                 label="Vùng ROI",
-                alert_rules=["ENTRY_EXIT_TRACKING"],
                 vertices=polygon
             )
         ]
@@ -364,7 +345,6 @@ class VideoPipeline:
                     configs.append(
                         RoiPolygonConfig(
                             label=p.get("label", ""),
-                            alert_rules=p.get("alert_rules", ["ENTRY_EXIT_TRACKING"]),
                             target_area_id=p.get("target_area_id"),
                             vertices=pts
                         )
@@ -479,11 +459,9 @@ class VideoPipeline:
                                     res[4] if len(res) >= 5 else None
                                 )
                             else:
-                                res = self.face_matcher.check_camera_access(self.camera_code, "UNKNOWN")
-                                is_allowed, reason, area_name = res[0], res[1], res[2]
-                                face_res.is_authorized = is_allowed
-                                face_res.access_reason = reason
-                                face_res.area_name = area_name
+                                face_res.is_authorized = False
+                                face_res.access_reason = "Người lạ chưa xác thực"
+                                face_res.area_name = self.face_matcher.get_camera_area_name(self.camera_code) if self.face_matcher else None
                                 face_res.access_checked = True
                         temp_engine.associate_face(track_id, face_res)
 
@@ -506,6 +484,41 @@ class VideoPipeline:
             only_in_roi=has_roi
         )
         return annotated_frame, active_persons, alerts
+
+    @staticmethod
+    def _head_fit_cost(face_bbox, person_bbox, require_inside: bool) -> Optional[float]:
+        """
+        Độ lệch giữa tâm mặt và vị trí đầu kỳ vọng của một người (giữa-trên khung người), chuẩn hoá theo kích thước khung.
+        Càng nhỏ càng có khả năng mặt thuộc người này. require_inside=True: mặt phải nằm trong vùng quét mặt
+        (UPPER_BODY_CROP_RATIO phía trên khung) của người đó, ngược lại trả None (không phải ứng viên).
+        """
+        pw, ph = person_bbox.width, person_bbox.height
+        if pw <= 0 or ph <= 0:
+            return None
+        fcx = (face_bbox.x1 + face_bbox.x2) / 2.0
+        fcy = (face_bbox.y1 + face_bbox.y2) / 2.0
+        if require_inside:
+            upper_y2 = person_bbox.y1 + ph * settings.UPPER_BODY_CROP_RATIO
+            if not (person_bbox.x1 <= fcx <= person_bbox.x2 and person_bbox.y1 <= fcy <= upper_y2):
+                return None
+        pcx = (person_bbox.x1 + person_bbox.x2) / 2.0
+        return abs(fcx - pcx) / pw + abs(fcy - person_bbox.y1) / ph
+
+    def _is_face_owned_by(self, face_bbox, person_bbox, other_bboxes) -> bool:
+        """
+        Mặt tìm thấy trong vùng quét của người này có thật sự là của người này không.
+        Khi hai người đứng chồng lên nhau, vùng quét của người đứng trước thường chứa mặt người đứng sau (mặt đó lại
+        rõ hơn nếu người trước đang cúi / quay đi) -> gán nhầm danh tính. Mặt thuộc về người có đầu kỳ vọng gần nhất;
+        hoà điểm coi như không xác định được chủ -> không dùng để định danh.
+        """
+        own = self._head_fit_cost(face_bbox, person_bbox, require_inside=False)
+        if own is None:
+            return False
+        for ob in other_bboxes:
+            other = self._head_fit_cost(face_bbox, ob, require_inside=True)
+            if other is not None and other <= own:
+                return False
+        return True
 
     def _is_reverify_due(self, existing, current_time: float) -> bool:
         """
@@ -905,6 +918,12 @@ class VideoPipeline:
         if is_suspicious_candidate:
             if self._suspicious_motion_start_time is None:
                 self._suspicious_motion_start_time = current_time
+            elif self._last_suspicious_candidate_time is not None:
+                if (current_time - self._last_suspicious_candidate_time) > self.suspicious_motion_gap_tolerance:
+                    self._suspicious_motion_start_time = current_time
+
+            self._last_suspicious_candidate_time = current_time
+
             if (current_time - self._suspicious_motion_start_time) >= self.suspicious_motion_min_duration:
                 if (current_time - self._last_suspicious_motion_time) >= self._suspicious_motion_cooldown:
                     self._last_suspicious_motion_time = current_time
@@ -923,7 +942,10 @@ class VideoPipeline:
                     )
                     early_alerts.append(anomaly_alert)
         else:
-            self._suspicious_motion_start_time = None
+            if self._last_suspicious_candidate_time is not None:
+                if (current_time - self._last_suspicious_candidate_time) > self.suspicious_motion_gap_tolerance:
+                    self._suspicious_motion_start_time = None
+                    self._last_suspicious_candidate_time = None
 
         # ------------------------------------------------------------------
         # 3. QUÉT KHUÔN MẶT TRÊN TỪNG NGƯỜI (SCRFD + ARCFACE)
@@ -952,16 +974,33 @@ class VideoPipeline:
             # Tối ưu hiệu năng: Nếu Track ID này đã nhận diện được danh tính trong active_tracks,
             # ByteTrack tiếp tục bám theo mượt mà mà không cần chạy lại SCRFD + ArcFace + pgvector mỗi frame!
             existing = self.analysis_engine.active_tracks.get(track_id)
+            is_parent_inherited = False
             if not existing and hasattr(self.analysis_engine, "find_matching_parent_track"):
                 parent_res = self.analysis_engine.find_matching_parent_track(
                     bbox=bbox,
                     current_time=current_time,
-                    exclude_tids=current_frame_tids
+                    exclude_tids=current_frame_tids,
+                    frame_size=(w, h)
                 )
                 if parent_res:
                     existing = parent_res[1]
+                    # Track cha chỉ khớp theo khoảng cách khi có người khác trong frame: không mượn danh tính của họ
+                    safe_check = getattr(self.analysis_engine, "parent_identity_is_safe", None)
+                    if callable(safe_check) and not safe_check(bbox, existing, visible_count=len(current_frame_tids)):
+                        existing = None
+                    else:
+                        is_parent_inherited = True
+
             is_reverifying = False
             if existing and existing.face_detected and existing.face_info and existing.face_info.matched_code:
+                if is_parent_inherited:
+                    # G3.5: Track mới mượn danh tính từ cha parent_res phải đánh dấu kế thừa
+                    # và bắt buộc kích hoạt kiểm tra khuôn mặt ngay ở frame đầu tiên (reverify_due = True)
+                    # bất kể điểm match trước đó của track cha cao bao nhiêu (kể cả >= 0.82).
+                    existing.is_inherited_identity = True
+                    if existing.face_info:
+                        existing.face_info.is_inherited = True
+
                 if track_stats.get("first_matched_time") is None:
                     # Danh tính có sẵn (kế thừa từ track cha / bộ đếm tạo lại sau khi track bị xoá rồi xuất hiện lại):
                     # độ trễ đã được đo và in ở lần nhận diện gốc. Không đo lại ở đây, vì first_seen_time của người
@@ -980,7 +1019,7 @@ class VideoPipeline:
                     )
 
                 # Điểm 8: Kiểm tra điều kiện Re-verification / Face Quality Upgrade
-                if self._is_reverify_due(existing, current_time):
+                if is_parent_inherited or self._is_reverify_due(existing, current_time):
                     is_reverifying = True
                 else:
                     continue
@@ -1015,6 +1054,28 @@ class VideoPipeline:
                         person_upper_crop,
                         offset_xy=(x1, y1)
                     )
+                    # Người khác đứng chồng lên vùng quét mặt của người này: mặt điểm cao nhất có thể là của họ
+                    # -> chỉ nhận mặt thuộc về chính người này (quét lại có lọc), không thấy thì bỏ qua frame này.
+                    crop_box = BoundingBox(x1=x1, y1=y1, x2=x2, y2=y1 + crop_h)
+                    other_bboxes = [
+                        ob for otid, ob in detected_tracks
+                        if otid >= 0 and otid != track_id and crop_box.iou(ob) > 0.0
+                    ]
+                    if face_result and other_bboxes and not self._is_face_owned_by(face_result.bbox, bbox, other_bboxes):
+                        face_result = self.face_detector.detect_best_face_in_crop(
+                            person_upper_crop,
+                            offset_xy=(x1, y1),
+                            face_filter=lambda f, _b=bbox, _o=other_bboxes: self._is_face_owned_by(f.bbox, _b, _o)
+                        )
+                        if face_result and not self._is_face_owned_by(face_result.bbox, bbox, other_bboxes):
+                            face_result = None
+                        if not face_result:
+                            track_stats["drop_foreign_face"] = track_stats.get("drop_foreign_face", 0) + 1
+                            logger.debug(
+                                f"👥 [VideoPipeline:{self.camera_code}] [FaceOwner] Track #{track_id}: mặt trong vùng quét "
+                                f"thuộc người đứng chồng lên -> không dùng để định danh track này"
+                            )
+                            continue
                     if not face_result:
                         track_stats["drop_no_face"] += 1
                     else:
@@ -1101,75 +1162,79 @@ class VideoPipeline:
                                     if score > prev_score:
                                         existing.face_info.score = score
                                         face_result.score = score
-                                    continue
-
-                                # Mã mới KHÁC danh tính hiện tại:
-                                # Điểm mới phải >= prev_score + 0.05
-                                if score < (prev_score + 0.05):
-                                    continue
-
-                                # Yêu cầu 2 lần match liên tiếp cùng mã mới trước khi đổi (POINT-08a)
-                                if getattr(existing, "pending_reverify_code", None) == code:
-                                    existing.pending_reverify_count = getattr(existing, "pending_reverify_count", 0) + 1
+                                    if not is_parent_inherited:
+                                        continue
                                 else:
-                                    existing.pending_reverify_code = code
-                                    existing.pending_reverify_count = 1
+                                    # Mã mới KHÁC danh tính hiện tại:
+                                    # Điểm mới phải >= prev_score + 0.05. Riêng danh tính KẾ THỪA: prev_score là điểm mặt của
+                                    # track cha (có thể là người khác đứng gần), không phải mặt quét được trên track này
+                                    # -> không bắt vượt điểm đó, chỉ cần 2 lần khớp liên tiếp cùng mã mới.
+                                    inherited_identity = (
+                                        getattr(existing, "is_inherited_identity", False)
+                                        or getattr(existing.face_info, "is_inherited", False)
+                                    )
+                                    if not inherited_identity and score < (prev_score + 0.05):
+                                        continue
 
-                                if existing.pending_reverify_count < 2:
-                                    # Lần 1: chưa đủ 2 lần liên tiếp -> BỎ QUA, không đổi
-                                    continue
-
-                                # Lần 2 liên tiếp cùng mã mới -> Thực hiện đổi danh tính:
-                                logger.info(
-                                    f"🔄 [Face Re-verify] Track #{track_id} đổi danh tính từ {prev_code} "
-                                    f"sang {code} (score mới: {score:.3f}, score cũ: {prev_score:.3f})"
-                                )
-                                existing.pending_reverify_code = None
-                                existing.pending_reverify_count = 0
-                                existing.is_inherited_identity = False
-                                if existing.face_info:
-                                    existing.face_info.is_inherited = False
-
-                                # POINT-08b: Reset cảnh báo vi phạm
-                                existing.alert_unauthorized_sent = False
-                                existing.alert_unknown_sent = False
-                                existing.unknown_verdict_time = None
-                                existing.unknown_verdict_session_id = None
-                                existing.identity_update_sent = False
-                                # Cooldown cảnh báo vi phạm theo track nằm ở engine (track_last_unauthorized_alert_time),
-                                # không phải thuộc tính trên person: xoá đúng chỗ engine đọc để B không bị chặn bởi
-                                # cooldown 30s còn lại của A.
-                                self.analysis_engine.track_last_unauthorized_alert_time.pop(track_id, None)
-
-                                # POINT-08c: Đổi danh tính A -> B: Ghi EXIT(A) rồi ENTRY(B) tuần tự trong MỘT task
-                                need_exit = getattr(existing, "roi_entry_logged", False)
-                                need_entry = in_roi
-
-                                if (need_exit or need_entry) and self.face_matcher:
-                                    if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
-                                        self.access_executor.submit(
-                                            self._handle_identity_switch,
-                                            track_id,
-                                            prev_code,
-                                            code,
-                                            roi_label or "Vùng giám sát",
-                                            need_exit,
-                                            need_entry
-                                        )
+                                    # Yêu cầu 2 lần match liên tiếp cùng mã mới trước khi đổi (POINT-08a)
+                                    if getattr(existing, "pending_reverify_code", None) == code:
+                                        existing.pending_reverify_count = getattr(existing, "pending_reverify_count", 0) + 1
                                     else:
-                                        self._handle_identity_switch(
-                                            track_id,
-                                            prev_code,
-                                            code,
-                                            roi_label or "Vùng giám sát",
-                                            need_exit,
-                                            need_entry
-                                        )
-                                    # Đang trong ROI: ENTRY(B) do chính _handle_identity_switch gửi (sau EXIT(A)) -> đánh dấu đã ghi
-                                    # để engine không gửi thêm một ENTRY(B) thứ hai, có thể tới Backend trước EXIT(A).
-                                    # Ngoài ROI: chưa ghi ENTRY(B), engine tự ghi khi B bước vào ROI.
-                                    existing.roi_entry_logged = bool(need_entry)
-                                    identity_switched = True
+                                        existing.pending_reverify_code = code
+                                        existing.pending_reverify_count = 1
+
+                                    if existing.pending_reverify_count < 2:
+                                        # Lần 1: chưa đủ 2 lần liên tiếp -> BỎ QUA, không đổi
+                                        continue
+
+                                    # Lần 2 liên tiếp cùng mã mới -> Thực hiện đổi danh tính:
+                                    logger.info(
+                                        f"🔄 [Face Re-verify] Track #{track_id} đổi danh tính từ {prev_code} "
+                                        f"sang {code} (score mới: {score:.3f}, score cũ: {prev_score:.3f})"
+                                    )
+                                    existing.pending_reverify_code = None
+                                    existing.pending_reverify_count = 0
+                                    existing.is_inherited_identity = False
+                                    if existing.face_info:
+                                        existing.face_info.is_inherited = False
+
+                                    # POINT-08b: Reset cảnh báo vi phạm
+                                    existing.alert_unauthorized_sent = False
+                                    existing.alert_unknown_sent = False
+                                    existing.unknown_verdict_time = None
+                                    existing.unknown_verdict_session_id = None
+                                    existing.identity_update_sent = False
+                                    # Cooldown cảnh báo vi phạm theo track nằm ở engine (track_last_unauthorized_alert_time),
+                                    # không phải thuộc tính trên person: xoá đúng chỗ engine đọc để B không bị chặn bởi
+                                    # cooldown 30s còn lại của A.
+                                    self.analysis_engine.track_last_unauthorized_alert_time.pop(track_id, None)
+
+                                    # POINT-08c: Đổi danh tính A -> B: Ghi ENTRY(B) nếu đang trong ROI (Backend không ghi nhận EXIT)
+                                    need_entry = in_roi
+
+                                    if need_entry and self.face_matcher:
+                                        if self.access_executor and not getattr(self.access_executor, "_shutdown", False):
+                                            self.access_executor.submit(
+                                                self._handle_identity_switch,
+                                                track_id,
+                                                prev_code,
+                                                code,
+                                                roi_label or "Vùng giám sát",
+                                                need_entry
+                                            )
+                                        else:
+                                            self._handle_identity_switch(
+                                                track_id,
+                                                prev_code,
+                                                code,
+                                                roi_label or "Vùng giám sát",
+                                                need_entry
+                                            )
+                                        # Đang trong ROI: ENTRY(B) do chính _handle_identity_switch gửi -> đánh dấu đã ghi
+                                        # để engine không gửi thêm một ENTRY(B) thứ hai.
+                                        # Ngoài ROI: chưa ghi ENTRY(B), engine tự ghi khi B bước vào ROI.
+                                        existing.roi_entry_logged = True
+                                        identity_switched = True
 
                             face_result.matched_code = code
                             face_result.matched_name = name
@@ -1234,7 +1299,8 @@ class VideoPipeline:
 
                         # Mặt đã qua lọc kích thước và độ mờ: engine dùng mốc này để quyết định có giữ thêm (hold) trước khi chốt UNKNOWN
                         face_result.seen_at = current_time
-                        self.analysis_engine.associate_face(track_id, face_result)
+                        if not (is_parent_inherited and not getattr(face_result, "matched_code", None) and getattr(existing, "face_info", None) and getattr(existing.face_info, "matched_code", None)):
+                            self.analysis_engine.associate_face(track_id, face_result)
                 else:
                     track_stats["drop_no_face"] += 1
             else:

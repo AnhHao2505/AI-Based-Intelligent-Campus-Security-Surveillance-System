@@ -109,3 +109,66 @@ def test_after_hours_warning_rate_limiting():
         engine.process_frame(detected_tracks=[], camera_code="CAM-001", current_time=t0 + 61.0)
         assert mock_warn.call_count == 2
 
+
+def test_after_hours_start_equals_end_fallback_to_defaults():
+    # G2.1: Khi start == end (ví dụ 00:00 - 00:00), hệ thống không được vô hiệu hoá bảo vệ
+    # mà phải fallback về DEFAULT_AFTER_HOUR_START / END
+    engine = FrameAnalysisEngine(after_hour_start="00:00", after_hour_end="00:00")
+    t_14h = datetime(2026, 11, 4, 14, 0, 0, tzinfo=timezone(timedelta(hours=7))).timestamp()
+    t_14h_after_grace = t_14h + 2.0
+
+    engine.process_frame(
+        detected_tracks=[(1, BoundingBox(10, 10, 50, 100))],
+        camera_code="CAM-001",
+        current_time=t_14h,
+    )
+    _, alerts, _ = engine.process_frame(
+        detected_tracks=[(1, BoundingBox(10, 10, 50, 100))],
+        camera_code="CAM-001",
+        current_time=t_14h_after_grace,
+    )
+    # Vì fallback về 22:00 - 06:00, 14:00 là ban ngày -> UNKNOWN_PERSON
+    assert len(alerts) == 1
+    assert alerts[0].event_type == "UNKNOWN_PERSON"
+
+
+def test_after_hours_start_equals_end_fails_safe_when_default_also_equal():
+    # G2.1: Khi cả cấu hình lẫn default đều start == end, fail-safe kích hoạt sau giờ (after_hours=True)
+    with patch("src.core.frame_analysis_engine.settings.DEFAULT_AFTER_HOUR_START", "00:00"), \
+         patch("src.core.frame_analysis_engine.settings.DEFAULT_AFTER_HOUR_END", "00:00"):
+        engine = FrameAnalysisEngine(after_hour_start="00:00", after_hour_end="00:00")
+        t_14h = datetime(2026, 11, 4, 14, 0, 0, tzinfo=timezone(timedelta(hours=7))).timestamp()
+        t_14h_after_grace = t_14h + 2.0
+
+        engine.process_frame(
+            detected_tracks=[(1, BoundingBox(10, 10, 50, 100))],
+            camera_code="CAM-001",
+            current_time=t_14h,
+        )
+        _, alerts, _ = engine.process_frame(
+            detected_tracks=[(1, BoundingBox(10, 10, 50, 100))],
+            camera_code="CAM-001",
+            current_time=t_14h_after_grace,
+        )
+        # Fail-safe coi là ngoài giờ -> PERSON_INTRUSION
+        assert len(alerts) == 1
+        assert alerts[0].event_type == "PERSON_INTRUSION"
+
+
+def test_settings_raises_error_if_default_start_equals_end():
+    from pydantic import ValidationError
+    from src.config import Settings
+    with pytest.raises((ValidationError, ValueError), match="không được trùng nhau"):
+        Settings(
+            POSTGRES_PASSWORD="dummy",
+            DEFAULT_AFTER_HOUR_START="22:00",
+            DEFAULT_AFTER_HOUR_END="22:00"
+        )
+
+
+def test_after_hour_config_request_validates_different_hours():
+    from pydantic import ValidationError
+    from src.main import AfterHourConfigRequest
+    with pytest.raises((ValidationError, ValueError), match="không được trùng nhau"):
+        AfterHourConfigRequest(start="22:00", end="22:00")
+

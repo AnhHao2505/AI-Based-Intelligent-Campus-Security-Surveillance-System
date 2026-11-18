@@ -141,7 +141,6 @@ def test_public_area_roi_stranger_no_false_alert():
     # Cấu hình ROI tracking thông thường tại cổng trường
     gate_roi = RoiPolygonConfig(
         label="Cổng chính - Luồng xe và người",
-        alert_rules=["ENTRY_EXIT_TRACKING"],
         vertices=[Point(0, 0), Point(500, 0), Point(500, 500), Point(0, 500)]
     )
 
@@ -170,22 +169,21 @@ def test_public_area_roi_stranger_no_false_alert():
     # KHÔNG được bắn cảnh báo UNKNOWN_PERSON vì đây là khu vực công cộng ban ngày!
     assert len(alerts) == 0, f"Khu vực công cộng ban ngày không được báo động người lạ qua cổng! Nhận: {alerts}"
 
-    # Bây giờ cấu hình vùng bốt bảo vệ có rule RESTRICTED_ACCESS
+    # Bây giờ kiểm tra với khu vực nội bộ / hạn chế (is_public_area=False, ví dụ bốt gác an ninh)
     booth_roi = RoiPolygonConfig(
         label="Bốt gác an ninh",
-        alert_rules=["RESTRICTED_ACCESS"],
         vertices=[Point(0, 0), Point(500, 0), Point(500, 500), Point(0, 500)]
     )
 
     _, alerts_booth, _ = engine.process_frame(
         detected_tracks=[(1, box)],
-        camera_code="CAM-GATE",
+        camera_code="CAM-BOOTH",
         roi_polygons=[booth_roi],
         frame_size=(1000, 1000),
-        is_public_area=True,
+        is_public_area=False,
         current_time=t_day + 4.0
     )
 
-    # Vào bốt an ninh có quy tắc RESTRICTED_ACCESS thì PHẢI cảnh báo UNKNOWN_PERSON!
+    # Vào khu vực nội bộ / bảo vệ (is_public_area=False) thì PHẢI cảnh báo UNKNOWN_PERSON!
     assert len(alerts_booth) == 1
     assert alerts_booth[0].event_type == "UNKNOWN_PERSON"

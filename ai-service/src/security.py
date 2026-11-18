@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import time
@@ -72,3 +73,57 @@ def build_internal_rtsp_url(rtsp_base: str, path_name: str) -> str:
     if secret and clean_base.startswith("rtsp://") and "@" not in clean_base:
         clean_base = f"rtsp://{INTERNAL_RTSP_USER}:{secret}@{clean_base[len('rtsp://'):]}"
     return f"{clean_base}/{clean_path}"
+
+
+def make_internal_api_secret() -> str:
+    """F-01: Sinh mật khẩu HMAC tĩnh cho MediaMTX Control API (/v3/*)."""
+    key = getattr(settings, "INTERNAL_SERVICE_KEY", "") or ""
+    if not key:
+        return ""
+    return hmac.new(key.encode("utf-8"), b"mediamtx-api", hashlib.sha256).hexdigest()
+
+
+ENC_ETM_PREFIX = "ENC_ETM:"
+
+
+def decrypt_mqtt_secret(value: Optional[str], service_key: Optional[str] = None) -> str:
+    """
+    F-02: Giải mã chuỗi RTSP/password đã được Backend mã hóa Encrypt-then-MAC (ENC_ETM:)
+    trước khi gửi qua MQTT Broker.
+    """
+    if not value:
+        return ""
+    if not isinstance(value, str) or not value.startswith(ENC_ETM_PREFIX):
+        return value
+
+    key = service_key if service_key is not None else (getattr(settings, "INTERNAL_SERVICE_KEY", "") or "")
+    if not key:
+        raise ValueError("Thiếu INTERNAL_SERVICE_KEY để giải mã thông tin RTSP từ MQTT")
+
+    raw = base64.b64decode(value[len(ENC_ETM_PREFIX):])
+    if len(raw) < 48:
+        raise ValueError("Dữ liệu ENC_ETM không hợp lệ")
+
+    nonce = raw[:16]
+    ciphertext = raw[16:-32]
+    tag = raw[-32:]
+
+    enc_key = hashlib.sha256(f"mqtt-enc|{key}".encode("utf-8")).digest()
+    mac_key = hashlib.sha256(f"mqtt-mac|{key}".encode("utf-8")).digest()
+
+    expected_tag = hmac.new(mac_key, nonce + ciphertext, hashlib.sha256).digest()
+    if not hmac.compare_digest(tag, expected_tag):
+        raise ValueError("Chữ ký xác thực ENC_ETM không hợp lệ")
+
+    plain = bytearray(len(ciphertext))
+    offset = 0
+    counter = 0
+    while offset < len(ciphertext):
+        block = hashlib.sha256(enc_key + nonce + counter.to_bytes(4, "big")).digest()
+        counter += 1
+        chunk = min(len(block), len(ciphertext) - offset)
+        for i in range(chunk):
+            plain[offset + i] = ciphertext[offset + i] ^ block[i]
+        offset += chunk
+
+    return plain.decode("utf-8")

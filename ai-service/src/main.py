@@ -1,6 +1,5 @@
 from .utils.geometry import normalize_polygon_to_unit
-from urllib.parse import urlsplit
-from .utils.security import mask_rtsp_url, validate_snapshot_rtsp_url, setup_uvicorn_access_log_filter
+from .utils.security import mask_rtsp_url, setup_uvicorn_access_log_filter
 import os
 import sys
 
@@ -26,7 +25,7 @@ import asyncio
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import List, Optional, Dict, Any
 
 import logging
@@ -39,7 +38,6 @@ from .integration.storage_service import StorageService
 
 from .utils.logger import setup_ai_logging, log_ai_step
 from .utils.system_threads import configure_system_threads
-from .utils.ffmpeg_options import get_ffmpeg_capture_options
 from .pipeline.model_warmup import warmup_pipeline_models
 
 setup_ai_logging(
@@ -105,9 +103,18 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
 
                     if threshold is not None:
                         settings.FACE_MATCH_THRESHOLD = float(threshold)
-                    if ah_start:
+                    if ah_start and ah_end:
+                        if str(ah_start).strip() == str(ah_end).strip():
+                            logger.warning(
+                                f"⚠️ Giờ ngoài giờ nhận được từ Backend bị trùng nhau ({ah_start} == {ah_end}), "
+                                "bỏ qua không cập nhật để tránh vô hiệu hoá bảo vệ."
+                            )
+                        else:
+                            settings.DEFAULT_AFTER_HOUR_START = str(ah_start)
+                            settings.DEFAULT_AFTER_HOUR_END = str(ah_end)
+                    elif ah_start:
                         settings.DEFAULT_AFTER_HOUR_START = str(ah_start)
-                    if ah_end:
+                    elif ah_end:
                         settings.DEFAULT_AFTER_HOUR_END = str(ah_end)
                     if max_inactive is not None:
                         settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS = float(max_inactive)
@@ -333,9 +340,22 @@ class ROIConfigRequest(BaseModel):
     after_hour_start: Optional[str] = None
     after_hour_end: Optional[str] = None
 
+    @model_validator(mode="after")
+    def validate_after_hours_differ(self):
+        if self.after_hour_start and self.after_hour_end:
+            if self.after_hour_start.strip() == self.after_hour_end.strip():
+                raise ValueError("Giờ bắt đầu và kết thúc ngoài giờ không được trùng nhau")
+        return self
+
 class AfterHourConfigRequest(BaseModel):
     start: str
     end: str
+
+    @model_validator(mode="after")
+    def validate_after_hours_differ(self):
+        if self.start.strip() == self.end.strip():
+            raise ValueError("Giờ bắt đầu và kết thúc ngoài giờ không được trùng nhau")
+        return self
 
 @app.post("/api/v1/system-config/after-hour", dependencies=[Depends(require_service_key)])
 async def update_after_hour_config(req: AfterHourConfigRequest):
@@ -345,6 +365,8 @@ async def update_after_hour_config(req: AfterHourConfigRequest):
         datetime.time.fromisoformat(req.end)
     except ValueError:
         raise HTTPException(status_code=400, detail="after-hour times must use HH:mm")
+    if req.start.strip() == req.end.strip():
+        raise HTTPException(status_code=400, detail="Giờ bắt đầu và kết thúc ngoài giờ không được trùng nhau")
     if default_pipeline:
         default_pipeline.analysis_engine.after_hour_start = req.start
         default_pipeline.analysis_engine.after_hour_end = req.end
@@ -366,6 +388,7 @@ class AIRuntimeConfigRequest(BaseModel):
     identity_grace_seconds: Optional[float] = None
     unauthorized_alert_cooldown: Optional[float] = None
     suspicious_motion_cooldown: Optional[float] = None
+    suspicious_motion_min_duration: Optional[float] = None
     # V126: thời hạn lưu trữ video ghi hình (giờ)
     recording_retention_hours: Optional[float] = None
     # V127 (origin/main): thời gian giữ thêm trước khi chốt cảnh báo người lạ (giây)
@@ -690,78 +713,6 @@ async def get_live_annotated_feed(
             target_worker.remove_client()
             
     return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
-
-class SnapshotRequest(BaseModel):
-    rtsp_url: str
-    timeout_ms: int = 5000
-
-def _read_rtsp_frame_sync(rtsp_url: str, timeout_ms: int):
-    timeout_us = max(1000, timeout_ms) * 1000
-    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = get_ffmpeg_capture_options(timeout_us=timeout_us)
-    
-    # Thử tối đa 2 lần để tránh xung đột socket khi người dùng vừa bấm Lưu luồng rồi bấm Thử kết nối liên tiếp
-    for attempt in range(2):
-        cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
-        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, timeout_ms)
-        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, timeout_ms)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        try:
-            if cap.isOpened():
-                for _ in range(5):
-                    ret, frame = cap.read()
-                    if ret and frame is not None:
-                        return frame
-                    time.sleep(0.05)
-        finally:
-            cap.release()
-        if attempt == 0:
-            time.sleep(0.25)
-    return None
-
-@app.post("/api/v1/cameras/snapshot", dependencies=[Depends(require_service_key)])
-async def capture_rtsp_snapshot(req: SnapshotRequest):
-    if not validate_snapshot_rtsp_url(req.rtsp_url):
-        parts = urlsplit(req.rtsp_url.strip()) if req.rtsp_url else None
-        if not parts or parts.scheme.lower() not in ("rtsp", "rtsps"):
-            raise HTTPException(status_code=400, detail="Chỉ hỗ trợ giao thức rtsp hoặc rtsps")
-        raise HTTPException(status_code=400, detail="Địa chỉ RTSP không hợp lệ hoặc bị chặn (SSRF Protection)")
-
-    start_time = time.time()
-    timeout_sec = min(max(req.timeout_ms / 1000.0, 1.0), 4.0)
-    
-    logger.info(f"📸 [Snapshot] Bắt đầu trích xuất khung hình: url={mask_rtsp_url(req.rtsp_url)}, timeout={req.timeout_ms}ms")
-    try:
-        loop = asyncio.get_running_loop()
-        frame = await asyncio.wait_for(
-            loop.run_in_executor(None, _read_rtsp_frame_sync, req.rtsp_url, req.timeout_ms),
-            timeout=timeout_sec + 0.5
-        )
-    except asyncio.TimeoutError:
-        logger.warning(f"⚠️ [Snapshot] Timeout khi trích xuất khung hình từ {mask_rtsp_url(req.rtsp_url)}")
-        raise HTTPException(status_code=504, detail="Quá thời gian kết nối RTSP stream (Timeout)")
-    except Exception as e:
-        logger.warning(f"⚠️ [Snapshot] Lỗi ngoại lệ khi trích xuất khung hình từ {mask_rtsp_url(req.rtsp_url)}: {e}")
-        raise HTTPException(status_code=502, detail=f"Lỗi trích xuất snapshot: {str(e)}")
-        
-    if frame is None:
-        logger.warning(f"⚠️ [Snapshot] Không đọc được frame từ {mask_rtsp_url(req.rtsp_url)}")
-        raise HTTPException(status_code=502, detail="Không thể kết nối hoặc đọc frame từ RTSP")
-        
-    logger.info(f"✅ [Snapshot] Trích xuất thành công: shape={frame.shape} từ {mask_rtsp_url(req.rtsp_url)}")
-
-    latency_ms = int((time.time() - start_time) * 1000)
-    height, width = frame.shape[:2]
-    
-    _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-    base64_str = base64.b64encode(buffer).decode('utf-8')
-    
-    return {
-        "success": True,
-        "snapshot_base64": f"data:image/jpeg;base64,{base64_str}",
-        "width": width,
-        "height": height,
-        "latency_ms": latency_ms
-    }
 
 # ============================================================================
 # API GHI HÌNH SỰ CỐ AN NINH (INCIDENT RECORDING)

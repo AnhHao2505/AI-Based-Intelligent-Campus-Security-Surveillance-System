@@ -57,9 +57,6 @@ class CameraAnnotatedStreamTokenSecurityTest {
     private CameraConnectionService cameraConnectionService;
 
     @MockBean
-    private CameraSnapshotService cameraSnapshotService;
-
-    @MockBean
     private CameraStreamLifecycleService cameraStreamLifecycleService;
 
     @MockBean

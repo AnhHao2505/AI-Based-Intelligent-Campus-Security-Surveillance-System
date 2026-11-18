@@ -82,4 +82,44 @@ class CameraServiceReactivateDecommissionedTest {
         order.verify(mediaMtxService).syncCameraPath("CAM-REA-001_main", "rtsp://viewer:p4ss@192.168.1.50:554/stream1");
         verifyNoMoreInteractions(mediaMtxService);
     }
+
+    @Test
+    @DisplayName("F-08 (Cách B): ReactivateCamera tự gỡ cấu hình RTSP cũ nếu đã bị camera ACTIVE khác chiếm dụng")
+    void reactivateCamera_whenRtspClaimedByAnotherActiveCamera_clearsStaleStreamConfigWithoutSyncingMediaMtx() {
+        UUID cameraId = UUID.randomUUID();
+        Area area = Area.builder().id(UUID.randomUUID()).name("Phòng Lab IoT").isActive(true).build();
+        Camera camera = Camera.builder()
+                .id(cameraId)
+                .cameraCode("CAM-REA-002")
+                .name("Camera Lab IoT 2")
+                .status(CameraStatus.DECOMMISSIONED)
+                .operationalStatus(OperationalStatus.OFFLINE)
+                .area(area)
+                .build();
+        CameraStreamConfiguration cfg = CameraStreamConfiguration.builder()
+                .camera(camera)
+                .host("192.168.1.8")
+                .port(554)
+                .mainStreamPath("/stream")
+                .build();
+        camera.setStreamConfiguration(cfg);
+
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(cameraRepository.save(any(Camera.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(cameraStreamConfigurationRepository.findByCameraId(cameraId)).thenReturn(Optional.of(cfg));
+        when(cameraStreamConfigurationRepository.existsActiveRtspConflict(
+                cameraId,
+                "192.168.1.8",
+                554,
+                "/stream",
+                CameraStatus.DECOMMISSIONED
+        )).thenReturn(true);
+
+        CameraDetailResponse response = cameraService.reactivateCamera(cameraId);
+
+        assertEquals(CameraStatus.ACTIVE, response.getStatus());
+        assertNull(response.getStreamConfig(), "Cấu hình RTSP cũ bị chiếm phải được gỡ bỏ khi kích hoạt lại");
+        verify(cameraStreamConfigurationRepository).delete(cfg);
+        verifyNoInteractions(mediaMtxService);
+    }
 }

@@ -123,4 +123,42 @@ public class EdgeStatusService {
         OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(90);
         return edgeDeviceStatusRepository.existsByStatusAndLastSeenAfter("ONLINE", cutoff);
     }
+
+    /**
+     * F-04: Lấy bản đồ trạng thái kết nối của các camera do các trạm Edge đang ONLINE báo cáo qua heartbeat.
+     * Key: cameraCode chuẩn hóa viết hoa, Value: true nếu worker đang chạy trên Edge.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Boolean> getOnlineEdgeCameraStatuses() {
+        OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(90);
+        List<EdgeDeviceStatus> onlineEdges = edgeDeviceStatusRepository.findByStatusAndLastSeenAfter("ONLINE", cutoff);
+        java.util.Map<String, Boolean> statusMap = new java.util.HashMap<>();
+        for (EdgeDeviceStatus edge : onlineEdges) {
+            String json = edge.getCamerasJson();
+            if (json == null || json.isBlank()) {
+                continue;
+            }
+            try {
+                List<java.util.Map<String, Object>> cameras = objectMapper.readValue(
+                        json,
+                        new com.fasterxml.jackson.core.type.TypeReference<>() {}
+                );
+                for (java.util.Map<String, Object> item : cameras) {
+                    Object codeObj = item.get("camera_code");
+                    if (codeObj == null) {
+                        continue;
+                    }
+                    String code = String.valueOf(codeObj).trim().toUpperCase(java.util.Locale.ROOT);
+                    if (!code.isEmpty()) {
+                        boolean connected = Boolean.TRUE.equals(item.get("connected"));
+                        statusMap.merge(code, connected, (a, b) -> a || b);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ [EdgeStatusService] Không thể parse camerasJson của edge [{}]: {}",
+                        edge.getEdgeId(), e.getMessage());
+            }
+        }
+        return statusMap;
+    }
 }

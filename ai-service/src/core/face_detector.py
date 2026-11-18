@@ -1,7 +1,7 @@
 import os
 import sys
 import logging
-from typing import Optional, List, Tuple
+from typing import Callable, Optional, List, Tuple
 from unittest.mock import MagicMock
 import cv2
 import numpy as np
@@ -333,12 +333,38 @@ class FaceDetector:
 
         return self._detect_scrfd(image, offset_xy=offset_xy)
 
-    def detect_best_face_in_crop(self, crop: np.ndarray, offset_xy: Tuple[int, int]) -> Optional[FaceDetectionResult]:
+    @staticmethod
+    def _map_face_to_frame(
+        face: FaceDetectionResult, scale_x: float, scale_y: float, offset_xy: Tuple[int, int]
+    ) -> FaceDetectionResult:
+        """Quy đổi bbox + landmarks của mặt phát hiện trên crop đã đổi cỡ về toạ độ khung hình gốc."""
+        off_x, off_y = offset_xy
+        landmarks = [((lx / scale_x) + off_x, (ly / scale_y) + off_y) for lx, ly in (face.landmarks or [])]
+        return FaceDetectionResult(
+            bbox=BoundingBox(
+                x1=(face.bbox.x1 / scale_x) + off_x,
+                y1=(face.bbox.y1 / scale_y) + off_y,
+                x2=(face.bbox.x2 / scale_x) + off_x,
+                y2=(face.bbox.y2 / scale_y) + off_y,
+                confidence=face.score
+            ),
+            score=face.score,
+            landmarks=landmarks
+        )
+
+    def detect_best_face_in_crop(
+        self,
+        crop: np.ndarray,
+        offset_xy: Tuple[int, int],
+        face_filter: Optional[Callable[[FaceDetectionResult], bool]] = None
+    ) -> Optional[FaceDetectionResult]:
         """
         Tìm khuôn mặt có độ tin cậy cao nhất trong vùng crop của người.
         - Crop nhỏ (cạnh ngắn < upscale_threshold): phóng to để bắt được mặt ở xa.
         - Crop lớn (cạnh dài > max_dim): thu nhỏ trước khi phát hiện mặt để tối ưu tốc độ.
         Tọa độ bbox + landmarks luôn quy đổi về khung hình gốc; ArcFace vẫn trích xuất mặt từ frame gốc.
+        - face_filter (tuỳ chọn): chỉ xét các mặt (toạ độ khung hình gốc) mà hàm trả True. Dùng khi vùng quét của người
+          này chứa cả mặt người khác đứng chồng lên (mặt người khác rõ hơn sẽ bị chọn nhầm nếu chỉ lấy điểm cao nhất).
         """
         if crop is None or crop.size == 0:
             return None
@@ -359,6 +385,8 @@ class FaceDetector:
 
         if scale == 1.0:
             faces = self.detect_in_image(crop, offset_xy=offset_xy)
+            if face_filter is not None and faces:
+                faces = [f for f in faces if face_filter(f)]
             if not faces:
                 return None
             faces.sort(key=lambda f: f.score, reverse=True)
@@ -375,22 +403,8 @@ class FaceDetector:
         if not faces:
             return None
         faces.sort(key=lambda f: f.score, reverse=True)
-        best_face = faces[0]
-
-        off_x, off_y = offset_xy
-        orig_landmarks = []
-        if best_face.landmarks:
-            for lx, ly in best_face.landmarks:
-                orig_landmarks.append(((lx / scale_x) + off_x, (ly / scale_y) + off_y))
-
-        return FaceDetectionResult(
-            bbox=BoundingBox(
-                x1=(best_face.bbox.x1 / scale_x) + off_x,
-                y1=(best_face.bbox.y1 / scale_y) + off_y,
-                x2=(best_face.bbox.x2 / scale_x) + off_x,
-                y2=(best_face.bbox.y2 / scale_y) + off_y,
-                confidence=best_face.score
-            ),
-            score=best_face.score,
-            landmarks=orig_landmarks
-        )
+        for face in faces:
+            mapped = self._map_face_to_frame(face, scale_x, scale_y, offset_xy)
+            if face_filter is None or face_filter(mapped):
+                return mapped
+        return None

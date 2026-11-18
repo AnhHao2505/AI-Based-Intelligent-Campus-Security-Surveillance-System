@@ -250,9 +250,21 @@ class RecordingStreamTokenServiceTest {
         assertNotNull(p1);
         assertEquals("V2", p1.version()); // delegate to V2 when context resolved
 
-        // Malformed token
+        // Malformed / V1 legacy token rejected
         assertNull(service.parseTokenPayload("invalid.token"));
+        assertNull(service.parseTokenPayload("1700000000.deadbeef"));
         assertNull(service.parseTokenPayload(""));
         assertNull(service.parseTokenPayload(null));
+    }
+
+    @Test
+    @DisplayName("F-07: Từ chối token V1 legacy không có tiền tố V2.")
+    void verify_legacyV1Token_throwsUnauthorizedInvalid() {
+        RecordingStreamTokenService service = at(NOW);
+        String v1FormatToken = (NOW.getEpochSecond() + 300) + ".abcdef0123456789";
+
+        UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+                () -> service.verify(PATH, "recording", v1FormatToken));
+        assertEquals(RecordingStreamTokenService.MSG_INVALID, ex.getMessage());
     }
 }
