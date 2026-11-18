@@ -56,7 +56,7 @@ public class AfterHoursWindow {
      * EV-N7: thời điểm ban đêm sớm nhất trong khoảng [from, to), khung [start, end) lặp lại MỖI ngày theo giờ
      * Asia/Ho_Chi_Minh (cùng ngữ nghĩa {@link #isWithin}: start &lt; end trong ngày, start &gt; end qua nửa đêm).
      * <ul>
-     *   <li>start == end: khung rỗng, không có ban đêm -> luôn rỗng.</li>
+     *   <li>start == end: khung rỗng -> luôn rỗng. Chỉ còn để chịu dữ liệu cũ: BE đã từ chối lưu START = END (#262).</li>
      *   <li>from đã nằm trong ban đêm -> trả from.</li>
      *   <li>Ngược lại, ban đêm tiếp theo bắt đầu ở lần xuất hiện kế tiếp của start (cùng ngày nếu start còn ở phía trước,
      *   không thì ngày sau) — đúng cho cả khung qua nửa đêm lẫn khung trong ngày, nên không cần duyệt từng ngày:
@@ -85,7 +85,8 @@ public class AfterHoursWindow {
 
     /**
      * t thuộc khung [start, end): start inclusive, end exclusive.
-     * start &lt; end: khung trong ngày; start &gt; end: khung qua nửa đêm; start == end: khung rỗng.
+     * start &lt; end: khung trong ngày; start &gt; end: khung qua nửa đêm; start == end: khung rỗng (chỉ còn để chịu
+     * dữ liệu cũ: BE đã từ chối lưu START = END, #262).
      */
     public static boolean isWithin(LocalTime t, LocalTime start, LocalTime end) {
         if (start.isBefore(end)) {

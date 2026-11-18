@@ -246,7 +246,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
         tokenAdmin = "Bearer " + jwtTokenProvider.generateToken(adminUser);
         tokenFm = "Bearer " + jwtTokenProvider.generateToken(fmUser);
         // V115 (EV-N7): phiên sự kiện dựng qua lịch theo giờ hiện tại -> tắt khung ban đêm trong lúc test
-        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, adminUser.getEmail());
+        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, systemConfigurationRepository);
     }
 
     private String[] nightWindowBefore;
@@ -254,7 +254,7 @@ class AccessRequestSponsorshipIntegrationTest extends AbstractIntegrationTest {
     @AfterEach
     void tearDown() {
         // Trả khung ban đêm TRƯỚC khi dọn change log / user của test (bước 2 dưới xoá change log của adminUser)
-        AfterHoursTestSupport.restore(systemConfigService, nightWindowBefore, adminUser.getEmail());
+        AfterHoursTestSupport.restore(systemConfigService, systemConfigurationRepository, nightWindowBefore, adminUser.getEmail());
         nightWindowBefore = null;
         transactionTemplate.execute(status -> {
             // 1. Reset system configuration

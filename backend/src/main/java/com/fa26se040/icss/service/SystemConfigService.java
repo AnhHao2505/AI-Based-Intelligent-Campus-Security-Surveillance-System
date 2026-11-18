@@ -31,6 +31,8 @@ import com.fa26se040.icss.config.AiServiceRestTemplate;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -248,6 +250,10 @@ public class SystemConfigService {
         }
 
         validateValue(config, value);
+        // #262: START = END bị từ chối TRƯỚC mọi ghi (DB, change log, audit, cache), đồng bộ AI và EV-N8
+        if (isAfterHoursKey(key)) {
+            requireDistinctAfterHours(key, value);
+        }
 
         User actor = userRepository.findByEmail(actorEmail)
                 .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin người dùng: " + actorEmail));
@@ -333,6 +339,32 @@ public class SystemConfigService {
 
     private static boolean isAfterHoursKey(String key) {
         return ConfigKey.AI_AFTER_HOUR_START.getKey().equals(key) || ConfigKey.AI_AFTER_HOUR_END.getKey().equals(key);
+    }
+
+    /** Cùng câu với FE (SystemConfigPage.jsx) và ai-service (#262). */
+    static final String AFTER_HOURS_SAME_MESSAGE = "Giờ bắt đầu và kết thúc ngoài giờ không được trùng nhau!";
+
+    /**
+     * #262: AI_AFTER_HOUR_START và AI_AFTER_HOUR_END không được bằng nhau. So giá trị mới (đã trim, đã qua kiểm định dạng ở
+     * validateValue) với giá trị hiện hành của khoá còn lại, cả hai chuẩn hoá về HH:mm. Chỉ có endpoint sửa từng khoá
+     * (PATCH /{configKey}) nên cặp sau khi áp = giá trị mới + giá trị hiện hành của khoá kia.
+     */
+    private void requireDistinctAfterHours(String key, String value) {
+        ConfigKey other = ConfigKey.AI_AFTER_HOUR_START.getKey().equals(key)
+                ? ConfigKey.AI_AFTER_HOUR_END : ConfigKey.AI_AFTER_HOUR_START;
+        LocalTime newTime = LocalTime.parse(value).truncatedTo(ChronoUnit.MINUTES);
+        if (newTime.equals(currentAfterHoursTime(other))) {
+            throw new IllegalArgumentException(AFTER_HOURS_SAME_MESSAGE);
+        }
+    }
+
+    /** Giá trị hiện hành theo HH:mm; sai định dạng -> mặc định của enum, cùng cách AfterHoursWindow đọc cấu hình. */
+    private LocalTime currentAfterHoursTime(ConfigKey key) {
+        try {
+            return LocalTime.parse(getString(key)).truncatedTo(ChronoUnit.MINUTES);
+        } catch (DateTimeParseException e) {
+            return LocalTime.parse(key.getDefaultValue());
+        }
     }
 
     private void syncAfterHourToAi() {

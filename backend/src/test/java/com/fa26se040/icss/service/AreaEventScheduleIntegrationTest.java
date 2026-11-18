@@ -73,6 +73,10 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private SystemConfigService systemConfigService;
 
+    /** #262: AfterHoursTestSupport tắt khung ban đêm bằng cách ghi thẳng START = END. */
+    @Autowired
+    private SystemConfigurationRepository systemConfigurationRepository;
+
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -198,7 +202,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
         systemConfigService.update(ConfigKey.EVENT_MODE_SCHEDULE_MAX_LEAD_DAYS.name(), "30", adminUser.getEmail());
         systemConfigService.update(ConfigKey.EVENT_MODE_SCHEDULE_REMINDER_MINUTES.name(), "30", adminUser.getEmail());
         // V115 (EV-N7): lịch dựng theo giờ hiện tại -> tắt khung ban đêm trong lúc test (trả lại ở @AfterEach)
-        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, adminUser.getEmail());
+        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, systemConfigurationRepository);
 
         notificationRepository.deleteAll();
     }
@@ -207,7 +211,7 @@ public class AreaEventScheduleIntegrationTest extends AbstractIntegrationTest {
 
     @org.junit.jupiter.api.AfterEach
     void restoreNightWindow() {
-        AfterHoursTestSupport.restore(systemConfigService, nightWindowBefore, adminUser.getEmail());
+        AfterHoursTestSupport.restore(systemConfigService, systemConfigurationRepository, nightWindowBefore, adminUser.getEmail());
         nightWindowBefore = null;
     }
 
