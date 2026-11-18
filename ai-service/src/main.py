@@ -366,6 +366,7 @@ class AIRuntimeConfigRequest(BaseModel):
     identity_grace_seconds: Optional[float] = None
     unauthorized_alert_cooldown: Optional[float] = None
     suspicious_motion_cooldown: Optional[float] = None
+    suspicious_motion_min_duration: Optional[float] = None
     # V126: thời hạn lưu trữ video ghi hình (giờ)
     recording_retention_hours: Optional[float] = None
     # V127: thời gian giữ thêm trước khi chốt cảnh báo người lạ (giây)

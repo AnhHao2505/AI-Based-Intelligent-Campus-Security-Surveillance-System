@@ -67,10 +67,19 @@ class TestMotionGatedPipeline(unittest.TestCase):
             self.pipeline.process_frame(bg)
 
         # Tạo khối chuyển động lớn không phải người (ví dụ: khối hộp trắng di chuyển ở giữa ROI)
-        motion_frame = bg.copy()
-        cv2.rectangle(motion_frame, (260, 200), (380, 320), (220, 220, 220), -1)
+        motion_frame1 = bg.copy()
+        cv2.rectangle(motion_frame1, (240, 200), (360, 320), (220, 220, 220), -1)
 
-        _, active_persons, alerts = self.pipeline.process_frame(motion_frame)
+        motion_frame2 = bg.copy()
+        cv2.rectangle(motion_frame2, (280, 200), (400, 320), (220, 220, 220), -1)
+
+        t0 = time.time()
+        # Khung hình đầu tiên: chuyển động mới xuất hiện (< 0.5s) -> Chưa cảnh báo (chống nhiễu tức thời)
+        _, _, alerts_0 = self.pipeline.process_frame(motion_frame1, current_time=t0)
+        self.assertNotIn("SUSPICIOUS_MOVING_OBJECT", [a.event_type for a in alerts_0])
+
+        # Sau >= 0.5s chuyển động liên tục trong ROI -> Kích hoạt cảnh báo SUSPICIOUS_MOTION
+        _, active_persons, alerts = self.pipeline.process_frame(motion_frame2, current_time=t0 + 0.6)
 
         # Kiểm tra sự cố SUSPICIOUS_MOTION được phát sinh
         event_types = [a.event_type for a in alerts]

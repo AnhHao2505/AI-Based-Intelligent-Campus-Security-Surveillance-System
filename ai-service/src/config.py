@@ -125,6 +125,7 @@ class Settings(BaseSettings):
     CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS")
     # V125: khoảng cách tối thiểu giữa 2 cảnh báo vật chuyển động lạ trên cùng camera (sửa được trên màn Cấu hình)
     SUSPICIOUS_MOTION_COOLDOWN_SECONDS: float = Field(default=5.0, validation_alias="SUSPICIOUS_MOTION_COOLDOWN_SECONDS")
+    SUSPICIOUS_MOTION_MIN_DURATION: float = Field(default=0.5, validation_alias="SUSPICIOUS_MOTION_MIN_DURATION")
     MAX_MOTION_TRACK_HOLD_SECONDS: float = Field(default=1.0, validation_alias="MAX_MOTION_TRACK_HOLD_SECONDS")
     MOTION_GATING_HEARTBEAT_SECONDS: float = Field(default=4.0, validation_alias="MOTION_GATING_HEARTBEAT_SECONDS")
     MIN_MOTION_AREA: int = Field(default=3000, validation_alias="MIN_MOTION_AREA")
