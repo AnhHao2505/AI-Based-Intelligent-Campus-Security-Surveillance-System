@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -35,13 +36,6 @@ public class MediaMtxService {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
         factory.setReadTimeout(READ_TIMEOUT);
         return new RestTemplate(factory);
-    }
-
-    static String maskRtspUrl(String url) {
-        if (url == null || url.isBlank()) {
-            return url;
-        }
-        return RTSP_CREDENTIALS_PATTERN.matcher(url).replaceAll("$1***$3");
     }
 
     public static final String INTERNAL_RTSP_USER = "icss-internal";
@@ -80,7 +74,7 @@ public class MediaMtxService {
         if (rtspUrl == null || rtspUrl.isBlank()) {
             return "";
         }
-        return rtspUrl.replaceFirst("^(rtsp://)([^/@:]+:[^/@]+@)", "$1***:***@");
+        return RTSP_CREDENTIALS_PATTERN.matcher(rtspUrl).replaceAll("$1***$3");
     }
 
     /**
@@ -130,13 +124,12 @@ public class MediaMtxService {
         payload.put("sourceProtocol", "tcp");
         payload.put("sourceOnDemand", false);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders headers = createControlApiHeaders();
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
 
         try {
             restTemplate.postForObject(addUrl, request, Map.class);
-            log.info("✅ [MediaMTX] Đã tạo thành công dynamic path cho camera [{}] -> {}", pathName, maskRtspUrl(rtspSourceUrl));
+            log.info("✅ [MediaMTX] Đã tạo thành công dynamic path cho camera [{}] -> {}", pathName, maskRtspCredentials(rtspSourceUrl));
         } catch (HttpClientErrorException e) {
             log.info("Path [{}] đã tồn tại trong MediaMTX, cập nhật nguồn mới...", pathName);
             try {
@@ -184,10 +177,22 @@ public class MediaMtxService {
         }
     }
 
+    private HttpHeaders createControlApiHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        if (internalServiceKey != null && !internalServiceKey.isBlank()) {
+            String apiSecret = AnnotatedStreamTokenService.generateInternalApiSecret(internalServiceKey);
+            String basic = java.util.Base64.getEncoder().encodeToString(
+                    (INTERNAL_RTSP_USER + ":" + apiSecret).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            headers.set(HttpHeaders.AUTHORIZATION, "Basic " + basic);
+        }
+        return headers;
+    }
+
     private void deleteSinglePath(String pathName) {
         String deleteUrl = mediaMtxApiUrl + "/v3/config/paths/delete/" + pathName;
         try {
-            restTemplate.delete(deleteUrl);
+            restTemplate.exchange(deleteUrl, HttpMethod.DELETE, new HttpEntity<>(createControlApiHeaders()), Void.class);
             log.info("✅ [MediaMTX] Đã xóa dynamic path cho camera [{}]", pathName);
         } catch (Exception e) {
             log.debug("⚠️ [MediaMTX] Không thể xóa path [{}]: {}", pathName, e.getMessage());
@@ -213,7 +218,12 @@ public class MediaMtxService {
         Map<String, Boolean> statusMap = new HashMap<>();
         try {
             String listUrl = mediaMtxApiUrl + "/v3/paths/list";
-            Map<String, Object> resp = restTemplate.getForObject(listUrl, Map.class);
+            Map<String, Object> resp = restTemplate.exchange(
+                    listUrl,
+                    HttpMethod.GET,
+                    new HttpEntity<>(createControlApiHeaders()),
+                    Map.class
+            ).getBody();
             if (resp == null) {
                 return null;
             }

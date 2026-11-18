@@ -6,6 +6,7 @@ import {
 	Loader2,
 	ExternalLink,
 	Trash2,
+	RotateCcw,
 } from "lucide-react";
 import { formatLocation } from "../../utils/formatLocation";
 import { getLevelConfig } from "../../utils/areaHelpers";
@@ -23,6 +24,8 @@ export default function CameraGeneralTab({
 	isPickingLocationOnMap = false,
 	onPickLocationOnMap = null,
 	onRemoveMapLocation = null,
+	canUndoRemovedMapLocation = false,
+	onUndoRemoveMapLocation = null,
 }) {
 	const navigate = useNavigate();
 
@@ -155,6 +158,17 @@ export default function CameraGeneralTab({
 										: "Đặt vị trí trên bản đồ"}
 								</span>
 							</button>
+							{canUndoRemovedMapLocation && onUndoRemoveMapLocation && (
+								<button
+									type="button"
+									className="cam-pick-3d-btn cam-map-card__pick-btn"
+									onClick={onUndoRemoveMapLocation}
+									style={{ marginTop: "6px" }}
+								>
+									<RotateCcw size={14} />
+									<span>Hoàn tác vị trí vừa xóa</span>
+								</button>
+							)}
 							<p className="cam-map-card__empty">
 								Chưa ghim trên bản đồ. Bấm nút để chọn vị trí.
 							</p>

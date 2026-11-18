@@ -13,7 +13,6 @@ import {
 	Check,
 	Play,
 	Square,
-	Lock,
 } from "lucide-react";
 
 // UI-00: che "user:pass@" trong URL luồng khi hiển thị (giá trị gửi API giữ nguyên)

@@ -69,8 +69,10 @@ import {
 	ensureCameraBadgeSpriteImage,
 } from "../../utils/mapCameraBadgeSprites";
 import {
+	CAMERA_PIN_DRAG_THRESHOLD_PX,
 	buildCameraMapPinGeoJson,
 	projectEventToFloorLngLat,
+	validateCameraPinPlacement,
 } from "../../utils/cameraMapGeometry";
 import {
 	buildCameraMapMarkersGeoJSON,
@@ -191,6 +193,7 @@ export default function CampusMapView({
 	pickingCameraLocation = false,
 	onCancelPickCameraLocation = null,
 	onCameraLocationPicked = null,
+	onCameraPlacementRejected = null,
 	onSelectCameraPin = null,
 	onUpdateCameraMapLocation = null,
 	onCommitCameraLocation = null,
@@ -303,6 +306,32 @@ export default function CampusMapView({
 		editingAreaId,
 	]);
 
+	const pickingTargetCamera = useMemo(
+		() =>
+			selectedCameraId
+				? cameras.find((c) => c.id === selectedCameraId) || null
+				: null,
+		[cameras, selectedCameraId],
+	);
+
+	const pickingTargetAreaInfo = useMemo(
+		() => (pickingTargetCamera ? extractCameraAreaInfo(pickingTargetCamera) : null),
+		[pickingTargetCamera],
+	);
+
+	const pickingTargetArea = useMemo(() => {
+		const aId = pickingTargetAreaInfo?.areaId;
+		return aId ? areas.find((a) => a.id === aId) || null : null;
+	}, [areas, pickingTargetAreaInfo]);
+
+	const effectiveSelectedAreaId = useMemo(
+		() =>
+			pickingCameraLocation && pickingTargetAreaInfo?.areaId
+				? pickingTargetAreaInfo.areaId
+				: selectedAreaId,
+		[pickingCameraLocation, pickingTargetAreaInfo, selectedAreaId],
+	);
+
 	const {
 		slabsGeoJSON,
 		wallsGeoJSON,
@@ -317,7 +346,7 @@ export default function CampusMapView({
 			selectedBuilding: activeBuilding3d,
 			activeFloorOrder: activeFloorOrder3d,
 			areas,
-			selectedAreaId,
+			selectedAreaId: effectiveSelectedAreaId,
 			creatingPreview: activeCreatingPreview,
 			viewRole: isAdmin ? "ADMIN" : "FACILITY_MANAGER",
 			showOtherBuildingsInFocus: true,
@@ -328,7 +357,7 @@ export default function CampusMapView({
 		activeBuilding3d,
 		activeFloorOrder3d,
 		areas,
-		selectedAreaId,
+		effectiveSelectedAreaId,
 		activeCreatingPreview,
 		isAdmin,
 		floorGapStep,
@@ -342,7 +371,7 @@ export default function CampusMapView({
 				store: geometryStore,
 				selectedBuilding: activeBuilding3d,
 				activeFloorOrder: activeFloorOrder3d,
-				selectedAreaId,
+				selectedAreaId: effectiveSelectedAreaId,
 				selectedCameraId,
 				floorElevationStep: floorGapStep,
 			}),
@@ -352,13 +381,27 @@ export default function CampusMapView({
 			geometryStore,
 			activeBuilding3d,
 			activeFloorOrder3d,
-			selectedAreaId,
+			effectiveSelectedAreaId,
 			selectedCameraId,
 			floorGapStep,
 		],
 	);
 
 	const draggingPinRef = useRef(null);
+	const justDraggedPinRef = useRef(false);
+
+	useEffect(() => {
+		if (!pickingCameraLocation || typeof onCancelPickCameraLocation !== "function") {
+			return undefined;
+		}
+		const handleKeyDown = (ev) => {
+			if (ev.key === "Escape") {
+				onCancelPickCameraLocation();
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [pickingCameraLocation, onCancelPickCameraLocation]);
 
 	const cameraMapLayers = useMemo(
 		() =>
@@ -900,22 +943,48 @@ export default function CampusMapView({
 			);
 			if (pinFeat?.properties?.cameraId) {
 				const camId = pinFeat.properties.cameraId;
+				const targetCam = cameras.find((c) => c.id === camId) || null;
+				if (targetCam?.status === "DECOMMISSIONED" || pinFeat.properties.statusKey === "muted") {
+					setHoverCursor("not-allowed");
+					if (e?.point) {
+						setHoveredRoom({
+							x: e.point.x,
+							y: e.point.y,
+							isOccupied: true,
+							isInvalid: true,
+							title: `${pinFeat.properties.cameraName || "Camera"} (${pinFeat.properties.cameraCode || ""})`,
+							subtitle: "Camera đã ngừng hoạt động, không thể dời vị trí",
+						});
+					}
+					return;
+				}
 				const placement = cameraMapPlacements?.[camId];
 				if (!placement) return;
+				const camAreaInfo = targetCam ? extractCameraAreaInfo(targetCam) : null;
+				const camArea = camAreaInfo?.areaId
+					? areas.find((a) => a.id === camAreaInfo.areaId) || null
+					: null;
 				e?.preventDefault?.();
 				draggingPinRef.current = {
 					mode: "move",
 					cameraId: camId,
+					targetCam,
+					targetArea: camArea,
 					building: placement.building ?? null,
 					floorOrder: placement.floorOrder ?? null,
 					origin: { lng: Number(placement.lng), lat: Number(placement.lat) },
+					startPoint: e?.point ? { x: Number(e.point.x), y: Number(e.point.y) } : null,
+					hasDragged: false,
+					isInvalidPlacement: false,
+					invalidMessage: null,
+					validationResult: null,
 					latestCoords: null,
 				};
 				map?.dragPan?.disable?.();
 				setHoverCursor("grabbing");
 			}
 		},
-		[cameraMapPlacements, isAdmin, pickingCameraLocation],
+		[areas, cameraMapPlacements, cameras, isAdmin, pickingCameraLocation],
 	);
 
 	const handleMapMouseUp = useCallback(() => {
@@ -925,7 +994,25 @@ export default function CampusMapView({
 		const map = mapRef.current?.getMap?.() || mapRef.current;
 		map?.dragPan?.enable?.();
 		setHoverCursor("grab");
-		if (drag.mode === "move" && drag.latestCoords) {
+		setHoveredRoom(null);
+
+		if (drag.mode === "move" && drag.hasDragged && drag.latestCoords) {
+			justDraggedPinRef.current = true;
+			setTimeout(() => {
+				justDraggedPinRef.current = false;
+			}, 0);
+
+			if (drag.isInvalidPlacement) {
+				onUpdateCameraMapLocation?.(drag.cameraId, {
+					lng: drag.origin.lng,
+					lat: drag.origin.lat,
+				});
+				onCameraPlacementRejected?.(
+					drag.invalidMessage || "Vị trí dời camera không hợp lệ, đã trả về vị trí cũ.",
+				);
+				return;
+			}
+
 			onCommitCameraLocation?.(drag.cameraId, {
 				lng: drag.latestCoords.lng,
 				lat: drag.latestCoords.lat,
@@ -933,12 +1020,25 @@ export default function CampusMapView({
 				floorOrder: drag.floorOrder,
 			});
 		}
-	}, [onCommitCameraLocation]);
+	}, [onCameraPlacementRejected, onCommitCameraLocation, onUpdateCameraMapLocation]);
 
 	const handleMapMouseMove = useCallback(
 		(e) => {
 			if (draggingPinRef.current && e?.lngLat) {
 				const drag = draggingPinRef.current;
+				if (!drag.hasDragged && drag.startPoint && e?.point) {
+					const dist = Math.hypot(
+						Number(e.point.x) - drag.startPoint.x,
+						Number(e.point.y) - drag.startPoint.y,
+					);
+					if (dist < CAMERA_PIN_DRAG_THRESHOLD_PX) {
+						return;
+					}
+					drag.hasDragged = true;
+				} else if (!drag.hasDragged) {
+					drag.hasDragged = true;
+				}
+
 				const map = mapRef.current?.getMap?.() || mapRef.current;
 				const resolvedOrder = Number.isFinite(Number(drag.floorOrder))
 					? Number(drag.floorOrder)
@@ -952,18 +1052,38 @@ export default function CampusMapView({
 						MercatorCoordinate,
 					) || { lng: e.lngLat.lng, lat: e.lngLat.lat };
 				drag.latestCoords = projected;
+
+				const validation = validateCameraPinPlacement({
+					lng: projected.lng,
+					lat: projected.lat,
+					targetCam: drag.targetCam,
+					targetArea: drag.targetArea,
+					activeBuilding: activeBuilding3d,
+					activeFloorOrder: activeFloorOrder3d,
+					roomFeatures: roomsSplit.active?.features,
+					store: geometryStore,
+				});
+				drag.isInvalidPlacement = !validation.ok;
+				drag.invalidMessage = validation.ok ? null : validation.message;
+				drag.validationResult = validation;
+
 				onUpdateCameraMapLocation?.(drag.cameraId, {
 					lng: projected.lng,
 					lat: projected.lat,
 				});
-				setHoverCursor("grabbing");
+				setHoverCursor(validation.ok ? "grabbing" : "not-allowed");
 				if (e?.point) {
 					setHoveredRoom({
 						x: e.point.x,
 						y: e.point.y,
 						isOccupied: true,
-						title: "Đang dời vị trí camera",
-						subtitle: "Thả chuột để lưu vị trí mới",
+						isInvalid: !validation.ok,
+						title: validation.ok
+							? "Đang dời vị trí camera"
+							: "Vị trí không hợp lệ",
+						subtitle: validation.ok
+							? "Thả chuột để lưu vị trí mới"
+							: validation.message,
 					});
 				}
 				return;
@@ -979,14 +1099,18 @@ export default function CampusMapView({
 			);
 			if (camPinFeat?.properties && e?.point) {
 				const cp = camPinFeat.properties;
-				setHoverCursor(isAdmin ? "grab" : "pointer");
+				const isDecomm = cp.statusKey === "muted";
+				setHoverCursor(isAdmin ? (isDecomm ? "not-allowed" : "grab") : "pointer");
 				setHoveredRoom({
 					x: e.point.x,
 					y: e.point.y,
 					isOccupied: true,
+					isInvalid: isAdmin && isDecomm,
 					title: `${cp.cameraName || "Camera"} (${cp.cameraCode || ""})`,
 					subtitle: isAdmin
-						? "Giữ & kéo để dời vị trí · Bấm để xem cấu hình"
+						? isDecomm
+							? "Camera đã ngừng hoạt động, không thể dời vị trí"
+							: "Giữ & kéo để dời vị trí · Bấm để xem cấu hình"
 						: cp.statusKey === "ok"
 							? "ONLINE"
 							: "OFFLINE",
@@ -1133,12 +1257,36 @@ export default function CampusMapView({
 						floorHeightMeters,
 						MercatorCoordinate,
 					) || e.lngLat;
+
+				const validation = validateCameraPinPlacement({
+					lng: lngLat.lng,
+					lat: lngLat.lat,
+					targetCam: pickingTargetCamera,
+					targetArea: pickingTargetArea,
+					activeBuilding: activeBuilding3d,
+					activeFloorOrder: activeFloorOrder3d,
+					clickedRoomProps: roomProps || null,
+					roomFeatures: roomsSplit.active?.features,
+					store: geometryStore,
+				});
+				if (!validation.ok) {
+					onCameraPlacementRejected?.(validation.message);
+					return;
+				}
+
 				onCameraLocationPicked?.({
 					lng: lngLat.lng,
 					lat: lngLat.lat,
-					building: pickedBuilding,
-					floorOrder: pickedFloorOrder,
+					building: validation.building || pickedBuilding,
+					floorOrder:
+						validation.floorOrder != null
+							? validation.floorOrder
+							: pickedFloorOrder,
 				});
+				return;
+			}
+
+			if (justDraggedPinRef.current) {
 				return;
 			}
 
@@ -1555,21 +1703,40 @@ export default function CampusMapView({
 				)}
 
 				{pickingCameraLocation && (
-					<div className="campus-coord-editor" role="status">
-						<div className="campus-coord-editor__head">
+					<div className="campus-draw-bar" role="status">
+						<div className="campus-draw-bar__info">
 							<Crosshair size={14} />
-							<strong>Đặt vị trí camera</strong>
+							<span>
+								Đang đặt vị trí cho{" "}
+								<strong>
+									{pickingTargetCamera?.cameraCode ||
+										pickingTargetCamera?.name ||
+										"camera"}
+								</strong>
+							</span>
+							{pickingTargetAreaInfo?.building && (
+								<>
+									<span className="campus-draw-bar__sep">·</span>
+									<span>
+										{pickingTargetAreaInfo.building}
+										{pickingTargetAreaInfo.floor
+											? ` · ${pickingTargetAreaInfo.floor}`
+											: ""}
+									</span>
+								</>
+							)}
+							<span className="campus-draw-bar__sep">·</span>
+							<span className="campus-draw-bar__hint">
+								Nhấn vào phòng được gán để ghim · Esc để hủy
+							</span>
 						</div>
-						<p className="campus-coord-editor__hint">
-							Click điểm bất kỳ (phòng, hành lang) để ghim vị trí.
-						</p>
-						<div className="campus-coord-editor__actions">
+						<div className="campus-draw-bar__actions">
 							<button
 								type="button"
-								className="campus-coord-btn campus-coord-btn--ghost"
+								className="campus-draw-btn campus-draw-btn--cancel"
 								onClick={onCancelPickCameraLocation}
 							>
-								Huỷ
+								Hủy
 							</button>
 						</div>
 					</div>
@@ -1878,9 +2045,11 @@ export default function CampusMapView({
 					{hoveredRoom && (
 						<div
 							className={`campus-room-hover-tooltip ${
-								hoveredRoom.isOccupied
-									? "campus-room-hover-tooltip--occupied"
-									: "campus-room-hover-tooltip--empty"
+								hoveredRoom.isInvalid
+									? "campus-room-hover-tooltip--invalid"
+									: hoveredRoom.isOccupied
+										? "campus-room-hover-tooltip--occupied"
+										: "campus-room-hover-tooltip--empty"
 							}`}
 							style={{
 								left: `${Math.round(hoveredRoom.x)}px`,

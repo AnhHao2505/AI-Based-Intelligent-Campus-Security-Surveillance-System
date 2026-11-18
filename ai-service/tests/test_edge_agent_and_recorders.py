@@ -17,39 +17,33 @@ os.environ.setdefault("MINIO_ENABLED", "False")
 
 class TestEdgeAgentAndRecorders(unittest.TestCase):
 
-    def test_1_happy_path_rpc_capture_snapshot_uploads_to_minio_and_replies(self):
+    def test_1_happy_path_rpc_test_connection_replies_with_latency(self):
         from src.integration.edge_agent import EdgeMqttAgent
 
         mock_mqtt = MagicMock()
         mock_storage = MagicMock()
-        mock_storage.upload_bytes.return_value = True
-
-        fake_worker = MagicMock()
-        fake_worker.is_running = True
-        fake_worker.get_current_raw_frame.return_value = np.zeros((480, 854, 3), dtype=np.uint8)
-
         agent = EdgeMqttAgent(
             mqtt_client_wrapper=mock_mqtt,
             storage=mock_storage,
-            active_workers={"CAM-001": fake_worker},
+            active_workers={},
         )
 
-        req_payload = {
-            "correlationId": "corr-snap-001",
-            "action": "CAPTURE_SNAPSHOT",
-            "cameraCode": "CAM-001",
-            "payload": {"rtsp_url": "rtsp://192.168.1.105:554/live", "timeout_ms": 3000},
-        }
-        agent.handle_message("campus/edge/rpc/request", json.dumps(req_payload).encode("utf-8"))
+        mock_sock = MagicMock()
+        with patch("socket.socket", return_value=mock_sock), \
+             patch("src.integration.edge_agent._read_rtsp_frame_once", return_value=np.zeros((480, 854, 3), dtype=np.uint8)):
+            req_payload = {
+                "correlationId": "corr-conn-001",
+                "action": "TEST_CONNECTION",
+                "cameraCode": "CAM-001",
+                "payload": {"rtsp_url": "rtsp://192.168.1.105:554/live", "timeout_ms": 3000},
+            }
+            agent.handle_message("campus/edge/rpc/request", json.dumps(req_payload).encode("utf-8"))
 
-        mock_storage.upload_bytes.assert_called_once()
         mock_mqtt.publish_json.assert_called_once()
         reply_topic, reply_body = mock_mqtt.publish_json.call_args[0][:2]
-        self.assertEqual(reply_topic, "campus/edge/rpc/reply/corr-snap-001")
+        self.assertEqual(reply_topic, "campus/edge/rpc/reply/corr-conn-001")
         self.assertTrue(reply_body["success"])
-        self.assertEqual(reply_body["data"]["bucket"], "camera-snapshots")
-        self.assertEqual(reply_body["data"]["width"], 854)
-        self.assertEqual(reply_body["data"]["height"], 480)
+        self.assertEqual(reply_body["data"]["fps"], 15.0)
 
     def test_2_idempotency_camera_stream_config_does_not_recreate_running_worker(self):
         from src.integration.edge_agent import EdgeMqttAgent
@@ -236,6 +230,66 @@ class TestEdgeAgentAndRecorders(unittest.TestCase):
             self.assertEqual(len(created_workers), 1)
             self.assertEqual(created_workers[0].rtsp_url, "rtsp://localhost:8554/cam-002")
             mock_sync.assert_called_once_with("CAM-002", "rtsp://192.168.1.105:554/cam/live")
+
+    def test_7_f02_edge_agent_decrypts_enc_etm_rtsp_config_and_rejects_tampered_mac(self):
+        import base64
+        import hmac as py_hmac
+        from src.integration.edge_agent import EdgeMqttAgent
+        from src.security import ENC_ETM_PREFIX, decrypt_mqtt_secret
+
+        def _encrypt_etm(plaintext: str, key: str) -> str:
+            nonce = b"\x01" * 16
+            enc_key = hashlib.sha256(f"mqtt-enc|{key}".encode("utf-8")).digest()
+            mac_key = hashlib.sha256(f"mqtt-mac|{key}".encode("utf-8")).digest()
+            plain_bytes = plaintext.encode("utf-8")
+            cipher = bytearray(len(plain_bytes))
+            offset = 0
+            counter = 0
+            while offset < len(plain_bytes):
+                block = hashlib.sha256(enc_key + nonce + counter.to_bytes(4, "big")).digest()
+                counter += 1
+                chunk = min(len(block), len(plain_bytes) - offset)
+                for i in range(chunk):
+                    cipher[offset + i] = plain_bytes[offset + i] ^ block[i]
+                offset += chunk
+            tag = py_hmac.new(mac_key, nonce + bytes(cipher), hashlib.sha256).digest()
+            return ENC_ETM_PREFIX + base64.b64encode(nonce + bytes(cipher) + tag).decode("ascii")
+
+        key = os.environ["INTERNAL_SERVICE_KEY"]
+        plain_sub = "rtsp://admin:SecretPass123@192.168.1.105:554/sub"
+        enc_sub = _encrypt_etm(plain_sub, key)
+
+        self.assertEqual(decrypt_mqtt_secret(enc_sub, key), plain_sub)
+        # Tamper last byte of MAC
+        tampered = enc_sub[:-2] + ("AA" if not enc_sub.endswith("AA") else "BB")
+        with self.assertRaises(ValueError):
+            decrypt_mqtt_secret(tampered, key)
+
+        mock_mqtt = MagicMock()
+        mock_storage = MagicMock()
+        active_workers = {}
+        created_workers = []
+
+        def fake_worker_factory(camera_code, rtsp_url, roi_geometry=None):
+            w = MagicMock()
+            w.camera_code = camera_code
+            w.rtsp_url = rtsp_url
+            w.is_running = True
+            created_workers.append(w)
+            return w
+
+        agent = EdgeMqttAgent(
+            mqtt_client_wrapper=mock_mqtt,
+            storage=mock_storage,
+            active_workers=active_workers,
+            worker_factory=fake_worker_factory,
+        )
+        with patch.object(agent, "_sync_local_mediamtx_path") as mock_sync:
+            mock_sync.side_effect = lambda code, url: f"rtsp://localhost:8554/{code.lower()}"
+            cfg = {"camera_code": "CAM-003", "rtsp_url": enc_sub, "enabled": True}
+            agent.handle_message("campus/edge/config/cameras/CAM-003", json.dumps(cfg).encode("utf-8"))
+            mock_sync.assert_called_once_with("CAM-003", plain_sub)
+            self.assertEqual(len(created_workers), 1)
 
 
 if __name__ == "__main__":

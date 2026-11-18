@@ -6,7 +6,6 @@ import com.fa26se040.icss.service.AnnotatedStreamTokenService;
 import com.fa26se040.icss.service.CameraConnectionService;
 import com.fa26se040.icss.service.CameraRecordingService;
 import com.fa26se040.icss.service.CameraService;
-import com.fa26se040.icss.service.CameraSnapshotService;
 import com.fa26se040.icss.service.CameraStreamLifecycleService;
 import com.fa26se040.icss.service.RecordingStreamTokenService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -78,8 +77,6 @@ class RecordingStreamSecurityTest {
     private CameraService cameraService;
     @MockBean
     private CameraConnectionService cameraConnectionService;
-    @MockBean
-    private CameraSnapshotService cameraSnapshotService;
     @MockBean
     private CameraStreamLifecycleService cameraStreamLifecycleService;
     @MockBean

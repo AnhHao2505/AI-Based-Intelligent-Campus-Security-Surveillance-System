@@ -83,19 +83,12 @@ public class RecordingStreamTokenService {
     }
 
     /**
-     * Cấp token V1 legacy cho đường dẫn và nguồn tệp chỉ định (dùng khi không có thông tin user).
+     * Cấp token V2 cho đường dẫn và nguồn tệp chỉ định theo ngữ cảnh người dùng hiện tại.
      */
     public TokenResponse issue(String path, String source) {
         String currentUser = resolveCurrentAuthenticatedUser();
         String currentRole = resolveCurrentAuthenticatedRole();
-        if (currentUser != null && currentRole != null && ALLOWED_AUTHORITIES.contains(currentRole)) {
-            return issue(path, source, currentUser, currentRole);
-        }
-        requireKey();
-        long exp = Instant.now(clock).getEpochSecond() + tokenSeconds();
-        String normSource = normalizeSource(source);
-        String token = exp + "." + sign(path, normSource, exp);
-        return new TokenResponse(token, exp);
+        return issue(path, source, currentUser, currentRole);
     }
 
     /**
@@ -143,12 +136,11 @@ public class RecordingStreamTokenService {
 
         String normSource = normalizeSource(source);
 
-        // Phân biệt Token V2 (bảo mật người dùng) vs Token V1 (legacy)
-        if (token.startsWith(TOKEN_PREFIX_V2 + ".")) {
-            verifyTokenV2(path, normSource, token, authentication);
-        } else {
-            verifyTokenV1(path, normSource, token, authentication);
+        // Bắt buộc Token V2 có ràng buộc danh tính và thẩm quyền người dùng
+        if (!token.startsWith(TOKEN_PREFIX_V2 + ".")) {
+            throw new UnauthorizedException(MSG_INVALID);
         }
+        verifyTokenV2(path, normSource, token, authentication);
     }
 
     private void verifyTokenV2(String path, String normSource, String token, Authentication authentication) {
@@ -219,68 +211,23 @@ public class RecordingStreamTokenService {
         }
     }
 
-    private void verifyTokenV1(String path, String normSource, String token, Authentication authentication) {
-        int dot = token.indexOf('.');
-        if (dot <= 0 || dot == token.length() - 1) {
-            throw new UnauthorizedException(MSG_INVALID);
-        }
-
-        long exp;
-        try {
-            exp = Long.parseLong(token.substring(0, dot));
-        } catch (NumberFormatException e) {
-            throw new UnauthorizedException(MSG_INVALID);
-        }
-
-        String expected = sign(path, normSource, exp);
-        byte[] given = token.substring(dot + 1).getBytes(StandardCharsets.UTF_8);
-        if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), given)) {
-            throw new UnauthorizedException(MSG_INVALID);
-        }
-
-        if (Instant.now(clock).getEpochSecond() > exp) {
-            throw new UnauthorizedException(MSG_EXPIRED);
-        }
-
-        // Với Token V1: nếu người gọi có phiên đăng nhập, kiểm tra phải thuộc nhóm có quyền
-        if (authentication != null && authentication.isAuthenticated()
-                && !"anonymousUser".equals(authentication.getName())) {
-            boolean isAllowedRole = authentication.getAuthorities().stream()
-                    .map(GrantedAuthority::getAuthority)
-                    .map(a -> a.startsWith("ROLE_") ? a.substring(5) : a)
-                    .anyMatch(ALLOWED_AUTHORITIES::contains);
-
-            if (!isAllowedRole) {
-                log.warn("🚨 [StreamToken V1] Người dùng {} không có quyền truy cập video", authentication.getName());
-                throw new AccessDeniedException(MSG_UNAUTHORIZED_ROLE);
-            }
-        }
-    }
-
     /**
-     * Trích xuất thông tin payload từ token phục vụ giám sát và kiểm tra.
+     * Trích xuất thông tin payload từ token V2 phục vụ giám sát và kiểm tra.
      */
     public TokenPayload parseTokenPayload(String token) {
-        if (token == null || token.isBlank()) return null;
-        if (token.startsWith(TOKEN_PREFIX_V2 + ".")) {
-            String[] parts = token.split("\\.");
-            if (parts.length != 5) return null;
-            try {
-                long exp = Long.parseLong(parts[1]);
-                String user = new String(Base64.getUrlDecoder().decode(parts[2]), StandardCharsets.UTF_8);
-                return new TokenPayload(parts[0], exp, user, parts[3], parts[4]);
-            } catch (Exception e) {
-                return null;
-            }
-        } else {
-            int dot = token.indexOf('.');
-            if (dot <= 0 || dot == token.length() - 1) return null;
-            try {
-                long exp = Long.parseLong(token.substring(0, dot));
-                return new TokenPayload("V1", exp, null, null, token.substring(dot + 1));
-            } catch (Exception e) {
-                return null;
-            }
+        if (token == null || token.isBlank() || !token.startsWith(TOKEN_PREFIX_V2 + ".")) {
+            return null;
+        }
+        String[] parts = token.split("\\.");
+        if (parts.length != 5) {
+            return null;
+        }
+        try {
+            long exp = Long.parseLong(parts[1]);
+            String user = new String(Base64.getUrlDecoder().decode(parts[2]), StandardCharsets.UTF_8);
+            return new TokenPayload(parts[0], exp, user, parts[3], parts[4]);
+        } catch (Exception e) {
+            return null;
         }
     }
 
@@ -342,17 +289,6 @@ public class RecordingStreamTokenService {
     private void requireKey() {
         if (serviceKey == null || serviceKey.isBlank()) {
             throw new IllegalStateException("Chưa cấu hình khoá ký liên kết xem video (INTERNAL_SERVICE_KEY).");
-        }
-    }
-
-    private String sign(String path, String source, long exp) {
-        try {
-            String message = "REC|" + source + "|" + path + "|" + exp;
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(serviceKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            return HexFormat.of().formatHex(mac.doFinal(message.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            throw new IllegalStateException("Lỗi sinh token xem video V1", e);
         }
     }
 
