@@ -14,6 +14,7 @@ import '../data/campus_route_planner.dart';
 import '../models/area_pin_model.dart';
 import '../providers/map_provider.dart';
 import '../widgets/area_detail_card.dart';
+import '../widgets/campus_map_legend.dart';
 import '../widgets/osm_attribution_bar.dart';
 import '../../chat/widgets/floating_guard_chat_button.dart';
 import '../../incident/widgets/peer_claim_notice.dart';
@@ -47,6 +48,16 @@ const List<Object> _routeDirectFilter = ['==', ['get', 'direct'], true];
 
 /// Lề khi đưa khung bao (khuôn viên / tuyến đường) vào màn hình: chừa thanh tiêu đề + chip ở trên, thẻ khu ở dưới.
 const EdgeInsets _fitPadding = EdgeInsets.fromLTRB(40, 170, 40, 220);
+
+/// Nút chat bảo vệ góc dưới trái: lề đáy (tính từ mép trên dải ghi công) và cỡ FloatingActionButton mặc định.
+const double _chatButtonBottom = 28;
+const double _chatButtonSize = 56;
+
+/// Chú giải cấp khu đặt ngay trên nút chat, hở 12 dp (chừa huy hiệu tin chưa đọc nhô 4 dp khỏi đỉnh nút).
+const double _legendGapAboveChat = 12;
+
+/// Phần bên phải chú giải không được lấn: cột nút nổi (lề 16 + FloatingActionButton.small rộng 40) + hở 12.
+const double _legendRightReserve = 16 + 40 + 12;
 
 class GuardMapScreen extends StatefulWidget {
   final AreaPinModel? initialDestination;
@@ -320,8 +331,25 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         _pinsLayer,
         _areaPinPaint,
       );
+      // Quầng đỏ đứng yên dưới ghim sự cố (cùng nguồn với lớp ghim sự cố), không nhận chạm. Nằm DƯỚI tên phòng
+      // (campusLayerOrder) để vòng quầng không cắt chữ của nhãn khu sự cố; ghim sự cố vẫn ở trên tên phòng.
+      await map.addGeoJsonSource(_incidentPinSource, empty);
+      await map.addCircleLayer(
+        _incidentPinSource,
+        campusIncidentHaloLayerId,
+        const ml.CircleLayerProperties(
+          circleColor: incidentHaloColor,
+          circleRadius: incidentHaloRadius,
+          circleOpacity: incidentHaloOpacity,
+          circleStrokeColor: incidentHaloColor,
+          circleStrokeWidth: incidentHaloStrokeWidth,
+          circleStrokeOpacity: incidentHaloStrokeOpacity,
+          circlePitchAlignment: 'viewport',
+        ),
+        enableInteraction: false,
+      );
       // Tên phòng: ảnh nhãn theo khu, khu đang chọn đặt trước (CampusMapView.jsx:1487-1528).
-      // Nằm NGAY TRÊN lớp ghim khu (campusLayerOrder): ghim không che được chữ; neo cạnh dưới + dịch lên
+      // Nằm trên lớp ghim khu và quầng sự cố (campusLayerOrder): ghim không che được chữ; neo cạnh dưới + dịch lên
       // roomLabelLiftAbovePin để nhãn không che ghim của chính khu đó.
       await map.addGeoJsonSource(_roomLabelsSource, empty);
       await map.addSymbolLayer(
@@ -341,8 +369,8 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         minzoom: roomLabelMinZoom,
         // Bấm nhãn mở thẻ khu như bấm ghim (_onFeatureTapped); chạm trúng cả nhãn lẫn ghim → nhãn (lớp trên)
       );
-      // Ghim sự cố đang mở (kể cả ghim tạm): trên tên phòng để nhãn không che, dưới vị trí bảo vệ. Cùng hình với ghim khu.
-      await map.addGeoJsonSource(_incidentPinSource, empty);
+      // Ghim sự cố đang mở (kể cả ghim tạm): trên tên phòng để nhãn không che, dưới vị trí bảo vệ. Cùng hình với ghim khu;
+      // quầng đỏ của nó (lớp campusIncidentHaloLayerId, dưới tên phòng) phân biệt với ghim khu đang chọn.
       await map.addCircleLayer(_incidentPinSource, _incidentPinLayer, _areaPinPaint);
       await map.addGeoJsonSource(_guardSource, empty);
       await map.addCircleLayer(
@@ -855,8 +883,18 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           if (mapState.selectedArea == null)
             Positioned(
               left: 16,
-              bottom: bottomInset + 28,
+              bottom: bottomInset + _chatButtonBottom,
               child: const FloatingGuardChatButton(heroTag: 'fab_chat_map'),
+            ),
+
+          // 3b'. Chú giải màu cấp khu (giống web) — ngay trên nút chat, không lấn cột nút bên phải; ẩn cùng nút chat
+          // khi thẻ khu đang mở.
+          if (mapState.selectedArea == null)
+            Positioned(
+              left: 16,
+              right: _legendRightReserve,
+              bottom: bottomInset + _chatButtonBottom + _chatButtonSize + _legendGapAboveChat,
+              child: const Align(alignment: Alignment.bottomLeft, child: CampusMapLegend()),
             ),
 
           // 3c. Dòng ghi công OpenStreetMap — luôn hiện, không bị nút / thẻ che

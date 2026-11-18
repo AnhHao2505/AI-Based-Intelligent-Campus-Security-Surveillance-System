@@ -263,6 +263,21 @@ void main() {
       expect((fromId.width, fromId.height), (normal.width, normal.height));
     });
 
+    test('chấm cấp trên nhãn cùng màu ghim / chú giải (AreaPinModel.levelColorOf); Bảo mật = xanh #3B82F6', () async {
+      for (final level in ['PUBLIC', 'CONFIDENTIAL', 'HIGHLY_CONFIDENTIAL']) {
+        expect(roomLabelAccentColor(level), AreaPinModel.levelColorOf(level), reason: level);
+      }
+      expect(roomLabelAccentColor('CONFIDENTIAL'), const ui.Color(0xFF3B82F6));
+      expect(roomLabelAccentColor(null), AreaPinModel.levelColorOf('PUBLIC'), reason: 'cấp trống → PUBLIC');
+
+      // Tâm chấm: (shadowPad 3 + padX 9 + bán kính 3, shadowPad 3 + nửa cao 11) logic × 2 = (30, 28) điểm ảnh
+      final s = (await renderRoomLabel(name: 'Văn Phòng', levelCode: 'CONFIDENTIAL', selected: false))!;
+      final img = await decode(s);
+      final bytes = (await img.toByteData(format: ui.ImageByteFormat.rawRgba))!.buffer.asUint8List();
+      final i = (28 * img.width + 30) * 4;
+      expect((bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]), (0x3B, 0x82, 0xF6, 0xFF));
+    });
+
     test('tên dài cắt còn 24 ký tự kèm "…"', () {
       expect(truncateRoomLabel('Phòng thí nghiệm an toàn thông tin số 1'), hasLength(24));
       expect(truncateRoomLabel('Phòng thí nghiệm an toàn thông tin số 1'), endsWith('…'));

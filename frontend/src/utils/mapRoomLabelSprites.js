@@ -4,14 +4,18 @@
  * while preserving symbol-height-anchor="ground" + symbol-height-offset on 3D roofs.
  */
 
+import { AREA_LEVEL_CONFIG } from "./areaHelpers.js";
+
 const ROOM_LABEL_SPRITE_PREFIX = "room-label::";
 const DEFAULT_MAX_LABEL_LENGTH = 24;
 
-const LEVEL_ACCENT_COLORS = {
-	PUBLIC: "#16a34a",
-	CONFIDENTIAL: "#d97706",
-	HIGHLY_CONFIDENTIAL: "#dc2626",
-};
+/**
+ * Accent dot colour of a room label: same source as area pins and the map legend (AREA_LEVEL_CONFIG).
+ * Unknown levels fall back to the PUBLIC colour.
+ */
+export function roomLabelAccentColor(levelCode) {
+	return (AREA_LEVEL_CONFIG[levelCode] || AREA_LEVEL_CONFIG.PUBLIC).color;
+}
 
 /**
  * Truncates long room names with a single trailing ellipsis so 3D labels remain compact.
@@ -134,8 +138,7 @@ export function createRoomLabelSpriteImageData(spriteId) {
 	ctx.scale(SCALE, SCALE);
 	ctx.clearRect(0, 0, logicalWidth, logicalHeight);
 
-	const accent =
-		LEVEL_ACCENT_COLORS[parsed.levelCode] || LEVEL_ACCENT_COLORS.PUBLIC;
+	const accent = roomLabelAccentColor(parsed.levelCode);
 
 	// Soft shadow behind pill for legibility over pale/colored 3D extrusions
 	ctx.save();
