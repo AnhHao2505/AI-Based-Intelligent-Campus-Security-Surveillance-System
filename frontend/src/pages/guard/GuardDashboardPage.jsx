@@ -500,6 +500,7 @@ export function SecuritySurveillancePage() {
 	const [incidentVideoLoading, setIncidentVideoLoading] = useState(false);
 	const [incidentVideoData, setIncidentVideoData] = useState(null);
 	const [incidentVideoError, setIncidentVideoError] = useState(null);
+	const incidentVideoRef = useRef(null);
 
 	const flashTimeoutRef = useRef(null);
 	const soundEnabledRef = useRef(soundEnabled);
@@ -1092,7 +1093,9 @@ export function SecuritySurveillancePage() {
 		triggerNotification("Đã khôi phục toàn bộ danh sách sự cố an ninh");
 	};
 
-	// Tải và phát video hiện trường sự cố trực tiếp trong tab này
+	// Tải và phát video hiện trường sự cố trực tiếp trong tab này:
+	// Ưu tiên phát "video định kỳ" (NORMAL_RECORDING) bao phủ thời điểm phát hiện cảnh báo,
+	// và tự động nhảy đúng vị trí giây (seek/timestamp) của sự cố.
 	const loadIncidentVideo = async (alert) => {
 		if (!alert) return;
 		setIncidentVideoLoading(true);
@@ -1105,82 +1108,102 @@ export function SecuritySurveillancePage() {
 				return;
 			}
 
-			// Ưu tiên 1: Video sự cố an ninh (SECURITY_EVENT hoặc file Incident)
 			const alertTime = alert.detectedAt
 				? new Date(alert.detectedAt).getTime()
 				: (alert.rawTime || Date.now());
-			// Cửa sổ thời gian hợp lệ:
-			// - Video phải bắt đầu tối đa 30 giây TRƯỚC alert (buffer nhỏ cho độ trễ hệ thống)
-			// - Video phải bắt đầu tối đa 10 phút SAU alert (ghi hình bắt đầu sau 2s, cộng thêm buffer)
-			// Điều này đảm bảo không nhận nhầm video từ sự cố khác cùng camera
-			const BEFORE_ALERT_BUFFER_MS = 30 * 1000;       // 30 giây trước alert
-			const AFTER_ALERT_WINDOW_MS  = 10 * 60 * 1000;  // 10 phút sau alert
 
-			// Ưu tiên 1: Video sự cố (SECURITY_EVENT hoặc tên file bắt đầu "incident")
-			// bắt đầu trong cửa sổ [-30s, +10min] so với thời điểm alert
-			const incidentVideos = list.filter((v) => {
-				const isSecurityEvent =
+			// 1. Tìm video định kỳ (NORMAL_RECORDING) bao trọn hoặc chứa thời điểm phát hiện sự cố (alertTime)
+			const normalRecordings = list.filter((v) => {
+				const isSecurity =
 					v.eventType === "SECURITY_EVENT" ||
 					(v.filename && v.filename.toLowerCase().startsWith("incident"));
-				if (!isSecurityEvent) return false;
-				const videoTime = new Date(v.startTime).getTime();
-				// Video phải bắt đầu sau (alertTime - 30s) và trước (alertTime + 10min)
-				return (
-					videoTime >= alertTime - BEFORE_ALERT_BUFFER_MS &&
-					videoTime <= alertTime + AFTER_ALERT_WINDOW_MS
-				);
+				return !isSecurity;
 			});
 
-			// Ưu tiên 2: Fallback — bất kỳ bản ghi nào trong cửa sổ [-30s, +10min]
-			const nearbyVideos = list.filter((v) => {
-				const videoTime = new Date(v.startTime).getTime();
-				return (
-					videoTime >= alertTime - BEFORE_ALERT_BUFFER_MS &&
-					videoTime <= alertTime + AFTER_ALERT_WINDOW_MS
-				);
-			});
+			let matchedRecording = null;
+			let seekOffsetSeconds = 0;
 
-			let bestMatch = null;
-			if (incidentVideos.length > 0) {
-				// Sắp xếp theo khoảng cách thời gian nhỏ nhất so với alert
-				incidentVideos.sort((a, b) => {
-					const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
-					const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
-					return diffA - diffB;
-				});
-				bestMatch = incidentVideos[0];
-			} else if (nearbyVideos.length > 0) {
-				// Fallback: Bản ghi định kỳ gần thời điểm sự cố nhất (trong ±1 giờ)
-				nearbyVideos.sort((a, b) => {
-					const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
-					const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
-					return diffA - diffB;
-				});
-				bestMatch = nearbyVideos[0];
-			} else {
-				// Không tìm thấy video nào trong cửa sổ thời gian hợp lệ
-				bestMatch = null;
+			// A. Tìm video định kỳ mà [startTime <= alertTime <= endTime]
+			for (const rec of normalRecordings) {
+				const startMs = new Date(rec.startTime).getTime();
+				const endMs = new Date(rec.endTime).getTime();
+				if (startMs <= alertTime && alertTime <= endMs) {
+					matchedRecording = rec;
+					seekOffsetSeconds = Math.max(0, (alertTime - startMs) / 1000);
+					break;
+				}
 			}
 
-			if (!bestMatch || !bestMatch.videoUrl) {
-				// Không có video nào trong cửa sổ [-30s, +10min] — tránh hiển thị video sai sự cố
+			// B. Nếu không có video bao trùm chính xác, tìm video định kỳ bắt đầu gần nhất trước hoặc sau sự cố (trong ±1 giờ)
+			if (!matchedRecording && normalRecordings.length > 0) {
+				const candidates = normalRecordings.map((rec) => {
+					const startMs = new Date(rec.startTime).getTime();
+					const endMs = new Date(rec.endTime).getTime();
+					const diff = startMs <= alertTime && alertTime <= endMs
+						? 0
+						: Math.min(Math.abs(alertTime - startMs), Math.abs(alertTime - endMs));
+					return { rec, diff, startMs, endMs };
+				});
+				candidates.sort((a, b) => a.diff - b.diff);
+				const best = candidates[0];
+				// Chỉ chấp nhận nếu cách thời điểm sự cố dưới 10 phút
+				if (best.diff <= 10 * 60 * 1000) {
+					matchedRecording = best.rec;
+					if (alertTime >= best.startMs) {
+						seekOffsetSeconds = Math.max(0, (alertTime - best.startMs) / 1000);
+					} else {
+						seekOffsetSeconds = 0;
+					}
+				}
+			}
+
+			// C. Fallback: Nếu không có video định kỳ nào, dùng video sự cố (SECURITY_EVENT)
+			if (!matchedRecording) {
+				const incidentVideos = list.filter((v) => {
+					const isSecurity =
+						v.eventType === "SECURITY_EVENT" ||
+						(v.filename && v.filename.toLowerCase().startsWith("incident"));
+					if (!isSecurity) return false;
+					const videoTime = new Date(v.startTime).getTime();
+					return (
+						videoTime >= alertTime - 30 * 1000 &&
+						videoTime <= alertTime + 10 * 60 * 1000
+					);
+				});
+				if (incidentVideos.length > 0) {
+					incidentVideos.sort((a, b) => {
+						const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
+						const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
+						return diffA - diffB;
+					});
+					matchedRecording = incidentVideos[0];
+					const startMs = new Date(matchedRecording.startTime).getTime();
+					seekOffsetSeconds = Math.max(0, (alertTime - startMs) / 1000);
+				}
+			}
+
+			if (!matchedRecording || !matchedRecording.videoUrl) {
 				setIncidentVideoError(
-					"Không tìm thấy video sự cố trong vòng 10 phút sau thời điểm phát hiện. " +
-					"Video có thể chưa được lưu hoặc đã bị xoá khỏi hệ thống.",
+					"Không tìm thấy video ghi hình định kỳ tương ứng với thời điểm phát hiện cảnh báo.",
 				);
 				return;
 			}
 
-			let signedUrl = bestMatch.videoUrl;
+			let signedUrl = matchedRecording.videoUrl;
 			try {
-				signedUrl = await withRecordingStreamToken(bestMatch.videoUrl);
+				signedUrl = await withRecordingStreamToken(matchedRecording.videoUrl);
 			} catch (tokenErr) {
 				console.warn("Lỗi xin stream token, fallback sang URL trực tiếp:", tokenErr);
 			}
 
+			// Thêm hash hoặc query param để trình duyệt / player hiểu mốc thời gian
+			const cleanSeek = Math.max(0, Math.floor(seekOffsetSeconds));
+
 			setIncidentVideoData({
-				...bestMatch,
+				...matchedRecording,
 				signedUrl,
+				targetSeekSeconds: cleanSeek,
+				alertTimeMs: alertTime,
 			});
 		} catch (err) {
 			console.warn("Lỗi tải video sự cố:", err);
@@ -2083,12 +2106,23 @@ export function SecuritySurveillancePage() {
 									) : incidentVideoData?.signedUrl ? (
 										<div className="soc-video-player-wrapper">
 											<video
+												ref={incidentVideoRef}
 												key={incidentVideoData.signedUrl}
 												src={incidentVideoData.signedUrl}
 												controls
 												autoPlay
 												preload="auto"
 												className="soc-evidence-video-player"
+												onLoadedMetadata={(e) => {
+													const targetSec = Number(incidentVideoData.targetSeekSeconds) || 0;
+													if (targetSec > 0 && e.currentTarget) {
+														try {
+															e.currentTarget.currentTime = targetSec;
+														} catch (seekErr) {
+															console.warn("Lỗi tua tới mốc sự cố:", seekErr);
+														}
+													}
+												}}
 												onError={() =>
 													setIncidentVideoError(
 														"Không thể phát trực tiếp video trên trình duyệt (codec chưa hỗ trợ hoặc tệp đang ghi). Bạn có thể tải file MP4 về máy.",
@@ -2101,6 +2135,11 @@ export function SecuritySurveillancePage() {
 												<span>
 													<strong>Tệp:</strong> {incidentVideoData.filename || incidentVideoData.id}
 												</span>
+												{incidentVideoData.targetSeekSeconds > 0 && (
+													<span style={{ color: "#38bdf8", fontWeight: 600 }}>
+														⏱️ Nhảy tới thời điểm cảnh báo: {Math.floor(incidentVideoData.targetSeekSeconds / 60)}:{String(Math.floor(incidentVideoData.targetSeekSeconds % 60)).padStart(2, "0")} ({incidentVideoData.targetSeekSeconds}s)
+													</span>
+												)}
 												{incidentVideoData.durationDisplay && (
 													<span>
 														<strong>Thời lượng:</strong> {incidentVideoData.durationDisplay}
