@@ -183,7 +183,7 @@ jobs:
       - name: Run tests
         # requires_model: test nạp model thật yolo26n.pt / w600k_r50.onnx (bị .gitignore, CI không có).
         # Lý do + danh sách: ai-service/tests/conftest.py.
-        run: python -m pytest tests -m "not requires_model" -p no:cacheprovider -q -rfE
+        run: python -m pytest tests -m "not requires_model" -p no:cacheprovider -q -rfE --capture=sys
 
   mobile-test:
     name: mobile-test
