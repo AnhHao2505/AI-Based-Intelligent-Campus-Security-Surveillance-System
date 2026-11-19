@@ -21,10 +21,13 @@ import com.fa26se040.icss.service.CameraSnapshotService;
 import com.fa26se040.icss.service.CameraStreamLifecycleService;
 import com.fa26se040.icss.service.CameraRecordingService;
 import com.fa26se040.icss.service.AnnotatedStreamTokenService;
+import com.fa26se040.icss.service.MediaMtxService;
 import com.fa26se040.icss.service.RecordingStreamTokenService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,6 +46,9 @@ public class CameraController {
     private final CameraRecordingService cameraRecordingService;
     private final AnnotatedStreamTokenService annotatedStreamTokenService;
     private final RecordingStreamTokenService recordingStreamTokenService;
+
+    @Autowired(required = false)
+    private MediaMtxService mediaMtxService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -287,6 +293,53 @@ public class CameraController {
         log.info("REST request to issue annotated stream token for camera: {}", cameraCode);
         AnnotatedStreamTokenService.TokenResponse response = annotatedStreamTokenService.issueForCamera(cameraCode);
         return ResponseEntity.ok(ApiResponse.success(response, "Cấp token xem luồng trực tiếp thành công"));
+    }
+
+    /**
+     * Lấy danh sách các khoảng DVR liên tục hiện có trên MediaMTX Playback Server cho camera.
+     */
+    @GetMapping("/{cameraCode}/dvr/segments")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
+    public ResponseEntity<ApiResponse<MediaMtxService.DvrTimelineDto>> getDvrSegments(
+            @PathVariable String cameraCode,
+            @RequestParam(required = false) Long startMs,
+            @RequestParam(required = false) Long endMs) {
+        if (mediaMtxService == null) {
+            return ResponseEntity.ok(ApiResponse.success(
+                    new MediaMtxService.DvrTimelineDto(cameraCode, cameraCode.toLowerCase(), System.currentTimeMillis(), List.of()),
+                    "MediaMTX DVR chưa được cấu hình"));
+        }
+        MediaMtxService.DvrTimelineDto timeline = mediaMtxService.getDvrTimeline(cameraCode, startMs, endMs);
+        return ResponseEntity.ok(ApiResponse.success(timeline, "Lấy dòng thời gian DVR camera thành công"));
+    }
+
+    /**
+     * Proxy luồng fMP4 trực tiếp từ MediaMTX Playback Server tại mốc startMs (YouTube-Live DVR playback).
+     * Xác thực qua query token ngắn hạn (?token=...) hoặc phiên đăng nhập hợp lệ (ADMIN, GUARD).
+     */
+    @GetMapping("/{cameraCode}/dvr/stream")
+    public ResponseEntity<StreamingResponseBody> streamDvrPlayback(
+            @PathVariable String cameraCode,
+            @RequestParam long startMs,
+            @RequestParam(required = false) Double duration,
+            @RequestParam(required = false) String path,
+            @RequestParam(required = false) String token,
+            Authentication authentication) {
+        boolean tokenValid = token != null && !token.isBlank()
+                && annotatedStreamTokenService.verifyToken(cameraCode, token);
+        if (!tokenValid) {
+            if (authentication == null || !authentication.isAuthenticated()) {
+                throw new com.fa26se040.icss.exception.UnauthorizedException("Vui lòng đăng nhập hoặc cung cấp stream token hợp lệ để xem DVR playback");
+            }
+            String role = extractAuthorizedRole(authentication);
+            if (!RecordingStreamTokenService.ALLOWED_AUTHORITIES.contains(role)) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền truy cập luồng DVR playback");
+            }
+        }
+        if (mediaMtxService == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return mediaMtxService.streamDvrPlayback(cameraCode, startMs, duration, path);
     }
 
     /**

@@ -23,8 +23,10 @@ playback: yes
 playbackAddress: :9996
 playbackAllowOrigins: ['*']
 
-# 4. Cấu hình định dạng ghi hình fMP4 mặc định (an toàn khi mất điện, không mất moov atom)
+# 4. Cấu hình định dạng ghi hình fMP4 mặc định cho YouTube-Live DVR Playback (an toàn khi mất điện, không mất moov atom)
 pathDefaults:
+  record: yes
+  recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f
   recordFormat: fmp4
   recordPartDuration: 1s
   recordSegmentDuration: 1m

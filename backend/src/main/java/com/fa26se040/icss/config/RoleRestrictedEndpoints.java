@@ -82,7 +82,8 @@ public final class RoleRestrictedEndpoints {
             rule(HttpMethod.PATCH, "/api/cameras/{id}/map-location", ADMIN),
             rule(HttpMethod.DELETE, "/api/cameras/{id}/map-location", ADMIN),
             rule(HttpMethod.POST, "/api/cameras/stream/cloud-relay", ADMIN, GUARD),
-            rule(HttpMethod.POST, "/api/cameras/{cameraCode}/annotated-stream-token", ADMIN, GUARD)
+            rule(HttpMethod.POST, "/api/cameras/{cameraCode}/annotated-stream-token", ADMIN, GUARD),
+            rule(HttpMethod.GET, "/api/cameras/{cameraCode}/dvr/segments", ADMIN, GUARD)
     );
 
     private static Rule rule(HttpMethod method, String pattern, String... roles) {
