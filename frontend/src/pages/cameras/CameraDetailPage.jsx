@@ -8,8 +8,6 @@ import {
 	PowerOff,
 	MapPin,
 	Layers,
-	Activity,
-	History,
 } from "lucide-react";
 import {
 	fetchCameraDetail,
@@ -29,7 +27,6 @@ import RoiEditorModal from "../../components/camera/RoiEditorModal";
 import CameraGeneralTab from "../../components/camera/CameraGeneralTab";
 import CameraStreamTab from "../../components/camera/CameraStreamTab";
 import CameraSurveillanceTab from "../../components/camera/CameraSurveillanceTab";
-import CameraAccessLogsTab from "../../components/camera/CameraAccessLogsTab";
 import "../../styles/cameraShared.css";
 import "../../styles/CameraDetailPage.css";
 import {
@@ -47,7 +44,7 @@ export default function CameraDetailPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const tabParam = searchParams.get("tab");
 	const [activeTab, setActiveTabState] = useState(
-		["general", "stream", "surveillance", "access-logs"].includes(tabParam)
+		["general", "stream", "surveillance"].includes(tabParam)
 			? tabParam
 			: "general",
 	);
@@ -68,7 +65,7 @@ export default function CameraDetailPage() {
 		const currentTab = searchParams.get("tab");
 		if (
 			currentTab &&
-			["general", "stream", "surveillance", "access-logs"].includes(currentTab)
+			["general", "stream", "surveillance"].includes(currentTab)
 		) {
 			setActiveTabState(currentTab);
 		}
@@ -515,15 +512,6 @@ export default function CameraDetailPage() {
 							<Layers size={16} />
 							<span>Vùng Giám Sát</span>
 						</button>
-						<button
-							className={`tab-btn ${
-								activeTab === "access-logs" ? "tab-btn--active" : ""
-							}`}
-							onClick={() => setActiveTab("access-logs")}
-						>
-							<Activity size={16} />
-							<span>Nhật ký ra vào</span>
-						</button>
 					</div>
 
 					<div className="tab-content">
@@ -568,14 +556,6 @@ export default function CameraDetailPage() {
 								camera={camera}
 								onOpenRoiEditor={handleOpenRoiEditor}
 							/>
-						</div>
-
-						<div
-							style={{
-								display: activeTab === "access-logs" ? "block" : "none",
-							}}
-						>
-							<CameraAccessLogsTab camera={camera} />
 						</div>
 					</div>
 				</div>

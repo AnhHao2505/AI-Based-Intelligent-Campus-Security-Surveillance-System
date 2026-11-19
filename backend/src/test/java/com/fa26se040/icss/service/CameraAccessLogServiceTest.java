@@ -467,4 +467,131 @@ class CameraAccessLogServiceTest {
         assertEquals(AccessResult.UNAUTHORIZED_PERSON, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(13, 0), true));
         assertEquals(AccessResult.UNAUTHORIZED_PERSON, cameraAccessLogService.classifyResult(deniedNoTimeHint(), vn(23, 30), true));
     }
+
+    @Test
+    @DisplayName("State Transition: DENIED (t=0) -> ALLOWED (t=10) -> DENIED (t=20) đều được lưu, không bị debounce chặn")
+    void testRecordAccessLog_StateTransition_AllowedToDenied_NotDebounced() {
+        OffsetDateTime t0 = OffsetDateTime.of(2026, 10, 14, 10, 0, 0, 0, ZoneOffset.ofHours(7));
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CheckCameraEntryResponse denied1 = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("Chưa tới khung giờ được cấp phép theo đơn")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("SE170123")
+                .build();
+
+        CheckCameraEntryResponse allowed = CheckCameraEntryResponse.builder()
+                .allowed(true)
+                .source(AccessSource.ACCESS_REQUEST)
+                .reason("Có đơn xin quyền đã được duyệt trong khung thời gian")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("SE170123")
+                .build();
+
+        CheckCameraEntryResponse denied2 = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason("Hết hạn đơn duyệt")
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("SE170123")
+                .build();
+
+        // Lần 1: t=0 -> DENIED lưu thành công
+        CameraAccessLogResponse res1 = cameraAccessLogService.recordAccessLog(denied1, t0);
+        assertNotNull(res1);
+        assertEquals(AccessResult.UNAUTHORIZED_PERSON, res1.getAccessResult());
+
+        // Lần 2: t=10s (chạm startsAt) -> ALLOWED lưu thành công (và xóa DENIED khỏi debounce)
+        CameraAccessLogResponse res2 = cameraAccessLogService.recordAccessLog(allowed, t0.plusSeconds(10));
+        assertNotNull(res2);
+        assertEquals(AccessResult.AUTHORIZED_PERSON, res2.getAccessResult());
+
+        // Lần 3: t=20s (chạm expiresAt) -> DENIED lưu thành công (dù t=20 - t=0 = 20s < 30s debounce)
+        CameraAccessLogResponse res3 = cameraAccessLogService.recordAccessLog(denied2, t0.plusSeconds(20));
+        assertNotNull(res3);
+        assertEquals(AccessResult.UNAUTHORIZED_PERSON, res3.getAccessResult());
+    }
+
+    private CheckCameraEntryResponse allowedSighting(String reason) {
+        return CheckCameraEntryResponse.builder()
+                .allowed(true)
+                .source(AccessSource.ACCESS_REQUEST)
+                .reason(reason)
+                .cameraCode("CAM-001")
+                .areaId(areaId)
+                .userCode("SE170123")
+                .build();
+    }
+
+    @Test
+    @DisplayName("Debounce ROI: lượt nhận diện thường (t=0) rồi vào ROI (t=5) → log [VÀO ROI] vẫn được lưu")
+    void testRecordAccessLog_RoiEntryNotSwallowedByPassiveSighting() {
+        OffsetDateTime t0 = OffsetDateTime.of(2026, 10, 14, 10, 0, 0, 0, ZoneOffset.ofHours(7));
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertNotNull(cameraAccessLogService.recordAccessLog(allowedSighting("Có đơn xin quyền"), t0));
+        assertNotNull(cameraAccessLogService.recordAccessLog(allowedSighting("[VÀO ROI: Cửa A] Có đơn xin quyền"), t0.plusSeconds(5)));
+        // Vào ROI lần nữa trong 30s → bị chặn
+        assertNull(cameraAccessLogService.recordAccessLog(allowedSighting("[VÀO ROI: Cửa A] Có đơn xin quyền"), t0.plusSeconds(10)));
+    }
+
+    @Test
+    @DisplayName("Debounce ROI: vào ROI (t=0) rồi lượt nhận diện thường (t=5) → lượt thường bị chặn, chỉ 1 dòng")
+    void testRecordAccessLog_PassiveSightingSwallowedAfterRoiEntry() {
+        OffsetDateTime t0 = OffsetDateTime.of(2026, 10, 14, 10, 0, 0, 0, ZoneOffset.ofHours(7));
+        when(areaRepository.findById(areaId)).thenReturn(Optional.of(area));
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("SE170123")).thenReturn(Optional.of(user));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertNotNull(cameraAccessLogService.recordAccessLog(allowedSighting("[VÀO ROI: Cửa A] Có đơn xin quyền"), t0));
+        assertNull(cameraAccessLogService.recordAccessLog(allowedSighting("Có đơn xin quyền"), t0.plusSeconds(5)));
+        verify(cameraAccessLogRepository, times(1)).save(any());
+    }
+
+    @Test
+    @DisplayName("Luật ban đêm: GUARD được phép theo ACCESS_LEVEL lúc 23:00 → AUTHORIZED; người thường → PERSON_INTRUSION")
+    void testClassifyResult_NightAllowed_GuardExempt() {
+        OffsetDateTime night = OffsetDateTime.of(2026, 10, 14, 23, 0, 0, 0, ZoneOffset.ofHours(7));
+        CheckCameraEntryResponse byLevel = CheckCameraEntryResponse.builder()
+                .allowed(true)
+                .source(AccessSource.ACCESS_LEVEL)
+                .reason("Cấp độ truy cập của người dùng phù hợp với khu vực")
+                .cameraCode("CAM-001")
+                .userCode("GD001")
+                .build();
+
+        assertEquals(AccessResult.AUTHORIZED_PERSON, cameraAccessLogService.classifyResult(byLevel, night, true, true));
+        assertEquals(AccessResult.PERSON_INTRUSION, cameraAccessLogService.classifyResult(byLevel, night, true, false));
+    }
+
+    @Test
+    @DisplayName("Luật ban đêm qua recordAccessLog: user role GUARD được phép theo ACCESS_LEVEL lúc 23:00 → ghi AUTHORIZED_PERSON")
+    void testRecordAccessLog_NightGuardByAccessLevel_Authorized() {
+        OffsetDateTime night = OffsetDateTime.of(2026, 10, 14, 23, 0, 0, 0, ZoneOffset.ofHours(7));
+        User guard = User.builder().id(UUID.randomUUID()).userCode("GD001").fullName("Bảo vệ A")
+                .accessLevel(2).role(com.fa26se040.icss.enums.Role.GUARD).build();
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("GD001")).thenReturn(Optional.of(guard));
+        when(cameraAccessLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CheckCameraEntryResponse byLevel = CheckCameraEntryResponse.builder()
+                .allowed(true)
+                .source(AccessSource.ACCESS_LEVEL)
+                .reason("Cấp độ truy cập của người dùng phù hợp với khu vực")
+                .cameraCode("CAM-001")
+                .userCode("GD001")
+                .build();
+
+        CameraAccessLogResponse res = cameraAccessLogService.recordAccessLog(byLevel, night);
+        assertNotNull(res);
+        assertEquals(AccessResult.AUTHORIZED_PERSON, res.getAccessResult());
+    }
 }

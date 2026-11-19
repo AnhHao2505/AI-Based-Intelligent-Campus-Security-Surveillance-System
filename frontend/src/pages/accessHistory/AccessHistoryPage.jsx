@@ -66,7 +66,7 @@ export default function AccessHistoryPage() {
 	};
 
 	const columns = [
-		{ key: "loggedAt", title: "Thời gian", width: "160px", render: (v) => <span className="ahp-time">{formatDateTime(v)}</span> },
+		{ key: "loggedAt", title: "Thời gian", width: "170px", render: (v) => <span className="ahp-time">{formatDateTime(v, true)}</span> },
 		{ key: "areaName", title: "Khu vực", render: (v) => v || "—" },
 		{ key: "cameraCode", title: "Camera", isCode: true, width: "140px" },
 		{ key: "accessResult", title: "Kết quả", width: "140px", render: (v) => <AccessResultBadge result={v} /> },
