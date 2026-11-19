@@ -191,6 +191,7 @@ class IncidentRecorder:
         frame_interval = 1.0 / self.fps
         next_frame_time = time.time()
         last_real_frame = None
+        last_new_frame_ts = time.time()
 
         while self.is_running:
             now_ts = time.time()
@@ -215,8 +216,17 @@ class IncidentRecorder:
 
             if real_frame is not None and real_frame.size > 0:
                 last_real_frame = real_frame
+                last_new_frame_ts = now_ts
                 frame_to_write = self._draw_incident_overlay_on_real_frame(real_frame, elapsed, now_dt)
             elif last_real_frame is not None and last_real_frame.size > 0:
+                # Nếu không nhận được frame mới quá lâu (luồng camera bị ngắt hoặc StreamWorker đã dừng)
+                stale_limit = float(getattr(settings, "INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS", 5.0)) + 3.0
+                if now_ts - last_new_frame_ts > stale_limit:
+                    logger.info(
+                        f"⏹️ [IncidentRecorder] Camera [{self.camera_code}] không còn nhận được frame mới ({now_ts - last_new_frame_ts:.1f}s > {stale_limit:.1f}s). "
+                        f"Tự động chốt file video sự cố."
+                    )
+                    break
                 frame_to_write = self._draw_incident_overlay_on_real_frame(last_real_frame, elapsed, now_dt)
             else:
                 time.sleep(0.05)

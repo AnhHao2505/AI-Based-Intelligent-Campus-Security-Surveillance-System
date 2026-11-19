@@ -246,6 +246,12 @@ class CameraStreamWorker:
             self.analysis_thread = None
         if self.recorder:
             self.recorder.stop()
+        # Chốt phiên ghi hình sự cố nếu đang ghi dở khi camera dừng
+        try:
+            from .incident_recorder import incident_recording_manager
+            incident_recording_manager.stop_camera_recordings(self.camera_code)
+        except Exception as ex:
+            logger.warning(f"Lỗi khi dừng incident_recording_manager trong StreamWorker.stop: {ex}")
         if hasattr(self, "pipeline") and self.pipeline is not None:
             try:
                 self.pipeline.stop()
@@ -328,60 +334,66 @@ class CameraStreamWorker:
         last_processed_frame_id = -1
         last_analysis_time = 0.0
 
-        while self.is_running:
-            min_analysis_interval = (1.0 / self.analysis_max_fps) if (self.analysis_max_fps and self.analysis_max_fps > 0) else 0.0
-            if min_analysis_interval > 0:
-                now = time.time()
-                elapsed = now - last_analysis_time
-                if elapsed < min_analysis_interval:
-                    sleep_dur = min(0.05, max(0.001, min_analysis_interval - elapsed))
-                    time.sleep(sleep_dur)
+        try:
+            while self.is_running:
+                min_analysis_interval = (1.0 / self.analysis_max_fps) if (self.analysis_max_fps and self.analysis_max_fps > 0) else 0.0
+                if min_analysis_interval > 0:
+                    now = time.time()
+                    elapsed = now - last_analysis_time
+                    if elapsed < min_analysis_interval:
+                        sleep_dur = min(0.05, max(0.001, min_analysis_interval - elapsed))
+                        time.sleep(sleep_dur)
+                        continue
+
+                with self.raw_frame_lock:
+                    if self.raw_frame is not None and self.frame_id != last_processed_frame_id:
+                        frame = self.raw_frame.copy()
+                        last_processed_frame_id = self.frame_id
+                    else:
+                        frame = None
+
+                if frame is None:
+                    self.new_frame_event.wait(timeout=0.005)
+                    self.new_frame_event.clear()
                     continue
 
-            with self.raw_frame_lock:
-                if self.raw_frame is not None and self.frame_id != last_processed_frame_id:
-                    frame = self.raw_frame.copy()
-                    last_processed_frame_id = self.frame_id
-                else:
-                    frame = None
-
-            if frame is None:
-                self.new_frame_event.wait(timeout=0.005)
-                self.new_frame_event.clear()
-                continue
-
-            last_analysis_time = time.time()
-            try:
-                need_annotated = (
-                    self.has_active_client
-                    or incident_recording_manager.is_recording(self.camera_code)
-                    or getattr(self.pipeline, "is_incident_active_or_pending", False)
-                )
-                annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(
-                    frame,
-                    need_annotated=need_annotated
-                )
-                with self.lock:
-                    self.latest_frame = annotated_frame
-                if need_annotated or alerts:
-                    incident_recording_manager.write_frame_for_camera(self.camera_code, annotated_frame)
-
-                frame_counter += 1
-                if time.time() - fps_timer >= 2.0:
-                    self.processed_fps = round(frame_counter / (time.time() - fps_timer), 1)
-                    fps_timer = time.time()
-                    frame_counter = 0
-                    active_cnt = len(self.pipeline.analysis_engine.active_tracks) if self.pipeline else 0
-                    state_val = self.pipeline.state_machine.state.value if (self.pipeline and hasattr(self.pipeline, "state_machine")) else "N/A"
-                    logger.debug(
-                        f"📊 [StreamWorker:{self.camera_code}] Trạng thái: {self.processed_fps} FPS | Vùng: {state_val} | Người đang theo dõi: {active_cnt}"
+                last_analysis_time = time.time()
+                try:
+                    need_annotated = (
+                        self.has_active_client
+                        or incident_recording_manager.is_recording(self.camera_code)
+                        or getattr(self.pipeline, "is_incident_active_or_pending", False)
                     )
+                    annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(
+                        frame,
+                        need_annotated=need_annotated
+                    )
+                    with self.lock:
+                        self.latest_frame = annotated_frame
+                    if need_annotated or alerts:
+                        incident_recording_manager.write_frame_for_camera(self.camera_code, annotated_frame)
 
-            except Exception as e:
-                logger.error(f"Lỗi phân tích frame camera [{self.camera_code}]: {e}")
-                time.sleep(0.05)
+                    frame_counter += 1
+                    if time.time() - fps_timer >= 2.0:
+                        self.processed_fps = round(frame_counter / (time.time() - fps_timer), 1)
+                        fps_timer = time.time()
+                        frame_counter = 0
+                        active_cnt = len(self.pipeline.analysis_engine.active_tracks) if self.pipeline else 0
+                        state_val = self.pipeline.state_machine.state.value if (self.pipeline and hasattr(self.pipeline, "state_machine")) else "N/A"
+                        logger.debug(
+                            f"📊 [StreamWorker:{self.camera_code}] Trạng thái: {self.processed_fps} FPS | Vùng: {state_val} | Người đang theo dõi: {active_cnt}"
+                        )
 
-        logger.info(f"Đã đóng Analysis Thread cho camera [{self.camera_code}].")
+                except Exception as e:
+                    logger.error(f"Lỗi phân tích frame camera [{self.camera_code}]: {e}")
+                    time.sleep(0.05)
+        finally:
+            try:
+                from .incident_recorder import incident_recording_manager
+                incident_recording_manager.stop_camera_recordings(self.camera_code)
+            except Exception:
+                pass
+            logger.info(f"Đã đóng Analysis Thread cho camera [{self.camera_code}].")
 
     def get_current_raw_frame(self) -> Optional[Any]:
         with self.raw_frame_lock:
