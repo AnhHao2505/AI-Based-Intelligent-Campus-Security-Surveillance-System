@@ -107,6 +107,10 @@ public abstract class Step5bTestSupport extends AbstractIntegrationTest {
     @Autowired
     protected SystemConfigService systemConfigService;
 
+    /** #262: AfterHoursTestSupport tắt khung ban đêm bằng cách ghi thẳng START = END. */
+    @Autowired
+    private SystemConfigurationRepository systemConfigurationRepository;
+
     protected String suffix;
     protected Building building;
     protected Floor floor;
@@ -154,14 +158,14 @@ public abstract class Step5bTestSupport extends AbstractIntegrationTest {
         systemConfigService.update(ConfigKey.EVENT_MODE_SCHEDULE_MAX_LEAD_DAYS.name(), "30", admin.getEmail());
         systemConfigService.update(ConfigKey.ACCESS_REQUEST_GROUP_ALLOWED_IN_PRIVATE.name(), "false", admin.getEmail());
         // V115 (EV-N7): lịch / phiên dựng theo giờ hiện tại -> tắt khung ban đêm trong lúc test
-        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, admin.getEmail());
+        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, systemConfigurationRepository);
     }
 
     private String[] nightWindowBefore;
 
     @org.junit.jupiter.api.AfterEach
     void restoreNightWindowStep5b() {
-        AfterHoursTestSupport.restore(systemConfigService, nightWindowBefore, admin.getEmail());
+        AfterHoursTestSupport.restore(systemConfigService, systemConfigurationRepository, nightWindowBefore, admin.getEmail());
         nightWindowBefore = null;
     }
 
