@@ -507,14 +507,14 @@ export default function CampusMapView({
 	);
 
 	const handleSelect3dBuilding = useCallback(
-		(bName, targetFloorOrder = "ALL", { syncParent = true } = {}) => {
+		(bName, targetFloorOrder = "ALL", { syncParent = true, fly = true } = {}) => {
 			setActiveBuilding3d(bName);
 			if (bName === "ALL") {
 				setActiveFloorOrder3d("ALL");
 				if (syncParent) {
 					notifyParentMapFilter("ALL", "ALL");
 				}
-				if (mapRef.current) {
+				if (fly && mapRef.current) {
 					mapRef.current.flyTo({
 						center: [CAMPUS_CENTER.longitude, CAMPUS_CENTER.latitude],
 						zoom: CAMPUS_CENTER.zoom,
@@ -540,7 +540,7 @@ export default function CampusMapView({
 				if (syncParent) {
 					notifyParentMapFilter(bld.name, resolvedFl);
 				}
-				if (mapRef.current) {
+				if (fly && mapRef.current) {
 					mapRef.current.flyTo({
 						center: bld.center,
 						zoom: 18.7,
@@ -709,7 +709,9 @@ export default function CampusMapView({
 		}
 	}, [isAdmin, rebindAreaRequestId, editingAreaId, areas]);
 
-	// Khi chọn 1 Area từ danh sách bên trái, tự động mở đúng tòa nhà và cắt đúng tầng của Area đó
+	// Khi chọn 1 Area từ danh sách bên trái, tự động mở đúng tòa nhà và cắt đúng tầng của Area đó.
+	// Không flyTo lại khi người dùng vừa click trực tiếp khối phòng trên bản đồ 3D.
+	const skipNextAreaFlyRef = useRef(false);
 	const prevSyncedAreaIdRef = useRef(selectedAreaId);
 	useEffect(() => {
 		if (!selectedAreaId || prevSyncedAreaIdRef.current === selectedAreaId) {
@@ -717,6 +719,10 @@ export default function CampusMapView({
 			return;
 		}
 		prevSyncedAreaIdRef.current = selectedAreaId;
+		if (skipNextAreaFlyRef.current) {
+			skipNextAreaFlyRef.current = false;
+			return;
+		}
 		if (isCreatingArea || isEditingCoords) return;
 		const area = areas.find((a) => a.id === selectedAreaId);
 		if (!area) return;
@@ -1405,8 +1411,11 @@ export default function CampusMapView({
 						: hitProps.floorOrder != null
 							? Number(hitProps.floorOrder)
 							: "ALL";
-				handleSelect3dBuilding(clickedBuilding, targetFloor);
+				const currentZoom = mapRef.current?.getZoom?.() ?? CAMPUS_CENTER.zoom;
+				const shouldFly = !(clickedRoomFeature && currentZoom >= 18);
+				handleSelect3dBuilding(clickedBuilding, targetFloor, { fly: shouldFly });
 				if (hasSpecificAreaRoom) {
+					skipNextAreaFlyRef.current = true;
 					onSelectArea?.(roomProps.matchedAreaId);
 				}
 				return;
@@ -1423,6 +1432,7 @@ export default function CampusMapView({
 					);
 				}
 				if (roomProps.matchedAreaId) {
+					skipNextAreaFlyRef.current = true;
 					onSelectArea?.(roomProps.matchedAreaId);
 				}
 				return;

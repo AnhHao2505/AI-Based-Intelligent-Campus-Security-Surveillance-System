@@ -137,7 +137,7 @@ export default function SecurityReportPage() {
       {/* Header */}
       <PageHeader
         title="Báo Cáo An Ninh Toàn Diện"
-        description="Tổng hợp dữ liệu giám sát an ninh, cảnh báo AI vi phạm, lưu lượng ra vào và hiệu suất ca trực"
+        description="Tổng hợp dữ liệu giám sát an ninh, cảnh báo AI vi phạm, lưu lượng vào khu vực và hiệu suất ca trực"
         actions={
           <div className="flex items-center gap-2">
             <Button

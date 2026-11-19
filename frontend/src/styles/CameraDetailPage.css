@@ -1770,7 +1770,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .camera-general-area-row {
   display: flex;
   gap: 0.625rem;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
 }
 

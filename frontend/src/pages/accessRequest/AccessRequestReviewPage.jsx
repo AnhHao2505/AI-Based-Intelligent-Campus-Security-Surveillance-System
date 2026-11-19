@@ -381,7 +381,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
       {/* Header */}
       <PageHeader
         title="Phê duyệt yêu cầu truy cập"
-        description={`Xét duyệt yêu cầu ra vào các khu vực ${AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
+        description={`Xét duyệt yêu cầu vào các khu vực ${AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel} và ${AREA_LEVEL_CONFIG.HIGHLY_CONFIDENTIAL.badgeLabel}.`}
         actionsContainer={embedded ? actionsContainer : undefined}
         actions={
           <button
@@ -784,7 +784,7 @@ export default function AccessRequestReviewPage({ embedded = false, actionsConta
               </div>
 
               <p className="arr-confirm-text">
-                Người tạo đơn và các thành viên sẽ nhận thông báo kèm lý do; đơn không còn hiệu lực để ra vào.
+                Người tạo đơn và các thành viên sẽ nhận thông báo kèm lý do; đơn không còn hiệu lực để vào khu vực.
               </p>
 
               <ReasonTextarea

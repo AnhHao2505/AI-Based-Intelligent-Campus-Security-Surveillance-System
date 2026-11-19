@@ -326,7 +326,7 @@ export default function NotificationsPage() {
       // Step 6 (H1, H2): vô hiệu hoá khu vực
       case 'ACCESS_PERMISSION_REVOKED':
         return (
-          <div className="notif-icon-box notif-icon-box--denied" title="Quyền chỉ định ra vào bị thu hồi">
+          <div className="notif-icon-box notif-icon-box--denied" title="Quyền chỉ định vào khu vực bị thu hồi">
             <UserMinus size={16} />
           </div>
         );

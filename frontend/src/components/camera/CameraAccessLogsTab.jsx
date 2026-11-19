@@ -353,16 +353,16 @@ export default function CameraAccessLogsTab({ camera }) {
       <div className="access-timeline-container">
         {loading ? (
           <div className="timeline-loading-state">
-            <LoadingState message="Đang tải nhật ký ra vào..." />
+            <LoadingState message="Đang tải nhật ký vào khu vực..." />
           </div>
         ) : logs.length === 0 ? (
           <div className="timeline-empty-state">
             <EmptyState
-              title="Chưa có lượt quét ra vào nào"
+              title="Chưa có lượt quét vào nào"
               message={
                 searchTerm || activeFilter !== "ALL"
                   ? "Không có sự kiện nào phù hợp với bộ lọc hiện tại."
-                  : "Dữ liệu ra vào qua camera này sẽ tự động xuất hiện theo thời gian thực khi có người quét mặt."
+                  : "Dữ liệu vào khu vực qua camera này sẽ tự động xuất hiện theo thời gian thực khi có người quét mặt."
               }
             />
           </div>

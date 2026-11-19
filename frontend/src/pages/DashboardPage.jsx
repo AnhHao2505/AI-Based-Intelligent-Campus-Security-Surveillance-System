@@ -303,11 +303,11 @@ function AccessResultsPanel({ days }) {
 	return (
 		<DashboardPanel
 			icon={ChartColumnStacked}
-			title="Lượt ra vào theo ngày"
+			title="Lượt vào khu vực theo ngày"
 			subtitle={total > 0 ? `${total} lượt, chia theo kết quả kiểm soát` : "Chia theo kết quả kiểm soát"}
 		>
 			{total === 0 ? (
-				<EmptyState size="sm" icon={ChartColumnStacked} title="Không có lượt ra vào trong khoảng này" />
+				<EmptyState size="sm" icon={ChartColumnStacked} title="Không có lượt vào nào trong khoảng này" />
 			) : (
 				<div className="dash-stats__chart">
 					<ResponsiveContainer width="100%" height="100%">
@@ -461,7 +461,7 @@ function SecurityStatsSection() {
 					<p className="dash-stats__subtitle">
 						{stats && !statsQuery.isLoading
 							? `Sự cố theo thời điểm phát hiện, ${formatRange(stats.from, stats.to)}`
-							: "Sự cố và lượt ra vào trong khoảng đã chọn"}
+							: "Sự cố và lượt vào khu vực trong khoảng đã chọn"}
 					</p>
 				</div>
 				<StatusTabs

@@ -515,19 +515,6 @@ export default function RecordingPage() {
           <h3 style={{ margin: "0 0 8px 0", color: "var(--theme-text-primary)" }}>
             Chưa có video ghi hình nào trong thư mục recording
           </h3>
-          <p
-            style={{
-              maxWidth: "540px",
-              margin: "0 auto 16px auto",
-              fontSize: "14px",
-              lineHeight: 1.6,
-              color: "var(--theme-text-secondary)",
-            }}
-          >
-            Khi bất kỳ camera nào chuyển sang trạng thái <strong>ONLINE</strong>, hệ thống sẽ tự động ghi hình liên tục và cắt thành các phân đoạn chuẩn xác đúng <strong>1 phút/video</strong> lưu tại:
-            <br />
-            <code>C:\DATN\AI-Based-Intelligent-Campus-Security-Surveillance-System\recording\{"{camera_id}"}\...</code>
-          </p>
           <Button variant="outline" size="md" onClick={loadRecordings}>
             <RefreshCw size={14} style={{ marginRight: "6px" }} /> Quét lại thư mục
           </Button>
