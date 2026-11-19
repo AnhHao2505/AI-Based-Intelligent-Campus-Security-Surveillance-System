@@ -103,13 +103,18 @@ def build_recording_completed_payload(
     if end_dt.tzinfo is None:
         end_dt = end_dt.replace(tzinfo=VN_TZ)
 
+    filename = os.path.basename(file_path) if file_path else os.path.basename(object_key)
+
     return {
         "event_type": "RECORDING_COMPLETED",
         "camera_code": camera_code.strip().upper(),
         "recording_type": recording_type,
         "storage_location": "CLOUD_MINIO",
         "bucket_name": bucket_name,
+        "storage_bucket": bucket_name,
         "object_key": object_key,
+        "storage_key": object_key,
+        "filename": filename,
         "start_time": start_dt.isoformat(),
         "end_time": end_dt.isoformat(),
         "duration_seconds": actual_duration,
@@ -118,6 +123,7 @@ def build_recording_completed_payload(
         "fps": int(round(fps)),
         "resolution": resolution,
         "incident_event_id": incident_event_id,
+        "event_id": incident_event_id,
     }
 
 

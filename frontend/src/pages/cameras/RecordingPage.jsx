@@ -325,7 +325,7 @@ export default function RecordingPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <PageHeader
           title="Kho Lưu Trữ Video Ghi Hình (Video Recordings)"
-          description="Quản lý và tra cứu video ghi hình 1 phút liên tục (recording/) và video bằng chứng sự cố an ninh (evidence/). Tự động chia session chính xác 1 phút khi camera ONLINE và tự động ghi hình khi phát hiện sự cố đến khi Bảo vệ 'Xác nhận đã xem'."
+          description="Quản lý và tra cứu video ghi hình định kỳ liên tục (recording/) và video bằng chứng sự cố an ninh (evidence/). Tự động phân đoạn ghi hình khi camera ONLINE và tự động ghi hình khi phát hiện sự cố đến khi Bảo vệ 'Xác nhận đã xem'."
         />
         <div style={{ marginTop: "24px" }}>
           <Button
@@ -365,7 +365,7 @@ export default function RecordingPage() {
           </div>
           <div className="recording-stat-card__content">
             <span className="recording-stat-card__value">{normalRecordingsCount}</span>
-            <span className="recording-stat-card__label">Ghi hình định kỳ (1 phút)</span>
+            <span className="recording-stat-card__label">Video định kỳ</span>
           </div>
         </div>
 
@@ -612,7 +612,7 @@ export default function RecordingPage() {
               color: "var(--theme-text-secondary)",
             }}
           >
-            Khi bất kỳ camera nào chuyển sang trạng thái <strong>ONLINE</strong>, hệ thống sẽ tự động ghi hình liên tục và cắt thành các phân đoạn chuẩn xác đúng <strong>1 phút/video</strong> lưu tại:
+            Khi bất kỳ camera nào chuyển sang trạng thái <strong>ONLINE</strong>, hệ thống sẽ tự động ghi hình liên tục và lưu trữ phân đoạn video định kỳ tại:
             <br />
             <code>C:\DATN\AI-Based-Intelligent-Campus-Security-Surveillance-System\recording\{"{camera_id}"}\...</code>
           </p>
@@ -651,7 +651,7 @@ export default function RecordingPage() {
                       </>
                     ) : (
                       <>
-                        <Video size={12} /> Định kỳ 1 phút
+                        <Video size={12} /> Video định kỳ
                       </>
                     )}
                   </span>
@@ -876,7 +876,7 @@ export default function RecordingPage() {
             <div className="recording-player-modal__footer">
               <div className="recording-player-modal__meta-grid">
                 <div>
-                  <strong>Phân loại:</strong> {activeVideo.eventType === "SECURITY_EVENT" ? "Bằng chứng sự cố an ninh (854x480 • CFR 15 FPS)" : "Ghi hình định kỳ 1 phút (854x480 • CFR 15 FPS)"}
+                  <strong>Phân loại:</strong> {activeVideo.eventType === "SECURITY_EVENT" ? "Bằng chứng sự cố an ninh (854x480 • CFR 15 FPS)" : "Video định kỳ (854x480 • CFR 15 FPS)"}
                 </div>
                 <div>
                   <strong>Độ phân giải & Codec:</strong> {activeVideo.resolution} — {activeVideo.format}

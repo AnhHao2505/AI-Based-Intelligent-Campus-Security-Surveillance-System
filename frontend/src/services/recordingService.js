@@ -22,7 +22,7 @@ export const RECORDING_TIME_RANGES = [
 
 export const EVENT_TYPE_OPTIONS = [
   { value: "", label: "Tất cả sự kiện (All Events)" },
-  { value: "NORMAL_RECORDING", label: "Ghi hình định kỳ 1 phút (Normal 1-min Segment)" },
+  { value: "NORMAL_RECORDING", label: "Video định kỳ (Normal Periodic Recording)" },
   { value: "SECURITY_EVENT", label: "Sự kiện an ninh (Security Event)" },
 ];
 

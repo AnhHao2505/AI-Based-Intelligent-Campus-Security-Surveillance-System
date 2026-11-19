@@ -304,7 +304,7 @@ public class CameraRecordingService {
                 .building(building)
                 .floor(floor)
                 .eventType(isIncident ? "SECURITY_EVENT" : "NORMAL_RECORDING")
-                .eventTypeName(isIncident ? "Sự cố an ninh (Incident Evidence)" : "Ghi hình định kỳ")
+                .eventTypeName(isIncident ? "Sự cố an ninh (Incident Evidence)" : "Video định kỳ")
                 .severity(isIncident ? "CRITICAL" : null)
                 .startTime(rec.getStartTime())
                 .endTime(rec.getEndTime())
@@ -430,14 +430,15 @@ public class CameraRecordingService {
 
                     OffsetDateTime lastModified = item.lastModified() != null ? item.lastModified().toOffsetDateTime() : OffsetDateTime.now(VIETNAM_ZONE);
                     OffsetDateTime startTime = parseStartTimeFromFilename(filename, lastModified);
-                    long durationSeconds = 60;
-                    if (isIncidentVideo) {
-                        long diffSec = (lastModified.toInstant().toEpochMilli() - startTime.toInstant().toEpochMilli()) / 1000;
-                        if (diffSec > 0 && diffSec <= 600) {
-                            durationSeconds = diffSec;
-                        } else {
-                            durationSeconds = Math.max(5, fileSizeBytes / (120 * 1024));
-                        }
+                    long diffSec = (lastModified.toInstant().toEpochMilli() - startTime.toInstant().toEpochMilli()) / 1000;
+                    long durationSeconds;
+                    if (diffSec >= 5 && diffSec <= 7200) {
+                        durationSeconds = diffSec;
+                    } else if (fileSizeBytes > 0) {
+                        long rateBytesPerSec = isIncidentVideo ? (120L * 1024) : (275L * 1024);
+                        durationSeconds = Math.max(5, Math.round((double) fileSizeBytes / rateBytesPerSec));
+                    } else {
+                        durationSeconds = 60;
                     }
                     OffsetDateTime endTime = startTime.plusSeconds(durationSeconds);
 
@@ -474,7 +475,7 @@ public class CameraRecordingService {
                     String formattedSize = formatFileSize(fileSizeBytes);
                     String durationDisplay = String.format("%02d:%02d (%ds)", durationSeconds / 60, durationSeconds % 60, durationSeconds);
                     String eventType = isIncidentVideo ? "SECURITY_EVENT" : "NORMAL_RECORDING";
-                    String eventTypeName = isIncidentVideo ? "Sự cố an ninh (Incident Evidence - MinIO)" : "Ghi hình định kỳ (1 phút/session - MinIO)";
+                    String eventTypeName = isIncidentVideo ? "Sự cố an ninh (Incident Evidence - MinIO)" : "Video định kỳ (MinIO)";
                     String severity = isIncidentVideo ? "CRITICAL" : null;
                     String notes = "Video lưu tại MinIO Object Storage (bucket: " + bucketName + ").";
                     String idPrefix = isIncidentVideo ? "EVD-MINIO-" : "REC-MINIO-";
@@ -568,14 +569,15 @@ public class CameraRecordingService {
                     boolean isIncidentVideo = isEvidenceFolder || filename.toLowerCase().startsWith("incident");
 
                     OffsetDateTime startTime = parseStartTime(filename, attrs);
-                    long durationSeconds = 60;
-                    if (isIncidentVideo) {
-                        long diffSec = (attrs.lastModifiedTime().toMillis() - startTime.toInstant().toEpochMilli()) / 1000;
-                        if (diffSec > 0 && diffSec < 86400) {
-                            durationSeconds = diffSec;
-                        } else {
-                            durationSeconds = Math.max(5, fileSizeBytes / (120 * 1024));
-                        }
+                    long diffSec = (attrs.lastModifiedTime().toMillis() - startTime.toInstant().toEpochMilli()) / 1000;
+                    long durationSeconds;
+                    if (diffSec >= 5 && diffSec <= 7200) {
+                        durationSeconds = diffSec;
+                    } else if (fileSizeBytes > 0) {
+                        long rateBytesPerSec = isIncidentVideo ? (120L * 1024) : (275L * 1024);
+                        durationSeconds = Math.max(5, Math.round((double) fileSizeBytes / rateBytesPerSec));
+                    } else {
+                        durationSeconds = 60;
                     }
                     OffsetDateTime endTime = startTime.plusSeconds(durationSeconds);
 
@@ -613,11 +615,11 @@ public class CameraRecordingService {
                     String durationDisplay = String.format("%02d:%02d (%ds)", durationSeconds / 60, durationSeconds % 60, durationSeconds);
 
                     String eventType = isIncidentVideo ? "SECURITY_EVENT" : "NORMAL_RECORDING";
-                    String eventTypeName = isIncidentVideo ? "Sự cố an ninh (Incident Evidence)" : "Ghi hình định kỳ (1 phút/session)";
+                    String eventTypeName = isIncidentVideo ? "Sự cố an ninh (Incident Evidence)" : "Video định kỳ";
                     String severity = isIncidentVideo ? "CRITICAL" : null;
                     String notes = isIncidentVideo
                             ? "Video ghi lại bằng chứng sự cố an ninh từ khi phát hiện tới khi Bảo vệ 'Xác nhận đã xem' (lưu tại evidence/)."
-                            : "Video 1 phút chuẩn xác lưu tại ổ đĩa hệ thống (lưu tại recording/).";
+                            : "Video định kỳ chuẩn xác lưu tại ổ đĩa hệ thống (lưu tại recording/).";
                     String idPrefix = isIncidentVideo ? "EVD-" : "REC-";
 
                     RecordingVideoResponse rec = RecordingVideoResponse.builder()
