@@ -486,32 +486,46 @@ function SurveillanceEvidencePlayer({
 
 	const targetSec = Number(videoData.targetSeekSeconds) || 0;
 
-	// Khi nạp xong metadata, tự động tua tới đúng mốc thời gian cảnh báo
-	const handleLoadedMetadata = (e) => {
-		const vid = e.currentTarget;
-		if (vid) {
-			const d = vid.duration;
-			if (Number.isFinite(d) && d > 0) {
-				setDuration(d);
-			}
-			if (targetSec > 0 && !hasInitialSeek) {
-				try {
-					vid.currentTime = Math.min(targetSec, (d && d > 0) ? d : targetSec);
-					setCurrentTime(vid.currentTime);
-					setHasInitialSeek(true);
-				} catch (err) {
-					console.warn("Lỗi tua mốc ban đầu:", err);
-				}
+	// Khi nạp xong metadata hoặc sẵn sàng phát, tự động tua tới đúng mốc thời gian cảnh báo
+	const performInitialSeek = (vid) => {
+		if (!vid) return;
+		const d = vid.duration;
+		if (Number.isFinite(d) && d > 0) {
+			setDuration(d);
+		} else if (Number(videoData.durationSeconds) > 0) {
+			setDuration(Number(videoData.durationSeconds));
+		}
+
+		if (targetSec > 0 && !hasInitialSeek) {
+			try {
+				const maxSeek = (Number.isFinite(d) && d > 0) ? d : (Number(videoData.durationSeconds) || targetSec);
+				const seekPoint = Math.min(targetSec, maxSeek);
+				vid.currentTime = seekPoint;
+				setCurrentTime(seekPoint);
+				setHasInitialSeek(true);
+			} catch (err) {
+				console.warn("Lỗi tua mốc sự cố ban đầu:", err);
 			}
 		}
 	};
 
+	const handleLoadedMetadata = (e) => {
+		performInitialSeek(e.currentTarget);
+	};
+
+	const handleCanPlay = (e) => {
+		performInitialSeek(e.currentTarget);
+	};
+
 	const handleTimeUpdate = (e) => {
 		if (!isSeeking && e.currentTarget) {
-			setCurrentTime(e.currentTarget.currentTime);
+			const ct = e.currentTarget.currentTime;
+			setCurrentTime(ct);
 			const d = e.currentTarget.duration;
 			if (Number.isFinite(d) && d > 0 && d !== duration) {
 				setDuration(d);
+			} else if (ct > duration) {
+				setDuration(ct + 10);
 			}
 		}
 	};
@@ -539,7 +553,10 @@ function SurveillanceEvidencePlayer({
 	const jumpToTime = (sec) => {
 		const vid = videoRef.current;
 		if (!vid) return;
-		const cleanSec = Math.max(0, Math.min(sec, duration));
+		const maxTime = (Number.isFinite(duration) && duration > 0)
+			? duration
+			: (Number(videoData.durationSeconds) || 120);
+		const cleanSec = Math.max(0, Math.min(sec, maxTime));
 		vid.currentTime = cleanSec;
 		setCurrentTime(cleanSec);
 	};
@@ -558,8 +575,17 @@ function SurveillanceEvidencePlayer({
 		return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 	};
 
-	const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
-	const targetMarkerPercent = duration > 0 && targetSec > 0 ? Math.min(100, Math.max(0, (targetSec / duration) * 100)) : null;
+	const effectiveDuration = (Number.isFinite(duration) && duration > 0)
+		? duration
+		: (Number(videoData.durationSeconds) > 0 ? Number(videoData.durationSeconds) : 120);
+
+	const progressPercent = effectiveDuration > 0
+		? Math.min(100, Math.max(0, (currentTime / effectiveDuration) * 100))
+		: 0;
+
+	const targetMarkerPercent = effectiveDuration > 0 && targetSec > 0
+		? Math.min(100, Math.max(0, (targetSec / effectiveDuration) * 100))
+		: null;
 
 	return (
 		<div className="soc-video-player-wrapper">
@@ -574,6 +600,7 @@ function SurveillanceEvidencePlayer({
 					preload="auto"
 					className="soc-evidence-video-player"
 					onLoadedMetadata={handleLoadedMetadata}
+					onCanPlay={handleCanPlay}
 					onTimeUpdate={handleTimeUpdate}
 					onPlay={() => setIsPlaying(true)}
 					onPause={() => setIsPlaying(false)}
@@ -589,14 +616,14 @@ function SurveillanceEvidencePlayer({
 				<div className="soc-playback-bar-header">
 					<div className="soc-playback-bar-title">
 						<Film size={13} style={{ color: "#38bdf8" }} />
-						<span>THANH TUA & XEM LẠI SỰ CỐ (PLAYBACK CONTROLS)</span>
+						<span>THANH TUA & XEM LẠI VIDEO ĐỊNH KỲ (PERIODIC PLAYBACK)</span>
 					</div>
 					{targetSec > 0 && (
 						<button
 							type="button"
 							className="soc-ctrl-btn soc-btn-jump-alert"
 							onClick={() => jumpToTime(targetSec)}
-							title={`Nhảy tới đúng giây cảnh báo: ${formatTime(targetSec)}`}
+							title={`Nhảy tới đúng giây cảnh báo sự cố: ${formatTime(targetSec)}`}
 						>
 							<ShieldAlert size={13} color="#ef4444" />
 							<span>⏱️ Nhảy tới mốc sự cố ({formatTime(targetSec)})</span>
@@ -613,18 +640,18 @@ function SurveillanceEvidencePlayer({
 					<input
 						type="range"
 						min="0"
-						max={duration || 60}
+						max={effectiveDuration || 60}
 						step="0.1"
-						value={currentTime}
+						value={Math.min(currentTime, effectiveDuration || 60)}
 						onMouseDown={() => setIsSeeking(true)}
 						onMouseUp={() => setIsSeeking(false)}
 						onTouchStart={() => setIsSeeking(true)}
 						onTouchEnd={() => setIsSeeking(false)}
 						onChange={handleSliderChange}
 						className="soc-timeline-slider"
-						title={`Kéo thanh này để tua video: ${formatTime(currentTime)} / ${formatTime(duration)}`}
+						title={`Kéo thanh này để tua video: ${formatTime(currentTime)} / ${formatTime(effectiveDuration)}`}
 					/>
-					{/* Điểm đánh dấu sự cố (Alert Pin Marker) */}
+					{/* Điểm đánh dấu sự cố (Red Dot Alert Pin Marker) */}
 					{targetMarkerPercent !== null && (
 						<div
 							className="soc-timeline-alert-marker"
@@ -633,10 +660,11 @@ function SurveillanceEvidencePlayer({
 								e.stopPropagation();
 								jumpToTime(targetSec);
 							}}
-							title={`📌 Mốc sự cố: ${formatTime(targetSec)} (Click để tua ngay)`}
+							title={`🔴 Mốc thời điểm sự cố: ${formatTime(targetSec)} (Click để nhảy tới đúng giây này)`}
 						>
+							<div className="soc-alert-pin-line" />
 							<div className="soc-alert-pin-dot" />
-							<span className="soc-alert-pin-label">Cảnh báo ({formatTime(targetSec)})</span>
+							<span className="soc-alert-pin-label">🔴 Sự cố ({formatTime(targetSec)})</span>
 						</div>
 					)}
 				</div>
@@ -682,14 +710,14 @@ function SurveillanceEvidencePlayer({
 						</button>
 
 						<span className="soc-playback-time-text">
-							<strong>{formatTime(currentTime)}</strong> / {formatTime(duration)}
+							<strong>{formatTime(currentTime)}</strong> / {formatTime(effectiveDuration)}
 						</span>
 					</div>
 
 					<div className="soc-playback-right-controls">
 						{/* Bộ chọn tốc độ */}
 						<div className="soc-speed-selector">
-							{[1, 1.5, 2].map((rate) => (
+							{[0.5, 1, 1.5, 2].map((rate) => (
 								<button
 									key={rate}
 									type="button"
@@ -716,16 +744,16 @@ function SurveillanceEvidencePlayer({
 			{/* Dòng thông tin metadata */}
 			<div className="soc-video-meta-bar">
 				<span>
-					<strong>Tệp:</strong> {videoData.filename || videoData.id}
+					<strong>Video định kỳ:</strong> {videoData.filename || videoData.id}
 				</span>
 				{targetSec > 0 && (
 					<span style={{ color: "#38bdf8", fontWeight: 600 }}>
-						⏱️ Nhảy tới thời điểm cảnh báo: {formatTime(targetSec)} ({targetSec}s)
+						⏱️ Bắt đầu tại mốc cảnh báo: {formatTime(targetSec)} ({targetSec}s) — có thể kéo lùi thanh tua để xem trước sự cố
 					</span>
 				)}
 				{videoData.durationDisplay && (
 					<span>
-						<strong>Thời lượng:</strong> {videoData.durationDisplay}
+						<strong>Độ dài:</strong> {videoData.durationDisplay}
 					</span>
 				)}
 			</div>
@@ -1359,8 +1387,9 @@ export function SecuritySurveillancePage() {
 	};
 
 	// Tải và phát video hiện trường sự cố trực tiếp trong tab này:
-	// Ưu tiên phát "video định kỳ" (NORMAL_RECORDING) bao phủ thời điểm phát hiện cảnh báo,
-	// và tự động nhảy đúng vị trí giây (seek/timestamp) của sự cố.
+	// Tìm video định kỳ (NORMAL_RECORDING) đã ghi ít nhất 1 phút trước sự cố (startMs <= alertTime - 60s),
+	// bao trùm hoặc dẫn tới thời điểm sự cố, tự động nhảy đúng mốc giây cảnh báo và gắn Red Dot trên timeline.
+	// Tuyệt đối KHÔNG dùng video "Bằng chứng sự cố" (SECURITY_EVENT / incident).
 	const loadIncidentVideo = async (alert) => {
 		if (!alert) return;
 		setIncidentVideoLoading(true);
@@ -1369,7 +1398,7 @@ export function SecuritySurveillancePage() {
 			const camCode = alert.camCodeClean || alert.cameraCode;
 			const list = await fetchDiskRecordings({ cameraId: camCode });
 			if (!list || list.length === 0) {
-				setIncidentVideoError("Chưa có bản ghi video nào của camera này trên máy chủ.");
+				setIncidentVideoError("Chưa có bản ghi video định kỳ nào của camera này trên máy chủ.");
 				return;
 			}
 
@@ -1377,7 +1406,7 @@ export function SecuritySurveillancePage() {
 				? new Date(alert.detectedAt).getTime()
 				: (alert.rawTime || Date.now());
 
-			// 1. Tìm video định kỳ (NORMAL_RECORDING) bao trọn hoặc chứa thời điểm phát hiện sự cố (alertTime)
+			// 1. Chỉ lọc Video định kỳ (NORMAL_RECORDING), hoàn toàn tách biệt khỏi "Bằng chứng sự cố"
 			const normalRecordings = list.filter((v) => {
 				const isSecurity =
 					v.eventType === "SECURITY_EVENT" ||
@@ -1385,71 +1414,106 @@ export function SecuritySurveillancePage() {
 				return !isSecurity;
 			});
 
+			if (normalRecordings.length === 0) {
+				setIncidentVideoError(
+					"Không tìm thấy video định kỳ nào của camera này (Video sự cố được lưu tách biệt tại Kho lưu trữ).",
+				);
+				return;
+			}
+
+			// Ngưỡng 1 phút trước sự cố (60 giây)
+			const ONE_MINUTE_MS = 60 * 1000;
+			const targetThresholdMs = alertTime - ONE_MINUTE_MS;
+
+			// Phân tích danh sách ứng viên video định kỳ
+			const candidates = normalRecordings.map((rec) => {
+				const startMs = new Date(rec.startTime).getTime();
+				const endMs = new Date(rec.endTime).getTime();
+				// Bao trùm mốc alert (với 5s buffer cho độ trễ hệ thống)
+				const coversAlert = startMs <= alertTime && alertTime <= (endMs + 5000);
+				// Bắt đầu ít nhất 1 phút trước sự cố
+				const hasOneMinBefore = startMs <= targetThresholdMs;
+				const leadSeconds = Math.max(0, (alertTime - startMs) / 1000);
+				return {
+					rec,
+					startMs,
+					endMs,
+					coversAlert,
+					hasOneMinBefore,
+					leadSeconds,
+				};
+			});
+
 			let matchedRecording = null;
 			let seekOffsetSeconds = 0;
 
-			// A. Tìm video định kỳ mà [startTime <= alertTime <= endTime]
-			for (const rec of normalRecordings) {
-				const startMs = new Date(rec.startTime).getTime();
-				const endMs = new Date(rec.endTime).getTime();
-				if (startMs <= alertTime && alertTime <= endMs) {
-					matchedRecording = rec;
-					seekOffsetSeconds = Math.max(0, (alertTime - startMs) / 1000);
-					break;
-				}
+			// Ưu tiên 1 (Lý tưởng nhất): Video định kỳ bao trùm sự cố VÀ đã ghi ít nhất 1 phút trước sự cố
+			const goldenMatches = candidates.filter((c) => c.coversAlert && c.hasOneMinBefore);
+			if (goldenMatches.length > 0) {
+				// Chọn video bắt đầu gần alert nhất nhưng vẫn đủ >= 1 phút trước
+				goldenMatches.sort((a, b) => b.startMs - a.startMs);
+				matchedRecording = goldenMatches[0].rec;
+				seekOffsetSeconds = goldenMatches[0].leadSeconds;
 			}
 
-			// B. Nếu không có video bao trùm chính xác, tìm video định kỳ bắt đầu gần nhất trước hoặc sau sự cố (trong ±1 giờ)
-			if (!matchedRecording && normalRecordings.length > 0) {
-				const candidates = normalRecordings.map((rec) => {
-					const startMs = new Date(rec.startTime).getTime();
-					const endMs = new Date(rec.endTime).getTime();
-					const diff = startMs <= alertTime && alertTime <= endMs
-						? 0
-						: Math.min(Math.abs(alertTime - startMs), Math.abs(alertTime - endMs));
-					return { rec, diff, startMs, endMs };
-				});
-				candidates.sort((a, b) => a.diff - b.diff);
-				const best = candidates[0];
-				// Chỉ chấp nhận nếu cách thời điểm sự cố dưới 10 phút
-				if (best.diff <= 10 * 60 * 1000) {
-					matchedRecording = best.rec;
-					if (alertTime >= best.startMs) {
-						seekOffsetSeconds = Math.max(0, (alertTime - best.startMs) / 1000);
+			// Ưu tiên 2: Video bao trùm sự cố nhưng mới bắt đầu dưới 1 phút (ví dụ chuyển phân đoạn 15s trước sự cố)
+			if (!matchedRecording) {
+				const coveringRecent = candidates.filter((c) => c.coversAlert);
+				if (coveringRecent.length > 0) {
+					coveringRecent.sort((a, b) => b.startMs - a.startMs);
+					const currentCovering = coveringRecent[0];
+
+					// Tìm phân đoạn liền trước đó có đủ >= 1 phút trước sự cố
+					const preceding = candidates.filter(
+						(c) => c.startMs <= currentCovering.startMs && c.endMs >= (currentCovering.startMs - 15000)
+					);
+					if (preceding.length > 0 && preceding[0].hasOneMinBefore) {
+						// Ưu tiên phân đoạn trước để bảo vệ quan sát trọn vẹn diễn biến trước sự cố
+						matchedRecording = preceding[0].rec;
+						seekOffsetSeconds = Math.max(0, (alertTime - preceding[0].startMs) / 1000);
 					} else {
-						seekOffsetSeconds = 0;
+						// Nếu không có phân đoạn trước tốt hơn, dùng video hiện tại đang ghi dở
+						matchedRecording = currentCovering.rec;
+						seekOffsetSeconds = currentCovering.leadSeconds;
 					}
 				}
 			}
 
-			// C. Fallback: Nếu không có video định kỳ nào, dùng video sự cố (SECURITY_EVENT)
+			// Ưu tiên 3: Video định kỳ kết thúc ngay trước thời điểm sự cố (trong vòng 5 phút)
 			if (!matchedRecording) {
-				const incidentVideos = list.filter((v) => {
-					const isSecurity =
-						v.eventType === "SECURITY_EVENT" ||
-						(v.filename && v.filename.toLowerCase().startsWith("incident"));
-					if (!isSecurity) return false;
-					const videoTime = new Date(v.startTime).getTime();
-					return (
-						videoTime >= alertTime - 30 * 1000 &&
-						videoTime <= alertTime + 10 * 60 * 1000
-					);
+				const beforeAlert = candidates.filter((c) => c.startMs <= alertTime);
+				if (beforeAlert.length > 0) {
+					beforeAlert.sort((a, b) => Math.abs(alertTime - a.endMs) - Math.abs(alertTime - b.endMs));
+					const bestBefore = beforeAlert[0];
+					if (Math.abs(alertTime - bestBefore.endMs) <= 5 * 60 * 1000) {
+						matchedRecording = bestBefore.rec;
+						seekOffsetSeconds = Math.max(0, (alertTime - bestBefore.startMs) / 1000);
+					}
+				}
+			}
+
+			// Ưu tiên 4: Fallback video định kỳ gần thời điểm sự cố nhất (trong ±10 phút)
+			if (!matchedRecording) {
+				candidates.sort((a, b) => {
+					const diffA = Math.min(Math.abs(alertTime - a.startMs), Math.abs(alertTime - a.endMs));
+					const diffB = Math.min(Math.abs(alertTime - b.startMs), Math.abs(alertTime - b.endMs));
+					return diffA - diffB;
 				});
-				if (incidentVideos.length > 0) {
-					incidentVideos.sort((a, b) => {
-						const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
-						const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
-						return diffA - diffB;
-					});
-					matchedRecording = incidentVideos[0];
-					const startMs = new Date(matchedRecording.startTime).getTime();
-					seekOffsetSeconds = Math.max(0, (alertTime - startMs) / 1000);
+				if (candidates.length > 0) {
+					const best = candidates[0];
+					const minDiff = Math.min(Math.abs(alertTime - best.startMs), Math.abs(alertTime - best.endMs));
+					if (minDiff <= 10 * 60 * 1000) {
+						matchedRecording = best.rec;
+						seekOffsetSeconds = alertTime >= best.startMs
+							? Math.max(0, (alertTime - best.startMs) / 1000)
+							: 0;
+					}
 				}
 			}
 
 			if (!matchedRecording || !matchedRecording.videoUrl) {
 				setIncidentVideoError(
-					"Không tìm thấy video ghi hình định kỳ tương ứng với thời điểm phát hiện cảnh báo.",
+					"Không tìm thấy video định kỳ nào của camera này phù hợp với thời điểm cảnh báo.",
 				);
 				return;
 			}
