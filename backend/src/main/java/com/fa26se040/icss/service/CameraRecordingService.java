@@ -287,6 +287,7 @@ public class CameraRecordingService {
 
         String streamUrl = "/api/cameras/recordings/stream?path=" + encodedKey + sourceParam;
         String downloadUrl = streamUrl + "&download=true";
+        String thumbnailUrl = "/api/cameras/recordings/thumbnail?path=" + encodedKey + sourceParam;
 
         int durSec = rec.getDurationSeconds() != null ? rec.getDurationSeconds() : 0;
         String durationDisplay = String.format("%02d:%02d (%ds)", durSec / 60, durSec % 60, durSec);
@@ -316,6 +317,7 @@ public class CameraRecordingService {
                 .relativePath(rec.getStorageKey())
                 .videoUrl(streamUrl)
                 .downloadUrl(downloadUrl)
+                .thumbnailUrl(thumbnailUrl)
                 .filename(rec.getFilename())
                 .notes(rec.getChecksumSha256() != null ? "SHA-256: " + rec.getChecksumSha256() : "Đã xác thực metadata từ Edge")
                 .build();
@@ -467,6 +469,7 @@ public class CameraRecordingService {
                     String sourceParam = isEvidenceBucket ? "&source=minio_evidence" : "&source=minio_recording";
                     String streamUrl = "/api/cameras/recordings/stream?path=" + encodedRelPath + sourceParam;
                     String downloadUrl = streamUrl + "&download=true";
+                    String thumbnailUrl = "/api/cameras/recordings/thumbnail?path=" + encodedRelPath + sourceParam;
 
                     String formattedSize = formatFileSize(fileSizeBytes);
                     String durationDisplay = String.format("%02d:%02d (%ds)", durationSeconds / 60, durationSeconds % 60, durationSeconds);
@@ -497,6 +500,7 @@ public class CameraRecordingService {
                             .relativePath(objectName)
                             .videoUrl(streamUrl)
                             .downloadUrl(downloadUrl)
+                            .thumbnailUrl(thumbnailUrl)
                             .filename(filename)
                             .notes(notes)
                             .build();
@@ -603,6 +607,7 @@ public class CameraRecordingService {
                     String sourceParam = isEvidenceFolder ? "&source=evidence" : "&source=recording";
                     String streamUrl = "/api/cameras/recordings/stream?path=" + encodedRelPath + sourceParam;
                     String downloadUrl = streamUrl + "&download=true";
+                    String thumbnailUrl = "/api/cameras/recordings/thumbnail?path=" + encodedRelPath + sourceParam;
 
                     String formattedSize = formatFileSize(fileSizeBytes);
                     String durationDisplay = String.format("%02d:%02d (%ds)", durationSeconds / 60, durationSeconds % 60, durationSeconds);
@@ -636,6 +641,7 @@ public class CameraRecordingService {
                             .relativePath(relPathStr)
                             .videoUrl(streamUrl)
                             .downloadUrl(downloadUrl)
+                            .thumbnailUrl(thumbnailUrl)
                             .filename(filename)
                             .notes(notes)
                             .build();
@@ -809,6 +815,82 @@ public class CameraRecordingService {
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .contentLength(contentLength)
                 .body(resource);
+    }
+
+    /**
+     * Phục vụ ảnh thu nhỏ (khung hình đầu tiên) của video ghi hình từ MinIO hoặc đĩa cục bộ.
+     */
+    public ResponseEntity<Resource> getThumbnail(String relativePathStr, String source) throws IOException {
+        if (relativePathStr == null || relativePathStr.isBlank()
+                || relativePathStr.contains("..")
+                || relativePathStr.startsWith("/")
+                || relativePathStr.startsWith("\\")
+                || relativePathStr.matches("^[A-Za-z]:.*")) {
+            log.warn("🚨 Từ chối truy cập đường dẫn thumbnail không hợp lệ: {}", relativePathStr);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        String thumbPathStr = relativePathStr;
+        if (thumbPathStr.toLowerCase().endsWith(".mp4")) {
+            thumbPathStr = thumbPathStr.substring(0, thumbPathStr.length() - 4) + ".jpg";
+        } else if (!thumbPathStr.toLowerCase().endsWith(".jpg")) {
+            thumbPathStr = thumbPathStr + ".jpg";
+        }
+
+        // 1. Kiểm tra MinIO
+        if (source != null && source.startsWith("minio") && minioStorageService != null) {
+            String primaryBucket = source.contains("evidence")
+                    ? minioStorageService.getEvidenceBucket()
+                    : minioStorageService.getRecordingsBucket();
+            String fallbackBucket = (primaryBucket != null && primaryBucket.equals(minioStorageService.getEvidenceBucket()))
+                    ? minioStorageService.getRecordingsBucket()
+                    : minioStorageService.getEvidenceBucket();
+
+            try {
+                if (minioStorageService.statObject(primaryBucket, thumbPathStr).isPresent()) {
+                    InputStream is = minioStorageService.getObject(primaryBucket, thumbPathStr);
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.IMAGE_JPEG)
+                            .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                            .body(new InputStreamResource(is));
+                }
+                if (minioStorageService.statObject(fallbackBucket, thumbPathStr).isPresent()) {
+                    InputStream is = minioStorageService.getObject(fallbackBucket, thumbPathStr);
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.IMAGE_JPEG)
+                            .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                            .body(new InputStreamResource(is));
+                }
+            } catch (Exception e) {
+                log.debug("Không tìm thấy thumbnail trên MinIO {}: {}", thumbPathStr, e.getMessage());
+            }
+        }
+
+        // 2. Kiểm tra đĩa cục bộ
+        Path recBasePath = Paths.get(recordingStoragePath).toAbsolutePath().normalize();
+        Path evdBasePath = Paths.get(evidenceStoragePath).toAbsolutePath().normalize();
+
+        Path targetThumb;
+        if ("evidence".equalsIgnoreCase(source)) {
+            targetThumb = evdBasePath.resolve(thumbPathStr).normalize();
+            if (!Files.exists(targetThumb) || !targetThumb.startsWith(evdBasePath)) {
+                targetThumb = recBasePath.resolve(thumbPathStr).normalize();
+            }
+        } else {
+            targetThumb = recBasePath.resolve(thumbPathStr).normalize();
+            if (!Files.exists(targetThumb) || !targetThumb.startsWith(recBasePath)) {
+                targetThumb = evdBasePath.resolve(thumbPathStr).normalize();
+            }
+        }
+
+        if (Files.exists(targetThumb) && (targetThumb.startsWith(recBasePath) || targetThumb.startsWith(evdBasePath))) {
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                    .body(new InputStreamResource(Files.newInputStream(targetThumb)));
+        }
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 
     private OffsetDateTime parseStartTime(String filename, BasicFileAttributes attrs) {

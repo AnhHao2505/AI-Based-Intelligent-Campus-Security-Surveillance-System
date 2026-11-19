@@ -32,6 +32,7 @@ public class RecordingVideoResponse {
     private String relativePath;
     private String videoUrl;
     private String downloadUrl;
+    private String thumbnailUrl;
     private String filename;
     private String notes;
 }

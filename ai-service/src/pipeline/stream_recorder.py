@@ -446,6 +446,7 @@ class StreamRecorder:
         self.segment_start_ts = 0.0
         self.segment_start_dt: Optional[datetime] = None
         self.last_frame = None
+        self.first_frame = None
         self.last_frame_ts = 0.0
         self.last_enqueue_ts = 0.0
         self._writer_lock = threading.Lock()
@@ -596,6 +597,8 @@ class StreamRecorder:
                             break
 
                 if self.frames_in_segment < self.target_frames_per_segment:
+                    if self.first_frame is None:
+                        self.first_frame = stamped_frame.copy()
                     if expected_frame_idx >= self.frames_in_segment:
                         self.writer.write(stamped_frame)
                         self.frames_in_segment += 1
@@ -636,12 +639,14 @@ class StreamRecorder:
             start_dt = self.segment_start_dt or _now_vn()
             end_dt = _now_vn()
 
+            saved_first_frame = self.first_frame
             self.writer = None
             self.temp_file_path = None
             self.current_file_path = None
             self.frames_in_segment = 0
             self.segment_start_dt = None
             self.last_frame = None
+            self.first_frame = None
 
             try:
                 writer_ref.release()
@@ -659,6 +664,14 @@ class StreamRecorder:
                         target_path = None
 
                 if target_path and os.path.exists(target_path) and frames_written > 0 and _has_valid_moov_atom(target_path):
+                    # Lưu thumbnail khung hình đầu tiên dạng .jpg cục bộ
+                    thumb_path = target_path[:-4] + ".jpg"
+                    if saved_first_frame is not None:
+                        try:
+                            cv2.imwrite(thumb_path, saved_first_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        except Exception as thumb_err:
+                            logger.warning(f"⚠️ [Recorder] Không thể lưu thumbnail cục bộ {thumb_path}: {thumb_err}")
+
                     file_size = os.path.getsize(target_path)
                     logger.info(
                         f"💾 [Recorder] Đã lưu video định kỳ (854x480): {target_path} "
@@ -705,6 +718,16 @@ class StreamRecorder:
 
                 success = storage_service.upload_video_file(file_path, bucket, obj_name)
                 if success:
+                    # Upload thumbnail JPG kèm theo nếu có
+                    local_thumb = file_path[:-4] + ".jpg"
+                    if os.path.exists(local_thumb):
+                        try:
+                            thumb_obj = obj_name[:-4] + ".jpg"
+                            storage_service.upload_video_file(local_thumb, bucket, thumb_obj)
+                            os.remove(local_thumb)
+                        except Exception as thumb_up_err:
+                            logger.warning(f"⚠️ [Recorder] Không thể upload thumbnail MinIO: {thumb_up_err}")
+
                     try:
                         os.remove(file_path)
                         logger.debug(f"🗑️ [Recorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")

@@ -479,6 +479,7 @@
   transition: transform 0.2s;
 }
 
+.recording-table-thumb-wrap:hover .recording-table-thumb,
 .recording-table-thumb:hover {
   transform: scale(1.1);
 }

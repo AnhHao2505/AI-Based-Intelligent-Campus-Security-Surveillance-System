@@ -223,6 +223,30 @@ public class CameraController {
     }
 
     /**
+     * Lấy ảnh thu nhỏ (thumbnail khung hình đầu tiên) của video ghi hình.
+     * Cho phép xác thực qua Bearer JWT (vai trò ADMIN, GUARD, FACILITY_MANAGER) hoặc query token ngắn hạn.
+     */
+    @GetMapping("/recordings/thumbnail")
+    public ResponseEntity<org.springframework.core.io.Resource> getRecordingThumbnail(
+            @RequestParam String path,
+            @RequestParam(required = false, defaultValue = "recording") String source,
+            @RequestParam(required = false) String token,
+            Authentication authentication) throws IOException {
+        if (token != null && !token.isBlank()) {
+            recordingStreamTokenService.verify(path, source, token, authentication);
+        } else {
+            if (authentication == null || !authentication.isAuthenticated()) {
+                throw new com.fa26se040.icss.exception.UnauthorizedException("Vui lòng đăng nhập để xem ảnh thu nhỏ video");
+            }
+            String role = extractAuthorizedRole(authentication);
+            if (!RecordingStreamTokenService.ALLOWED_AUTHORITIES.contains(role)) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem ảnh thu nhỏ video");
+            }
+        }
+        return cameraRecordingService.getThumbnail(path, source);
+    }
+
+    /**
      * BE-03 & Security Fix: Cấp token ngắn hạn mở tệp ghi hình an ninh.
      * Chỉ người dùng có thẩm quyền (ADMIN, GUARD) mới được phép gọi.
      * Token sinh ra được gắn chữ ký số HMAC-SHA256 kèm danh tính và vai trò người gọi.

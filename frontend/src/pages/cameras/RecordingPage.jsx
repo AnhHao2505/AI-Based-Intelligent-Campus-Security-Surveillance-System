@@ -30,8 +30,96 @@ import {
   fetchDiskRecordings,
   withRecordingStreamToken,
 } from "../../services/recordingService";
+import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 import { toast } from "sonner";
 import "../../styles/RecordingPage.css";
+
+function RecordingThumbnail({ recording, isSecurity }) {
+  const { url } = useAuthorizedImage(recording.thumbnailUrl);
+  const [imgError, setImgError] = useState(false);
+
+  if (url && !imgError) {
+    return (
+      <img
+        src={url}
+        alt={recording.filename || "Recording thumbnail"}
+        className="recording-card__thumb"
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="recording-card__thumb"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        background: isSecurity
+          ? "radial-gradient(circle at center, rgba(220,38,38,0.22) 0%, #090d16 100%)"
+          : "radial-gradient(circle at center, rgba(0,163,255,0.16) 0%, #090d16 100%)",
+        color: isSecurity ? "#f87171" : "#38bdf8",
+        gap: "6px",
+        userSelect: "none",
+      }}
+    >
+      {isSecurity ? <ShieldAlert size={30} /> : <Film size={30} />}
+      <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", opacity: 0.85 }}>
+        {recording.cameraId} • 480P 15FPS
+      </span>
+    </div>
+  );
+}
+
+function RecordingTableThumbnail({ recording, onClick }) {
+  const { url } = useAuthorizedImage(recording.thumbnailUrl);
+  const [imgError, setImgError] = useState(false);
+  const isSecurity = recording.eventType === "SECURITY_EVENT";
+
+  if (url && !imgError) {
+    return (
+      <div
+        className="recording-table-thumb-wrap"
+        onClick={onClick}
+        style={{
+          position: "relative",
+          width: "64px",
+          height: "38px",
+          cursor: "pointer",
+          overflow: "hidden",
+          borderRadius: "3px",
+        }}
+      >
+        <img
+          src={url}
+          alt={recording.filename}
+          className="recording-table-thumb"
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          onError={() => setImgError(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="recording-table-thumb"
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: isSecurity ? "rgba(220,38,38,0.14)" : "rgba(0,163,255,0.14)",
+        color: isSecurity ? "#f87171" : "#38bdf8",
+        cursor: "pointer",
+      }}
+    >
+      <Play size={16} fill="currentColor" />
+    </div>
+  );
+}
 
 export default function RecordingPage() {
   const [recordings, setRecordings] = useState([]);
@@ -544,26 +632,7 @@ export default function RecordingPage() {
                   className="recording-card__media"
                   onClick={() => handleOpenVideo(recording)}
                 >
-                  <div
-                    className="recording-card__thumb"
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: isSecurity
-                        ? "radial-gradient(circle at center, rgba(220,38,38,0.22) 0%, #090d16 100%)"
-                        : "radial-gradient(circle at center, rgba(0,163,255,0.16) 0%, #090d16 100%)",
-                      color: isSecurity ? "#f87171" : "#38bdf8",
-                      gap: "6px",
-                      userSelect: "none",
-                    }}
-                  >
-                    {isSecurity ? <ShieldAlert size={30} /> : <Film size={30} />}
-                    <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", opacity: 0.85 }}>
-                      {recording.cameraId} • 480P 15FPS
-                    </span>
-                  </div>
+                  <RecordingThumbnail recording={recording} isSecurity={isSecurity} />
                   <div className="recording-card__play-overlay">
                     <div className="recording-play-icon-circle">
                       <Play size={22} fill="currentColor" style={{ marginLeft: "3px" }} />
@@ -663,22 +732,7 @@ export default function RecordingPage() {
                 return (
                   <tr key={recording.id}>
                     <td>
-                      <div
-                        className="recording-table-thumb"
-                        onClick={() => handleOpenVideo(recording)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          background: recording.eventType === "SECURITY_EVENT"
-                            ? "rgba(220,38,38,0.18)"
-                            : "rgba(0,163,255,0.14)",
-                          color: recording.eventType === "SECURITY_EVENT" ? "#f87171" : "#38bdf8",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <Play size={16} fill="currentColor" />
-                      </div>
+                      <RecordingTableThumbnail recording={recording} onClick={() => handleOpenVideo(recording)} />
                     </td>
                     <td>
                       <span

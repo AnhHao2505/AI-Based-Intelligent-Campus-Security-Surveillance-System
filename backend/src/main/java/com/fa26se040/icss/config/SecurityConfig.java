@@ -108,6 +108,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // BE-03: thẻ <video> không gửi header Authorization; controller bắt buộc query token ngắn hạn
                         .requestMatchers(HttpMethod.GET, "/api/cameras/recordings/stream").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/cameras/recordings/thumbnail").permitAll()
                         // F-07: MediaMTX WHEP auth callback (tự xác thực HMAC token trong query payload)
                         .requestMatchers(HttpMethod.POST, "/api/cameras/whep-auth").permitAll())
                         .anyRequest().authenticated()

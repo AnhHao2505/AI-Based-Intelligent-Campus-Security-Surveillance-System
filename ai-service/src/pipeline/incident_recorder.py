@@ -87,6 +87,7 @@ class IncidentRecorder:
         self.target_w = 854
         self.target_h = 480
         self.writer: Optional[cv2.VideoWriter] = None
+        self.first_frame: Optional[np.ndarray] = None
         self.frames_written = 0
         self.is_running = False
         self._writer_lock = threading.Lock()
@@ -223,6 +224,8 @@ class IncidentRecorder:
 
             with self._writer_lock:
                 if self.writer is not None and frame_to_write is not None:
+                    if self.first_frame is None:
+                        self.first_frame = frame_to_write.copy()
                     self.writer.write(frame_to_write)
                     self.frames_written += 1
 
@@ -249,7 +252,9 @@ class IncidentRecorder:
             frames_count = self.frames_written
             inc_id = self.incident_id
 
+            saved_first_frame = self.first_frame
             self.writer = None
+            self.first_frame = None
             self.is_running = False
 
             try:
@@ -268,6 +273,14 @@ class IncidentRecorder:
                         target_path = None
 
                 if target_path and os.path.exists(target_path) and frames_count > 0 and _has_valid_moov_atom(target_path):
+                    # Lưu thumbnail khung hình đầu tiên dạng .jpg cục bộ
+                    thumb_path = target_path[:-4] + ".jpg"
+                    if saved_first_frame is not None:
+                        try:
+                            cv2.imwrite(thumb_path, saved_first_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        except Exception as thumb_err:
+                            logger.warning(f"⚠️ [IncidentRecorder] Không thể lưu thumbnail cục bộ {thumb_path}: {thumb_err}")
+
                     size_mb = os.path.getsize(target_path) / (1024 * 1024)
                     duration_s = frames_count / max(self.fps, 1.0)
                     logger.info(
@@ -316,6 +329,16 @@ class IncidentRecorder:
 
                 success = storage_service.upload_video_file(file_path, bucket, obj_name)
                 if success:
+                    # Upload thumbnail JPG kèm theo nếu có
+                    local_thumb = file_path[:-4] + ".jpg"
+                    if os.path.exists(local_thumb):
+                        try:
+                            thumb_obj = obj_name[:-4] + ".jpg"
+                            storage_service.upload_video_file(local_thumb, bucket, thumb_obj)
+                            os.remove(local_thumb)
+                        except Exception as thumb_up_err:
+                            logger.warning(f"⚠️ [IncidentRecorder] Không thể upload thumbnail MinIO: {thumb_up_err}")
+
                     get_security_mqtt_client().publish_recording_event(telemetry_payload)
                     try:
                         os.remove(file_path)

@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.ByteArrayInputStream;
@@ -170,5 +171,50 @@ class CameraRecordingServiceTest {
         assertEquals(HttpStatus.PARTIAL_CONTENT, response.getStatusCode());
         assertEquals("bytes 9000-9999/10000", response.getHeaders().getFirst(HttpHeaders.CONTENT_RANGE));
         assertEquals(1000L, response.getHeaders().getContentLength());
+    }
+
+    @Test
+    @DisplayName("6. listRecordings gắn đường dẫn thumbnailUrl tương ứng với video")
+    void testListRecordings_populatesThumbnailUrl(@TempDir Path tempDir) throws IOException {
+        when(cameraRepository.findAll()).thenReturn(Collections.emptyList());
+
+        Path recDir = tempDir.resolve("recording");
+        Path evdDir = tempDir.resolve("evidence");
+        Path camDir = recDir.resolve("CAM-001/2026/10/31");
+        Files.createDirectories(camDir);
+        Files.createDirectories(evdDir);
+
+        Files.createFile(camDir.resolve("31-10-2026 - 12-00-00.mp4"));
+
+        ReflectionTestUtils.setField(cameraRecordingService, "recordingStoragePath", recDir.toString());
+        ReflectionTestUtils.setField(cameraRecordingService, "evidenceStoragePath", evdDir.toString());
+
+        List<RecordingVideoResponse> list = cameraRecordingService.listRecordings(null, null, null, null);
+        assertEquals(1, list.size());
+        assertNotNull(list.get(0).getThumbnailUrl());
+        assertTrue(list.get(0).getThumbnailUrl().contains("/api/cameras/recordings/thumbnail?path="));
+    }
+
+    @Test
+    @DisplayName("7. getThumbnail trả về ảnh jpeg hoặc từ chối đường dẫn nguy hiểm")
+    void testGetThumbnail_securityAndRetrieval(@TempDir Path tempDir) throws Exception {
+        var invalid = cameraRecordingService.getThumbnail("../../etc/passwd", "recording");
+        assertEquals(HttpStatus.BAD_REQUEST, invalid.getStatusCode());
+
+        Path recDir = tempDir.resolve("recording");
+        Path evdDir = tempDir.resolve("evidence");
+        Path camDir = recDir.resolve("CAM-001/2026/10/31");
+        Files.createDirectories(camDir);
+        Files.createDirectories(evdDir);
+
+        Path thumbFile = camDir.resolve("31-10-2026 - 12-00-00.jpg");
+        Files.write(thumbFile, new byte[]{ (byte) 0xFF, (byte) 0xD8, (byte) 0xFF }); // JPEG header magic bytes
+
+        ReflectionTestUtils.setField(cameraRecordingService, "recordingStoragePath", recDir.toString());
+        ReflectionTestUtils.setField(cameraRecordingService, "evidenceStoragePath", evdDir.toString());
+
+        var response = cameraRecordingService.getThumbnail("CAM-001/2026/10/31/31-10-2026 - 12-00-00.mp4", "recording");
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(MediaType.IMAGE_JPEG, response.getHeaders().getContentType());
     }
 }

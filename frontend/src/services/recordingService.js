@@ -67,10 +67,15 @@ export async function fetchDiskRecordings({ cameraId = "", search = "", fromDate
       ? item.downloadUrl
       : `${API_BASE_URL}${item.downloadUrl}`;
 
+    const thumbnailUrl = item.thumbnailUrl
+      ? (item.thumbnailUrl.startsWith("http") ? item.thumbnailUrl : `${API_BASE_URL}${item.thumbnailUrl}`)
+      : null;
+
     return {
       ...item,
       videoUrl,
       downloadUrl,
+      thumbnailUrl,
     };
   });
 }
