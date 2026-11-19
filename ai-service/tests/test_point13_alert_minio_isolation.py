@@ -131,7 +131,9 @@ def test_point13_minio_error_alert_still_sent_with_local_fallback(
 ):
     """
     POINT-13 (c): Khi MinIO upload lỗi (ném Exception):
-    - Cảnh báo an ninh vẫn được gửi (không bị nuốt) với image_url là key tính trước.
+    - Cảnh báo an ninh vẫn được gửi (không bị nuốt).
+    - NFR-05 (15/11/2026): image_url = None vì ảnh không có trên MinIO và outbox không thử lại upload (trước đây gửi key
+      tính trước, trỏ tới object không tồn tại).
     - Có fallback lưu snapshot cục bộ (save_local_snapshot).
     """
     pipeline = VideoPipeline(camera_code="CAM-POINT13-ERR")
@@ -164,6 +166,6 @@ def test_point13_minio_error_alert_still_sent_with_local_fallback(
     pipeline._dispatch_alert_async(alert, frame)
 
     mock_mqtt_instance.send_alert.assert_called_once_with(alert)
-    assert alert.image_url == expected_key
+    assert alert.image_url is None
     # Đảm bảo fallback local được gọi
     pipeline.storage_service.save_local_snapshot.assert_called_once()

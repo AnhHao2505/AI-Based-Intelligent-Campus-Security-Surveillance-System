@@ -242,7 +242,8 @@ public class CameraAccessLogService {
 
     /**
      * t thuộc khung [start, end): start inclusive, end exclusive.
-     * start &lt; end: khung trong ngày; start &gt; end: khung qua nửa đêm; start == end: khung rỗng.
+     * start &lt; end: khung trong ngày; start &gt; end: khung qua nửa đêm; start == end: khung rỗng (chỉ còn để chịu
+     * dữ liệu cũ: BE đã từ chối lưu START = END, #262).
      */
     static boolean isWithin(LocalTime t, LocalTime start, LocalTime end) {
         if (start.isBefore(end)) {

@@ -50,6 +50,10 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private SystemConfigService systemConfigService;
 
+    /** #262: AfterHoursTestSupport tắt khung ban đêm bằng cách ghi thẳng START = END. */
+    @Autowired
+    private SystemConfigurationRepository systemConfigurationRepository;
+
     @Autowired
     private UserRepository userRepository;
 
@@ -224,14 +228,14 @@ public class AccessControlSuiteIntegrationTest extends AbstractIntegrationTest {
                 .version(0L)
                 .build());
         // V115 (EV-N7): phiên sự kiện dựng qua lịch theo giờ hiện tại -> tắt khung ban đêm trong lúc test
-        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, adminUser.getEmail());
+        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, systemConfigurationRepository);
     }
 
     private String[] nightWindowBefore;
 
     @org.junit.jupiter.api.AfterEach
     void restoreNightWindow() {
-        AfterHoursTestSupport.restore(systemConfigService, nightWindowBefore, adminUser.getEmail());
+        AfterHoursTestSupport.restore(systemConfigService, systemConfigurationRepository, nightWindowBefore, adminUser.getEmail());
         nightWindowBefore = null;
     }
 

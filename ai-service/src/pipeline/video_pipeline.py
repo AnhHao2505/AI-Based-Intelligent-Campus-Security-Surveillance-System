@@ -1,6 +1,7 @@
 import threading
 import time
 import logging
+from concurrent.futures import TimeoutError as FutureTimeoutError
 import cv2
 import numpy as np
 from typing import List, Optional, Tuple, Any
@@ -1614,14 +1615,17 @@ class VideoPipeline:
             alert.image_url = object_key
 
         # 2. Upload chạy nền qua io_executor (không tạo threading.Thread mới, không vượt giới hạn pool)
+        # uploaded: True = ảnh đã lên MinIO; False = upload lỗi (kể cả MinIO từ chối SSE, NFR-05);
+        #           None = chưa biết (còn chạy nền / không có ảnh / nhánh không có key tính trước).
         upload_future = None
+        uploaded = None
         if self.storage_service and snapshot_frame is not None and snapshot_frame.size > 0:
             frame_copy = snapshot_frame.copy()
 
-            def _upload_task():
+            def _upload_task() -> Optional[bool]:
                 try:
                     if hasattr(self.storage_service, "upload_frame_evidence_with_key") and object_name:
-                        self.storage_service.upload_frame_evidence_with_key(
+                        result = self.storage_service.upload_frame_evidence_with_key(
                             frame_copy,
                             self.camera_code,
                             object_name,
@@ -1629,9 +1633,16 @@ class VideoPipeline:
                             file_name,
                             date_str
                         )
+                        # upload_frame_evidence_with_key trả object_key khi lên MinIO; đường dẫn local / None khi lỗi
+                        if result != object_key:
+                            logger.error(
+                                f"🚨 [VideoPipeline:{self.camera_code}] Ảnh bằng chứng KHÔNG lên được MinIO: {object_key}"
+                            )
+                            return False
                         logger.info(
                             f"☁️ [VideoPipeline:{self.camera_code}] [MinIO] Đã upload ảnh bằng chứng vi phạm: {object_key}"
                         )
+                        return True
                     else:
                         self.storage_service.upload_frame_evidence(
                             frame_copy,
@@ -1639,6 +1650,7 @@ class VideoPipeline:
                             alert.track_id,
                             event_type=alert.event_type
                         )
+                        return None
                 except Exception as e:
                     logger.error(f"🚨 [VideoPipeline] Background upload ảnh bằng chứng thất bại cho {object_key}: {e}")
                     try:
@@ -1646,6 +1658,7 @@ class VideoPipeline:
                             self.storage_service.save_local_snapshot(frame_copy, self.camera_code, file_name, date_str)
                     except Exception as err:
                         logger.error(f"🚨 [VideoPipeline] Lưu local fallback cũng thất bại: {err}")
+                    return False
 
             exec_to_use = self.upload_executor if (hasattr(self, "upload_executor") and self.upload_executor and not getattr(self.upload_executor, "_shutdown", False)) else self.io_executor
             if exec_to_use and not getattr(exec_to_use, "_shutdown", False):
@@ -1653,23 +1666,34 @@ class VideoPipeline:
                     upload_future = exec_to_use.submit(_upload_task)
                 except Exception as e:
                     logger.error(f"🚨 [VideoPipeline] Không thể submit task upload: {e}")
+                    uploaded = False
             else:
-                _upload_task()
+                uploaded = _upload_task()
 
         # 3. Chờ kết quả upload tối đa ALERT_IMAGE_WAIT_SECONDS (mặc định 0.8s) trước khi gửi alert (POINT-13)
         wait_seconds = float(getattr(settings, "ALERT_IMAGE_WAIT_SECONDS", 0.8))
         if upload_future is not None:
             try:
-                upload_future.result(timeout=wait_seconds)
-            except TimeoutError:
+                uploaded = upload_future.result(timeout=wait_seconds)
+            except (TimeoutError, FutureTimeoutError):
                 logger.warning(
                     f"⚠️ [VideoPipeline] Upload ảnh bằng chứng vượt quá {wait_seconds}s! "
                     f"Gửi cảnh báo ngay với key tính trước; upload tiếp tục chạy nền."
                 )
             except Exception as e:
                 logger.warning(f"⚠️ [VideoPipeline] Upload ảnh bằng chứng gặp lỗi trong thời gian chờ: {e}")
+                uploaded = False
 
-        # 4. Gửi cảnh báo qua MQTT / Durable Outbox (image_url luôn là key tính trước)
+        # 3b. NFR-05 / NFR-06: outbox (alert_outbox.py) chỉ lưu tin MQTT, không thử lại upload ảnh. Ảnh không lên được
+        #     MinIO (vd. MinIO từ chối SSE) -> vẫn gửi cảnh báo nhưng KHÔNG kèm ảnh, để không trỏ tới object không tồn tại.
+        if uploaded is False:
+            logger.error(
+                f"🚨 [VideoPipeline:{self.camera_code}] Ảnh bằng chứng không lên được MinIO ({object_key}); "
+                f"gửi cảnh báo KHÔNG kèm ảnh"
+            )
+            alert.image_url = None
+
+        # 4. Gửi cảnh báo qua MQTT / Durable Outbox (image_url = key tính trước, hoặc None khi upload đã thất bại)
         try:
             self.mqtt_client.send_alert(alert)
             logger.info(
