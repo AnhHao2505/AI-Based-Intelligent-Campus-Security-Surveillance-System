@@ -1678,22 +1678,25 @@ class VideoPipeline:
             except (TimeoutError, FutureTimeoutError):
                 logger.warning(
                     f"⚠️ [VideoPipeline] Upload ảnh bằng chứng vượt quá {wait_seconds}s! "
-                    f"Gửi cảnh báo ngay với key tính trước; upload tiếp tục chạy nền."
+                    f"Gửi cảnh báo ngay KHÔNG kèm ảnh; upload tiếp tục chạy nền."
                 )
             except Exception as e:
                 logger.warning(f"⚠️ [VideoPipeline] Upload ảnh bằng chứng gặp lỗi trong thời gian chờ: {e}")
                 uploaded = False
 
-        # 3b. NFR-05 / NFR-06: outbox (alert_outbox.py) chỉ lưu tin MQTT, không thử lại upload ảnh. Ảnh không lên được
-        #     MinIO (vd. MinIO từ chối SSE) -> vẫn gửi cảnh báo nhưng KHÔNG kèm ảnh, để không trỏ tới object không tồn tại.
+        # 3b. NFR-05 / NFR-06 / DEF-18: outbox (alert_outbox.py) chỉ lưu tin MQTT, không thử lại upload ảnh. Chỉ kèm ảnh
+        #     khi upload ĐÃ xác nhận lên MinIO (uploaded is True). Lỗi (vd. MinIO từ chối SSE), quá thời gian chờ (upload
+        #     có thể lỗi sau đó) hoặc không rõ kết quả -> vẫn gửi cảnh báo nhưng KHÔNG kèm ảnh, để không trỏ tới object
+        #     không tồn tại.
         if uploaded is False:
             logger.error(
                 f"🚨 [VideoPipeline:{self.camera_code}] Ảnh bằng chứng không lên được MinIO ({object_key}); "
                 f"gửi cảnh báo KHÔNG kèm ảnh"
             )
+        if uploaded is not True:
             alert.image_url = None
 
-        # 4. Gửi cảnh báo qua MQTT / Durable Outbox (image_url = key tính trước, hoặc None khi upload đã thất bại)
+        # 4. Gửi cảnh báo qua MQTT / Durable Outbox (image_url = key đã upload xong, hoặc None)
         try:
             self.mqtt_client.send_alert(alert)
             logger.info(

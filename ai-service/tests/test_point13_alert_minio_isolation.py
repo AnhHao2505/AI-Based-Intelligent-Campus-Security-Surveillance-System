@@ -79,7 +79,8 @@ def test_point13_slow_minio_hangs_alert_sent_within_timeout(
     """
     POINT-13 (b): Khi MinIO treo 10s:
     - Chờ tối đa ALERT_IMAGE_WAIT_SECONDS (0.8s) rồi gửi alert trong < 1.3s.
-    - alert.image_url vẫn là key tính trước đúng.
+    - DEF-18 (19/11/2026): alert.image_url = None vì lúc gửi chưa chắc ảnh có trên MinIO (upload có thể lỗi sau đó và
+      không có cơ chế upload lại); trước đây gửi key tính trước, có thể trỏ tới object không tồn tại.
     - Upload tiếp tục chạy ở nền (không crash hay tạo thread mới).
     """
     pipeline = VideoPipeline(camera_code="CAM-TIMEOUT-TEST")
@@ -118,7 +119,8 @@ def test_point13_slow_minio_hangs_alert_sent_within_timeout(
     # Gửi alert sau thời gian chờ (mặc định 0.8s) nhưng phải < 1.3s
     assert elapsed < 1.3, f"Thời gian gửi alert phải < 1.3s dù MinIO treo 10s! Thực tế: {elapsed:.3f}s"
     mock_mqtt_instance.send_alert.assert_called_once_with(alert)
-    assert alert.image_url == expected_key, "image_url phải luôn là key tính trước đúng"
+    assert alert.image_url is None, "upload chưa xác nhận xong -> cảnh báo không kèm ảnh (DEF-18)"
+    pipeline.storage_service.upload_frame_evidence_with_key.assert_called_once()
 
 
 @patch("src.pipeline.video_pipeline.HumanDetector")
