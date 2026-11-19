@@ -772,6 +772,38 @@ public class CameraRecordingService {
                     .body(resource);
         }
 
+        List<HttpRange> ranges = headers != null ? headers.getRange() : Collections.emptyList();
+        if (!ranges.isEmpty() && contentLength > 0) {
+            HttpRange range = ranges.get(0);
+            long start = range.getRangeStart(contentLength);
+            long end = range.getRangeEnd(contentLength);
+            if (end - start + 1 > MAX_RANGE_CHUNK_BYTES) {
+                end = start + MAX_RANGE_CHUNK_BYTES - 1;
+            }
+            long rangeLength = end - start + 1;
+
+            byte[] data = new byte[(int) rangeLength];
+            int readBytes;
+            try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(file, "r")) {
+                raf.seek(start);
+                readBytes = raf.read(data, 0, (int) rangeLength);
+            }
+            if (readBytes < 0) {
+                readBytes = 0;
+            }
+            if (readBytes < data.length) {
+                data = Arrays.copyOf(data, readBytes);
+            }
+            long actualEnd = start + Math.max(0, data.length - 1);
+
+            return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+                    .contentType(MediaType.valueOf("video/mp4"))
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                    .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + actualEnd + "/" + contentLength)
+                    .contentLength(data.length)
+                    .body(new ByteArrayResource(data));
+        }
+
         return ResponseEntity.ok()
                 .contentType(MediaType.valueOf("video/mp4"))
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")

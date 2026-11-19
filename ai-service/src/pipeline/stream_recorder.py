@@ -31,6 +31,7 @@ import logging
 import threading
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List, Set
+from .fmp4_writer import Fmp4VideoWriter
 
 logger = logging.getLogger(__name__)
 
@@ -529,34 +530,23 @@ class StreamRecorder:
             self.frames_in_segment = 0
 
             try:
-                # 1. Ưu tiên FourCC avc1 chuẩn FFMPEG / OpenH264 (tương thích 100% trình duyệt web)
-                self.writer = cv2.VideoWriter(
-                    self.temp_file_path,
-                    cv2.VideoWriter_fourcc(*"avc1"),
-                    self.fps,
-                    self.frame_size,
+                # Ưu tiên Fragmented MP4 (fMP4) để người dùng có thể xem video trực tiếp khi đang ghi dở
+                self.writer = Fmp4VideoWriter(
+                    self.current_file_path,
+                    fps=self.fps,
+                    frame_size=self.frame_size,
                 )
-                # 2. Thử qua Windows Media Foundation nếu FFMPEG chưa mở được
-                if self.writer is None or not self.writer.isOpened():
-                    if os.name == "nt" and hasattr(cv2, "CAP_MSMF"):
-                        self.writer = cv2.VideoWriter(
-                            self.temp_file_path,
-                            cv2.CAP_MSMF,
-                            cv2.VideoWriter_fourcc(*"avc1"),
-                            self.fps,
-                            self.frame_size,
-                        )
-                # 3. Fallback cuối cùng
-                if self.writer is None or not self.writer.isOpened():
+                if not self.writer.isOpened():
+                    logger.warning(f"⚠️ [Recorder] Fmp4VideoWriter không mở được, fallback sang cv2.VideoWriter: {self.temp_file_path}")
                     self.writer = cv2.VideoWriter(
                         self.temp_file_path,
-                        cv2.VideoWriter_fourcc(*"mp4v"),
+                        cv2.VideoWriter_fourcc(*"avc1"),
                         self.fps,
                         self.frame_size,
                     )
-                logger.debug(f"📹 [Recorder] Bắt đầu phiên ghi hình 1 phút (854x480): {self.current_file_path}")
+                logger.debug(f"📹 [Recorder] Bắt đầu phiên ghi hình fMP4 (854x480): {self.current_file_path}")
             except Exception as e:
-                logger.error(f"❌ [Recorder] Không thể mở VideoWriter ({self.temp_file_path}): {e}")
+                logger.error(f"❌ [Recorder] Không thể mở VideoWriter ({self.current_file_path}): {e}")
                 self.writer = None
 
     def _recording_loop(self):
@@ -655,21 +645,26 @@ class StreamRecorder:
 
             try:
                 writer_ref.release()
-                if temp_path and os.path.exists(temp_path):
+                target_path = final_path if (final_path and os.path.exists(final_path)) else temp_path
+                if temp_path and os.path.exists(temp_path) and temp_path != final_path:
                     if frames_written > 0 and _has_valid_moov_atom(temp_path):
                         os.replace(temp_path, final_path)
-                        file_size = os.path.getsize(final_path)
-                        logger.info(
-                            f"💾 [Recorder] Đã lưu video định kỳ (854x480): {final_path} "
-                            f"({round(file_size / (1024 * 1024), 2)} MB - {frames_written} frames)"
-                        )
-                        self._schedule_minio_upload(final_path, cam_code, start_dt, end_dt, frames_written)
+                        target_path = final_path
                     else:
-                        logger.warning(f"⚠️ [Recorder] Bỏ qua file video chưa hoàn chỉnh (thiếu moov atom): {temp_path}")
+                        logger.warning(f"⚠️ [Recorder] Bỏ qua file video chưa hoàn chỉnh: {temp_path}")
                         try:
                             os.remove(temp_path)
                         except Exception:
                             pass
+                        target_path = None
+
+                if target_path and os.path.exists(target_path) and frames_written > 0 and _has_valid_moov_atom(target_path):
+                    file_size = os.path.getsize(target_path)
+                    logger.info(
+                        f"💾 [Recorder] Đã lưu video định kỳ (854x480): {target_path} "
+                        f"({round(file_size / (1024 * 1024), 2)} MB - {frames_written} frames)"
+                    )
+                    self._schedule_minio_upload(target_path, cam_code, start_dt, end_dt, frames_written)
             except Exception as e:
                 logger.warning(f"⚠️ [Recorder] Lỗi khi giải phóng VideoWriter: {e}")
 
