@@ -38,6 +38,8 @@ public class AiServiceRestTemplate extends RestTemplate {
 
     private static JdkClientHttpRequestFactory createRequestFactory() {
         HttpClient httpClient = HttpClient.newBuilder()
+                // uvicorn không hỗ trợ h2c: mặc định HTTP/2 gửi kèm Upgrade: h2c làm mất body multipart
+                .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(CONNECT_TIMEOUT)
                 .build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);

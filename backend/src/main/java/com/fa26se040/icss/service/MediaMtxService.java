@@ -31,6 +31,8 @@ public class MediaMtxService {
 
     private static RestTemplate createRestTemplate() {
         HttpClient httpClient = HttpClient.newBuilder()
+                // MediaMTX API là http:// thường, không dùng h2c: tránh header Upgrade: h2c của HTTP/2 mặc định
+                .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(CONNECT_TIMEOUT)
                 .build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
