@@ -584,6 +584,25 @@ function SurveillanceEvidencePlayer({
 
 			{/* THANH TUA & ĐIỀU KHIỂN CHUYÊN DỤNG (SURVEILLANCE PLAYBACK BAR) */}
 			<div className="soc-playback-control-bar">
+				{/* Header thanh tua */}
+				<div className="soc-playback-bar-header">
+					<div className="soc-playback-bar-title">
+						<Film size={13} style={{ color: "#38bdf8" }} />
+						<span>THANH TUA & XEM LẠI SỰ CỐ (PLAYBACK CONTROLS)</span>
+					</div>
+					{targetSec > 0 && (
+						<button
+							type="button"
+							className="soc-ctrl-btn soc-btn-jump-alert"
+							onClick={() => jumpToTime(targetSec)}
+							title={`Nhảy tới đúng giây cảnh báo: ${formatTime(targetSec)}`}
+						>
+							<ShieldAlert size={13} color="#ef4444" />
+							<span>⏱️ Nhảy tới mốc sự cố ({formatTime(targetSec)})</span>
+						</button>
+					)}
+				</div>
+
 				{/* 1. Thanh Timeline Slider (Seek Bar) */}
 				<div className="soc-timeline-track-wrapper">
 					<div
@@ -602,7 +621,7 @@ function SurveillanceEvidencePlayer({
 						onTouchEnd={() => setIsSeeking(false)}
 						onChange={handleSliderChange}
 						className="soc-timeline-slider"
-						title={`Tua video: ${formatTime(currentTime)} / ${formatTime(duration)}`}
+						title={`Kéo thanh này để tua video: ${formatTime(currentTime)} / ${formatTime(duration)}`}
 					/>
 					{/* Điểm đánh dấu sự cố (Alert Pin Marker) */}
 					{targetMarkerPercent !== null && (
@@ -613,9 +632,10 @@ function SurveillanceEvidencePlayer({
 								e.stopPropagation();
 								jumpToTime(targetSec);
 							}}
-							title={`Mốc sự cố: ${formatTime(targetSec)} (Click để tua ngay)`}
+							title={`📌 Mốc sự cố: ${formatTime(targetSec)} (Click để tua ngay)`}
 						>
 							<div className="soc-alert-pin-dot" />
+							<span className="soc-alert-pin-label">Cảnh báo ({formatTime(targetSec)})</span>
 						</div>
 					)}
 				</div>
@@ -651,17 +671,14 @@ function SurveillanceEvidencePlayer({
 							<RotateCw size={12} /> +5s
 						</button>
 
-						{targetSec > 0 && (
-							<button
-								type="button"
-								className="soc-ctrl-btn soc-btn-jump-alert"
-								onClick={() => jumpToTime(targetSec)}
-								title={`Nhảy tới mốc sự cố cảnh báo: ${formatTime(targetSec)}`}
-							>
-								<ShieldAlert size={13} color="#f87171" />
-								<span>Mốc sự cố: {formatTime(targetSec)}</span>
-							</button>
-						)}
+						<button
+							type="button"
+							className="soc-ctrl-btn"
+							onClick={() => jumpToTime(0)}
+							title="Tua về đầu video (00:00)"
+						>
+							↺ Từ đầu
+						</button>
 
 						<span className="soc-playback-time-text">
 							<strong>{formatTime(currentTime)}</strong> / {formatTime(duration)}

@@ -2284,20 +2284,40 @@
 
 .soc-evidence-video-player {
   width: 100%;
-  max-height: 480px;
+  max-height: 400px;
   background: #000000;
   display: block;
+  object-fit: contain;
 }
 
 /* THANH TUA & ĐIỀU KHIỂN CHUYÊN DỤNG (SURVEILLANCE PLAYBACK BAR) */
 .soc-playback-control-bar {
-  background: #090d16;
+  background: #0f172a;
   border-top: 1px solid #1e293b;
   padding: 10px 14px 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   user-select: none;
+}
+
+.soc-playback-bar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 2px;
+}
+
+.soc-playback-bar-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 /* Timeline Track */
@@ -2386,6 +2406,27 @@
   border: 2px solid #ffffff;
   box-shadow: 0 0 8px #ef4444;
   animation: socAlertPulse 1.5s infinite;
+}
+
+.soc-alert-pin-label {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  margin-bottom: 4px;
+}
+
+.soc-timeline-alert-marker:hover .soc-alert-pin-label {
+  display: block;
 }
 
 @keyframes socAlertPulse {
