@@ -248,7 +248,6 @@ class CameraStreamWorker:
             self.recorder.stop()
         # Chốt phiên ghi hình sự cố nếu đang ghi dở khi camera dừng
         try:
-            from .incident_recorder import incident_recording_manager
             incident_recording_manager.stop_camera_recordings(self.camera_code)
         except Exception as ex:
             logger.warning(f"Lỗi khi dừng incident_recording_manager trong StreamWorker.stop: {ex}")
@@ -389,7 +388,6 @@ class CameraStreamWorker:
                     time.sleep(0.05)
         finally:
             try:
-                from .incident_recorder import incident_recording_manager
                 incident_recording_manager.stop_camera_recordings(self.camera_code)
             except Exception:
                 pass
