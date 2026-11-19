@@ -731,7 +731,7 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
             <div className="guest-visit__alert guest-visit__alert--warning">
               <AlertTriangle size={16} />
               <span>
-                Cảnh báo: Thu hồi lượt khách sẽ huỷ quyền vào các khu vực của khách ngay lập tức và toàn bộ dữ liệu khuôn mặt đã gắn sẽ bị xóa khỏi hệ thống.
+                Cảnh báo: Thu hồi lượt khách sẽ huỷ quyền vào các khu vực của khách ngay lập tức. Ảnh và dữ liệu khuôn mặt đã gắn được giữ thêm theo thời hạn lưu trong cấu hình hệ thống, sau đó tự động xóa.
               </span>
             </div>
 

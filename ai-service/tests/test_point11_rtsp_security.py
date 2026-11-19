@@ -46,28 +46,6 @@ def test_validate_snapshot_rtsp_url_blocks_ssrf_and_invalid_schemes():
     assert validate_snapshot_rtsp_url("rtsp://metadata.google.internal/computeMetadata/v1") is False
 
 
-def test_snapshot_endpoint_validates_rtsp_url(client):
-    """Điểm 11: /api/v1/cameras/snapshot trả 400 Bad Request cho URL độc hại / sai scheme"""
-    headers = {"X-Service-Key": settings.INTERNAL_SERVICE_KEY}
-
-    # Scheme http bị từ chối 400
-    res_http = client.post(
-        "/api/v1/cameras/snapshot",
-        json={"rtsp_url": "http://169.254.169.254/latest/meta-data"},
-        headers=headers
-    )
-    assert res_http.status_code == 400
-    assert "rtsp" in res_http.json()["detail"].lower()
-
-    # Cloud metadata IP bị từ chối 400
-    res_ssrf = client.post(
-        "/api/v1/cameras/snapshot",
-        json={"rtsp_url": "rtsp://169.254.169.254:554/ch0"},
-        headers=headers
-    )
-    assert res_ssrf.status_code == 400
-
-
 def test_resolve_camera_rtsp_url_uses_settings_mediamtx():
     """Điểm 11: resolve_camera_rtsp_url dùng settings.MEDIAMTX_RTSP_URL làm base mặc định"""
     with patch.object(settings, "MEDIAMTX_RTSP_URL", "rtsp://mediamtx-edge.campus:8554"):

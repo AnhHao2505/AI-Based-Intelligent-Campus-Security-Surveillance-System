@@ -73,20 +73,28 @@ public class CameraAccessLogService {
             return null;
         }
 
-        // 1. Kiểm tra Debounce chống spam
-        String directionKey = "";
-        if (entryResponse.getReason() != null && entryResponse.getReason().startsWith("[VÀO ROI")) {
-            directionKey = ":ENTRY";
-        }
-        String cacheKey = cameraCode + ":" + userCode + directionKey;
+        // 1. Kiểm tra Debounce chống spam, khoá theo kết quả ALLOWED/DENIED để log chuyển trạng thái không bị nuốt.
+        // Lượt nhận diện thường bị chặn bởi mọi log cùng kết quả (thường hoặc vào ROI) trong cửa sổ debounce;
+        // log vào ROI chỉ bị chặn bởi log vào ROI trước đó, nên nhãn [VÀO ROI] không bị lượt nhận diện thường nuốt.
+        boolean isRoiEntry = entryResponse.getReason() != null && entryResponse.getReason().startsWith("[VÀO ROI");
+        String outcome = entryResponse.isAllowed() ? "ALLOWED" : "DENIED";
+        String oppositeOutcome = entryResponse.isAllowed() ? "DENIED" : "ALLOWED";
+        String baseKey = cameraCode + ":" + userCode + ":" + outcome;
+        String cacheKey = isRoiEntry ? baseKey + ":ENTRY" : baseKey;
         long nowEpoch = at.toEpochSecond();
         Long lastSeen = debounceCache.get(cacheKey);
         int debounceSeconds = systemConfigService.getInt(ConfigKey.ENTRY_LOG_DEBOUNCE_SECONDS);
         if (lastSeen != null && (nowEpoch - lastSeen) < debounceSeconds) {
-            log.info("Debounce: Bỏ qua ghi log trùng lặp cho [{}] tại [{}] trong vòng {}s", userCode, cameraCode, debounceSeconds);
+            log.info("Debounce: Bỏ qua ghi log trùng lặp cho [{}] tại [{}] ({}) trong vòng {}s", userCode, cameraCode, outcome, debounceSeconds);
             return null;
         }
-        debounceCache.put(cacheKey, nowEpoch);
+        debounceCache.put(baseKey, nowEpoch);
+        if (isRoiEntry) {
+            debounceCache.put(baseKey + ":ENTRY", nowEpoch);
+        }
+        String oppositeKey = cameraCode + ":" + userCode + ":" + oppositeOutcome;
+        debounceCache.remove(oppositeKey);
+        debounceCache.remove(oppositeKey + ":ENTRY");
         log.info("Recording access log for camera [{}], user [{}]", cameraCode, userCode);
 
         // 2. Tìm Area và User
@@ -101,7 +109,8 @@ public class CameraAccessLogService {
         }
 
         // 3. Phân loại kết quả theo 5 nhóm chuẩn Ma trận
-        AccessResult result = classifyResult(entryResponse, at, user != null);
+        AccessResult result = classifyResult(entryResponse, at, user != null,
+                user != null && user.getRole() == com.fa26se040.icss.enums.Role.GUARD);
 
         String fullName = entryResponse.getFullName();
         if (fullName == null && user != null) {
@@ -167,6 +176,14 @@ public class CameraAccessLogService {
      * Phân loại kết quả chuẩn theo Ma trận kiểm soát an ninh.
      */
     public AccessResult classifyResult(CheckCameraEntryResponse entryResponse, OffsetDateTime at, boolean userExists) {
+        return classifyResult(entryResponse, at, userExists, false);
+    }
+
+    /**
+     * @param isGuard người dùng có role GUARD: ngoài giờ được miễn theo nguồn, khớp luật ban đêm bên AI
+     *                (FrameAnalysisEngine._check_is_night_authorized).
+     */
+    public AccessResult classifyResult(CheckCameraEntryResponse entryResponse, OffsetDateTime at, boolean userExists, boolean isGuard) {
         String reason = entryResponse.getReason() != null ? entryResponse.getReason().toLowerCase() : "";
         String userCode = entryResponse.getUserCode() != null ? entryResponse.getUserCode() : "";
 
@@ -185,8 +202,18 @@ public class CameraAccessLogService {
             return AccessResult.UNKNOWN_PERSON;
         }
 
-        // 2. Nếu được phép -> AUTHORIZED_PERSON
+        // 2. Nếu được phép -> kiểm tra khung giờ ngoài giờ (Luật ban đêm: cấp độ chung không có hiệu lực ban đêm)
         if (entryResponse.isAllowed()) {
+            if (!isGuard && isAfterHours(at)) {
+                com.fa26se040.icss.enums.AccessSource src = entryResponse.getSource();
+                boolean isNightExempt = src == com.fa26se040.icss.enums.AccessSource.ASSIGNED_PERSONNEL
+                        || src == com.fa26se040.icss.enums.AccessSource.ACCESS_REQUEST
+                        || src == com.fa26se040.icss.enums.AccessSource.GUEST_VISIT
+                        || src == com.fa26se040.icss.enums.AccessSource.INCIDENT_RESPONSE;
+                if (!isNightExempt) {
+                    return AccessResult.PERSON_INTRUSION;
+                }
+            }
             return AccessResult.AUTHORIZED_PERSON;
         }
 
@@ -215,7 +242,8 @@ public class CameraAccessLogService {
 
     /**
      * t thuộc khung [start, end): start inclusive, end exclusive.
-     * start &lt; end: khung trong ngày; start &gt; end: khung qua nửa đêm; start == end: khung rỗng.
+     * start &lt; end: khung trong ngày; start &gt; end: khung qua nửa đêm; start == end: khung rỗng (chỉ còn để chịu
+     * dữ liệu cũ: BE đã từ chối lưu START = END, #262).
      */
     static boolean isWithin(LocalTime t, LocalTime start, LocalTime end) {
         if (start.isBefore(end)) {

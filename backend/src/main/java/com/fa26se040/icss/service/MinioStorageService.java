@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -33,6 +34,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
@@ -59,6 +62,12 @@ public class MinioStorageService {
     /** Mã lỗi MinIO khi object không tồn tại. */
     private static final Set<String> OBJECT_NOT_FOUND_CODES = Set.of("NoSuchKey", "NoSuchObject");
 
+    /** NFR-05: tiền tố object ghi thử lúc khởi động (xoá ngay sau khi ghi). */
+    static final String SSE_PROBE_PREFIX = "_nfr05-probe/";
+
+    /** NFR-05: bucket đã xác nhận có mã hoá mặc định trong vòng đời instance này (không kiểm lại mỗi lần upload). */
+    private final Set<String> defaultEncryptionVerified = ConcurrentHashMap.newKeySet();
+
     @PostConstruct
     public void initBuckets() {
         List<String> buckets = new ArrayList<>(List.of(bucketFaces, bucketEvidence, bucketSnapshots));
@@ -71,13 +80,17 @@ public class MinioStorageService {
             }
         } catch (Exception e) {
             log.warn("Could not verify/create MinIO buckets at startup (Endpoint: {}): {}", minioEndpoint, e.getMessage());
-            // Không kết nối được MinIO -> bỏ qua bước gỡ policy (mỗi lệnh sẽ lại chờ timeout)
+            log.error("[NFR-05] Không kiểm được mã hoá phía server lúc khởi động: MinIO chưa tới được ({}). "
+                    + "Backend vẫn chạy; upload sẽ thất bại nếu MinIO không có KMS.", MinioBucketEncryption.describe(e));
+            // Không kết nối được MinIO -> bỏ qua bước gỡ policy và kiểm SSE (mỗi lệnh sẽ lại chờ timeout)
             return;
         }
         // M2: bucket tạo trước đây có thể còn policy public-read -> gỡ để mọi truy cập phải qua /api/media
         for (String bucket : buckets) {
             removeBucketPolicyIfPresent(bucket);
         }
+        // NFR-05: ghi + xoá thử một object có SSE; lỗi chỉ log ERROR
+        verifyEncryptedWriteAtStartup();
     }
 
     /**
@@ -125,7 +138,7 @@ public class MinioStorageService {
         }
         try {
             ensureBucketExists(bucketName);
-            putObjectWithSseFallback(bucketName, objectName, bytes, contentType != null ? contentType : "application/octet-stream");
+            putObjectEncrypted(bucketName, objectName, bytes, contentType != null ? contentType : "application/octet-stream");
         } catch (Exception e) {
             log.error("[MINIO ERROR] Failed to upload staging object {}/{}: {}", bucketName, objectName, e.getMessage());
             throw new RuntimeException("Failed to upload staging object to MinIO: " + e.getMessage(), e);
@@ -168,12 +181,17 @@ public class MinioStorageService {
     /**
      * Tạo bucket nếu chưa tồn tại.
      * Cố ý giữ mặc định Private cho toàn bộ bucket (không gán public read policy).
+     * NFR-05: bật mã hoá mặc định SSE-S3 cho bucket (idempotent, lỗi chỉ log ERROR).
      */
     private void ensureBucketExists(String bucketName) throws Exception {
         boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
         if (!exists) {
             minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
             log.info("Created private MinIO bucket: {}", bucketName);
+        }
+        if (!defaultEncryptionVerified.contains(bucketName)
+                && MinioBucketEncryption.ensureDefaultEncryption(minioClient, bucketName)) {
+            defaultEncryptionVerified.add(bucketName);
         }
     }
 
@@ -250,7 +268,7 @@ public class MinioStorageService {
 
         try {
             ensureBucketExists(bucketFaces);
-            putObjectWithSseFallback(bucketFaces, objectName, imageBytes, "image/jpeg");
+            putObjectEncrypted(bucketFaces, objectName, imageBytes, "image/jpeg");
 
             String fileUrl = minioEndpoint + "/" + bucketFaces + "/" + objectName;
             log.info("[MINIO] Uploaded face profile image: {}", fileUrl);
@@ -307,7 +325,7 @@ public class MinioStorageService {
 
         try {
             ensureBucketExists(bucketEvidence);
-            putObjectWithSseFallback(bucketEvidence, objectName, imageBytes, "image/jpeg");
+            putObjectEncrypted(bucketEvidence, objectName, imageBytes, "image/jpeg");
 
             String fileUrl = minioEndpoint + "/" + bucketEvidence + "/" + objectName;
             log.info("[MINIO] Uploaded security evidence image: {}", fileUrl);
@@ -333,7 +351,7 @@ public class MinioStorageService {
 
         try {
             ensureBucketExists(bucketSnapshots);
-            putObjectWithSseFallback(bucketSnapshots, objectName, imageBytes, "image/jpeg");
+            putObjectEncrypted(bucketSnapshots, objectName, imageBytes, "image/jpeg");
 
             String fileUrl = minioEndpoint + "/" + bucketSnapshots + "/" + objectName;
             log.info("[MINIO] Uploaded ROI reference snapshot: {}", fileUrl);
@@ -345,10 +363,10 @@ public class MinioStorageService {
     }
 
     /**
-     * NFR05: Lưu trữ object với ServerSideEncryptionS3 (SSE-S3 AES-256).
-     * Nếu MinIO chưa cấu hình KMS (NotImplemented 501), tự động fallback sang upload thường để không làm gián đoạn nghiệp vụ.
+     * NFR-05: lưu object với ServerSideEncryptionS3 (SSE-S3, khoá KMS mặc định của MinIO). Không có đường lưu dạng rõ:
+     * MinIO từ chối SSE (chưa cấu hình KMS / lỗi KMS) -> log ERROR [NFR-05] + {@link com.fa26se040.icss.exception.StorageEncryptionException}.
      */
-    private void putObjectWithSseFallback(String bucketName, String objectName, byte[] bytes, String contentType) throws Exception {
+    private void putObjectEncrypted(String bucketName, String objectName, byte[] bytes, String contentType) throws Exception {
         try {
             ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
             minioClient.putObject(
@@ -361,20 +379,31 @@ public class MinioStorageService {
                             .build()
             );
         } catch (ErrorResponseException e) {
-            if (e.errorResponse() != null && "NotImplemented".equals(e.errorResponse().code())) {
-                log.warn("[MINIO] KMS chưa được cấu hình trên MinIO (NotImplemented cho SSE-S3), fallback sang lưu trữ tiêu chuẩn: {}", objectName);
-                ByteArrayInputStream retryStream = new ByteArrayInputStream(bytes);
-                minioClient.putObject(
-                        PutObjectArgs.builder()
-                                .bucket(bucketName)
-                                .object(objectName)
-                                .stream(retryStream, bytes.length, -1)
-                                .contentType(contentType)
-                                .build()
-                );
-            } else {
-                throw e;
-            }
+            throw MinioBucketEncryption.onEncryptedPutFailure(bucketName, objectName, e);
+        }
+    }
+
+    /**
+     * NFR-05: kiểm lúc khởi động — ghi rồi xoá một object nhỏ có SSE vào bucket snapshots (không ai liệt kê bucket này).
+     * Lỗi chỉ log ERROR [NFR-05], không làm sập backend.
+     */
+    void verifyEncryptedWriteAtStartup() {
+        String objectName = SSE_PROBE_PREFIX + UUID.randomUUID() + ".txt";
+        byte[] payload = "NFR-05 startup probe".getBytes(StandardCharsets.UTF_8);
+        try {
+            putObjectEncrypted(bucketSnapshots, objectName, payload, "text/plain");
+        } catch (Exception e) {
+            log.error("[NFR-05] Kiểm tra lúc khởi động THẤT BẠI: không ghi được object có SSE vào bucket {} ({}). "
+                            + "Upload ảnh khuôn mặt / bằng chứng / ảnh khách sẽ bị từ chối cho tới khi MinIO có KMS.",
+                    bucketSnapshots, MinioBucketEncryption.describe(e));
+            return;
+        }
+        try {
+            minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucketSnapshots).object(objectName).build());
+            log.info("[NFR-05] Kiểm tra lúc khởi động: ghi + xoá object có SSE ở bucket {} thành công", bucketSnapshots);
+        } catch (Exception e) {
+            log.error("[NFR-05] Kiểm tra lúc khởi động: ghi object có SSE được nhưng không xoá được {}/{} ({})",
+                    bucketSnapshots, objectName, MinioBucketEncryption.describe(e));
         }
     }
 }

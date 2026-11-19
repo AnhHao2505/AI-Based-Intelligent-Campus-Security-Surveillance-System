@@ -22,12 +22,20 @@ public interface GuestRepository extends JpaRepository<Guest, UUID> {
 
     Optional<Guest> findByIdAndVisitId(UUID id, UUID visitId);
 
-    /** BR-GV-27: khách còn ảnh / embedding mà lượt đã CANCELLED / REVOKED / EXPIRED, hoặc đã quá end + retention. */
+    /**
+     * BR-194 (BR-GV-27): khách còn ảnh / embedding mà lượt đã EXPIRED / REJECTED, hoặc CANCELLED trước giờ bắt đầu,
+     * hoặc đã quá end + retention, hoặc lượt REVOKED đã quá revokedAt + retention, hoặc lượt CANCELLED khi đã bắt đầu
+     * đã quá cancelledAt + retention (retentionCutoff = now − retention).
+     */
     @Query("SELECT g.id FROM Guest g JOIN g.visit v WHERE g.biometricStatus IN :withPhoto "
-            + "AND (v.status IN :closedStatuses OR v.endTime <= :endBefore)")
+            + "AND (v.status IN :closedStatuses OR v.endTime <= :retentionCutoff "
+            + "OR (v.status = :revoked AND v.revokedAt <= :retentionCutoff) "
+            + "OR (v.status = :cancelled AND (v.cancelledAt < v.startTime OR v.cancelledAt <= :retentionCutoff)))")
     List<UUID> findIdsNeedingBiometricDeletion(@Param("withPhoto") Collection<GuestBiometricStatus> withPhoto,
                                                @Param("closedStatuses") Collection<GuestVisitStatus> closedStatuses,
-                                               @Param("endBefore") OffsetDateTime endBefore);
+                                               @Param("revoked") GuestVisitStatus revoked,
+                                               @Param("cancelled") GuestVisitStatus cancelled,
+                                               @Param("retentionCutoff") OffsetDateTime retentionCutoff);
 
     /** A9: xoá object sau commit thành công -> bỏ đánh dấu, chỉ khi đánh dấu vẫn là đúng object đó. */
     @Modifying

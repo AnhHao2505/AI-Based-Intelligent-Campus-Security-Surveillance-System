@@ -147,8 +147,12 @@ describe("Camera module stale code regression guards", () => {
 
 		assert.equal(drawer.includes("loadLogs("), false);
 		assert.equal(drawer.includes("latencyMs"), false);
+		assert.equal(drawer.includes("CameraAccessLogsTab"), false);
+		assert.equal(drawer.includes('"access-logs"'), false);
 		assert.equal(detailPage.includes("loadLogs("), false);
 		assert.equal(detailPage.includes("latencyMs"), false);
+		assert.equal(detailPage.includes("CameraAccessLogsTab"), false);
+		assert.equal(detailPage.includes('"access-logs"'), false);
 		assert.equal(streamTab.includes("đo độ trễ mạng"), false);
 		assert.equal(service.includes("captureSnapshot"), false);
 	});

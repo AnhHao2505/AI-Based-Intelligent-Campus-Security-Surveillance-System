@@ -8,6 +8,7 @@ import com.fa26se040.icss.dto.user.StaffAccountCreateResponse;
 import com.fa26se040.icss.dto.user.UserListResponse;
 import com.fa26se040.icss.dto.user.UserPageResponse;
 import com.fa26se040.icss.dto.user.ImportBatchSummaryResponse;
+import com.fa26se040.icss.dto.user.ImportBatchOptionResponse;
 import com.fa26se040.icss.dto.user.BatchUserResponse;
 import com.fa26se040.icss.dto.user.BatchDeleteResponse;
 import com.fa26se040.icss.dto.user.BatchRestoreResponse;
@@ -205,16 +206,43 @@ public class UserController {
     public ResponseEntity<ApiResponse<Page<UserSearchResponse>>> searchUsers(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Integer accessLevel,
+            @RequestParam(required = false) UUID importBatchId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         int cappedSize = Math.min(Math.max(1, size), 20);
         Pageable pageable = PageRequest.of(Math.max(0, page), cappedSize);
+        // Lọc theo lô import ở màn Cấp truy cập (tuỳ chọn), kết hợp q và accessLevel
+        if (importBatchId != null) {
+            Page<UserSearchResponse> byBatch = userService.searchUsers(q, accessLevel, importBatchId, pageable);
+            return ResponseEntity.ok(ApiResponse.success(byBatch, "Tìm kiếm người dùng thành công"));
+        }
         // BR-AL-28: accessLevel tuỳ chọn — lọc theo cấp hiện tại ở màn Cấp truy cập
         Page<UserSearchResponse> result = accessLevel == null
                 ? userService.searchUsers(q, pageable)
                 : userService.searchUsers(q, accessLevel, pageable);
         return ResponseEntity.ok(ApiResponse.success(result, "Tìm kiếm người dùng thành công"));
+    }
+
+    /** Ô lọc "Lô import" ở màn Cấp truy cập: tóm tắt lô (không có tên / email người trong lô). Chi tiết, xoá, khôi phục lô vẫn chỉ ADMIN. */
+    @GetMapping("/search/import-batches")
+    @PreAuthorize("hasAnyRole('FACILITY_MANAGER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<ImportBatchOptionResponse>>> getImportBatchOptions() {
+        return ResponseEntity.ok(ApiResponse.success(userService.getImportBatchOptions(), "Lấy danh sách lô import thành công"));
+    }
+
+    /** "Chọn tất cả kết quả lọc": id những người FM được đổi cấp theo bộ lọc; vượt giới hạn mỗi lần -> 400. */
+    @GetMapping("/search/ids")
+    @PreAuthorize("hasRole('FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<List<UUID>>> getAccessLevelAssignableIds(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Integer accessLevel,
+            @RequestParam(required = false) UUID importBatchId,
+            Authentication authentication
+    ) {
+        String actorEmail = authentication != null ? authentication.getName() : null;
+        List<UUID> ids = userService.findAccessLevelAssignableIds(q, accessLevel, importBatchId, actorEmail);
+        return ResponseEntity.ok(ApiResponse.success(ids, "Lấy danh sách người theo bộ lọc thành công"));
     }
 
     /** BR-AL-28: FM đổi cấp cho nhiều người; mỗi người theo đúng logic đổi cấp lẻ, trả kết quả từng người. */

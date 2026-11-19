@@ -6,6 +6,7 @@ import 'package:guard_mobile_app/core/network/api_client.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_data.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_overlays.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_repository.dart';
+import 'package:guard_mobile_app/features/map/data/campus_map_sprites.dart';
 import 'package:guard_mobile_app/features/map/data/campus_map_style.dart';
 import 'package:guard_mobile_app/features/map/models/area_pin_model.dart';
 import 'package:guard_mobile_app/features/map/providers/map_provider.dart';
@@ -85,13 +86,33 @@ void main() {
       return i;
     }
 
-    test('nhãn → ghim sự cố → vị trí bảo vệ: ghim sự cố ngay trên nhãn, dưới vị trí bảo vệ', () {
-      expect(at(campusIncidentPinLayerId), at(campusRoomLabelsLayerId) + 1);
+    test('ghim khu → quầng sự cố → nhãn → ghim sự cố → vị trí bảo vệ: quầng dưới nhãn, ghim sự cố trên nhãn', () {
+      expect(at(campusIncidentHaloLayerId), at(campusPinsLayerId) + 1, reason: 'quầng ngay trên ghim khu');
+      expect(at(campusRoomLabelsLayerId), at(campusIncidentHaloLayerId) + 1, reason: 'quầng ngay dưới tên phòng');
+      expect(at(campusIncidentPinLayerId), at(campusRoomLabelsLayerId) + 1, reason: 'ghim sự cố ngay trên tên phòng');
       expect(at('campus-guard-halo'), at(campusIncidentPinLayerId) + 1);
+      expect(campusLayerOrder.sublist(at(campusPinsLayerId), at('campus-guard-halo') + 1), [
+        'campus-pins-layer',
+        'campus-incident-halo-layer',
+        'campus-room-labels-layer',
+        'campus-incident-pin-layer',
+        'campus-guard-halo',
+      ]);
     });
 
-    test('tên phòng nằm NGAY TRÊN ghim khu, dưới vị trí bảo vệ', () {
-      expect(at('campus-room-labels-layer'), at('campus-pins-layer') + 1);
+    test('id lớp quầng sự cố cố định; quầng đỏ đứng yên gấp đôi ghim khu đang chọn', () {
+      expect(campusIncidentHaloLayerId, 'campus-incident-halo-layer');
+      expect(campusLayerOrder[campusLayerOrder.indexOf(campusRoomLabelsLayerId) - 1], 'campus-incident-halo-layer');
+      expect(incidentHaloColor.toLowerCase(), '#ef4444');
+      expect(incidentHaloRadius, areaPinMaxRadius * 2);
+      expect(incidentHaloOpacity, 0.25);
+      expect(incidentHaloStrokeWidth, 2);
+      expect(incidentHaloStrokeOpacity, 0.6);
+    });
+
+    test('tên phòng nằm trên ghim khu và quầng sự cố, dưới vị trí bảo vệ', () {
+      expect(at('campus-room-labels-layer'), greaterThan(at('campus-pins-layer')));
+      expect(at('campus-room-labels-layer'), greaterThan(at(campusIncidentHaloLayerId)));
       expect(at('campus-room-labels-layer'), lessThan(at('campus-guard-halo')));
       expect(at('campus-room-labels-layer'), lessThan(at('campus-guard-dot')));
     });
@@ -146,11 +167,33 @@ void main() {
     final temp = AreaPinModel(
       id: 'incident_target',
       name: 'Vị trí sự cố (CAM-006)',
-      areaLevel: 'RESTRICTED',
+      areaLevel: AreaPinModel.unknownLevel,
       centerLatitude: room0.point[1],
       centerLongitude: room0.point[0],
       isActive: true,
     );
+
+    test('cấp chưa xác định: nhãn "Chưa xác định cấp", màu xám mặc định, không phải cấp cũ RESTRICTED', () {
+      expect(AreaPinModel.unknownLevel, isNot('RESTRICTED'));
+      expect(temp.levelDisplayName, 'Chưa xác định cấp');
+      expect(temp.levelColor.toARGB32(), 0xFF6B7280);
+      expect(temp.levelColor, AreaPinModel.levelColorOf('KHONG-CO'), reason: 'cùng màu mặc định của cấp lạ');
+    });
+
+    test('provider: sự cố không khớp khu → ghim tạm cấp chưa xác định; payload có cấp → dùng cấp đó', () {
+      final provider = MapProvider(ApiClient(), campusRepository: _DiskCampusRepository(campus));
+      final noLevel = provider.findPinForIncident(areaId: 'khu-khong-ton-tai', cameraCode: 'CAM-006')!;
+      expect(noLevel.id, 'khu-khong-ton-tai');
+      expect(noLevel.name, 'Vị trí sự cố (CAM-006)');
+      expect(noLevel.areaLevel, AreaPinModel.unknownLevel);
+      expect(noLevel.levelDisplayName, 'Chưa xác định cấp');
+
+      expect(provider.findPinForIncident(areaId: 'khu-khong-ton-tai', areaLevel: '   ')!.areaLevel,
+          AreaPinModel.unknownLevel, reason: 'cấp rỗng coi như không có');
+      final withLevel = provider.findPinForIncident(areaId: 'khu-khong-ton-tai', areaLevel: 'confidential')!;
+      expect(withLevel.areaLevel, 'CONFIDENTIAL');
+      expect(withLevel.levelDisplayName, 'Bảo mật (Cấp 2)');
+    });
 
     test('ghim tạm sự cố không còn trong GeoJSON ghim khu; nằm ở nguồn ghim sự cố', () {
       final split = splitIncidentPin(pins, selected: temp, incidentAreaId: 'incident_target');

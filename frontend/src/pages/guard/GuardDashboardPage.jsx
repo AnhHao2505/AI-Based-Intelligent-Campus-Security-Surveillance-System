@@ -542,16 +542,21 @@ export function SecuritySurveillancePage() {
 		setTimeout(() => setStatusNotification(null), 4500);
 	};
 
-	// Tải danh sách camera đang hoạt động từ Backend CSDL
+	// Tải danh sách camera đang hoạt động từ Backend CSDL và đồng bộ định kỳ mỗi 15 giây
 	useEffect(() => {
-		async function loadActiveCameras() {
-			setCamerasLoading(true);
+		let isMounted = true;
+
+		async function loadActiveCameras(silent = false) {
+			if (!silent) {
+				setCamerasLoading(true);
+			}
 			try {
 				const response = await fetchCameras({
 					page: 0,
 					size: 50,
 					status: "ACTIVE",
 				});
+				if (!isMounted) return;
 				const list = (response?.content || []).map((cam) => ({
 					id: cam.id,
 					code: (cam.cameraCode || "")
@@ -561,7 +566,7 @@ export function SecuritySurveillancePage() {
 					cameraCode: cam.cameraCode,
 					name: cam.name,
 					zone: "Khuôn viên trường",
-					status: cam.operationalStatus || "ONLINE",
+					status: cam.operationalStatus || "OFFLINE",
 				}));
 
 				// Sắp xếp tự nhiên tăng dần theo mã camera (CAM-001, CAM-002, CAM-003, ...)
@@ -572,7 +577,17 @@ export function SecuritySurveillancePage() {
 					}),
 				);
 
-				setCameraList(list);
+				setCameraList((prev) => {
+					const unchanged =
+						prev.length === list.length &&
+						prev.every(
+							(c, idx) =>
+								c.id === list[idx].id &&
+								c.status === list[idx].status &&
+								c.name === list[idx].name,
+						);
+					return unchanged ? prev : list;
+				});
 				if (list.length > 0) {
 					const firstOnline = list.find((c) => c.status === "ONLINE") || list[0];
 					setSelectedCamera((prev) =>
@@ -582,11 +597,26 @@ export function SecuritySurveillancePage() {
 			} catch (err) {
 				console.error("Không thể tải danh sách camera:", err);
 			} finally {
-				setCamerasLoading(false);
+				if (!silent && isMounted) {
+					setCamerasLoading(false);
+				}
 			}
 		}
 
-		loadActiveCameras();
+		loadActiveCameras(false);
+		const pollId = setInterval(() => loadActiveCameras(true), 15000);
+		const handleVisibility = () => {
+			if (document.visibilityState === "visible") {
+				loadActiveCameras(true);
+			}
+		};
+		document.addEventListener("visibilitychange", handleVisibility);
+
+		return () => {
+			isMounted = false;
+			clearInterval(pollId);
+			document.removeEventListener("visibilitychange", handleVisibility);
+		};
 	}, []);
 
 	// Tính toán tóm tắt sự cố & mức độ ưu tiên của từng camera dựa trên activeAlerts PENDING

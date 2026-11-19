@@ -11,6 +11,27 @@ from ..config import settings
 
 logger = logging.getLogger(__name__)
 
+
+def _error_code(err: Exception) -> Optional[str]:
+    """Mã lỗi S3 của minio.error.S3Error (vd. NotImplemented, KMS.NotFoundException); lỗi khác -> None."""
+    code = getattr(err, "code", None)
+    return code if isinstance(code, str) else None
+
+
+def _is_sse_rejected(err: Exception) -> bool:
+    """NFR-05: MinIO từ chối SSE (NotImplemented = chưa cấu hình KMS, hoặc lỗi KMS.*)."""
+    code = _error_code(err)
+    return code == "NotImplemented" or (code is not None and code.startswith("KMS"))
+
+
+def _describe_error(err: Exception) -> str:
+    """Mô tả lỗi để log, không chứa secret: lỗi S3 -> loại + mã; lỗi khác (mạng, I/O) -> loại + message."""
+    code = _error_code(err)
+    if code is not None:
+        return f"{type(err).__name__} code={code}"
+    return f"{type(err).__name__}: {err}"
+
+
 class StorageService:
     """
     Module quản lý lưu trữ đối tượng MinIO S3-compatible (hỗ trợ mã hóa SSE-S3):
@@ -79,7 +100,10 @@ class StorageService:
             return False
 
     def upload_bytes(self, bucket_name: str, object_name: str, data: bytes, content_type: str = "image/jpeg") -> bool:
-        """Tải dữ liệu bytes lên MinIO với mã hóa SSE-S3 (kèm cơ chế fallback an toàn)."""
+        """
+        Tải dữ liệu bytes lên MinIO với mã hóa SSE-S3 (NFR-05).
+        Không có đường lưu dạng rõ: SSE bị từ chối -> trả False, log ERROR [NFR-05]; bên gọi xử lý như mọi lần upload lỗi.
+        """
         if not data:
             return False
         if not self.is_connected or not self.client:
@@ -89,27 +113,23 @@ class StorageService:
 
         try:
             self._ensure_bucket_exists(bucket_name)
-            try:
-                self.client.put_object(
-                    bucket_name=bucket_name,
-                    object_name=object_name,
-                    data=io.BytesIO(data),
-                    length=len(data),
-                    content_type=content_type,
-                    sse=SseS3()
-                )
-            except Exception as sse_err:
-                logger.warning(f"[MINIO] SSE-S3 upload gặp lỗi ({sse_err}), fallback sang lưu trữ tiêu chuẩn")
-                self.client.put_object(
-                    bucket_name=bucket_name,
-                    object_name=object_name,
-                    data=io.BytesIO(data),
-                    length=len(data),
-                    content_type=content_type
-                )
+            self.client.put_object(
+                bucket_name=bucket_name,
+                object_name=object_name,
+                data=io.BytesIO(data),
+                length=len(data),
+                content_type=content_type,
+                sse=SseS3()
+            )
             return True
         except Exception as e:
-            logger.error(f"[MINIO LỖI] upload_bytes thất bại ({bucket_name}/{object_name}): {e}")
+            if _is_sse_rejected(e):
+                logger.error(
+                    f"[NFR-05] MinIO từ chối mã hoá phía server SSE-S3 cho {bucket_name}/{object_name} "
+                    f"({_describe_error(e)}): KHÔNG lưu dạng rõ, upload thất bại. Kiểm tra KMS của MinIO."
+                )
+            else:
+                logger.error(f"[MINIO LỖI] upload_bytes thất bại ({bucket_name}/{object_name}): {_describe_error(e)}")
             return False
 
     def download_bytes(self, bucket_name: str, object_name: str) -> Optional[bytes]:
@@ -271,6 +291,11 @@ class StorageService:
         )
 
     def upload_video_file(self, file_path: str, bucket_name: str, object_name: str) -> bool:
+        """
+        Tải file video lên MinIO với mã hóa SSE-S3 (NFR-05, M1).
+        Không có đường lưu dạng rõ: SSE bị từ chối -> trả False, log ERROR [NFR-05]; bên gọi giữ file local, không
+        publish RECORDING_COMPLETED (incident_recorder / stream_recorder), như mọi lần upload lỗi.
+        """
         if not file_path or not os.path.exists(file_path):
             logger.warning(f"⚠️ [MinIO] File video không tồn tại: {file_path}")
             return False
@@ -282,26 +307,26 @@ class StorageService:
             try:
                 self._ensure_bucket_exists(bucket_name)
 
-                try:
-                    self.client.fput_object(
-                        bucket_name=bucket_name,
-                        object_name=object_name,
-                        file_path=file_path,
-                        content_type="video/mp4",
-                        sse=SseS3()
-                    )
-                except Exception as sse_err:
-                    logger.warning(f"[MINIO] SSE-S3 fput_object gặp lỗi ({sse_err}), fallback sang upload tiêu chuẩn")
-                    self.client.fput_object(
-                        bucket_name=bucket_name,
-                        object_name=object_name,
-                        file_path=file_path,
-                        content_type="video/mp4"
-                    )
+                self.client.fput_object(
+                    bucket_name=bucket_name,
+                    object_name=object_name,
+                    file_path=file_path,
+                    content_type="video/mp4",
+                    sse=SseS3()
+                )
                 logger.info(f"☁️ [MinIO SSE-S3] Đã tải video thành công lên bucket [{bucket_name}]: {object_name}")
                 return True
             except Exception as e:
-                logger.error(f"❌ [MinIO LỖI] Upload video thất bại ({file_path} -> {bucket_name}/{object_name}): {e}")
+                if _is_sse_rejected(e):
+                    logger.error(
+                        f"[NFR-05] MinIO từ chối mã hoá phía server SSE-S3 cho video {bucket_name}/{object_name} "
+                        f"({_describe_error(e)}): KHÔNG lưu dạng rõ, upload thất bại. Kiểm tra KMS của MinIO."
+                    )
+                else:
+                    logger.error(
+                        f"❌ [MinIO LỖI] Upload video thất bại ({file_path} -> {bucket_name}/{object_name}): "
+                        f"{_describe_error(e)}"
+                    )
                 return False
         return False
 

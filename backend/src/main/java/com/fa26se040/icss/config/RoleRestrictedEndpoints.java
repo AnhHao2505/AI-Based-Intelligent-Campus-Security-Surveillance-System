@@ -74,7 +74,6 @@ public final class RoleRestrictedEndpoints {
             rule(HttpMethod.PATCH, "/api/cameras/{id}/reactivate", ADMIN),
             rule(HttpMethod.DELETE, "/api/cameras/{id}", ADMIN),
             rule(HttpMethod.PUT, "/api/cameras/{id}/stream-config", ADMIN),
-            rule(HttpMethod.POST, "/api/cameras/{id}/snapshot", ADMIN),
             rule(HttpMethod.POST, "/api/cameras/{id}/stream/start", ADMIN),
             rule(HttpMethod.POST, "/api/cameras/{id}/stream/stop", ADMIN),
             rule(HttpMethod.POST, "/api/cameras/{id}/test-connection", ADMIN),

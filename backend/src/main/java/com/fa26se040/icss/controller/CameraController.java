@@ -17,7 +17,6 @@ import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.service.CameraService;
 import com.fa26se040.icss.service.CameraConnectionService;
-import com.fa26se040.icss.service.CameraSnapshotService;
 import com.fa26se040.icss.service.CameraStreamLifecycleService;
 import com.fa26se040.icss.service.CameraRecordingService;
 import com.fa26se040.icss.service.AnnotatedStreamTokenService;
@@ -41,7 +40,6 @@ public class CameraController {
 
     private final CameraService cameraService;
     private final CameraConnectionService cameraConnectionService;
-    private final CameraSnapshotService cameraSnapshotService;
     private final CameraStreamLifecycleService cameraStreamLifecycleService;
     private final CameraRecordingService cameraRecordingService;
     private final AnnotatedStreamTokenService annotatedStreamTokenService;
@@ -65,10 +63,22 @@ public class CameraController {
             @RequestParam(required = false) CameraStatus status,
             @RequestParam(required = false) OperationalStatus operationalStatus,
             @RequestParam(required = false, defaultValue = "false") Boolean forceSync,
-            @PageableDefault(size = 10, sort = "cameraCode", direction = org.springframework.data.domain.Sort.Direction.ASC) Pageable pageable) {
-        log.info("REST request to list cameras with filters, forceSync: {}", forceSync);
-        Page<CameraListResponse> list = cameraService.listCameras(search, status, operationalStatus, forceSync, pageable);
+            @PageableDefault(size = 10, sort = "cameraCode", direction = org.springframework.data.domain.Sort.Direction.ASC) Pageable pageable,
+            Authentication authentication) {
+        boolean isAdmin = hasAdminRole(authentication);
+        boolean effectiveForceSync = Boolean.TRUE.equals(forceSync) && isAdmin;
+        log.info("REST request to list cameras with filters, forceSync: {} (effective: {})", forceSync, effectiveForceSync);
+        Page<CameraListResponse> list = cameraService.listCameras(search, status, operationalStatus, effectiveForceSync, pageable);
         return ResponseEntity.ok(ApiResponse.success(list, "Lấy danh sách camera thành công"));
+    }
+
+    private static boolean hasAdminRole(Authentication authentication) {
+        if (authentication == null || authentication.getAuthorities() == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a) || "ADMIN".equalsIgnoreCase(a));
     }
 
     @GetMapping("/all-simple")
@@ -124,14 +134,6 @@ public class CameraController {
         log.info("REST request to upsert camera stream configuration: {}", id);
         CameraStreamConfigResponse config = cameraService.upsertStreamConfig(id, req);
         return ResponseEntity.ok(ApiResponse.success(config, "Cập nhật cấu hình stream thành công"));
-    }
-
-    @PostMapping("/{id}/snapshot")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<CameraSnapshotResponse>> captureSnapshot(@PathVariable UUID id) {
-        log.info("REST request to capture snapshot frame for camera: {}", id);
-        CameraSnapshotResponse response = cameraSnapshotService.captureSnapshot(id);
-        return ResponseEntity.ok(ApiResponse.success(response, "Trích xuất khung hình snapshot thành công"));
     }
 
     @PostMapping("/{id}/stream/start")
@@ -365,9 +367,15 @@ public class CameraController {
         }
 
         if ("rtsp".equals(protocol)
-                && "read".equals(action)
+                && ("read".equals(action) || "publish".equals(action))
                 && com.fa26se040.icss.service.MediaMtxService.INTERNAL_RTSP_USER.equals(user)
                 && annotatedStreamTokenService.verifyInternalRtspSecret(path, password)) {
+            return ResponseEntity.ok().build();
+        }
+
+        if (("api".equals(action) || "playback".equals(action))
+                && com.fa26se040.icss.service.MediaMtxService.INTERNAL_RTSP_USER.equals(user)
+                && annotatedStreamTokenService.verifyInternalApiSecret(password)) {
             return ResponseEntity.ok().build();
         }
 

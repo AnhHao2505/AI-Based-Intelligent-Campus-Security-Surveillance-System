@@ -19,6 +19,10 @@ import java.util.UUID;
 public class CheckCameraEntryResponse {
     private boolean allowed;
     private AccessSource source;
+    /** Mốc thời gian hết hạn hiệu lực quyền (Epoch seconds, ví dụ 1700301780.0 cho 16:03:00). */
+    private Double expiresAt;
+    /** Mốc thời gian bắt đầu có hiệu lực quyền (Epoch seconds, ví dụ 1700308320.0 cho 17:52:00). */
+    private Double startsAt;
     private String reason;
     /** Mã lý do từ chối (GuestEntryDenyReason) cho khách bị từ chối; null khi cho phép hoặc với người dùng nội bộ. */
     private String denyReason;

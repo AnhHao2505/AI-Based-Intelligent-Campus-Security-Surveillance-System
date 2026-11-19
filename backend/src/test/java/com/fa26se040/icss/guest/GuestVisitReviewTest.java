@@ -1,10 +1,13 @@
 package com.fa26se040.icss.guest;
 
+import com.fa26se040.icss.dto.guest.GuestAccessDecision;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
+import com.fa26se040.icss.service.GuestAccessDecisionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.OffsetDateTime;
@@ -21,6 +24,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 public class GuestVisitReviewTest extends GuestTestSupport {
 
     private static final String BASE = "/api/guest-visits";
+
+    @Autowired
+    private GuestAccessDecisionService decisionService;
 
     private UUID createVisit(User host, List<Area> areas, OffsetDateTime s, OffsetDateTime e) throws Exception {
         MvcResult r = send(post(BASE), host, createBody(s, e, areas, List.of(guestInput("Nguyễn Văn Khách", null)))).andReturn();
@@ -182,7 +188,7 @@ public class GuestVisitReviewTest extends GuestTestSupport {
     // ================================================================== thu hồi (BR-GV-13)
 
     @Test
-    @DisplayName("GV-13: thu hồi APPROVED -> REVOKED, xoá sinh trắc ngay, audit REVOKE + DELETE_BIOMETRIC, host nhận REVOKED")
+    @DisplayName("GV-13: thu hồi APPROVED -> REVOKED, sinh trắc giữ tới revokedAt + retention (không DELETE_BIOMETRIC), audit REVOKE, host nhận REVOKED")
     void revoke_ok() throws Exception {
         GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, future(0), future(120), List.of(internalArea), "Khách có ảnh");
         Guest g = withPhoto(guestsOf(v.getId()).get(0), future(120).plusHours(24));
@@ -196,12 +202,44 @@ public class GuestVisitReviewTest extends GuestTestSupport {
         GuestVisit after = visit(v.getId());
         assertEquals(GuestVisitStatus.REVOKED, after.getStatus());
         assertEquals(REASON, after.getRevokeReason());
-        assertEquals(GuestBiometricStatus.DELETED, guest(g.getId()).getBiometricStatus());
-        assertFalse(embeddingRepository.existsById(g.getId()));
-        verify(photoStorage).removeObject(key);
+        // BR-194 (BR-GV-27), V133: thu hồi không xoá ngay, job xoá tại revokedAt + GUEST_FACE_RETENTION_HOURS (GuestJobTest)
+        assertEquals(GuestBiometricStatus.PHOTO_READY, guest(g.getId()).getBiometricStatus());
+        assertTrue(embeddingRepository.existsById(g.getId()));
+        verify(photoStorage, never()).removeObject(key);
         assertEquals(1, audits(v.getId().toString(), AuditTargetType.GUEST_VISIT, AuditAction.REVOKE).size());
-        assertEquals(1, audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC).size());
+        assertTrue(audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC).isEmpty());
         assertEquals(1, notif(hostL2, NotificationType.GUEST_VISIT_REVOKED, v.getId()));
+    }
+
+    @Test
+    @DisplayName("GV-13/27: thu hồi lượt đang diễn ra -> ảnh + embedding còn, biometricStatus không đổi; check-entry từ chối VISIT_NOT_ACTIVE kèm visitId")
+    void revoke_ongoing_keepsBiometrics_entryDenied() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        GuestVisit v = newVisit(hostL2, GuestVisitStatus.APPROVED, now.minusHours(1), now.plusHours(1), List.of(internalArea), "Khách đang trong lượt");
+        int retention = systemConfigService.getInt(ConfigKey.GUEST_FACE_RETENTION_HOURS);
+        Guest g = withPhoto(guestsOf(v.getId()).get(0), v.getEndTime().plusHours(retention));
+        String key = g.getPhotoObjectKey();
+        assertTrue(decisionService.checkGuestEntry(g.getId(), internalArea.getId(), OffsetDateTime.now()).allowed(),
+                "tiền đề: trước thu hồi khách được vào");
+
+        MvcResult r = revoke(fm, v.getId(), 0L, REASON);
+        assertEquals(200, status(r), r.getResponse().getContentAsString());
+
+        GuestVisit after = visit(v.getId());
+        assertEquals(GuestVisitStatus.REVOKED, after.getStatus());
+        assertNotNull(after.getRevokedAt());
+        Guest ga = guest(g.getId());
+        assertEquals(GuestBiometricStatus.PHOTO_READY, ga.getBiometricStatus(), "biometricStatus không đổi");
+        assertEquals(key, ga.getPhotoObjectKey(), "ảnh còn");
+        assertNull(ga.getBiometricDeletedAt());
+        assertTrue(embeddingRepository.existsById(g.getId()), "embedding còn");
+        verify(photoStorage, never()).removeObject(key);
+        assertTrue(audits(g.getId().toString(), AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC).isEmpty());
+
+        GuestAccessDecision d = decisionService.checkGuestEntry(g.getId(), internalArea.getId(), OffsetDateTime.now());
+        assertFalse(d.allowed(), d.toString());
+        assertEquals(GuestEntryDenyReason.VISIT_NOT_ACTIVE, d.reason());
+        assertEquals(v.getId(), d.visitId());
     }
 
     @Test

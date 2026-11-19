@@ -181,12 +181,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "8554:8554" # RTSP Stream cho AI Service
+      - "8554:8554" # RTSP Stream cho AI Service (xác thực qua whep-auth)
       - "8888:8888" # HLS Stream cho Trình duyệt
       - "8889:8889" # WebRTC (WHEP) cho Frontend Web
       - "8189:8189/udp" # WebRTC UDP data channel
-      - "9996:9996" # MediaMTX Playback Server (fMP4 segment extraction)
-      - "9997:9997" # MediaMTX REST API
+      - "127.0.0.1:9996:9996" # MediaMTX Playback Server (chỉ bind loopback trên host, bắt buộc Basic Auth)
+      - "127.0.0.1:9997:9997" # MediaMTX REST API (chỉ bind loopback trên host, bắt buộc Basic Auth)
     volumes:
       - ./mediamtx.yml:/mediamtx.yml:ro
       - ./mediamtx_recordings:/recordings

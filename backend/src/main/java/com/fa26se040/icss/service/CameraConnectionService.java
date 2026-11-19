@@ -39,9 +39,6 @@ public class CameraConnectionService {
     @Autowired(required = false)
     private com.fa26se040.icss.util.AesEncryptionUtil aesEncryptionUtil;
 
-    @Value("${ai.service.url:http://localhost:8000}")
-    private String aiServiceUrl;
-
     @Value("${camera.rtsp.timeout-ms:10000}")
     private int defaultTimeoutMs;
 

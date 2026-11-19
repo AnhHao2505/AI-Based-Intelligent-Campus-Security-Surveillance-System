@@ -34,18 +34,20 @@ export function formatDate(value) {
 	return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
-/** HH:mm */
-export function formatTime(value) {
+/** HH:mm hoặc HH:mm:ss nếu withSeconds = true */
+export function formatTime(value, withSeconds = false) {
 	const d = toDate(value);
 	if (!d) return EMPTY;
-	return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+	const showSeconds = typeof withSeconds === "object" ? withSeconds?.withSeconds : Boolean(withSeconds);
+	const base = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+	return showSeconds ? `${base}:${pad(d.getSeconds())}` : base;
 }
 
-/** HH:mm dd/MM/yyyy */
-export function formatDateTime(value) {
+/** HH:mm dd/MM/yyyy hoặc HH:mm:ss dd/MM/yyyy nếu withSeconds = true */
+export function formatDateTime(value, withSeconds = false) {
 	const d = toDate(value);
 	if (!d) return EMPTY;
-	return `${formatTime(d)} ${formatDate(d)}`;
+	return `${formatTime(d, withSeconds)} ${formatDate(d)}`;
 }
 
 /** Cùng ngày: "dd/MM/yyyy HH:mm – HH:mm"; khác ngày: "HH:mm dd/MM/yyyy – HH:mm dd/MM/yyyy". */

@@ -277,9 +277,12 @@ public class GuestVisitService {
         AuditActor actor = AuditActor.user(host);
         auditService.record(AuditTargetType.GUEST_VISIT, AuditAction.CANCEL, visit.getId().toString(), null, null,
                 before, snapshot(visit), reason, actor);
-        // BR-GV-09, 27: huỷ lượt đã duyệt -> xoá sinh trắc ngay
+        // BR-GV-09, BR-194 (BR-GV-27): huỷ lượt đã duyệt trước giờ bắt đầu -> khách chưa từng có quyền, xoá sinh trắc ngay;
+        // huỷ khi lượt đã bắt đầu -> hết quyền như thu hồi: giữ GUEST_FACE_RETENTION_HOURS kể từ cancelledAt rồi job mới xoá
         if (from == GuestVisitStatus.APPROVED) {
-            deleteAllBiometrics(visit, now, actor, "Lượt khách bị huỷ");
+            if (now.isBefore(visit.getStartTime())) {
+                deleteAllBiometrics(visit, now, actor, "Lượt khách bị huỷ");
+            }
             aiFaceCacheRefreshNotifier.notifyAfterCommit();
         }
         return toResponse(visit);
@@ -385,7 +388,7 @@ public class GuestVisitService {
 
     /**
      * Thu hồi lượt đã duyệt — dùng chung cho FM thu hồi (BR-GV-13) và ADMIN vô hiệu hoá khu vực (BR-AD-09).
-     * Xoá sinh trắc qua deleteAllBiometrics (A9: object MinIO xoá sau commit), báo host sau commit.
+     * Không xoá sinh trắc tại đây: job xoá tại revokedAt + GUEST_FACE_RETENTION_HOURS (BR-194 (BR-GV-27)). Báo host sau commit.
      */
     private void applyRevoke(GuestVisit visit, User revokedBy, String reason, OffsetDateTime now) {
         GuestVisitAuditSnapshot before = snapshot(visit);
@@ -398,8 +401,8 @@ public class GuestVisitService {
         AuditActor actor = AuditActor.user(revokedBy);
         auditService.record(AuditTargetType.GUEST_VISIT, AuditAction.REVOKE, visit.getId().toString(), null, null,
                 before, snapshot(visit), reason, actor);
-        // BR-GV-13, 27: thu hồi -> xoá sinh trắc ngay
-        deleteAllBiometrics(visit, now, actor, "Lượt khách bị thu hồi");
+        // BR-GV-13, BR-194 (BR-GV-27): thu hồi -> hết quyền ngay (check-entry trả VISIT_NOT_ACTIVE, AI bỏ khách khỏi kho khuôn mặt);
+        // ảnh + embedding giữ thêm GUEST_FACE_RETENTION_HOURS kể từ revokedAt rồi job mới xoá
         aiFaceCacheRefreshNotifier.notifyAfterCommit();
         User host = visit.getHost();
         notifyAfterCommit(visit.getId(), NotificationType.GUEST_VISIT_REVOKED, "Lượt khách bị thu hồi",

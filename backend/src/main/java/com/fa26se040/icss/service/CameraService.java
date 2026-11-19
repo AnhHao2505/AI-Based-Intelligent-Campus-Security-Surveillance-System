@@ -53,6 +53,12 @@ public class CameraService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EdgeStatusService edgeStatusService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private FloorRepository floorRepository;
+
     // === Camera CRUD ===
 
     public CameraDetailResponse createCamera(CreateCameraRequest request) {
@@ -136,23 +142,39 @@ public class CameraService {
                 .collect(Collectors.toList());
     }
 
+    private Camera findActiveCameraById(UUID id) {
+        return cameraRepository.findById(id)
+                .filter(c -> c.getDeletedAt() == null)
+                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+    }
+
     @Transactional(readOnly = true)
     public CameraDetailResponse getCameraDetail(UUID id) {
         log.info("Fetching camera detail for id: {}", id);
-        Camera camera = cameraRepository.findById(id)
-                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+        Camera camera = findActiveCameraById(id);
         return mapToDetailResponse(camera);
     }
 
     private static final long STREAM_STARTUP_GRACE_SECONDS = 25L;
+    private static final long CLOUD_EDGE_STARTUP_GRACE_SECONDS = 40L;
 
     /**
-     * Tự động kiểm tra trạng thái luồng video từ MediaMTX và cập nhật operational_status cho các camera đang ACTIVE
+     * Tự động kiểm tra trạng thái luồng video từ MediaMTX (hoặc Edge Heartbeat ở chế độ Cloud-Edge)
+     * và cập nhật operational_status cho các camera đang ACTIVE.
      */
     @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 15000)
     @Transactional
     public void syncLiveOperationalStatuses() {
         try {
+            boolean edgeOnline = edgeMqttControlService != null
+                    && edgeMqttControlService.isConnected()
+                    && edgeStatusService != null
+                    && edgeStatusService.hasActiveOnlineEdge();
+            if (edgeOnline) {
+                syncOperationalStatusesFromEdgeHeartbeat();
+                return;
+            }
+
             java.util.Map<String, Boolean> liveStatuses = mediaMtxService.getLivePathStatuses();
             if (liveStatuses == null) {
                 return;
@@ -196,6 +218,8 @@ public class CameraService {
                     } else if (newStatus == OperationalStatus.OFFLINE) {
                         stopAiStreamWorkerSafely(cam.getCameraCode());
                     }
+                } else if (newStatus == OperationalStatus.ONLINE) {
+                    ensureAiWorkerRunningIfNeeded(cam.getCameraCode());
                 }
             }
         } catch (Exception e) {
@@ -224,17 +248,53 @@ public class CameraService {
         return true;
     }
 
+    private void syncOperationalStatusesFromEdgeHeartbeat() {
+        Map<String, Boolean> edgeCamStatuses = edgeStatusService.getOnlineEdgeCameraStatuses();
+        if (edgeCamStatuses == null) {
+            return;
+        }
+        List<Camera> activeCameras = cameraRepository.findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE);
+        for (Camera cam : activeCameras) {
+            String code = cam.getCameraCode() != null ? cam.getCameraCode().trim().toUpperCase(Locale.ROOT) : "";
+            Boolean edgeConnected = edgeCamStatuses.get(code);
+            OperationalStatus currentStatus = cam.getOperationalStatus();
+
+            OperationalStatus newStatus;
+            if (Boolean.TRUE.equals(edgeConnected)) {
+                newStatus = OperationalStatus.ONLINE;
+            } else if (edgeConnected == null && currentStatus == OperationalStatus.ONLINE
+                    && isWithinGraceSeconds(cam, CLOUD_EDGE_STARTUP_GRACE_SECONDS)) {
+                newStatus = OperationalStatus.ONLINE;
+            } else {
+                newStatus = OperationalStatus.OFFLINE;
+            }
+
+            if (currentStatus != newStatus) {
+                cam.setOperationalStatus(newStatus);
+                cameraRepository.save(cam);
+                log.info("🔄 [Cloud-Edge Sync] Cập nhật trạng thái camera [{}]: {} -> {}",
+                        cam.getCameraCode(), currentStatus, newStatus);
+            }
+        }
+    }
+
     private boolean isWithinStreamStartupGrace(Camera camera) {
+        return isWithinGraceSeconds(camera, STREAM_STARTUP_GRACE_SECONDS);
+    }
+
+    private boolean isWithinGraceSeconds(Camera camera, long graceSeconds) {
         if (camera == null || camera.getUpdatedAt() == null) {
             return false;
         }
-        return !camera.getUpdatedAt().isBefore(OffsetDateTime.now().minusSeconds(STREAM_STARTUP_GRACE_SECONDS));
+        return !camera.getUpdatedAt().isBefore(OffsetDateTime.now().minusSeconds(graceSeconds));
     }
 
     public CameraDetailResponse updateCamera(UUID id, UpdateCameraRequest request) {
         log.info("Updating camera basic details for id: {}", id);
-        Camera camera = cameraRepository.findById(id)
-                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+        Camera camera = findActiveCameraById(id);
+        if (camera.getStatus() == CameraStatus.DECOMMISSIONED) {
+            throw new CameraException(CameraErrorCode.ERR_STREAM_003);
+        }
 
         camera.setName(request.getName());
         if (request.getAreaId() != null) {
@@ -251,13 +311,11 @@ public class CameraService {
     }
 
     /**
-     * Cập nhật tọa độ icon camera trên bản đồ 2D (tách biệt với area_id và roi_geometry).
+     * Cập nhật tọa độ icon camera trên bản đồ 2D/3D (F-05: kiểm tra tọa độ + khớp tòa/tầng với CSDL & Area).
      */
     public CameraDetailResponse updateMapLocation(UUID id, CameraMapLocationRequest request) {
         log.info("Updating map location for camera id: {}", id);
-        Camera camera = cameraRepository.findById(id)
-                .filter(c -> c.getDeletedAt() == null)
-                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+        Camera camera = findActiveCameraById(id);
         if (camera.getStatus() == CameraStatus.DECOMMISSIONED) {
             throw new CameraException(CameraErrorCode.ERR_MAP_002);
         }
@@ -266,20 +324,92 @@ public class CameraService {
         Double lat = request.getLatitude();
         if (lng == null || lat == null || !Double.isFinite(lng) || !Double.isFinite(lat)
                 || lng < -180.0 || lng > 180.0 || lat < -90.0 || lat > 90.0) {
-            throw new IllegalArgumentException("Tọa độ bản đồ không hợp lệ");
+            throw new CameraException(CameraErrorCode.ERR_MAP_003);
         }
 
         String building = request.getBuilding() != null && !request.getBuilding().isBlank()
                 ? request.getBuilding().trim()
                 : null;
+        Integer floorOrder = request.getFloorOrder();
+
+        Area assignedArea = camera.getArea();
+        if (floorOrder != null && building == null) {
+            if (assignedArea != null && assignedArea.getBuilding() != null && !assignedArea.getBuilding().isBlank()) {
+                building = assignedArea.getBuilding().trim();
+            } else {
+                throw new CameraException(CameraErrorCode.ERR_MAP_004);
+            }
+        }
+
+        if (building != null) {
+            if (assignedArea != null && assignedArea.getBuilding() != null && !assignedArea.getBuilding().isBlank()
+                    && !matchesBuildingName(building, assignedArea.getBuilding())) {
+                throw new CameraException(CameraErrorCode.ERR_MAP_004);
+            }
+
+            if (floorRepository != null) {
+                List<Floor> activeFloors = floorRepository.findAllActiveFloors();
+                List<Floor> buildingFloors = new ArrayList<>();
+                for (Floor f : activeFloors) {
+                    if (f.getBuilding() != null && matchesBuildingName(building, f.getBuilding().getName())) {
+                        buildingFloors.add(f);
+                    }
+                }
+                if (buildingFloors.isEmpty()) {
+                    throw new CameraException(CameraErrorCode.ERR_MAP_004);
+                }
+                building = buildingFloors.get(0).getBuilding().getName();
+
+                if (floorOrder != null) {
+                    Floor matchedFloor = buildingFloors.stream()
+                            .filter(f -> Objects.equals(f.getFloorOrder(), floorOrder))
+                            .findFirst()
+                            .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_MAP_004));
+
+                    if (assignedArea != null) {
+                        if (assignedArea.getFloorEntity() != null
+                                && !Objects.equals(assignedArea.getFloorEntity().getFloorOrder(), floorOrder)) {
+                            throw new CameraException(CameraErrorCode.ERR_MAP_004);
+                        }
+                        if (assignedArea.getFloorEntity() == null
+                                && assignedArea.getFloor() != null
+                                && !assignedArea.getFloor().isBlank()
+                                && !matchedFloor.getName().trim().equalsIgnoreCase(assignedArea.getFloor().trim())) {
+                            throw new CameraException(CameraErrorCode.ERR_MAP_004);
+                        }
+                    }
+                }
+            } else if (floorOrder != null && assignedArea != null && assignedArea.getFloorEntity() != null
+                    && !Objects.equals(assignedArea.getFloorEntity().getFloorOrder(), floorOrder)) {
+                throw new CameraException(CameraErrorCode.ERR_MAP_004);
+            }
+        }
 
         camera.setMapLongitude(lng);
         camera.setMapLatitude(lat);
         camera.setMapBuilding(building);
-        camera.setMapFloorOrder(request.getFloorOrder());
+        camera.setMapFloorOrder(floorOrder);
 
         Camera saved = cameraRepository.save(camera);
         return mapToDetailResponse(saved);
+    }
+
+    private static boolean matchesBuildingName(String b1, String b2) {
+        String n1 = normalizeBuildingName(b1);
+        String n2 = normalizeBuildingName(b2);
+        return !n1.isEmpty() && n1.equals(n2);
+    }
+
+    private static String normalizeBuildingName(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String normalized = java.text.Normalizer.normalize(raw.trim().toLowerCase(Locale.ROOT), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        if (normalized.startsWith("toa ")) {
+            normalized = normalized.substring(4).trim();
+        }
+        return normalized;
     }
 
     /**
@@ -302,8 +432,7 @@ public class CameraService {
 
     public CameraDetailResponse decommissionCamera(UUID id) {
         log.info("Decommissioning camera for id: {}", id);
-        Camera camera = cameraRepository.findById(id)
-                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+        Camera camera = findActiveCameraById(id);
 
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
@@ -316,8 +445,7 @@ public class CameraService {
 
     public void deleteCamera(UUID id) {
         log.info("Soft deleting camera for id: {}", id);
-        Camera camera = cameraRepository.findById(id)
-                .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+        Camera camera = findActiveCameraById(id);
 
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
@@ -345,6 +473,13 @@ public class CameraService {
 
         Camera saved = cameraRepository.save(camera);
         cameraStreamConfigurationRepository.findByCameraId(id).ifPresent(cfg -> {
+            if (hasActiveRtspConflict(id, cfg.getHost(), cfg.getPort(), cfg.getMainStreamPath())) {
+                log.warn("Gỡ cấu hình RTSP cũ của camera [{}] khi kích hoạt lại vì endpoint [{}:{}{}] đã được camera khác sử dụng",
+                        camera.getCameraCode(), cfg.getHost(), cfg.getPort(), cfg.getMainStreamPath());
+                cameraStreamConfigurationRepository.delete(cfg);
+                saved.setStreamConfiguration(null);
+                return;
+            }
             String mainRtspUrl = buildRtspUrl(cfg);
             String subRtspUrl = buildSubRtspUrl(cfg);
             boolean hasSub = (subRtspUrl != null && !subRtspUrl.isBlank());
@@ -372,6 +507,9 @@ public class CameraService {
         }
         if (camera.getOperationalStatus() == OperationalStatus.ONLINE) {
             throw new CameraException(CameraErrorCode.ERR_STREAM_004);
+        }
+        if (hasActiveRtspConflict(cameraId, req.getHost(), req.getPort(), req.getMainStreamPath())) {
+            throw new CameraException(CameraErrorCode.ERR_STREAM_005);
         }
 
         CameraStreamConfiguration config = cameraStreamConfigurationRepository.findByCameraId(cameraId)
@@ -478,6 +616,23 @@ public class CameraService {
             log.info("Successfully synced ROI geometry to AI Service for camera [{}]", cameraCode);
         } catch (Exception e) {
             log.warn("Could not sync ROI geometry to AI Service for camera [{}]: {}", cameraCode, e.getMessage());
+        }
+    }
+
+    private void ensureAiWorkerRunningIfNeeded(String cameraCode) {
+        if (cameraCode == null || cameraCode.isBlank() || aiServiceUrl == null || aiServiceUrl.isBlank()) {
+            return;
+        }
+        try {
+            String statusUrl = aiServiceUrl + "/api/v1/stream/status?camera_code=" + cameraCode;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> statusResp = restTemplate.getForObject(statusUrl, Map.class);
+            if (statusResp != null && !Boolean.TRUE.equals(statusResp.get("is_running"))) {
+                log.info("🔄 [AI Recovery] Camera [{}] đang ONLINE nhưng AI Worker chưa chạy -> thử khởi động lại", cameraCode);
+                startAiStreamWorkerSafely(cameraCode);
+            }
+        } catch (Exception ex) {
+            log.debug("Không thể kiểm tra trạng thái AI Stream Worker cho camera [{}]: {}", cameraCode, ex.getMessage());
         }
     }
 
@@ -732,6 +887,28 @@ public class CameraService {
             sb.append(path.trim());
         }
         return sb.toString();
+    }
+
+    private boolean hasActiveRtspConflict(UUID cameraId, String host, Integer port, String mainStreamPath) {
+        if (host == null || host.isBlank() || port == null || mainStreamPath == null || mainStreamPath.isBlank()) {
+            return false;
+        }
+        return cameraStreamConfigurationRepository.existsActiveRtspConflict(
+                cameraId,
+                host.trim(),
+                port,
+                normalizeMainStreamPathForComparison(mainStreamPath),
+                CameraStatus.DECOMMISSIONED
+        );
+    }
+
+    private String normalizeMainStreamPathForComparison(String path) {
+        String trimmed = path.trim();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("rtsp://") || lower.startsWith("rtsps://") || trimmed.startsWith("/")) {
+            return trimmed;
+        }
+        return "/" + trimmed;
     }
 
 }

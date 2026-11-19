@@ -18,9 +18,9 @@ stateDiagram-v2
     PENDING --> CANCELLED : Administrator deactivates an area of the visit [now before endTime]
     PENDING --> EXPIRED : System job expirePendingVisits every minute [now at or after startTime]
 
-    APPROVED --> CANCELLED : Host cancels [version matches, now before endTime] / biometrics deleted
-    APPROVED --> REVOKED : Facility Manager revokes [version matches, reviewer is not host, reason required, now before endTime] / biometrics deleted
-    APPROVED --> REVOKED : Administrator deactivates an area of the visit [now before endTime] / biometrics deleted
+    APPROVED --> CANCELLED : Host cancels [version matches, now before endTime] / biometrics deleted if before startTime, else kept until cancelledAt + retention
+    APPROVED --> REVOKED : Facility Manager revokes [version matches, reviewer is not host, reason required, now before endTime] / biometrics kept until revokedAt + retention
+    APPROVED --> REVOKED : Administrator deactivates an area of the visit [now before endTime] / biometrics kept until revokedAt + retention
     APPROVED --> COMPLETED : System job completeApprovedVisits every minute [now at or after endTime]
 
     REJECTED --> [*]
@@ -33,7 +33,7 @@ stateDiagram-v2
         Biometric deletion is not a visit state.
         It is Guest.biometricStatus (GuestBiometricStatus):
         NO_PHOTO, PHOTO_READY after Administrator attaches photo with consent,
-        DELETED on cancel or revoke of an APPROVED visit, on expiry,
-        or by job deleteDueBiometrics at endTime + GUEST_FACE_RETENTION_HOURS.
+        DELETED on cancel of an APPROVED visit before startTime, on expiry, or by job deleteDueBiometrics
+        at endTime (REVOKED: revokedAt; CANCELLED after startTime: cancelledAt) + GUEST_FACE_RETENTION_HOURS.
         PHOTO_ONLY exists in the enum but no code sets it.
     end note

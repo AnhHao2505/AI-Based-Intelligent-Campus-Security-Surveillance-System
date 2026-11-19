@@ -12,5 +12,7 @@ public interface EdgeDeviceStatusRepository extends JpaRepository<EdgeDeviceStat
 
     List<EdgeDeviceStatus> findByStatusAndLastSeenBefore(String status, OffsetDateTime cutoff);
 
+    List<EdgeDeviceStatus> findByStatusAndLastSeenAfter(String status, OffsetDateTime cutoff);
+
     boolean existsByStatusAndLastSeenAfter(String status, OffsetDateTime cutoff);
 }

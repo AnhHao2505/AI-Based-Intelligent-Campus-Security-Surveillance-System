@@ -96,6 +96,10 @@ class FaceDetectionResult:
     # Thời điểm khuôn mặt này qua bộ lọc chất lượng (đủ lớn, không mờ) và được gắn vào track.
     # Engine dùng để biết có nên giữ thêm (hold) trước khi chốt UNKNOWN hay không.
     seen_at: Optional[float] = None
+    # Mốc thời gian hết hạn hiệu lực quyền (Epoch seconds tính bằng float) từ Backend trả về
+    expires_at: Optional[float] = None
+    # Mốc thời gian bắt đầu có hiệu lực quyền (Epoch seconds tính bằng float) từ Backend trả về
+    starts_at: Optional[float] = None
 
 @dataclass
 class TrackedPerson:
@@ -115,6 +119,10 @@ class TrackedPerson:
     # Thông tin khuôn mặt
     face_detected: bool = False
     face_info: Optional[FaceDetectionResult] = None
+    expires_at: Optional[float] = None
+    starts_at: Optional[float] = None
+    # Backend vừa trả kết quả cho lượt hỏi lại do chạm mốc starts_at / expires_at: engine xét lại trạng thái hiển thị
+    window_recheck_result_ready: bool = False
     last_face_match_time: float = 0.0
     # Lần gần nhất bắt đầu quét lại mặt (có khớp hay không): giãn cách quét lại tính theo mốc này
     last_reverify_attempt_time: float = 0.0
@@ -206,7 +214,7 @@ class SecurityAlertEvent:
 @dataclass
 class RoiPolygonConfig:
     label: str = ""
-    alert_rules: List[str] = field(default_factory=lambda: ["ENTRY_EXIT_TRACKING"])
+    alert_rules: Optional[List[str]] = None
     vertices: List[Point] = field(default_factory=list)
     target_area_id: Optional[str] = None
 

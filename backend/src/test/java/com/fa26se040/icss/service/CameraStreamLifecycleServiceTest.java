@@ -301,4 +301,15 @@ class CameraStreamLifecycleServiceTest {
         verify(mediaMtxService).syncCameraPathStrict("CAM-001", "rtsp://192.168.1.50:554/stream1");
         verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.ONLINE));
     }
+
+    @Test
+    @DisplayName("F-03: stopStream trên camera đã xóa mềm (deletedAt != null) -> ném ERR_CAM_002")
+    void stopStream_SoftDeletedCamera_ShouldThrowErrCam002() {
+        camera.setDeletedAt(java.time.OffsetDateTime.now().minusMinutes(1));
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+
+        CameraException ex = assertThrows(CameraException.class, () -> cameraStreamLifecycleService.stopStream(cameraId));
+        assertEquals(CameraErrorCode.ERR_CAM_002, ex.getErrorCode());
+        verify(cameraRepository, never()).save(any());
+    }
 }

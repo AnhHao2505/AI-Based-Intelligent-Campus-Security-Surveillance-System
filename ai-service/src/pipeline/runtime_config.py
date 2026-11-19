@@ -32,6 +32,7 @@ RUNTIME_FIELDS: Dict[str, Tuple[str, Optional[Tuple[str, str]]]] = {
     "identity_grace_seconds": ("ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS", ("engine", "access_grace_period")),
     "unauthorized_alert_cooldown": ("DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS", ("engine", "unauthorized_alert_cooldown")),
     "suspicious_motion_cooldown": ("SUSPICIOUS_MOTION_COOLDOWN_SECONDS", ("pipeline", "_suspicious_motion_cooldown")),
+    "suspicious_motion_min_duration": ("SUSPICIOUS_MOTION_MIN_DURATION", ("pipeline", "suspicious_motion_min_duration")),
     # V126: thời hạn lưu trữ video ghi hình (giờ)
     "recording_retention_hours": ("RECORDING_RETENTION_HOURS", None),
     # V127 (origin/main): thời gian giữ thêm (hold) khi đang thấy mặt nhưng chưa khớp, trước khi chốt cảnh báo người lạ
