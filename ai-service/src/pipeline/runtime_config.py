@@ -106,10 +106,18 @@ def apply_runtime_config(
         setattr(settings, RUNTIME_FIELDS[key][0], val)
     if default_pipeline is not None:
         _apply_to_pipeline(default_pipeline, values)
+
+    seg_seconds = values.get("recording_segment_seconds")
     for worker in list(workers):
         pipeline = getattr(worker, "pipeline", None)
         if pipeline is not None:
             _apply_to_pipeline(pipeline, values)
+        recorder = getattr(worker, "recorder", None)
+        if recorder is not None and seg_seconds is not None:
+            try:
+                recorder.set_segment_seconds(int(seg_seconds))
+            except Exception as rec_err:
+                logger.warning(f"⚠️ [RuntimeConfig] Không thể cập nhật recorder worker: {rec_err}")
 
     logger.info(f"✅ [RuntimeConfig] Đã áp cấu hình runtime AI: {values}")
     return values, errors

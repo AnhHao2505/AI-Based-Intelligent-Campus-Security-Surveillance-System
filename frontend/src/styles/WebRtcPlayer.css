@@ -499,3 +499,409 @@
     padding: 3px 10px;
   }
 }
+
+/* ==========================================================================
+   YouTube-Live DVR Scrubber Bar & Real-Time Red-Dot Alert Markers
+   ========================================================================== */
+.cctv-tag--dvr-back {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  color: #fbbf24;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.cctv-tag--dvr-back:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  color: #fecaca;
+}
+
+.cctv-dot--amber {
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
+.dvr-status-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 14;
+}
+
+.dvr-buffering-pill {
+  background: rgba(2, 6, 23, 0.84);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #e0f2fe;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.dvr-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.dvr-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.dvr-action-pill:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.dvr-action-pill--live {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.65);
+  color: #fecaca;
+}
+
+.dvr-action-pill--live:hover {
+  background: rgba(239, 68, 68, 0.4);
+  color: #ffffff;
+}
+
+.dvr-scrubber-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 16;
+  padding: 14px 10px 7px 10px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.94) 0%, rgba(0, 0, 0, 0.72) 65%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: auto;
+}
+
+.dvr-scrubber-bar.is-compact {
+  padding: 10px 8px 5px 8px;
+  gap: 3px;
+}
+
+.dvr-track-hitarea {
+  position: relative;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.dvr-track-rail {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  transition: height 0.15s ease;
+}
+
+.dvr-track-hitarea:hover .dvr-track-rail {
+  height: 6px;
+}
+
+.dvr-track-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  border-radius: 999px;
+  transition: width 0.15s linear;
+}
+
+.dvr-track-fill.is-live {
+  background: #ef4444;
+}
+
+.dvr-track-fill.is-dvr {
+  background: #38bdf8;
+}
+
+.dvr-track-thumb {
+  position: absolute;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  transition: transform 0.12s ease;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.dvr-track-hitarea:hover .dvr-track-thumb {
+  transform: translate(-50%, -50%) scale(1.18);
+}
+
+.dvr-track-thumb.is-live {
+  background: #ef4444;
+  border: 2px solid #ffffff;
+}
+
+.dvr-track-thumb.is-dvr {
+  background: #38bdf8;
+  border: 2px solid #ffffff;
+}
+
+/* Chấm đỏ đánh dấu sự cố trên thanh tua */
+.dvr-alert-dot {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 1.5px solid #ffffff;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 4;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.9);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dvr-alert-dot:hover {
+  transform: translate(-50%, -50%) scale(1.45);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 1);
+  z-index: 6;
+}
+
+.dvr-alert-dot.is-focused {
+  width: 12px;
+  height: 12px;
+  background: #ff2b2b;
+  border: 2px solid #fef08a;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.4), 0 0 12px #ef4444;
+  z-index: 5;
+}
+
+.dvr-alert-dot.is-recent {
+  animation: dvr-alert-pulse 1.2s infinite;
+}
+
+@keyframes dvr-alert-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.85), 0 0 8px rgba(239, 68, 68, 0.9);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0), 0 0 12px rgba(239, 68, 68, 1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), 0 0 8px rgba(239, 68, 68, 0.9);
+  }
+}
+
+.dvr-scrubber-tooltip {
+  position: absolute;
+  bottom: 22px;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #f8fafc;
+  font-size: 0.7rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.75);
+  z-index: 20;
+}
+
+.dvr-scrubber-tooltip.is-alert {
+  border-color: rgba(239, 68, 68, 0.65);
+}
+
+.dvr-tooltip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  flex-shrink: 0;
+}
+
+.dvr-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.dvr-controls-left,
+.dvr-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dvr-ctrl-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f1f5f9;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.dvr-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.dvr-ctrl-sub {
+  font-size: 0.62rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+.dvr-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.dvr-live-pill.is-at-live {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.55);
+  color: #fecaca;
+}
+
+.dvr-live-pill.is-at-live .dvr-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+}
+
+.dvr-live-pill.is-behind {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: rgba(148, 163, 184, 0.4);
+  color: #cbd5e1;
+}
+
+.dvr-live-pill.is-behind:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
+.dvr-live-pill.is-behind .dvr-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.dvr-time-readout {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.68rem;
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dvr-jump-alert-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 3px;
+  background: rgba(239, 68, 68, 0.25);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  color: #fecaca;
+  font-size: 0.66rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dvr-jump-alert-btn:hover {
+  background: rgba(239, 68, 68, 0.42);
+  color: #ffffff;
+}
+
+.dvr-speed-pill {
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #7dd3fc;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dvr-speed-pill:hover {
+  background: rgba(56, 189, 248, 0.3);
+  color: #ffffff;
+}
+
+.dvr-alert-count-chip {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+@media (max-width: 768px) {
+  .dvr-time-readout {
+    display: none;
+  }
+}

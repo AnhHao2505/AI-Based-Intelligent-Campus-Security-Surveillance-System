@@ -186,3 +186,31 @@ export function getAnnotatedStreamToken(cameraCode) {
 		},
 	);
 }
+
+/**
+ * Lấy danh sách các đoạn DVR liên tục hiện có trên MediaMTX cho camera.
+ */
+export function fetchDvrSegments(cameraCode, { startMs, endMs } = {}) {
+	const params = new URLSearchParams();
+	if (startMs != null) params.set("startMs", String(Math.floor(startMs)));
+	if (endMs != null) params.set("endMs", String(Math.floor(endMs)));
+	const qs = params.toString();
+	return request(
+		`/api/cameras/${encodeURIComponent(cameraCode)}/dvr/segments${qs ? `?${qs}` : ""}`,
+	);
+}
+
+/**
+ * Tạo URL streaming fMP4 DVR từ MediaMTX Playback qua Backend proxy kèm HMAC stream token.
+ */
+export function buildDvrStreamUrl(cameraCode, { startMs, durationSec = 1800, path, token }) {
+	const params = new URLSearchParams({
+		startMs: String(Math.floor(startMs)),
+		duration: String(durationSec),
+		token: String(token || ""),
+	});
+	if (path) {
+		params.set("path", path);
+	}
+	return `${API_BASE_URL}/api/cameras/${encodeURIComponent(cameraCode)}/dvr/stream?${params.toString()}`;
+}

@@ -36,6 +36,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -136,7 +137,7 @@ class CameraRecordingIngestionAndLifecycleTest {
 
         // Kiểm chứng listRecordings đọc từ DB và trả đúng 00:23 (23s) chứ không bị fake 60s
         when(cameraRepository.findAll()).thenReturn(List.of(sampleCamera));
-        when(cameraRecordingRepository.findAllByStatusOrderByStartTimeDesc(RecordingStatus.READY))
+        when(cameraRecordingRepository.findAllByStatusInOrderByStartTimeDesc(anyCollection()))
                 .thenReturn(List.of(saved));
         ReflectionTestUtils.setField(cameraRecordingService, "recordingStoragePath", tempDir.resolve("empty_rec").toString());
         ReflectionTestUtils.setField(cameraRecordingService, "evidenceStoragePath", tempDir.resolve("empty_evd").toString());

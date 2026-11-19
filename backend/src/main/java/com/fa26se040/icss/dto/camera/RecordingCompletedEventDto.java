@@ -23,6 +23,7 @@ public class RecordingCompletedEventDto {
     private String incidentId;
 
     @JsonProperty("event_id")
+    @com.fasterxml.jackson.annotation.JsonAlias({"incident_event_id", "incidentId"})
     private String eventId;
 
     @JsonProperty("recording_type")
@@ -32,9 +33,11 @@ public class RecordingCompletedEventDto {
     private String storageLocation;
 
     @JsonProperty("storage_bucket")
+    @com.fasterxml.jackson.annotation.JsonAlias({"bucket_name", "bucket"})
     private String storageBucket;
 
     @JsonProperty("storage_key")
+    @com.fasterxml.jackson.annotation.JsonAlias({"object_key", "key"})
     private String storageKey;
 
     @JsonProperty("filename")
