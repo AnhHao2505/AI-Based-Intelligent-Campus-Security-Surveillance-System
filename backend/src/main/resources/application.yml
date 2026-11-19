@@ -69,10 +69,12 @@ ai:
   service:
     url: ${AI_SERVICE_URL:http://${AI_SERVICE_HOST:localhost}:${AI_SERVICE_PORT:8000}}
 
-# Cấu hình kết nối MediaMTX Gateway (Port 9997 API)
+# Cấu hình kết nối MediaMTX Gateway (Port 9997 API, 9996 Playback, 8889 WHEP)
 mediamtx:
   api:
     url: ${MEDIAMTX_API_URL:http://${MEDIAMTX_HOST:localhost}:${MEDIAMTX_API_PORT:9997}}
+  playback:
+    url: ${MEDIAMTX_PLAYBACK_URL:http://${MEDIAMTX_HOST:localhost}:${MEDIAMTX_PLAYBACK_PORT:9996}}
   whep:
     base-url: ${MEDIAMTX_WHEP_BASE_URL:http://localhost:8889}
 

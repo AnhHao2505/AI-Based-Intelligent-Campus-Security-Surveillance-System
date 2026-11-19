@@ -16,6 +16,8 @@ public interface CameraRecordingRepository extends JpaRepository<CameraRecording
 
     List<CameraRecording> findAllByStatusOrderByStartTimeDesc(RecordingStatus status);
 
+    List<CameraRecording> findAllByStatusInOrderByStartTimeDesc(java.util.Collection<RecordingStatus> statuses);
+
     List<CameraRecording> findAllByCameraCodeIgnoreCaseAndStatusOrderByStartTimeDesc(
             String cameraCode,
             RecordingStatus status

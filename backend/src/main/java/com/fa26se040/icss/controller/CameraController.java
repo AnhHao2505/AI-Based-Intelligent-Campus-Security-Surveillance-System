@@ -20,10 +20,13 @@ import com.fa26se040.icss.service.CameraConnectionService;
 import com.fa26se040.icss.service.CameraStreamLifecycleService;
 import com.fa26se040.icss.service.CameraRecordingService;
 import com.fa26se040.icss.service.AnnotatedStreamTokenService;
+import com.fa26se040.icss.service.MediaMtxService;
 import com.fa26se040.icss.service.RecordingStreamTokenService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,6 +44,9 @@ public class CameraController {
     private final CameraRecordingService cameraRecordingService;
     private final AnnotatedStreamTokenService annotatedStreamTokenService;
     private final RecordingStreamTokenService recordingStreamTokenService;
+
+    @Autowired(required = false)
+    private MediaMtxService mediaMtxService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -225,6 +231,30 @@ public class CameraController {
     }
 
     /**
+     * Lấy ảnh thu nhỏ (thumbnail khung hình đầu tiên) của video ghi hình.
+     * Cho phép xác thực qua Bearer JWT (vai trò ADMIN, GUARD, FACILITY_MANAGER) hoặc query token ngắn hạn.
+     */
+    @GetMapping("/recordings/thumbnail")
+    public ResponseEntity<org.springframework.core.io.Resource> getRecordingThumbnail(
+            @RequestParam String path,
+            @RequestParam(required = false, defaultValue = "recording") String source,
+            @RequestParam(required = false) String token,
+            Authentication authentication) throws IOException {
+        if (token != null && !token.isBlank()) {
+            recordingStreamTokenService.verify(path, source, token, authentication);
+        } else {
+            if (authentication == null || !authentication.isAuthenticated()) {
+                throw new com.fa26se040.icss.exception.UnauthorizedException("Vui lòng đăng nhập để xem ảnh thu nhỏ video");
+            }
+            String role = extractAuthorizedRole(authentication);
+            if (!RecordingStreamTokenService.ALLOWED_AUTHORITIES.contains(role)) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xem ảnh thu nhỏ video");
+            }
+        }
+        return cameraRecordingService.getThumbnail(path, source);
+    }
+
+    /**
      * BE-03 & Security Fix: Cấp token ngắn hạn mở tệp ghi hình an ninh.
      * Chỉ người dùng có thẩm quyền (ADMIN, GUARD) mới được phép gọi.
      * Token sinh ra được gắn chữ ký số HMAC-SHA256 kèm danh tính và vai trò người gọi.
@@ -268,6 +298,53 @@ public class CameraController {
     }
 
     /**
+     * Lấy danh sách các khoảng DVR liên tục hiện có trên MediaMTX Playback Server cho camera.
+     */
+    @GetMapping("/{cameraCode}/dvr/segments")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
+    public ResponseEntity<ApiResponse<MediaMtxService.DvrTimelineDto>> getDvrSegments(
+            @PathVariable String cameraCode,
+            @RequestParam(required = false) Long startMs,
+            @RequestParam(required = false) Long endMs) {
+        if (mediaMtxService == null) {
+            return ResponseEntity.ok(ApiResponse.success(
+                    new MediaMtxService.DvrTimelineDto(cameraCode, cameraCode.toLowerCase(), System.currentTimeMillis(), List.of()),
+                    "MediaMTX DVR chưa được cấu hình"));
+        }
+        MediaMtxService.DvrTimelineDto timeline = mediaMtxService.getDvrTimeline(cameraCode, startMs, endMs);
+        return ResponseEntity.ok(ApiResponse.success(timeline, "Lấy dòng thời gian DVR camera thành công"));
+    }
+
+    /**
+     * Proxy luồng fMP4 trực tiếp từ MediaMTX Playback Server tại mốc startMs (YouTube-Live DVR playback).
+     * Xác thực qua query token ngắn hạn (?token=...) hoặc phiên đăng nhập hợp lệ (ADMIN, GUARD).
+     */
+    @GetMapping("/{cameraCode}/dvr/stream")
+    public ResponseEntity<StreamingResponseBody> streamDvrPlayback(
+            @PathVariable String cameraCode,
+            @RequestParam long startMs,
+            @RequestParam(required = false) Double duration,
+            @RequestParam(required = false) String path,
+            @RequestParam(required = false) String token,
+            Authentication authentication) {
+        boolean tokenValid = token != null && !token.isBlank()
+                && annotatedStreamTokenService.verifyToken(cameraCode, token);
+        if (!tokenValid) {
+            if (authentication == null || !authentication.isAuthenticated()) {
+                throw new com.fa26se040.icss.exception.UnauthorizedException("Vui lòng đăng nhập hoặc cung cấp stream token hợp lệ để xem DVR playback");
+            }
+            String role = extractAuthorizedRole(authentication);
+            if (!RecordingStreamTokenService.ALLOWED_AUTHORITIES.contains(role)) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền truy cập luồng DVR playback");
+            }
+        }
+        if (mediaMtxService == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return mediaMtxService.streamDvrPlayback(cameraCode, startMs, duration, path);
+    }
+
+    /**
      * F-07: Callback xác thực từ MediaMTX (authMethod: http) cho cả WebRTC WHEP và RTSP nội bộ.
      * - WebRTC WHEP (Browser): kiểm tra HMAC stream token trong query string (?token=...).
      * - RTSP nội bộ (AI Service / Edge Relay): bắt buộc user="icss-internal" và password là HMAC-SHA256 hợp lệ.
@@ -296,7 +373,7 @@ public class CameraController {
             return ResponseEntity.ok().build();
         }
 
-        if ("api".equals(action)
+        if (("api".equals(action) || "playback".equals(action))
                 && com.fa26se040.icss.service.MediaMtxService.INTERNAL_RTSP_USER.equals(user)
                 && annotatedStreamTokenService.verifyInternalApiSecret(password)) {
             return ResponseEntity.ok().build();
