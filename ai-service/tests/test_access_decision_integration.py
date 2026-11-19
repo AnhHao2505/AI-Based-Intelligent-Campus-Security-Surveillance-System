@@ -18,6 +18,11 @@ from src.core.face_matcher import FaceMatcher
 from src.core.entity import FaceDetectionResult, BoundingBox
 from src.core.frame_analysis_engine import FrameAnalysisEngine, Point
 
+# Mốc giờ cố định (Asia/Ho_Chi_Minh) để test không phụ thuộc giờ chạy CI.
+# Không dùng time.time(): sau 22:00 khung mặc định 22:00-06:00 làm test "ban ngày" thành ngoài giờ.
+DAY_TS = 1795057200.0    # 19/11/2026 10:00 +07:00
+NIGHT_TS = 1795017600.0  # 18/11/2026 23:00 +07:00
+
 class TestAccessDecisionIntegration(unittest.TestCase):
 
     def setUp(self):
@@ -110,7 +115,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
 
     def test_frame_analysis_engine_unauthorized_alert_with_reason(self):
         """Test FrameAnalysisEngine sinh cảnh báo UNAUTHORIZED_ACCESS kèm đúng lý do từ checkEntry"""
-        engine = FrameAnalysisEngine(after_hour_start="23:59", after_hour_end="23:59")
+        engine = FrameAnalysisEngine(after_hour_start="22:00", after_hour_end="06:00")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
@@ -132,7 +137,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
             detected_tracks=[(1, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
-            current_time=time.time()
+            current_time=DAY_TS
         )
 
         self.assertEqual(len(alerts), 1)
@@ -145,7 +150,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
 
     def test_frame_analysis_engine_unknown_person_alert(self):
         """Test FrameAnalysisEngine sinh cảnh báo UNKNOWN_PERSON khi người lạ không có trong database sau grace period"""
-        engine = FrameAnalysisEngine(after_hour_start="23:59", after_hour_end="23:59")
+        engine = FrameAnalysisEngine(after_hour_start="22:00", after_hour_end="06:00")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
@@ -160,8 +165,8 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
         engine.associate_face(track_id=2, face_result=face_info)
 
-        t0 = 100.0
-        # Frame 1: Vừa bước chân vào ROI (t=100.0s) -> Hệ thống giữ VERIFYING, tuyệt đối KHÔNG bắn UNKNOWN sớm!
+        t0 = DAY_TS
+        # Frame 1: Vừa bước chân vào ROI (t0) -> Hệ thống giữ VERIFYING, tuyệt đối KHÔNG bắn UNKNOWN sớm!
         persons, alerts, _ = engine.process_frame(
             detected_tracks=[(2, bbox)],
             roi_polygon=roi,
@@ -171,7 +176,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         self.assertEqual(len(alerts), 0)
         self.assertEqual(persons[0].security_display_state, "VERIFYING")
 
-        # Frame 2: Sau khi hết grace period (t=102.0s) -> Bắn cảnh báo UNKNOWN_PERSON
+        # Frame 2: Sau khi hết grace period (t0 + 2s) -> Bắn cảnh báo UNKNOWN_PERSON
         persons, alerts, _ = engine.process_frame(
             detected_tracks=[(2, bbox)],
             roi_polygon=roi,
@@ -187,12 +192,12 @@ class TestAccessDecisionIntegration(unittest.TestCase):
 
     def test_frame_analysis_engine_daytime_unclear_face(self):
         """Test Trong giờ hoạt động nhưng chưa rõ mặt trong vùng ROI -> Gán UNKNOWN_PERSON (Quy tắc 'chưa rõ mặt là gán unknow luôn')"""
-        engine = FrameAnalysisEngine(after_hour_start="23:59", after_hour_end="23:59")
+        engine = FrameAnalysisEngine(after_hour_start="22:00", after_hour_end="06:00")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
         # Đối tượng trong ROI nhưng chưa phát hiện được mặt (quay lưng / che mặt)
-        t0 = time.time()
+        t0 = DAY_TS
         engine.process_frame(detected_tracks=[(7, bbox)], roi_polygon=roi, camera_code="CAM-SERVER-01", current_time=t0)
         persons, alerts, _ = engine.process_frame(detected_tracks=[(7, bbox)], roi_polygon=roi, camera_code="CAM-SERVER-01", current_time=t0 + 2.0)
 
@@ -204,12 +209,12 @@ class TestAccessDecisionIntegration(unittest.TestCase):
 
     def test_frame_analysis_engine_after_hours_unclear_face(self):
         """Test Ngoài giờ hoạt động nhưng chưa rõ mặt -> Gán INTRUSION kèm tag [INTRUSION]"""
-        engine = FrameAnalysisEngine(after_hour_start="00:00", after_hour_end="23:59")
+        engine = FrameAnalysisEngine(after_hour_start="22:00", after_hour_end="06:00")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
         # Chưa phát hiện mặt (quay lưng / che mặt ban đêm) -> Gán INTRUSION
-        t0 = time.time()
+        t0 = NIGHT_TS
         engine.process_frame(detected_tracks=[(3, bbox)], roi_polygon=roi, camera_code="CAM-SERVER-01", current_time=t0)
         persons, alerts, _ = engine.process_frame(detected_tracks=[(3, bbox)], roi_polygon=roi, camera_code="CAM-SERVER-01", current_time=t0 + 2.0)
 
@@ -220,7 +225,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
 
     def test_frame_analysis_engine_after_hours_authorized_guard(self):
         """Test Ngoài giờ nhưng là người có phân công trực (Bảo vệ trực ca) -> HỢP LỆ, KHÔNG sinh sự cố"""
-        engine = FrameAnalysisEngine(after_hour_start="00:00", after_hour_end="23:59")
+        engine = FrameAnalysisEngine(after_hour_start="22:00", after_hour_end="06:00")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
@@ -240,14 +245,14 @@ class TestAccessDecisionIntegration(unittest.TestCase):
             detected_tracks=[(4, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
-            current_time=time.time()
+            current_time=NIGHT_TS
         )
 
         self.assertEqual(len(alerts), 0)  # Bảo vệ trực ca hợp lệ
 
     def test_frame_analysis_engine_after_hours_student_denied(self):
         """Test Ngoài giờ: Sinh viên có trong DB nhưng chỉ có quyền ban ngày (không có đơn trực đêm) -> UNAUTHORIZED_ACCESS"""
-        engine = FrameAnalysisEngine(after_hour_start="00:00", after_hour_end="23:59")
+        engine = FrameAnalysisEngine(after_hour_start="22:00", after_hour_end="06:00")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
@@ -268,7 +273,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
             detected_tracks=[(6, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
-            current_time=time.time()
+            current_time=NIGHT_TS
         )
 
         self.assertEqual(len(alerts), 1)
@@ -278,7 +283,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
 
     def test_frame_analysis_engine_after_hours_unknown_intruder(self):
         """Test Ngoài giờ và là người lạ ngoài hệ thống -> Sinh INTRUSION kèm tag [PERSON_INTRUSION] sau grace period"""
-        engine = FrameAnalysisEngine(after_hour_start="00:00", after_hour_end="23:59")
+        engine = FrameAnalysisEngine(after_hour_start="22:00", after_hour_end="06:00")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
@@ -292,7 +297,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
         )
         engine.associate_face(track_id=5, face_result=face_info)
 
-        t0 = 100.0
+        t0 = NIGHT_TS
         # Frame 1: Vừa bước chân vào ROI ngoài giờ -> Giữ VERIFYING
         persons, alerts, _ = engine.process_frame(
             detected_tracks=[(5, bbox)],
@@ -319,7 +324,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
 
     def test_frame_analysis_engine_soft_deleted_user_classified_as_unknown_person(self):
         """Test Người dùng đã bị xoá mềm trong DB khi Backend phản hồi 'Người dùng không tồn tại' -> Gán UNKNOWN_PERSON"""
-        engine = FrameAnalysisEngine(after_hour_start="23:59", after_hour_end="23:59")
+        engine = FrameAnalysisEngine(after_hour_start="22:00", after_hour_end="06:00")
         roi = [Point(100, 100), Point(400, 100), Point(400, 400), Point(100, 400)]
         bbox = BoundingBox(x1=200, y1=200, x2=300, y2=300)
 
@@ -339,7 +344,7 @@ class TestAccessDecisionIntegration(unittest.TestCase):
             detected_tracks=[(8, bbox)],
             roi_polygon=roi,
             camera_code="CAM-SERVER-01",
-            current_time=time.time()
+            current_time=DAY_TS
         )
 
         self.assertEqual(len(alerts), 1)
