@@ -80,14 +80,18 @@ import {
 } from "../../utils/campusCameraHelpers";
 import "../../styles/CampusMapView.css";
 
-// FPT University HCMC Campus default center framing both Tòa Alpha & Tòa Epsilon
+// Tòa Epsilon default center (single-building campus demo)
 const CAMPUS_CENTER = {
-	longitude: 106.81068,
-	latitude: 10.84098,
-	zoom: 17.35,
+	longitude: 106.811441,
+	latitude: 10.8405,
+	zoom: 18.2,
 	pitch: 52,
 	bearing: -12,
 };
+
+const VISIBLE_BUILDINGS_META = DEFAULT_BUILDINGS_META.filter(
+	(b) => !matchesBuilding(b.name, "Tòa Alpha"),
+);
 
 const MAP_LIGHT = {
 	anchor: "viewport",
@@ -332,6 +336,11 @@ export default function CampusMapView({
 		[pickingCameraLocation, pickingTargetAreaInfo, selectedAreaId],
 	);
 
+	const effectiveBuilding3d =
+		activeBuilding3d === "ALL" || matchesBuilding(activeBuilding3d, "Tòa Alpha")
+			? "Tòa Epsilon"
+			: activeBuilding3d;
+
 	const {
 		slabsGeoJSON,
 		wallsGeoJSON,
@@ -341,20 +350,29 @@ export default function CampusMapView({
 		portalShaftsGeoJSON,
 		buildingLabelsGeoJSON,
 	} = useMemo(() => {
-		return buildVector3dLayers({
+		const layers = buildVector3dLayers({
 			store: geometryStore,
-			selectedBuilding: activeBuilding3d,
+			selectedBuilding: effectiveBuilding3d,
 			activeFloorOrder: activeFloorOrder3d,
 			areas,
 			selectedAreaId: effectiveSelectedAreaId,
 			creatingPreview: activeCreatingPreview,
 			viewRole: isAdmin ? "ADMIN" : "FACILITY_MANAGER",
-			showOtherBuildingsInFocus: true,
+			showOtherBuildingsInFocus: false,
 			floorElevationStep: floorGapStep,
 		});
+		return {
+			...layers,
+			buildingLabelsGeoJSON: {
+				...layers.buildingLabelsGeoJSON,
+				features: (layers.buildingLabelsGeoJSON?.features || []).filter(
+					(f) => !matchesBuilding(f.properties?.building, "Tòa Alpha"),
+				),
+			},
+		};
 	}, [
 		geometryStore,
-		activeBuilding3d,
+		effectiveBuilding3d,
 		activeFloorOrder3d,
 		areas,
 		effectiveSelectedAreaId,
@@ -369,7 +387,7 @@ export default function CampusMapView({
 				cameras,
 				areas,
 				store: geometryStore,
-				selectedBuilding: activeBuilding3d,
+				selectedBuilding: effectiveBuilding3d,
 				activeFloorOrder: activeFloorOrder3d,
 				selectedAreaId: effectiveSelectedAreaId,
 				selectedCameraId,
@@ -379,7 +397,7 @@ export default function CampusMapView({
 			cameras,
 			areas,
 			geometryStore,
-			activeBuilding3d,
+			effectiveBuilding3d,
 			activeFloorOrder3d,
 			effectiveSelectedAreaId,
 			selectedCameraId,
@@ -507,14 +525,14 @@ export default function CampusMapView({
 	);
 
 	const handleSelect3dBuilding = useCallback(
-		(bName, targetFloorOrder = "ALL", { syncParent = true } = {}) => {
+		(bName, targetFloorOrder = "ALL", { syncParent = true, fly = true } = {}) => {
 			setActiveBuilding3d(bName);
 			if (bName === "ALL") {
 				setActiveFloorOrder3d("ALL");
 				if (syncParent) {
 					notifyParentMapFilter("ALL", "ALL");
 				}
-				if (mapRef.current) {
+				if (fly && mapRef.current) {
 					mapRef.current.flyTo({
 						center: [CAMPUS_CENTER.longitude, CAMPUS_CENTER.latitude],
 						zoom: CAMPUS_CENTER.zoom,
@@ -540,7 +558,7 @@ export default function CampusMapView({
 				if (syncParent) {
 					notifyParentMapFilter(bld.name, resolvedFl);
 				}
-				if (mapRef.current) {
+				if (fly && mapRef.current) {
 					mapRef.current.flyTo({
 						center: bld.center,
 						zoom: 18.7,
@@ -709,7 +727,9 @@ export default function CampusMapView({
 		}
 	}, [isAdmin, rebindAreaRequestId, editingAreaId, areas]);
 
-	// Khi chọn 1 Area từ danh sách bên trái, tự động mở đúng tòa nhà và cắt đúng tầng của Area đó
+	// Khi chọn 1 Area từ danh sách bên trái, tự động mở đúng tòa nhà và cắt đúng tầng của Area đó.
+	// Không flyTo lại khi người dùng vừa click trực tiếp khối phòng trên bản đồ 3D.
+	const skipNextAreaFlyRef = useRef(false);
 	const prevSyncedAreaIdRef = useRef(selectedAreaId);
 	useEffect(() => {
 		if (!selectedAreaId || prevSyncedAreaIdRef.current === selectedAreaId) {
@@ -717,6 +737,10 @@ export default function CampusMapView({
 			return;
 		}
 		prevSyncedAreaIdRef.current = selectedAreaId;
+		if (skipNextAreaFlyRef.current) {
+			skipNextAreaFlyRef.current = false;
+			return;
+		}
 		if (isCreatingArea || isEditingCoords) return;
 		const area = areas.find((a) => a.id === selectedAreaId);
 		if (!area) return;
@@ -1405,8 +1429,11 @@ export default function CampusMapView({
 						: hitProps.floorOrder != null
 							? Number(hitProps.floorOrder)
 							: "ALL";
-				handleSelect3dBuilding(clickedBuilding, targetFloor);
+				const currentZoom = mapRef.current?.getZoom?.() ?? CAMPUS_CENTER.zoom;
+				const shouldFly = !(clickedRoomFeature && currentZoom >= 18);
+				handleSelect3dBuilding(clickedBuilding, targetFloor, { fly: shouldFly });
 				if (hasSpecificAreaRoom) {
+					skipNextAreaFlyRef.current = true;
 					onSelectArea?.(roomProps.matchedAreaId);
 				}
 				return;
@@ -1423,6 +1450,7 @@ export default function CampusMapView({
 					);
 				}
 				if (roomProps.matchedAreaId) {
+					skipNextAreaFlyRef.current = true;
 					onSelectArea?.(roomProps.matchedAreaId);
 				}
 				return;
@@ -1494,14 +1522,14 @@ export default function CampusMapView({
 							className="campus-3d-slicer-select"
 							aria-label="Chọn tòa nhà 3D trên bản đồ"
 							value={
-								DEFAULT_BUILDINGS_META.find((b) =>
+								VISIBLE_BUILDINGS_META.find((b) =>
 									matchesBuilding(activeBuilding3d, b.name),
 								)?.name || "ALL"
 							}
 							onChange={(e) => handleSelect3dBuilding(e.target.value)}
 						>
 							<option value="ALL">Toàn khuôn viên</option>
-							{DEFAULT_BUILDINGS_META.map((b) => (
+							{VISIBLE_BUILDINGS_META.map((b) => (
 								<option key={b.id} value={b.name}>
 									{b.name}
 								</option>

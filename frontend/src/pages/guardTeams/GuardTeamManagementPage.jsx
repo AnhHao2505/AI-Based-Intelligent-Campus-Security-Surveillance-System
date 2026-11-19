@@ -1723,7 +1723,7 @@ export default function GuardTeamManagementPage() {
                     name="notes"
                     rows={2}
                     defaultValue={editingShift ? editingShift.notes : ''}
-                    placeholder="Kiểm soát ra vào, trực màn hình an ninh hoặc tuần tra định kỳ..."
+                    placeholder="Kiểm soát vào khu vực, trực màn hình an ninh hoặc tuần tra định kỳ..."
                     className="schedule-form-textarea"
                   />
                 </div>

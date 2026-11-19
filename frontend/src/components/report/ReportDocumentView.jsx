@@ -62,7 +62,7 @@ export default function ReportDocumentView({ reportData }) {
           BÁO CÁO TỔNG HỢP GIÁM SÁT AN NINH & KIỂM SOÁT VÙNG HẠN CHẾ
         </h1>
         <div className="report-header__sub-title">
-          (Trích xuất dữ liệu AI Computer Vision, lịch sử ra vào, điều phối ca trực bảo vệ & kiểm toán vận hành)
+          (Trích xuất dữ liệu AI Computer Vision, lịch sử vào khu vực, điều phối ca trực bảo vệ & kiểm toán vận hành)
         </div>
 
         <div className="report-header__meta-grid">
@@ -120,7 +120,7 @@ export default function ReportDocumentView({ reportData }) {
               <td>Chưa có bảo vệ tiếp nhận hoặc đang tiến hành xác minh thực địa</td>
             </tr>
             <tr>
-              <td className="font-semibold">Tổng lượt quét kiểm soát ra vào</td>
+              <td className="font-semibold">Tổng lượt quét kiểm soát vào khu vực</td>
               <td className="report-col-right font-semibold">{reportData.totalAccessScans.toLocaleString()}</td>
               <td>
                 Hợp lệ: <strong>{reportData.authorizedAccessCount.toLocaleString()}</strong> ({percentFormat(reportData.totalAccessScans > 0 ? reportData.authorizedAccessCount / reportData.totalAccessScans : 0)}) · Vi phạm: <strong>{reportData.violationAccessCount}</strong>
@@ -298,10 +298,10 @@ export default function ReportDocumentView({ reportData }) {
       {/* Section III: Access Control & Perimeter Scans */}
       <section className="report-section">
         <h2 className="report-section__title">
-          <span>III. KIỂM SOÁT TRUY CẬP RA VÀO & VI PHẠM CHU VI</span>
+          <span>III. KIỂM SOÁT LƯỢT VÀO & VI PHẠM CHU VI</span>
         </h2>
         <p className="report-section__desc">
-          Nhật ký ra vào tổng hợp từ toàn bộ các camera cửa kiểm soát và ranh giới phân vùng. Mọi trường hợp sai quyền,
+          Nhật ký vào khu vực tổng hợp từ toàn bộ các camera cửa kiểm soát và ranh giới phân vùng. Mọi trường hợp sai quyền,
           ngoài giờ hoặc không xác định danh tính đều được ghi nhận tự động phục vụ công tác hậu kiểm.
         </p>
 
@@ -338,7 +338,7 @@ export default function ReportDocumentView({ reportData }) {
         {/* Daily Trend Overview */}
         {reportData.dailyAccessTrends?.length > 1 && (
           <div className="mt-2">
-            <div className="text-[11px] font-bold uppercase mb-1">Bảng diễn biến lưu lượng ra vào theo ngày</div>
+            <div className="text-[11px] font-bold uppercase mb-1">Bảng diễn biến lưu lượng vào khu vực theo ngày</div>
             <table className="report-table report-table--compact">
               <thead>
                 <tr>

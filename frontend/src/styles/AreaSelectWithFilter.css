@@ -1,0 +1,87 @@
+/* ==========================================================================
+   AreaSelectWithFilter — Compact Building & Floor Filter + Area Select
+   ========================================================================== */
+
+.area-select-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.area-select-filter__bar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  align-items: center;
+}
+
+.area-select-filter__bar--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.area-select-filter__sub .ui-select__field {
+  height: 32px;
+  font-size: 0.8125rem;
+  padding: 0 28px 0 10px;
+  background-color: var(--theme-bg-surface-elevated, var(--theme-bg-input));
+  border-color: var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+
+.area-select-filter__sub .ui-select__arrow {
+  right: 8px;
+}
+
+.area-select-filter__sub--active .ui-select__field {
+  border-color: var(--brand-blue);
+  color: var(--theme-text-primary);
+  font-weight: 500;
+}
+
+.area-select-filter__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--theme-text-muted);
+}
+
+.area-select-filter__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.area-select-filter__reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--brand-blue);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.area-select-filter__reset:hover:not(:disabled) {
+  background-color: var(--theme-bg-hover, rgba(3, 78, 162, 0.08));
+}
+
+.area-select-filter__reset:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 1px;
+}
+
+.area-select-filter__reset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

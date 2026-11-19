@@ -126,7 +126,7 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 		if (isNormalUser) {
 			return [
 				{ to: "/access-requests", label: "Yêu cầu truy cập", Icon: KeyRound },
-				{ to: "/access-history", label: "Lịch sử ra vào của tôi", Icon: History },
+				{ to: "/access-history", label: "Lịch sử vào khu vực của tôi", Icon: History },
 				{ to: "/guest-visits", label: "Khách của tôi", Icon: UserPlus },
 				{ to: "/notifications", label: "Thông báo", Icon: Bell, hasUnread: true },
 			];
@@ -152,7 +152,7 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 			items.push(
 				{ to: "/admin/areas", label: "Quản lý khuôn viên", Icon: MapPin },
 				{ to: "/admin/events", label: "Quản lý sự kiện", Icon: CalendarDays },
-				{ to: "/admin/access-history", label: "Lịch sử ra vào", Icon: History },
+				{ to: "/admin/access-history", label: "Lịch sử vào khu vực", Icon: History },
 			);
 		}
 

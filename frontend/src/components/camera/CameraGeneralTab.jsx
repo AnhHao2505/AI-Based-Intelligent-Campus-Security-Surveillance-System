@@ -8,9 +8,8 @@ import {
 	Trash2,
 	RotateCcw,
 } from "lucide-react";
-import { formatLocation } from "../../utils/formatLocation";
 import { getLevelConfig } from "../../utils/areaHelpers";
-import Select from "../ui/Select";
+import AreaSelectWithFilter from "../area/AreaSelectWithFilter";
 
 export default function CameraGeneralTab({
 	generalForm,
@@ -28,24 +27,6 @@ export default function CameraGeneralTab({
 	onUndoRemoveMapLocation = null,
 }) {
 	const navigate = useNavigate();
-
-	const sortedAreaOptions = useMemo(() => {
-		const sorted = [...availableAreas].sort((a, b) => {
-			const locA = `${a.building || ""} ${a.floor || ""} ${a.name || ""}`;
-			const locB = `${b.building || ""} ${b.floor || ""} ${b.name || ""}`;
-			return locA.localeCompare(locB, "vi");
-		});
-		return [
-			{ value: "", label: "-- Chọn khu vực --", disabled: true },
-			...sorted.map((area) => {
-				const loc = formatLocation(area.building, area.floor, " · ");
-				return {
-					value: area.id,
-					label: loc ? `${loc} — ${area.name}` : area.name,
-				};
-			}),
-		];
-	}, [availableAreas]);
 
 	const selectedArea = useMemo(
 		() => availableAreas.find((a) => String(a.id) === String(generalForm.areaId)),
@@ -91,15 +72,17 @@ export default function CameraGeneralTab({
 					</label>
 
 					<div className="camera-general-area-row">
-						<Select
+						<AreaSelectWithFilter
 							className="camera-general-area-select"
+							areas={availableAreas}
 							value={generalForm.areaId || ""}
 							onChange={(e) =>
 								setGeneralForm({ ...generalForm, areaId: e.target.value })
 							}
+							placeholder="-- Chọn khu vực --"
+							placeholderDisabled
 							required
 							disabled={!isAdmin}
-							options={sortedAreaOptions}
 						/>
 
 						{showAreaExternalLink && (
