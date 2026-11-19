@@ -2,7 +2,7 @@
 config:
   layout: elk
 ---
-%% Title: CTX-01 Context diagram of ICSSS (level 0) · Source: controller/*.java (@PreAuthorize roles), security/GoogleTokenVerifier.java, service/NotificationService.java (JavaMailSender, Gmail SMTP), service/CameraConnectionService.java and MediaMtxService.java (RTSP), mobile/lib (Security Officer app) · Updated 2026-10-27 (main @ b3e5ce6): AI Surveillance Engine drawn as an external entity (decision Q-2), ai-service/src/core/face_matcher.py (check-entry), ai-service/src/integration/kafka_producer.py (alerts), FaceDataService (face embeddings), CameraStreamLifecycleService (stream start/stop via MediaMTX), InternalAiController (runtime config) · Updated 2026-10-28: Google Drive (planned, not in code) removed
+%% Title: CTX-01 Context diagram of ICSSS (level 0) · Source: controller/*.java (@PreAuthorize roles), security/GoogleTokenVerifier.java, service/NotificationService.java (JavaMailSender, Gmail SMTP), service/CameraConnectionService.java and MediaMtxService.java (RTSP), mobile/lib (Security Officer app) · Updated 2026-10-27 (main @ b3e5ce6): AI Surveillance Engine drawn as an external entity (decision Q-2), ai-service/src/core/face_matcher.py (check-entry), ai-service/src/integration/kafka_producer.py (alerts), FaceDataService (face embeddings), CameraStreamLifecycleService (stream start/stop via MediaMTX), InternalAiController (runtime config) · Updated 2026-10-28: Google Drive (planned, not in code) removed · Updated 2026-11-19: black and white, noun labels, IP cameras inside the system, flows of UC-41..UC-49 added
 %% Notation: the system is one circle; every external entity is a separate rectangle; every flow is labelled with a noun (data, not an action).
 flowchart LR
     AU["Authorized User"]
@@ -10,35 +10,35 @@ flowchart LR
     AD["Administrator"]
     SO["Security Officer"]
 
-    SYS(("ICSSS<br/>Intelligent Campus<br/>Security Surveillance<br/>System"))
+    SYS(("ICSSS<br/>Intelligent Campus<br/>Security Surveillance<br/>System<br/>(includes IP cameras)"))
 
     AIE["AI Surveillance Engine<br/>(ai-service)"]
-    CAM["IP Camera"]
+    PMA["Person in Monitored Area<br/>(staff, guest or intruder)"]
     GID["Google Identity Service"]
     SMTP["E-mail Service<br/>(Gmail SMTP)"]
 
     AU -->|"Login credentials<br/>Access requests<br/>Guest visit registrations"| SYS
-    FM -->|"Review decisions<br/>Event schedules<br/>Personnel assignments<br/>User access levels<br/>Guard shift plans"| SYS
-    AD -->|"User accounts<br/>Area definitions<br/>Camera configurations<br/>System parameters<br/>Guest photos with consent"| SYS
-    SO -->|"Incident claims<br/>Verification results<br/>Shift change requests"| SYS
+    FM -->|"Review decisions<br/>Event schedules<br/>Personnel assignments<br/>User access levels<br/>Guard shift plans<br/>Guard dispatches<br/>Chat messages"| SYS
+    AD -->|"User accounts<br/>Area definitions<br/>Camera configurations<br/>Detection zones<br/>Incident policies<br/>System parameters<br/>Guest photos with consent"| SYS
+    SO -->|"Incident claims<br/>Dispatch offer refusals<br/>Verification results<br/>Shift change requests<br/>Chat messages"| SYS
 
     SYS -->|"Request status<br/>Notifications<br/>Personal access history"| AU
-    SYS -->|"Pending requests<br/>Escalated incident alerts<br/>Access history<br/>Audit records<br/>Dashboard statistics"| FM
-    SYS -->|"Import results<br/>Audit records<br/>Camera status<br/>Configuration history"| AD
-    SYS -->|"Real-time incident alerts<br/>Live video<br/>Incident location<br/>Shift schedule"| SO
+    SYS -->|"Pending requests<br/>Escalated incident alerts<br/>Critical incident notices<br/>Access history<br/>Audit records<br/>Dashboard statistics<br/>Security reports<br/>Guard timesheets<br/>Chat messages"| FM
+    SYS -->|"Import results<br/>Audit records<br/>Camera status<br/>Configuration history<br/>Security reports"| AD
+    SYS -->|"Real-time incident alerts<br/>Incident dispatch offers<br/>Live video<br/>Incident location<br/>Shift schedule<br/>Chat messages"| SO
 
     AIE -->|"Entry check requests<br/>Security alerts with snapshots<br/>Face embeddings<br/>Incident video clips"| SYS
     SYS -->|"Relayed camera video<br/>Entry decisions<br/>Face images<br/>AI runtime configuration<br/>Stream and recording commands"| AIE
 
-    SYS -->|"Stream connection request"| CAM
-    CAM -->|"Video stream"| SYS
+    PMA -->|"Visual appearance (face, body)"| SYS
     SYS -->|"Signing key request"| GID
     GID -->|"Google signing certificates"| SYS
     SYS -->|"Account setup e-mails<br/>Password reset e-mails"| SMTP
-    SMTP -->|"Send result"| SYS
+    SMTP -->|"E-mail delivery status"| SYS
 
 
-    classDef ext fill:#ffffff,stroke:#1f2937,stroke-width:1.5px,color:#111827
-    classDef sys fill:#e0ecff,stroke:#1d4ed8,stroke-width:2px,color:#0f172a
-    class AU,FM,AD,SO,AIE,CAM,GID,SMTP ext
+    classDef ext fill:#ffffff,stroke:#000000,stroke-width:1.5px,color:#000000
+    classDef sys fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000
+    class AU,FM,AD,SO,AIE,PMA,GID,SMTP ext
+    linkStyle default stroke:#000000
     class SYS sys

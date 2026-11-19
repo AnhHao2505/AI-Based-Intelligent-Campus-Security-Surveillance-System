@@ -2,8 +2,11 @@
 ' Title: UC-01 Use case diagram of ICSSS (one diagram for the whole system)
 ' Source: frontend/src/App.jsx (routes and roles), backend controllers (@PreAuthorize),
 '         mobile/lib/features (Security Officer app), ai-service (check-entry, Kafka alerts, runtime config)
-' Presentation version: gen_uc.py -> use-case-diagram.svg / .png (same content, actor-centred layout;
-'   AI - UC-05 added 28/10: 2 unavoidable crossings, 0 lines through other use cases). This .puml is the text source of truth.
+' Presentation version: use-case-diagram.svg (same content, actor-centred layout); editable copy: use-case-diagram.drawio.
+'   This .puml is the text source of truth.
+' Sources of UC-41..UC-49 (2026-11-19): UserController bulk-import, CameraController roi and map-location,
+'   IncidentDispatchPolicyController and IncidentSeverityRuleController, ReportController, GuardTeamDispatchController,
+'   GuardShiftController export-timesheet, SecurityIncidentController offers/decline, GuardChatController.
 ' Decisions 2026-10-26/27: AI Surveillance Engine is an external actor; no time actor; Google/E-mail not drawn;
 '   abstract actor User; only implemented functions; roles as shown in the user interface;
 '   layout grouped by actor (27/10) - functional grouping is kept in the SRS UC mapping table, not as packages.
@@ -95,6 +98,17 @@ rectangle "ICSSS — Intelligent Campus Security Surveillance System" {
   usecase "UC-38 Check Entry Permission" as UC38
   usecase "UC-39 Report Security Incident" as UC39
   usecase "UC-40 Load AI Runtime\nConfiguration" as UC40
+
+  ' --- Added 2026-11-19 (functions found in the code)
+  usecase "UC-41 Import User Accounts" as UC41
+  usecase "UC-42 Configure Detection Zone" as UC42
+  usecase "UC-43 Place Camera on Map" as UC43
+  usecase "UC-44 Configure Incident Policies" as UC44
+  usecase "UC-45 Generate Security Report" as UC45
+  usecase "UC-46 Dispatch Guards\nAcross Teams" as UC46
+  usecase "UC-47 Export Guard Timesheet" as UC47
+  usecase "UC-48 Decline Dispatch Offer" as UC48
+  usecase "UC-49 Chat with Guards" as UC49
 }
 
 ' --- User (all four roles)
@@ -115,6 +129,11 @@ AD -- UC16
 AD -- UC24
 AD -- UC31
 AD -- UC32
+AD -- UC41
+AD -- UC42
+AD -- UC43
+AD -- UC44
+AD -- UC45
 
 ' --- Facility Manager
 FM -- UC08
@@ -133,6 +152,10 @@ FM -- UC32
 FM -- UC33
 FM -- UC34
 FM -- UC35
+FM -- UC45
+FM -- UC46
+FM -- UC47
+FM -- UC49
 
 ' --- Authorized User
 AU -- UC17
@@ -151,6 +174,8 @@ UC30 -- SO
 UC31 -- SO
 UC36 -- SO
 UC37 -- SO
+UC48 -- SO
+UC49 -- SO
 
 ' --- AI Surveillance Engine (also extracts the face embedding in UC-05, decision 28/10)
 UC05 -- AI
@@ -162,6 +187,7 @@ UC40 -- AI
 UC04 ..> UC05 : <<include>>
 UC27 ..> UC26 : <<extend>>
 UC30 ..> UC11 : <<extend>>
+UC48 ..> UC26 : <<extend>>
 
 legend right
   Solid line: the actor takes part in the use case
