@@ -147,6 +147,9 @@ class Fmp4VideoWriter:
             except Exception:
                 pass
             self._cleanup_av()
+            # Tự động remux faststart để đưa moov lên đầu file, giúp trình duyệt hiển thị thanh tua seekbar đầy đủ
+            if self._frames_written > 0:
+                _remux_faststart(self.file_path)
         elif self._cv2_writer is not None:
             try:
                 self._cv2_writer.release()
@@ -168,6 +171,51 @@ class Fmp4VideoWriter:
                 pass
             self._raw_file = None
         self._stream = None
+
+
+def _remux_faststart(file_path: str) -> None:
+    """
+    Tự động chuẩn hoá tệp sau khi ghi xong bằng cờ faststart (+faststart):
+    - Đưa moov atom lên đầu file và hợp nhất index bảng mẫu.
+    - Giúp trình duyệt HTML5 (Chrome, Edge, Safari) hiển thị thanh tua (playback/seek bar) đầy đủ.
+    - Quá trình chỉ copy gói tin (demux -> mux), hoàn thành trong ~30-50ms.
+    """
+    if not HAS_AV or not os.path.exists(file_path) or os.path.getsize(file_path) < 1024:
+        return
+
+    tmp_path = file_path + ".tmp_fs.mp4"
+    try:
+        in_c = av.open(file_path)
+        if not in_c.streams.video:
+            in_c.close()
+            return
+        in_stream = in_c.streams.video[0]
+        out_c = av.open(tmp_path, "w", format="mp4", options={"movflags": "faststart"})
+        fps_rate = int(round(float(in_stream.average_rate or 15)))
+        out_stream = out_c.add_stream("h264", rate=fps_rate)
+        out_stream.width = in_stream.width
+        out_stream.height = in_stream.height
+        out_stream.pix_fmt = in_stream.pix_fmt
+
+        for packet in in_c.demux(in_stream):
+            if packet.dts is None:
+                continue
+            packet.stream = out_stream
+            out_c.mux(packet)
+
+        out_c.close()
+        in_c.close()
+
+        if os.path.exists(tmp_path) and os.path.getsize(tmp_path) > 0:
+            os.replace(tmp_path, file_path)
+            logger.debug(f"⚡ [Fmp4Writer] Đã remux faststart thành công: {file_path}")
+    except Exception as e:
+        logger.warning(f"⚠️ [Fmp4Writer] Không thể remux faststart ({e}), giữ nguyên file fMP4.")
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
 
     def __enter__(self):
         return self

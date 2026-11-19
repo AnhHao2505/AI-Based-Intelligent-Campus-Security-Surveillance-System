@@ -22,6 +22,9 @@ import {
 	Camera as CameraIcon,
 	X,
 	Film,
+	Play,
+	Pause,
+	RotateCw,
 	CirclePlay,
 	Download,
 	ExternalLink,
@@ -466,6 +469,250 @@ function EvidenceImage({ src, alt, className }) {
 		);
 	}
 	return <img src={url} alt={alt || "Ảnh bằng chứng vi phạm"} className={className} />;
+}
+
+function SurveillanceEvidencePlayer({
+	videoData,
+	onDownload,
+	onError,
+}) {
+	const videoRef = useRef(null);
+	const [isPlaying, setIsPlaying] = useState(true);
+	const [currentTime, setCurrentTime] = useState(0);
+	const [duration, setDuration] = useState(60);
+	const [isSeeking, setIsSeeking] = useState(false);
+	const [playbackRate, setPlaybackRate] = useState(1);
+	const [hasInitialSeek, setHasInitialSeek] = useState(false);
+
+	const targetSec = Number(videoData.targetSeekSeconds) || 0;
+
+	// Khi nạp xong metadata, tự động tua tới đúng mốc thời gian cảnh báo
+	const handleLoadedMetadata = (e) => {
+		const vid = e.currentTarget;
+		if (vid) {
+			const d = vid.duration;
+			if (Number.isFinite(d) && d > 0) {
+				setDuration(d);
+			}
+			if (targetSec > 0 && !hasInitialSeek) {
+				try {
+					vid.currentTime = Math.min(targetSec, (d && d > 0) ? d : targetSec);
+					setCurrentTime(vid.currentTime);
+					setHasInitialSeek(true);
+				} catch (err) {
+					console.warn("Lỗi tua mốc ban đầu:", err);
+				}
+			}
+		}
+	};
+
+	const handleTimeUpdate = (e) => {
+		if (!isSeeking && e.currentTarget) {
+			setCurrentTime(e.currentTarget.currentTime);
+			const d = e.currentTarget.duration;
+			if (Number.isFinite(d) && d > 0 && d !== duration) {
+				setDuration(d);
+			}
+		}
+	};
+
+	const togglePlay = () => {
+		const vid = videoRef.current;
+		if (!vid) return;
+		if (vid.paused) {
+			vid.play().catch(() => {});
+			setIsPlaying(true);
+		} else {
+			vid.pause();
+			setIsPlaying(false);
+		}
+	};
+
+	const handleSliderChange = (e) => {
+		const val = parseFloat(e.target.value);
+		setCurrentTime(val);
+		if (videoRef.current) {
+			videoRef.current.currentTime = val;
+		}
+	};
+
+	const jumpToTime = (sec) => {
+		const vid = videoRef.current;
+		if (!vid) return;
+		const cleanSec = Math.max(0, Math.min(sec, duration));
+		vid.currentTime = cleanSec;
+		setCurrentTime(cleanSec);
+	};
+
+	const changeSpeed = (rate) => {
+		setPlaybackRate(rate);
+		if (videoRef.current) {
+			videoRef.current.playbackRate = rate;
+		}
+	};
+
+	const formatTime = (secs) => {
+		if (!Number.isFinite(secs) || secs < 0) return "00:00";
+		const m = Math.floor(secs / 60);
+		const s = Math.floor(secs % 60);
+		return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+	};
+
+	const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+	const targetMarkerPercent = duration > 0 && targetSec > 0 ? Math.min(100, Math.max(0, (targetSec / duration) * 100)) : null;
+
+	return (
+		<div className="soc-video-player-wrapper">
+			<div className="soc-evidence-video-screen" onClick={togglePlay}>
+				<video
+					ref={videoRef}
+					key={videoData.signedUrl}
+					src={videoData.signedUrl}
+					autoPlay
+					playsInline
+					preload="auto"
+					className="soc-evidence-video-player"
+					onLoadedMetadata={handleLoadedMetadata}
+					onTimeUpdate={handleTimeUpdate}
+					onPlay={() => setIsPlaying(true)}
+					onPause={() => setIsPlaying(false)}
+					onError={onError}
+				>
+					Trình duyệt không hỗ trợ thẻ video HTML5.
+				</video>
+			</div>
+
+			{/* THANH TUA & ĐIỀU KHIỂN CHUYÊN DỤNG (SURVEILLANCE PLAYBACK BAR) */}
+			<div className="soc-playback-control-bar">
+				{/* 1. Thanh Timeline Slider (Seek Bar) */}
+				<div className="soc-timeline-track-wrapper">
+					<div
+						className="soc-timeline-progress-fill"
+						style={{ width: `${progressPercent}%` }}
+					/>
+					<input
+						type="range"
+						min="0"
+						max={duration || 60}
+						step="0.1"
+						value={currentTime}
+						onMouseDown={() => setIsSeeking(true)}
+						onMouseUp={() => setIsSeeking(false)}
+						onTouchStart={() => setIsSeeking(true)}
+						onTouchEnd={() => setIsSeeking(false)}
+						onChange={handleSliderChange}
+						className="soc-timeline-slider"
+						title={`Tua video: ${formatTime(currentTime)} / ${formatTime(duration)}`}
+					/>
+					{/* Điểm đánh dấu sự cố (Alert Pin Marker) */}
+					{targetMarkerPercent !== null && (
+						<div
+							className="soc-timeline-alert-marker"
+							style={{ left: `${targetMarkerPercent}%` }}
+							onClick={(e) => {
+								e.stopPropagation();
+								jumpToTime(targetSec);
+							}}
+							title={`Mốc sự cố: ${formatTime(targetSec)} (Click để tua ngay)`}
+						>
+							<div className="soc-alert-pin-dot" />
+						</div>
+					)}
+				</div>
+
+				{/* 2. Dãy nút chức năng & Thời gian */}
+				<div className="soc-playback-buttons-row">
+					<div className="soc-playback-left-controls">
+						<button
+							type="button"
+							className="soc-ctrl-btn soc-play-btn"
+							onClick={togglePlay}
+							title={isPlaying ? "Tạm dừng" : "Phát video"}
+						>
+							{isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+							<span>{isPlaying ? "Tạm dừng" : "Phát"}</span>
+						</button>
+
+						<button
+							type="button"
+							className="soc-ctrl-btn"
+							onClick={() => jumpToTime(currentTime - 5)}
+							title="Lùi 5 giây"
+						>
+							<RotateCcw size={12} /> -5s
+						</button>
+
+						<button
+							type="button"
+							className="soc-ctrl-btn"
+							onClick={() => jumpToTime(currentTime + 5)}
+							title="Tiến 5 giây"
+						>
+							<RotateCw size={12} /> +5s
+						</button>
+
+						{targetSec > 0 && (
+							<button
+								type="button"
+								className="soc-ctrl-btn soc-btn-jump-alert"
+								onClick={() => jumpToTime(targetSec)}
+								title={`Nhảy tới mốc sự cố cảnh báo: ${formatTime(targetSec)}`}
+							>
+								<ShieldAlert size={13} color="#f87171" />
+								<span>Mốc sự cố: {formatTime(targetSec)}</span>
+							</button>
+						)}
+
+						<span className="soc-playback-time-text">
+							<strong>{formatTime(currentTime)}</strong> / {formatTime(duration)}
+						</span>
+					</div>
+
+					<div className="soc-playback-right-controls">
+						{/* Bộ chọn tốc độ */}
+						<div className="soc-speed-selector">
+							{[1, 1.5, 2].map((rate) => (
+								<button
+									key={rate}
+									type="button"
+									className={`soc-speed-btn ${playbackRate === rate ? "active" : ""}`}
+									onClick={() => changeSpeed(rate)}
+								>
+									{rate}x
+								</button>
+							))}
+						</div>
+
+						<button
+							type="button"
+							className="btn-soc-dl-video"
+							onClick={onDownload}
+							title="Tải video này về máy"
+						>
+							<Download size={12} /> Tải MP4
+						</button>
+					</div>
+				</div>
+			</div>
+
+			{/* Dòng thông tin metadata */}
+			<div className="soc-video-meta-bar">
+				<span>
+					<strong>Tệp:</strong> {videoData.filename || videoData.id}
+				</span>
+				{targetSec > 0 && (
+					<span style={{ color: "#38bdf8", fontWeight: 600 }}>
+						⏱️ Nhảy tới thời điểm cảnh báo: {formatTime(targetSec)} ({targetSec}s)
+					</span>
+				)}
+				{videoData.durationDisplay && (
+					<span>
+						<strong>Thời lượng:</strong> {videoData.durationDisplay}
+					</span>
+				)}
+			</div>
+		</div>
+	);
 }
 
 /**
@@ -2104,57 +2351,15 @@ export function SecuritySurveillancePage() {
 											</p>
 										</div>
 									) : incidentVideoData?.signedUrl ? (
-										<div className="soc-video-player-wrapper">
-											<video
-												ref={incidentVideoRef}
-												key={incidentVideoData.signedUrl}
-												src={incidentVideoData.signedUrl}
-												controls
-												autoPlay
-												preload="auto"
-												className="soc-evidence-video-player"
-												onLoadedMetadata={(e) => {
-													const targetSec = Number(incidentVideoData.targetSeekSeconds) || 0;
-													if (targetSec > 0 && e.currentTarget) {
-														try {
-															e.currentTarget.currentTime = targetSec;
-														} catch (seekErr) {
-															console.warn("Lỗi tua tới mốc sự cố:", seekErr);
-														}
-													}
-												}}
-												onError={() =>
-													setIncidentVideoError(
-														"Không thể phát trực tiếp video trên trình duyệt (codec chưa hỗ trợ hoặc tệp đang ghi). Bạn có thể tải file MP4 về máy.",
-													)
-												}
-											>
-												Trình duyệt không hỗ trợ thẻ video HTML5.
-											</video>
-											<div className="soc-video-meta-bar">
-												<span>
-													<strong>Tệp:</strong> {incidentVideoData.filename || incidentVideoData.id}
-												</span>
-												{incidentVideoData.targetSeekSeconds > 0 && (
-													<span style={{ color: "#38bdf8", fontWeight: 600 }}>
-														⏱️ Nhảy tới thời điểm cảnh báo: {Math.floor(incidentVideoData.targetSeekSeconds / 60)}:{String(Math.floor(incidentVideoData.targetSeekSeconds % 60)).padStart(2, "0")} ({incidentVideoData.targetSeekSeconds}s)
-													</span>
-												)}
-												{incidentVideoData.durationDisplay && (
-													<span>
-														<strong>Thời lượng:</strong> {incidentVideoData.durationDisplay}
-													</span>
-												)}
-												<button
-													type="button"
-													className="btn-soc-dl-video"
-													onClick={handleDownloadIncidentVideo}
-													title="Tải video này về máy"
-												>
-													<Download size={12} /> Tải MP4
-												</button>
-											</div>
-										</div>
+										<SurveillanceEvidencePlayer
+											videoData={incidentVideoData}
+											onDownload={handleDownloadIncidentVideo}
+											onError={() =>
+												setIncidentVideoError(
+													"Không thể phát trực tiếp video trên trình duyệt (codec chưa hỗ trợ hoặc tệp đang ghi). Bạn có thể tải file MP4 về máy.",
+												)
+											}
+										/>
 									) : (
 										<div className="soc-video-empty-box">
 											<Film size={36} color="#64748b" />
