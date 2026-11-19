@@ -563,11 +563,12 @@ function SurveillanceEvidencePlayer({
 
 	return (
 		<div className="soc-video-player-wrapper">
-			<div className="soc-evidence-video-screen" onClick={togglePlay}>
+			<div className="soc-evidence-video-screen">
 				<video
 					ref={videoRef}
 					key={videoData.signedUrl}
 					src={videoData.signedUrl}
+					controls
 					autoPlay
 					playsInline
 					preload="auto"

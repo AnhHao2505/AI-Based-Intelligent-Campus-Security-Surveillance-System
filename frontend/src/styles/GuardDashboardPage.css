@@ -2276,7 +2276,6 @@
   position: relative;
   width: 100%;
   background: #000;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2299,6 +2298,7 @@
   flex-direction: column;
   gap: 10px;
   user-select: none;
+  flex-shrink: 0;
 }
 
 .soc-playback-bar-header {
@@ -2555,6 +2555,7 @@
   font-size: 0.72rem;
   font-family: 'JetBrains Mono', monospace;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .btn-soc-dl-video {
