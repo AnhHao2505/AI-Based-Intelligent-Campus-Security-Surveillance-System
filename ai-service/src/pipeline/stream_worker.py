@@ -135,11 +135,11 @@ class CameraStreamWorker:
             self.pipeline.set_roi_config(polygons=polys)
             logger.info(f"Stream Worker camera [{self.camera_code}] đã tải {len(polys)} ROI polygons từ DB.")
         
-        # Recorder tự động ghi hình toàn bộ luồng camera theo từng phân đoạn 1 phút tại C:\DATN\...\recording
+        # Recorder tự động ghi hình toàn bộ luồng camera theo từng phân đoạn tại C:\DATN\...\recording
         self.recorder = StreamRecorder(
             camera_code=self.camera_code,
             base_dir=settings.RECORDING_BASE_DIR,
-            segment_seconds=settings.RECORDING_SEGMENT_SECONDS
+            segment_seconds=int(getattr(settings, "RECORDING_SEGMENT_SECONDS", 60))
         )
 
         self.is_running = False
@@ -156,6 +156,10 @@ class CameraStreamWorker:
         self.new_frame_event = threading.Event()
         from ..utils.system_threads import enable_high_precision_timer
         enable_high_precision_timer()
+
+    def set_recording_segment_seconds(self, seconds: int):
+        if self.recorder is not None:
+            self.recorder.set_segment_seconds(seconds)
 
     def add_client(self):
         """Đăng ký client đang xem live-annotated stream (P1-05 Lazy Overlay)"""

@@ -432,7 +432,7 @@ class StreamRecorder:
     ):
         self.camera_code = camera_code.strip().upper()
         self.base_dir = os.path.abspath(base_dir)
-        self.segment_seconds = segment_seconds
+        self.segment_seconds = max(10, int(segment_seconds))
         self.fps = fps
         self.target_w = 854
         self.target_h = 480
@@ -457,6 +457,17 @@ class StreamRecorder:
         self.worker_thread: Optional[threading.Thread] = None
         self._stop_lock = threading.Lock()
         self._is_stopped = False
+
+    def set_segment_seconds(self, seconds: int):
+        with self._writer_lock:
+            new_val = max(10, int(seconds))
+            if self.segment_seconds != new_val:
+                self.segment_seconds = new_val
+                self.target_frames_per_segment = int(self.segment_seconds * self.fps)
+                logger.info(
+                    f"⏱️ [Recorder:{self.camera_code}] Đã cập nhật thời lượng phân đoạn ghi hình: "
+                    f"{self.segment_seconds}s ({self.target_frames_per_segment} frames)"
+                )
 
     def start(self):
         if self.is_running:
@@ -522,6 +533,22 @@ class StreamRecorder:
     def _open_new_segment(self, ts: float):
         self._close_writer()
         with self._writer_lock:
+            # Luôn đồng bộ cấu hình thời lượng phân đoạn mới nhất từ settings hệ thống nếu có
+            try:
+                from ..config import settings
+                global_seg = getattr(settings, "RECORDING_SEGMENT_SECONDS", None)
+                if global_seg is not None:
+                    new_seg = max(10, int(float(global_seg)))
+                    if self.segment_seconds != new_seg:
+                        self.segment_seconds = new_seg
+                        self.target_frames_per_segment = int(self.segment_seconds * self.fps)
+                        logger.info(
+                            f"⏱️ [Recorder:{self.camera_code}] Phân đoạn mới áp dụng thời lượng: "
+                            f"{self.segment_seconds}s ({self.target_frames_per_segment} frames)"
+                        )
+            except Exception:
+                pass
+
             now_dt = _now_vn()
             self.segment_start_dt = now_dt
             self.current_file_path = self._get_target_file_path(now_dt)

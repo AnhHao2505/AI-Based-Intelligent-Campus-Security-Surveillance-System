@@ -102,6 +102,7 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
                     ah_end = data.get("after_hour_end")
                     max_inactive = data.get("max_inactive_seconds")
                     cooldown = data.get("unknown_alert_cooldown")
+                    rec_seg = data.get("recording_segment_seconds")
 
                     if threshold is not None:
                         settings.FACE_MATCH_THRESHOLD = float(threshold)
@@ -113,6 +114,8 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
                         settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS = float(max_inactive)
                     if cooldown is not None:
                         settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS = float(cooldown)
+                    if rec_seg is not None:
+                        settings.RECORDING_SEGMENT_SECONDS = int(rec_seg)
 
                     if default_pipeline:
                         if ah_start:
