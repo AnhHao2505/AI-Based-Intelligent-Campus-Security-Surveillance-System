@@ -62,6 +62,38 @@ public class CameraRecordingService {
     @Value("${recording.evidence.path:C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System/evidence}")
     private String evidenceStoragePath;
 
+    public Path getEffectiveRecordingPath() {
+        return resolveEffectivePath(recordingStoragePath, "recording");
+    }
+
+    public Path getEffectiveEvidencePath() {
+        return resolveEffectivePath(evidenceStoragePath, "evidence");
+    }
+
+    private Path resolveEffectivePath(String configuredPath, String folderName) {
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            Path direct = Paths.get(configuredPath).normalize();
+            if (direct.isAbsolute() && Files.exists(direct)) {
+                return direct;
+            }
+        }
+        Path repoPath = Paths.get("C:/DATN/AI-Based-Intelligent-Campus-Security-Surveillance-System", folderName).toAbsolutePath().normalize();
+        if (Files.exists(repoPath)) {
+            return repoPath;
+        }
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            Path direct = Paths.get(configuredPath).toAbsolutePath().normalize();
+            if (Files.exists(direct)) {
+                return direct;
+            }
+        }
+        Path parentPath = Paths.get("..", folderName).toAbsolutePath().normalize();
+        if (Files.exists(parentPath)) {
+            return parentPath;
+        }
+        return Paths.get(configuredPath != null ? configuredPath : folderName).toAbsolutePath().normalize();
+    }
+
     private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final long MAX_RANGE_CHUNK_BYTES = 4L * 1024 * 1024; // 4MB chunk cho HTTP 206 Partial Content
     private static final List<DateTimeFormatter> DATE_TIME_FORMATTERS = List.of(
@@ -214,9 +246,11 @@ public class CameraRecordingService {
         List<RecordingVideoResponse> results = new ArrayList<>();
         Set<String> seenKeys = new HashSet<>();
 
-        // 1. Đọc từ CSDL camera_recordings (Primary Source of Truth)
+        // 1. Đọc từ CSDL camera_recordings (Primary Source of Truth: cả READY và RECORDING)
         if (cameraRecordingRepository != null) {
-            List<CameraRecording> dbRecordings = cameraRecordingRepository.findAllByStatusOrderByStartTimeDesc(RecordingStatus.READY);
+            List<CameraRecording> dbRecordings = cameraRecordingRepository.findAllByStatusInOrderByStartTimeDesc(
+                    List.of(RecordingStatus.READY, RecordingStatus.RECORDING)
+            );
             if (dbRecordings != null) {
                 for (CameraRecording rec : dbRecordings) {
                     String dedupKey = rec.getCameraCode().toUpperCase() + ":" + rec.getFilename().toLowerCase();
@@ -240,14 +274,14 @@ public class CameraRecordingService {
             }
         }
 
-        // 2. Tương thích ngược: Quét các file cũ chưa có trong CSDL trên MinIO & ổ đĩa
+        // 2. Tương thích ngược & quét các file đang ghi dở/chưa sync CSDL trên MinIO & ổ đĩa
         if (minioStorageService != null) {
             scanMinioBucket(minioStorageService.getRecordingsBucket(), false, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
             scanMinioBucket(minioStorageService.getEvidenceBucket(), true, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
         }
 
-        scanDirectory(recordingStoragePath, false, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
-        scanDirectory(evidenceStoragePath, true, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
+        scanDirectory(getEffectiveRecordingPath(), false, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
+        scanDirectory(getEffectiveEvidencePath(), true, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
 
         results.sort((a, b) -> b.getStartTime().compareTo(a.getStartTime()));
         return results;
@@ -271,6 +305,8 @@ public class CameraRecordingService {
 
         boolean isIncident = rec.getRecordingType() == RecordingType.INCIDENT_EVIDENCE;
         boolean isMinio = rec.getStorageLocation() == RecordingStorageLocation.CLOUD_MINIO;
+        boolean isUnderActiveRecording = rec.getStatus() == RecordingStatus.RECORDING;
+        String status = isUnderActiveRecording ? "RECORDING" : "READY";
 
         String encodedKey = URLEncoder.encode(rec.getStorageKey(), StandardCharsets.UTF_8);
         String sourceParam;
@@ -290,7 +326,13 @@ public class CameraRecordingService {
         String thumbnailUrl = "/api/cameras/recordings/thumbnail?path=" + encodedKey + sourceParam;
 
         int durSec = rec.getDurationSeconds() != null ? rec.getDurationSeconds() : 0;
-        String durationDisplay = String.format("%02d:%02d (%ds)", durSec / 60, durSec % 60, durSec);
+        if (isUnderActiveRecording && rec.getStartTime() != null) {
+            long currentElapsed = Math.max(1, (System.currentTimeMillis() - rec.getStartTime().toInstant().toEpochMilli()) / 1000);
+            durSec = (int) currentElapsed;
+        }
+        String durationDisplay = isUnderActiveRecording
+                ? String.format("%02d:%02d (đang ghi)", durSec / 60, durSec % 60)
+                : String.format("%02d:%02d (%ds)", durSec / 60, durSec % 60, durSec);
         long sizeBytes = rec.getFileSizeBytes() != null ? rec.getFileSizeBytes() : 0L;
         int fpsInt = rec.getFps() != null ? (int) Math.round(rec.getFps()) : 15;
         String resolutionDisplay = (rec.getResolution() != null ? rec.getResolution() : "854x480")
@@ -307,7 +349,7 @@ public class CameraRecordingService {
                 .eventTypeName(isIncident ? "Sự cố an ninh (Incident Evidence)" : "Video định kỳ")
                 .severity(isIncident ? "CRITICAL" : null)
                 .startTime(rec.getStartTime())
-                .endTime(rec.getEndTime())
+                .endTime(isUnderActiveRecording ? OffsetDateTime.now(VIETNAM_ZONE) : rec.getEndTime())
                 .duration(durationDisplay)
                 .fileSize(formatFileSize(sizeBytes))
                 .fileSizeBytes(sizeBytes)
@@ -319,6 +361,7 @@ public class CameraRecordingService {
                 .downloadUrl(downloadUrl)
                 .thumbnailUrl(thumbnailUrl)
                 .filename(rec.getFilename())
+                .status(status)
                 .notes(rec.getChecksumSha256() != null ? "SHA-256: " + rec.getChecksumSha256() : "Đã xác thực metadata từ Edge")
                 .build();
     }
@@ -527,7 +570,22 @@ public class CameraRecordingService {
             List<RecordingVideoResponse> results,
             Set<String> seenKeys
     ) {
-        Path baseDirPath = Paths.get(dirPathStr).toAbsolutePath().normalize();
+        Path baseDirPath = resolveEffectivePath(dirPathStr, isEvidenceFolder ? "evidence" : "recording");
+        scanDirectory(baseDirPath, isEvidenceFolder, cameraCodeFilter, keyword, fromDateStr, toDateStr, cameraMap, results, seenKeys);
+    }
+
+    private void scanDirectory(
+            Path baseDirPath,
+            boolean isEvidenceFolder,
+            String cameraCodeFilter,
+            String keyword,
+            String fromDateStr,
+            String toDateStr,
+            Map<String, Camera> cameraMap,
+            List<RecordingVideoResponse> results,
+            Set<String> seenKeys
+    ) {
+        if (baseDirPath == null) return;
         if (!Files.exists(baseDirPath)) {
             try {
                 Files.createDirectories(baseDirPath);
@@ -540,7 +598,6 @@ public class CameraRecordingService {
             List<Path> videoFiles = stream
                     .filter(Files::isRegularFile)
                     .filter(p -> p.toString().toLowerCase().endsWith(".mp4"))
-                    .filter(p -> !isInProgressRecordingFilename(p.getFileName().toString()))
                     .toList();
 
             for (Path filePath : videoFiles) {
@@ -569,17 +626,25 @@ public class CameraRecordingService {
                     boolean isIncidentVideo = isEvidenceFolder || filename.toLowerCase().startsWith("incident");
 
                     OffsetDateTime startTime = parseStartTime(filename, attrs);
-                    long diffSec = (attrs.lastModifiedTime().toMillis() - startTime.toInstant().toEpochMilli()) / 1000;
+                    long nowMillis = System.currentTimeMillis();
+                    long modifiedMillis = attrs.lastModifiedTime().toMillis();
+                    long diffSec = (modifiedMillis - startTime.toInstant().toEpochMilli()) / 1000;
+
+                    boolean isUnderActiveRecording = isInProgressRecordingFilename(filename)
+                            || ((nowMillis - modifiedMillis) <= 30_000L);
+
                     long durationSeconds;
-                    if (diffSec >= 5 && diffSec <= 7200) {
+                    if (diffSec >= 1 && diffSec <= 7200) {
                         durationSeconds = diffSec;
                     } else if (fileSizeBytes > 0) {
                         long rateBytesPerSec = isIncidentVideo ? (120L * 1024) : (275L * 1024);
-                        durationSeconds = Math.max(5, Math.round((double) fileSizeBytes / rateBytesPerSec));
+                        durationSeconds = Math.max(1, Math.round((double) fileSizeBytes / rateBytesPerSec));
                     } else {
-                        durationSeconds = 60;
+                        durationSeconds = Math.max(1, (nowMillis - startTime.toInstant().toEpochMilli()) / 1000);
                     }
-                    OffsetDateTime endTime = startTime.plusSeconds(durationSeconds);
+                    OffsetDateTime endTime = isUnderActiveRecording
+                            ? OffsetDateTime.now(VIETNAM_ZONE)
+                            : startTime.plusSeconds(durationSeconds);
 
                     if (!matchesDateRange(startTime, fromDateStr, toDateStr)) continue;
 
@@ -612,7 +677,9 @@ public class CameraRecordingService {
                     String thumbnailUrl = "/api/cameras/recordings/thumbnail?path=" + encodedRelPath + sourceParam;
 
                     String formattedSize = formatFileSize(fileSizeBytes);
-                    String durationDisplay = String.format("%02d:%02d (%ds)", durationSeconds / 60, durationSeconds % 60, durationSeconds);
+                    String durationDisplay = isUnderActiveRecording
+                            ? String.format("%02d:%02d (đang ghi)", durationSeconds / 60, durationSeconds % 60)
+                            : String.format("%02d:%02d (%ds)", durationSeconds / 60, durationSeconds % 60, durationSeconds);
 
                     String eventType = isIncidentVideo ? "SECURITY_EVENT" : "NORMAL_RECORDING";
                     String eventTypeName = isIncidentVideo ? "Sự cố an ninh (Incident Evidence)" : "Video định kỳ";
@@ -621,6 +688,7 @@ public class CameraRecordingService {
                             ? "Video ghi lại bằng chứng sự cố an ninh từ khi phát hiện tới khi Bảo vệ 'Xác nhận đã xem' (lưu tại evidence/)."
                             : "Video định kỳ chuẩn xác lưu tại ổ đĩa hệ thống (lưu tại recording/).";
                     String idPrefix = isIncidentVideo ? "EVD-" : "REC-";
+                    String status = isUnderActiveRecording ? "RECORDING" : "READY";
 
                     RecordingVideoResponse rec = RecordingVideoResponse.builder()
                             .id(idPrefix + cameraCode + "-" + startTime.toEpochSecond())
@@ -645,6 +713,7 @@ public class CameraRecordingService {
                             .downloadUrl(downloadUrl)
                             .thumbnailUrl(thumbnailUrl)
                             .filename(filename)
+                            .status(status)
                             .notes(notes)
                             .build();
 
@@ -654,7 +723,7 @@ public class CameraRecordingService {
                 }
             }
         } catch (IOException e) {
-            log.error("❌ Lỗi khi duyệt thư mục {}: {}", dirPathStr, e.getMessage());
+            log.error("❌ Lỗi khi duyệt thư mục {}: {}", baseDirPath, e.getMessage());
         }
     }
 
@@ -743,8 +812,8 @@ public class CameraRecordingService {
         }
 
         // 2. Fallback đọc từ đĩa cục bộ
-        Path recBasePath = Paths.get(recordingStoragePath).toAbsolutePath().normalize();
-        Path evdBasePath = Paths.get(evidenceStoragePath).toAbsolutePath().normalize();
+        Path recBasePath = getEffectiveRecordingPath();
+        Path evdBasePath = getEffectiveEvidencePath();
 
         Path targetPath;
         if ("evidence".equalsIgnoreCase(source)) {
@@ -869,8 +938,8 @@ public class CameraRecordingService {
         }
 
         // 2. Kiểm tra đĩa cục bộ
-        Path recBasePath = Paths.get(recordingStoragePath).toAbsolutePath().normalize();
-        Path evdBasePath = Paths.get(evidenceStoragePath).toAbsolutePath().normalize();
+        Path recBasePath = getEffectiveRecordingPath();
+        Path evdBasePath = getEffectiveEvidencePath();
 
         Path targetThumb;
         if ("evidence".equalsIgnoreCase(source)) {

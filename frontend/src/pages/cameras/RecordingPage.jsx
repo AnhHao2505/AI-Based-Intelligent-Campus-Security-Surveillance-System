@@ -656,6 +656,13 @@ export default function RecordingPage() {
                     )}
                   </span>
 
+                  {/* Live Recording Badge */}
+                  {recording.status === "RECORDING" && (
+                    <span className="recording-card__live-badge">
+                      <span className="recording-live-pulse-dot" /> Đang ghi hình
+                    </span>
+                  )}
+
                   {/* Duration Badge */}
                   <span className="recording-card__duration-badge">
                     <Clock size={11} /> {recording.duration}
@@ -754,7 +761,18 @@ export default function RecordingPage() {
                     </td>
                     <td>{formatDisplayTime(recording.startTime)}</td>
                     <td>
-                      <span style={{ fontWeight: 600, color: "#10b981" }}>
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color: recording.status === "RECORDING" ? "#ef4444" : "#10b981",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        {recording.status === "RECORDING" && (
+                          <span className="recording-live-pulse-dot recording-live-pulse-dot--danger" />
+                        )}
                         {recording.duration}
                       </span>
                     </td>
@@ -802,8 +820,13 @@ export default function RecordingPage() {
               <div className="recording-player-modal__title-group">
                 <Video size={18} style={{ color: "#00a3ff" }} />
                 <div>
-                  <div className="recording-player-modal__title">
-                    [{activeVideo.cameraId}] {activeVideo.cameraName}
+                  <div className="recording-player-modal__title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span>[{activeVideo.cameraId}] {activeVideo.cameraName}</span>
+                    {activeVideo.status === "RECORDING" && (
+                      <span className="recording-card__live-badge" style={{ position: "static", padding: "2px 6px", fontSize: "10px" }}>
+                        <span className="recording-live-pulse-dot" /> Đang ghi hình
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: "12px", color: "#9ca3af" }}>
                     {formatDisplayTime(activeVideo.startTime)} — Thời lượng: {measuredDurationText || activeVideo.duration} ({activeVideo.fileSize})
@@ -863,7 +886,11 @@ export default function RecordingPage() {
                       const totalSec = Math.max(1, Math.round(sec));
                       const m = String(Math.floor(totalSec / 60)).padStart(2, "0");
                       const s = String(totalSec % 60).padStart(2, "0");
-                      setMeasuredDurationText(`${m}:${s} (${totalSec}s)`);
+                      setMeasuredDurationText(
+                        activeVideo.status === "RECORDING"
+                          ? `${m}:${s} (đang ghi)`
+                          : `${m}:${s} (${totalSec}s)`
+                      );
                     }
                   }}
                   onError={() => setVideoError(true)}

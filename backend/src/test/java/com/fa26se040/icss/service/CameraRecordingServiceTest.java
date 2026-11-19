@@ -128,8 +128,8 @@ class CameraRecordingServiceTest {
     }
 
     @Test
-    @DisplayName("4. Bỏ qua các file .recording.mp4 đang ghi hình dở (chưa đóng moov atom)")
-    void testListRecordings_skipsInProgressRecordingFiles(@TempDir Path tempDir) throws IOException {
+    @DisplayName("4. Liệt kê cả file .mp4 hoàn tất và file .recording.mp4 đang ghi hình dở")
+    void testListRecordings_includesInProgressRecordingFiles(@TempDir Path tempDir) throws IOException {
         when(cameraRepository.findAll()).thenReturn(Collections.emptyList());
 
         Path recDir = tempDir.resolve("recording");
@@ -145,8 +145,8 @@ class CameraRecordingServiceTest {
         ReflectionTestUtils.setField(cameraRecordingService, "evidenceStoragePath", evdDir.toString());
 
         List<RecordingVideoResponse> list = cameraRecordingService.listRecordings(null, null, null, null);
-        assertEquals(1, list.size(), "Chỉ được liệt kê file .mp4 đã hoàn tất, bỏ qua file .recording.mp4");
-        assertEquals("Incident 31-10-2026 - 13-40-00.mp4", list.get(0).getFilename());
+        assertEquals(2, list.size(), "Liệt kê cả file hoàn tất và file đang ghi hình dở");
+        assertTrue(list.stream().anyMatch(r -> "RECORDING".equals(r.getStatus())), "File đang ghi dở có status RECORDING");
     }
 
     @Test

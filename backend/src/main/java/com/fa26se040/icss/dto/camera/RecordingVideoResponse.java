@@ -34,5 +34,6 @@ public class RecordingVideoResponse {
     private String downloadUrl;
     private String thumbnailUrl;
     private String filename;
+    private String status;
     private String notes;
 }
