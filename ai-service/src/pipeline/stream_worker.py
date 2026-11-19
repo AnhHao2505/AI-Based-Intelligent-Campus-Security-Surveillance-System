@@ -1,5 +1,6 @@
-from ..utils.security import mask_rtsp_url
 import os
+import re
+from ..utils.security import mask_rtsp_url
 from ..utils.ffmpeg_options import get_ffmpeg_capture_options
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = get_ffmpeg_capture_options()
 import cv2
@@ -11,21 +12,26 @@ from typing import Optional, Dict, Any, List, Iterable
 def select_stream_path(camera_code: str, available_paths: Optional[Iterable[str]] = None) -> str:
     """
     Chọn luồng MediaMTX tối ưu cho AI & Recording:
+    - Định dạng chuẩn MediaMTX luôn là lowercase (ví dụ: cam-006 hoặc cam-006_main).
     - Nếu có luồng chính ({camera_code}_main) trong danh sách available_paths -> chọn {camera_code}_main.
     - Ngược lại -> chọn {camera_code}.
     """
     if not camera_code:
         return ""
     code = camera_code.strip()
+    formatted = re.sub(r"[^a-z0-9_-]", "", code.lower()).strip()
     if not available_paths:
-        return code
+        return formatted
 
     paths_set = set(p.strip() for p in available_paths if p)
-    main_variant = f"{code}_main"
+    main_variant = f"{formatted}_main"
     for p in paths_set:
-        if p.lower() == main_variant.lower():
+        if p.lower() == main_variant:
             return p
-    return code
+    for p in paths_set:
+        if p.lower() == formatted:
+            return p
+    return formatted
 
 def resolve_camera_rtsp_url(
     camera_code: str,
@@ -33,13 +39,17 @@ def resolve_camera_rtsp_url(
     available_paths: Optional[Iterable[str]] = None
 ) -> str:
     """
-    Tạo RTSP URL gateway cho camera, tự động ưu tiên {camera_code}_main nếu có trong MediaMTX.
-    Mặc định sử dụng settings.MEDIAMTX_RTSP_URL.
+    Tạo RTSP URL gateway cho camera, tự động ưu tiên {camera_code}_main nếu có trong MediaMTX
+    và gắn thông tin xác thực nội bộ icss-internal để MediaMTX không trả về 401.
     """
     stream_name = select_stream_path(camera_code, available_paths)
     effective_base = base_rtsp_gateway or getattr(settings, "MEDIAMTX_RTSP_URL", "rtsp://localhost:8554")
-    base = effective_base.rstrip("/")
-    return f"{base}/{stream_name}"
+    try:
+        from ..security import build_internal_rtsp_url
+        return build_internal_rtsp_url(effective_base, stream_name)
+    except Exception:
+        base = effective_base.rstrip("/")
+        return f"{base}/{stream_name}"
 
 from .video_pipeline import VideoPipeline
 from .stream_recorder import StreamRecorder
@@ -106,6 +116,15 @@ class CameraStreamWorker:
 
         self.camera_code = camera_code.strip()
         self.rtsp_url = rtsp_url.strip()
+        if "8554" in self.rtsp_url and "@" not in self.rtsp_url:
+            try:
+                from ..security import build_internal_rtsp_url
+                path_part = self.rtsp_url.split("/")[-1]
+                clean_path = re.sub(r"[^a-z0-9_-]", "", path_part.lower()).strip()
+                base_part = self.rtsp_url.rsplit("/", 1)[0]
+                self.rtsp_url = build_internal_rtsp_url(base_part, clean_path)
+            except Exception as e:
+                logger.warning(f"Không thể gắn internal RTSP secret cho [{self.camera_code}]: {e}")
         self.analysis_max_fps = analysis_max_fps if analysis_max_fps is not None else getattr(settings, "ANALYSIS_MAX_FPS", 10.0)
         self.pipeline = VideoPipeline(camera_code=self.camera_code, analysis_max_fps=self.analysis_max_fps)
         if not roi_geometry:

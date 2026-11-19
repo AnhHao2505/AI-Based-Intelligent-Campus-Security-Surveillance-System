@@ -176,6 +176,51 @@ def _retry_upload_worker():
         _retry_upload_stop_event.wait(timeout=interval)
     logger.info("🛑 [Retry Uploader] Background worker stopped cleanly.")
 
+async def sync_online_cameras_worker():
+    """
+    Tự động quét MediaMTX để kích hoạt Stream Worker & Ghi hình định kỳ liên tục
+    cho mọi camera đang ONLINE mà chưa có worker chạy (kể cả khi restart service).
+    """
+    await asyncio.sleep(2.0)
+    api_base = getattr(settings, "MEDIAMTX_API_URL", "http://localhost:9997").rstrip("/")
+    while True:
+        try:
+            import requests
+            resp = await asyncio.to_thread(requests.get, f"{api_base}/v3/paths/list", timeout=2.5)
+            if resp.status_code == 200:
+                data = resp.json()
+                items = data.get("items", [])
+                for item in items:
+                    name = item.get("name", "")
+                    ready = bool(item.get("ready", False))
+                    if not name or not ready:
+                        continue
+                    cam_code = name.upper()
+                    if cam_code.endswith("_MAIN"):
+                        cam_code = cam_code[:-5]
+
+                    with active_workers_lock:
+                        existing = active_workers.get(cam_code)
+                        is_running = bool(existing and getattr(existing, "is_running", False))
+
+                    if not is_running:
+                        try:
+                            from .pipeline.stream_worker import CameraStreamWorker, resolve_camera_rtsp_url
+                            worker_rtsp = resolve_camera_rtsp_url(cam_code)
+                            worker = CameraStreamWorker(
+                                camera_code=cam_code,
+                                rtsp_url=worker_rtsp
+                            )
+                            worker.start()
+                            with active_workers_lock:
+                                active_workers[cam_code] = worker
+                            logger.info(f"📹 [Auto-Record] Đã tự động kích hoạt Stream Worker & Ghi hình định kỳ cho camera [{cam_code}] từ MediaMTX ({name})")
+                        except Exception as w_err:
+                            logger.warning(f"⚠️ [Auto-Record] Không thể khởi động worker cho camera [{cam_code}]: {w_err}")
+        except Exception:
+            pass
+        await asyncio.sleep(8.0)
+
 @app.on_event("shutdown")
 async def shutdown_event():
     global default_pipeline, edge_agent
@@ -267,6 +312,7 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠️ Không thể khởi tạo EdgeMqttAgent: {e}")
     asyncio.create_task(sync_ai_config_from_backend())
+    asyncio.create_task(sync_online_cameras_worker())
         # Khởi động background thread retry upload bù video tồn khi MinIO online (BUG-04a)
     global _retry_upload_thread, _retry_upload_stop_event
     _retry_upload_stop_event.clear()
@@ -622,13 +668,19 @@ async def start_camera_stream(req: StreamStartRequest):
 
 @app.post("/api/v1/stream/stop", dependencies=[Depends(require_service_key)])
 async def stop_camera_stream(camera_code: str = Query(..., description="Mã camera cần dừng, ví dụ: CAM-001")):
+    norm_code = camera_code.strip()
     with active_workers_lock:
-        target_worker = active_workers.pop(camera_code, None)
+        target_worker = active_workers.pop(norm_code, None)
+        if not target_worker:
+            for k in list(active_workers.keys()):
+                if k.upper() == norm_code.upper():
+                    target_worker = active_workers.pop(k, None)
+                    break
     if not target_worker:
-        raise HTTPException(status_code=404, detail="Camera worker không tồn tại.")
+        return {"status": "NOT_FOUND", "camera_code": norm_code, "message": "Camera worker không tồn tại hoặc đã dừng."}
     
     target_worker.stop()
-    return {"status": "STOPPED", "camera_code": camera_code}
+    return {"status": "STOPPED", "camera_code": norm_code}
 
 @app.get("/api/v1/stream/status", dependencies=[Depends(require_service_key)])
 async def get_stream_status(camera_code: str = Query(..., description="Mã camera cần xem trạng thái, ví dụ: CAM-001")):
@@ -837,4 +889,8 @@ async def get_active_incident_recordings_api():
     """Lấy danh sách các sự cố hiện đang được ghi hình thời gian thực"""
     active = incident_recording_manager.get_active_recordings()
     return {"success": True, "count": len(active), "data": active}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=False)
 
