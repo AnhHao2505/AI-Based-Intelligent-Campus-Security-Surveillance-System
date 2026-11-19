@@ -265,8 +265,10 @@ def test_pipeline_sticky_state_with_track_switch():
     from src.pipeline.video_pipeline import VideoPipeline
 
     pipeline = VideoPipeline(camera_code="CAM-002", analysis_max_fps=15.0)
-    pipeline.analysis_engine.after_hour_start = "23:59"
-    pipeline.analysis_engine.after_hour_end = "23:59"
+    # Khung ngoài giờ hợp lệ (start != end, #262) + giờ cố định 10:00 ban ngày: không phụ thuộc giờ chạy test.
+    pipeline.analysis_engine.after_hour_start = "22:00"
+    pipeline.analysis_engine.after_hour_end = "06:00"
+    t0 = _get_night_timestamp(hour=10)
     roi_poly = [{"x": 0.50, "y": 0.70}, {"x": 0.70, "y": 0.70}, {"x": 0.70, "y": 0.90}, {"x": 0.50, "y": 0.90}]
     pipeline.set_roi_config([{"label": "Vung giam sat", "vertices": roi_poly, "alert_rules": ["ENTRY_EXIT_TRACKING"]}])
 
@@ -284,21 +286,21 @@ def test_pipeline_sticky_state_with_track_switch():
     pipeline.face_detector.detect_best_face_in_crop = lambda crop, offset_xy=(0,0): face_res
     pipeline.face_matcher.match_face = lambda crop, **kw: ("SE194249", "Tran Hoang Nam", 0.92, True, "STUDENT")
 
-    res_frame1, persons1, alerts1 = pipeline.process_frame(frame, need_annotated=True)
+    res_frame1, persons1, alerts1 = pipeline.process_frame(frame, current_time=t0, need_annotated=True)
     p1 = pipeline.analysis_engine.active_tracks[54]
     assert p1.security_display_state == "UNAUTHORIZED"
 
     # Frame 2: Person steps OUT of ROI into room (same track 54)
     bbox_out_roi = BoundingBox(1400, 1000, 1600, 1580)
     pipeline.human_detector.detect_and_track = lambda f, persist=True: [(54, bbox_out_roi)]
-    res_frame2, persons2, alerts2 = pipeline.process_frame(frame, need_annotated=True)
+    res_frame2, persons2, alerts2 = pipeline.process_frame(frame, current_time=t0 + 0.1, need_annotated=True)
     p2 = pipeline.analysis_engine.active_tracks[54]
     assert p2.security_display_state == "UNAUTHORIZED"
 
     # Frame 3: ByteTrack switches to track 55 outside ROI
     bbox_track_55 = BoundingBox(1420, 1050, 1620, 1600)
     pipeline.human_detector.detect_and_track = lambda f, persist=True: [(55, bbox_track_55)]
-    res_frame3, persons3, alerts3 = pipeline.process_frame(frame, need_annotated=True)
+    res_frame3, persons3, alerts3 = pipeline.process_frame(frame, current_time=t0 + 0.2, need_annotated=True)
     p3 = pipeline.analysis_engine.active_tracks.get(55)
     assert p3 is not None
     # Must remain UNAUTHORIZED (Red) across track ID switch!
