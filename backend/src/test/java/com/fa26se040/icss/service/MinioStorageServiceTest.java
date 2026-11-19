@@ -1,13 +1,19 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.exception.StorageEncryptionException;
 import io.minio.*;
 import io.minio.errors.ErrorResponseException;
 import io.minio.http.Method;
 import io.minio.messages.ErrorResponse;
+import io.minio.messages.SseAlgorithm;
+import io.minio.messages.SseConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
@@ -19,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(OutputCaptureExtension.class)
 class MinioStorageServiceTest {
 
     private MinioClient minioClient;
@@ -202,6 +209,53 @@ class MinioStorageServiceTest {
         verify(minioClient, never()).deleteBucketPolicy(any(DeleteBucketPolicyArgs.class));
     }
 
+    // ===== NFR-05 (N1): mã hoá mặc định của bucket =====
+
+    @Test
+    @DisplayName("NFR-05: initBuckets bật mã hoá mặc định SSE-S3 cho mọi bucket ứng dụng (faces, evidence, snapshots, recordings)")
+    void initBuckets_enablesDefaultEncryptionOnEveryBucket() throws Exception {
+        ReflectionTestUtils.setField(minioStorageService, "bucketRecordings", "camera-recordings");
+        givenBucketsExist();
+        when(minioClient.getBucketEncryption(any(GetBucketEncryptionArgs.class)))
+                .thenThrow(minioError("ServerSideEncryptionConfigurationNotFoundError"));
+
+        minioStorageService.initBuckets();
+
+        ArgumentCaptor<SetBucketEncryptionArgs> captor = ArgumentCaptor.forClass(SetBucketEncryptionArgs.class);
+        verify(minioClient, times(4)).setBucketEncryption(captor.capture());
+        assertEquals(List.of("face-profiles", "security-evidence", "camera-snapshots", "camera-recordings"),
+                captor.getAllValues().stream().map(SetBucketEncryptionArgs::bucket).toList());
+        captor.getAllValues().forEach(args ->
+                assertEquals(SseAlgorithm.AES256, args.config().rule().sseAlgorithm(), args.bucket()));
+    }
+
+    @Test
+    @DisplayName("NFR-05: bucket đã có mã hoá mặc định -> không ghi đè (idempotent); upload sau đó không kiểm lại")
+    void initBuckets_alreadyEncrypted_noWrite_andCached() throws Exception {
+        givenBucketsExist();
+        when(minioClient.getBucketEncryption(any(GetBucketEncryptionArgs.class)))
+                .thenReturn(SseConfiguration.newConfigWithSseS3Rule());
+
+        minioStorageService.initBuckets();
+        minioStorageService.uploadFaceImage(new byte[]{1}, "SE1");
+        minioStorageService.uploadSecurityEvidence(new byte[]{1}, "CAM-1", "UNAUTHORIZED_ACCESS", 1L);
+
+        verify(minioClient, never()).setBucketEncryption(any(SetBucketEncryptionArgs.class));
+        verify(minioClient, times(3)).getBucketEncryption(any(GetBucketEncryptionArgs.class));
+    }
+
+    @Test
+    @DisplayName("NFR-05: bật mã hoá bucket lỗi -> không chặn khởi động, vẫn gỡ policy các bucket")
+    void initBuckets_encryptionError_doesNotBlockStartup() throws Exception {
+        givenBucketsExist();
+        when(minioClient.getBucketEncryption(any(GetBucketEncryptionArgs.class))).thenThrow(minioError("AccessDenied"));
+
+        assertDoesNotThrow(() -> minioStorageService.initBuckets());
+
+        verify(minioClient, never()).setBucketEncryption(any(SetBucketEncryptionArgs.class));
+        verify(minioClient, times(3)).getBucketPolicy(any(GetBucketPolicyArgs.class));
+    }
+
     // ===== B3 / B4: statObject =====
 
     @Test
@@ -251,20 +305,92 @@ class MinioStorageServiceTest {
         verify(minioClient, times(1)).putObject(any(PutObjectArgs.class));
     }
 
+    // ===== NFR-05 (N2): không có đường lưu dạng rõ =====
+
     @Test
-    @DisplayName("uploadFaceImage: NotImplemented khi dùng SSE-S3 -> tự động fallback sang upload thường")
-    void uploadFaceImage_fallbackWhenSseNotImplemented() throws Exception {
-        when(minioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
-        // Lần đầu ném NotImplemented, lần retry thứ 2 thành công
-        when(minioClient.putObject(any(PutObjectArgs.class)))
-                .thenThrow(minioError("NotImplemented"))
-                .thenReturn(null);
+    @DisplayName("NFR-05: SSE bị từ chối (NotImplemented = MinIO chưa có KMS) -> upload ảnh khuôn mặt thất bại, KHÔNG thử lại không mã hoá")
+    void uploadFaceImage_sseNotImplemented_failsWithoutPlaintextRetry(CapturedOutput output) throws Exception {
+        givenBucketsExist();
+        when(minioClient.putObject(any(PutObjectArgs.class))).thenThrow(minioError("NotImplemented"));
 
-        byte[] bytes = new byte[]{1, 2, 3};
-        String url = minioStorageService.uploadFaceImage(bytes, "SE123456");
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> minioStorageService.uploadFaceImage(new byte[]{1, 2, 3}, "SE123456"));
 
-        assertEquals("http://localhost:9000/face-profiles/SE123456/SE123456_front.jpg", url);
-        // Gọi 2 lần: lần 1 có SSE, lần 2 không có SSE
-        verify(minioClient, times(2)).putObject(any(PutObjectArgs.class));
+        assertInstanceOf(StorageEncryptionException.class, ex.getCause());
+        ArgumentCaptor<PutObjectArgs> captor = ArgumentCaptor.forClass(PutObjectArgs.class);
+        verify(minioClient, times(1)).putObject(captor.capture());
+        assertNotNull(captor.getValue().sse(), "lệnh ghi duy nhất phải có SSE");
+        String nfr05Line = output.getOut().lines()
+                .filter(l -> l.contains("ERROR") && l.contains("[NFR-05] MinIO từ chối mã hoá phía server SSE-S3"))
+                .findFirst().orElse(null);
+        assertNotNull(nfr05Line, "phải log ERROR có tiền tố [NFR-05]");
+        assertTrue(nfr05Line.contains("code=NotImplemented"));
+        assertFalse(nfr05Line.contains("minio message"), "dòng [NFR-05] chỉ có mã lỗi, không chép chi tiết trả về từ MinIO");
+    }
+
+    @Test
+    @DisplayName("NFR-05: lỗi KMS (KMS.*) khi ghi bằng chứng -> trả null như mọi lỗi upload, không ghi dạng rõ")
+    void uploadSecurityEvidence_kmsError_noPlaintextRetry() throws Exception {
+        givenBucketsExist();
+        when(minioClient.putObject(any(PutObjectArgs.class))).thenThrow(minioError("KMS.NotFoundException"));
+
+        assertNull(minioStorageService.uploadSecurityEvidence(new byte[]{1}, "CAM-1", "UNAUTHORIZED_ACCESS", 1L));
+
+        verify(minioClient, times(1)).putObject(any(PutObjectArgs.class));
+    }
+
+    @Test
+    @DisplayName("NFR-05: lỗi không liên quan mã hoá (AccessDenied) -> ném lại nguyên lỗi, không đổi thành lỗi mã hoá")
+    void uploadFaceImage_otherError_rethrownAsIs() throws Exception {
+        givenBucketsExist();
+        when(minioClient.putObject(any(PutObjectArgs.class))).thenThrow(minioError("AccessDenied"));
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> minioStorageService.uploadFaceImage(new byte[]{1}, "SE1"));
+
+        assertInstanceOf(ErrorResponseException.class, ex.getCause());
+        verify(minioClient, times(1)).putObject(any(PutObjectArgs.class));
+    }
+
+    @Test
+    @DisplayName("NFR-05: khởi động -> ghi 1 object nhỏ có SSE vào camera-snapshots rồi xoá đúng object đó")
+    void initBuckets_startupProbe_writesEncryptedObjectThenRemovesIt() throws Exception {
+        givenBucketsExist();
+
+        minioStorageService.initBuckets();
+
+        ArgumentCaptor<PutObjectArgs> put = ArgumentCaptor.forClass(PutObjectArgs.class);
+        verify(minioClient, times(1)).putObject(put.capture());
+        assertEquals("camera-snapshots", put.getValue().bucket());
+        assertTrue(put.getValue().object().startsWith(MinioStorageService.SSE_PROBE_PREFIX));
+        assertNotNull(put.getValue().sse());
+        ArgumentCaptor<RemoveObjectArgs> remove = ArgumentCaptor.forClass(RemoveObjectArgs.class);
+        verify(minioClient, times(1)).removeObject(remove.capture());
+        assertEquals("camera-snapshots", remove.getValue().bucket());
+        assertEquals(put.getValue().object(), remove.getValue().object());
+    }
+
+    @Test
+    @DisplayName("NFR-05: khởi động, MinIO không có KMS -> log ERROR [NFR-05], không ném ra, không ghi lại dạng rõ")
+    void initBuckets_startupProbe_sseRejected_logsErrorOnly(CapturedOutput output) throws Exception {
+        givenBucketsExist();
+        when(minioClient.putObject(any(PutObjectArgs.class))).thenThrow(minioError("NotImplemented"));
+
+        assertDoesNotThrow(() -> minioStorageService.initBuckets());
+
+        verify(minioClient, times(1)).putObject(any(PutObjectArgs.class));
+        verify(minioClient, never()).removeObject(any(RemoveObjectArgs.class));
+        assertTrue(output.getOut().contains("[NFR-05] Kiểm tra lúc khởi động THẤT BẠI"));
+    }
+
+    @Test
+    @DisplayName("NFR-05: khởi động, MinIO chưa tới được -> log ERROR [NFR-05], backend không sập, không ghi thử")
+    void initBuckets_minioUnreachable_logsNfr05Error_noProbe(CapturedOutput output) throws Exception {
+        when(minioClient.bucketExists(any(BucketExistsArgs.class))).thenThrow(new IOException("connection refused"));
+
+        assertDoesNotThrow(() -> minioStorageService.initBuckets());
+
+        verify(minioClient, never()).putObject(any(PutObjectArgs.class));
+        assertTrue(output.getOut().contains("[NFR-05] Không kiểm được mã hoá phía server lúc khởi động"));
     }
 }
