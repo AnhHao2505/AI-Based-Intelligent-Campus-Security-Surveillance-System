@@ -317,7 +317,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			try {
 				const token = await ensureDvrToken();
 				if (seekSeqRef.current !== seq) return;
-				const sliceDurationSec = Math.min(1800, Math.max(30, Math.ceil((currentLiveMs - requestedMs) / 1000) + 15));
+				const sliceDurationSec = Math.min(600, Math.max(30, Math.ceil((currentLiveMs - requestedMs) / 1000) + 15));
 				const srcUrl = buildDvrStreamUrl(displayCamCode, {
 					startMs: requestedMs,
 					durationSec: sliceDurationSec,

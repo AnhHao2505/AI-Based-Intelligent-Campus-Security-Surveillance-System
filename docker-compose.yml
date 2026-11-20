@@ -189,7 +189,7 @@ services:
       - "127.0.0.1:9997:9997" # MediaMTX REST API (chỉ bind loopback trên host, bắt buộc Basic Auth)
     volumes:
       - ./mediamtx.yml:/mediamtx.yml:ro
-      - ./mediamtx_recordings:/recordings
+      - mediamtxrecordings:/recordings
     networks:
       - sep_network
 
@@ -198,6 +198,7 @@ volumes:
   pgadmindata:
   miniodata:
   mosquittodata:
+  mediamtxrecordings:
 
 networks:
   sep_network:

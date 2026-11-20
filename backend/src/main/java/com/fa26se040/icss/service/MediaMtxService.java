@@ -39,8 +39,12 @@ import java.util.regex.Pattern;
 public class MediaMtxService {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
-    private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(15);
+    private static final long DVR_LIST_CACHE_TTL_MS = 2000L;
     private static final Pattern RTSP_CREDENTIALS_PATTERN = Pattern.compile("(rtsps?://[^:/@\\s]+:)([^@\\s]+)(@)", Pattern.CASE_INSENSITIVE);
+
+    private record CachedDvrTimeline(long fetchedAtMs, DvrTimelineDto timeline) {}
+    private final Map<String, CachedDvrTimeline> dvrTimelineCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private final RestTemplate restTemplate = createRestTemplate();
 
@@ -57,8 +61,8 @@ public class MediaMtxService {
 
     public static final String INTERNAL_RTSP_USER = "icss-internal";
 
-    @Value("${mediamtx.api.url:http://localhost:9997}")
-    private String mediaMtxApiUrl = "http://localhost:9997";
+    @Value("${mediamtx.api.url:http://127.0.0.1:9997}")
+    private String mediaMtxApiUrl = "http://127.0.0.1:9997";
 
     @Value("${mediamtx.rtsp.url:rtsp://localhost:8554}")
     private String mediaMtxRtspUrl = "rtsp://localhost:8554";
@@ -66,8 +70,8 @@ public class MediaMtxService {
     @Value("${mediamtx.whep.base-url:http://localhost:8889}")
     private String mediaMtxWhepBaseUrl = "http://localhost:8889";
 
-    @Value("${mediamtx.playback.url:http://localhost:9996}")
-    private String mediaMtxPlaybackUrl = "http://localhost:9996";
+    @Value("${mediamtx.playback.url:http://127.0.0.1:9996}")
+    private String mediaMtxPlaybackUrl = "http://127.0.0.1:9996";
 
     @Value("${icss.internal.service-key:}")
     private String internalServiceKey = "";
@@ -327,6 +331,13 @@ public class MediaMtxService {
             return new DvrTimelineDto(cameraCode, basePath, nowMs, Collections.emptyList());
         }
 
+        if (startMsFilter == null && endMsFilter == null) {
+            CachedDvrTimeline cached = dvrTimelineCache.get(basePath);
+            if (cached != null && (nowMs - cached.fetchedAtMs()) <= DVR_LIST_CACHE_TTL_MS && !cached.timeline().segments().isEmpty()) {
+                return new DvrTimelineDto(cached.timeline().cameraCode(), cached.timeline().streamPath(), nowMs, cached.timeline().segments());
+            }
+        }
+
         List<DvrSegmentDto> segments = fetchDvrSegmentsForPath(basePath, startMsFilter, endMsFilter);
         String resolvedPath = basePath;
         if (segments.isEmpty() && !basePath.endsWith("_main")) {
@@ -337,7 +348,11 @@ public class MediaMtxService {
                 resolvedPath = mainPath;
             }
         }
-        return new DvrTimelineDto(cameraCode != null ? cameraCode.trim().toUpperCase() : resolvedPath, resolvedPath, nowMs, segments);
+        DvrTimelineDto dto = new DvrTimelineDto(cameraCode != null ? cameraCode.trim().toUpperCase() : resolvedPath, resolvedPath, nowMs, segments);
+        if (startMsFilter == null && endMsFilter == null && !segments.isEmpty()) {
+            dvrTimelineCache.put(basePath, new CachedDvrTimeline(nowMs, dto));
+        }
+        return dto;
     }
 
     @SuppressWarnings("unchecked")
@@ -483,12 +498,15 @@ public class MediaMtxService {
 
             StreamingResponseBody body = outputStream -> {
                 try (InputStream in = conn.getInputStream()) {
-                    byte[] buffer = new byte[65536];
+                    byte[] buffer = new byte[16384];
                     int bytesRead;
                     while ((bytesRead = in.read(buffer)) != -1) {
                         outputStream.write(buffer, 0, bytesRead);
                         outputStream.flush();
                     }
+                } catch (java.io.IOException ioEx) {
+                    // Client (trình duyệt) đóng kết nối sớm khi người dùng tua sang mốc khác
+                    log.debug("DVR stream kết thúc sớm cho [{}]: {}", resolvedPath, ioEx.getMessage());
                 } finally {
                     conn.disconnect();
                 }
