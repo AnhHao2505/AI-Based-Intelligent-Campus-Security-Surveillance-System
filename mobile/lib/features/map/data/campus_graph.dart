@@ -26,7 +26,7 @@ class CampusGraphNode {
   final double latitude;
   final double longitude;
 
-  /// Tên toà chuẩn (vd "Tòa Alpha") hoặc "OUTDOOR".
+  /// Tên toà chuẩn (vd "Tòa Epsilon") hoặc "OUTDOOR".
   final String building;
   final int floorOrder;
 
@@ -157,6 +157,65 @@ class CampusGraph {
   CampusGraphNode? nodeById(String id) {
     final i = _indexById[id];
     return i == null ? null : nodes[i];
+  }
+
+  /// Bản sao đồ thị đã loại bỏ toàn bộ nút trong nhà của [buildingName] (vd "Tòa Alpha")
+  /// và các nút ngoài trời (như giếng trời / sân trong của tòa đó) bị cô lập không nối tới tòa nhà nào còn lại.
+  CampusGraph withoutBuilding(String buildingName) {
+    final target = buildingName.trim().toLowerCase();
+    if (target.isEmpty) return this;
+
+    final keptByBldg = <String>{
+      for (final n in nodes)
+        if (n.isOutdoor || n.building.trim().toLowerCase() != target) n.id,
+    };
+    final filteredEdges = <CampusGraphEdge>[
+      for (final e in edges)
+        if (keptByBldg.contains(e.a) && keptByBldg.contains(e.b)) e,
+    ];
+
+    // Tìm tất cả nút có thể đi tới ít nhất một nút trong nhà của các tòa còn lại
+    final adj = <String, List<String>>{
+      for (final id in keptByBldg) id: <String>[],
+    };
+    for (final e in filteredEdges) {
+      adj[e.a]!.add(e.b);
+      adj[e.b]!.add(e.a);
+    }
+    final indoorSeeds = <String>[
+      for (final n in nodes)
+        if (keptByBldg.contains(n.id) && !n.isOutdoor) n.id,
+    ];
+
+    final reachableFromIndoor = <String>{...indoorSeeds};
+    if (indoorSeeds.isNotEmpty) {
+      final queue = <String>[...indoorSeeds];
+      var head = 0;
+      while (head < queue.length) {
+        final u = queue[head++];
+        for (final v in adj[u] ?? const <String>[]) {
+          if (reachableFromIndoor.add(v)) {
+            queue.add(v);
+          }
+        }
+      }
+    }
+
+    final finalNodeIds = <String>{
+      for (final n in nodes)
+        if (keptByBldg.contains(n.id) &&
+            (!n.isOutdoor || indoorSeeds.isEmpty || reachableFromIndoor.contains(n.id)))
+          n.id,
+    };
+    final finalNodes = <CampusGraphNode>[
+      for (final n in nodes)
+        if (finalNodeIds.contains(n.id)) n,
+    ];
+    final finalEdges = <CampusGraphEdge>[
+      for (final e in filteredEdges)
+        if (finalNodeIds.contains(e.a) && finalNodeIds.contains(e.b)) e,
+    ];
+    return CampusGraph.build(finalNodes, finalEdges);
   }
 
   /// Đường ngắn nhất (theo `cost`) từ [fromId] tới [toId]; null khi không có đường hoặc id không tồn tại.

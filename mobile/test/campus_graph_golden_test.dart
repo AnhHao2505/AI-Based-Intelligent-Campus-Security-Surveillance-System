@@ -140,4 +140,13 @@ void main() {
     ]);
     expect(g2.shortestPath('a', 'd')!.nodeIds, ['a', 'c', 'd']);
   });
+
+  test('withoutBuilding("Tòa Alpha") loại bỏ toàn bộ nút trong nhà và giếng trời cô lập của Tòa Alpha', () {
+    final cleaned = graph.withoutBuilding('Tòa Alpha');
+    expect(cleaned.nodes.any((n) => n.building == 'Tòa Alpha'), isFalse);
+    expect(cleaned.nodes.where((n) => n.building == 'Tòa Epsilon'), hasLength(530));
+    // 5 nút giếng trời bên trong Tòa Alpha chỉ nối với hành lang Tòa Alpha cũng bị loại bỏ
+    expect(cleaned.nodes.where((n) => n.isOutdoor), hasLength(25));
+    expect(cleaned.nodeById('__t___door_door-1794368027854___void__'), isNull);
+  });
 }

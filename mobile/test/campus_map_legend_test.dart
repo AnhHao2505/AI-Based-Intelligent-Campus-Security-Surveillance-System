@@ -112,35 +112,33 @@ void main() {
       return mapProvider;
     }
 
-    testWidgets('nằm ngay trên nút chat, không chồng nút chat / nút nổi / dòng ghi công OSM', (tester) async {
+    testWidgets('ẩn mặc định để mặt bản đồ thoáng, bấm nút (i) góc trên để bật/tắt chú giải', (tester) async {
       await pumpScreen(tester);
+
+      // Mặc định ẩn khỏi bản đồ
+      expect(find.byType(CampusMapLegend), findsNothing);
+      final toggle = find.byKey(const ValueKey('map-legend-toggle'));
+      expect(toggle, findsOneWidget);
+
+      // Bấm nút (i) → hiện chú giải ở phía trên, không chồng nút chat, FAB hay dòng ghi công OSM
+      await tester.tap(toggle);
+      await tester.pump();
+      expect(find.byType(CampusMapLegend), findsOneWidget);
 
       final legend = tester.getRect(find.byType(CampusMapLegend));
       final chat = tester.getRect(find.byType(FloatingGuardChatButton));
       final osm = tester.getRect(find.byKey(const ValueKey('osm-attribution-bar')));
-
-      expect(legend.left, closeTo(chat.left, 0.01), reason: 'thẳng mép trái với nút chat');
-      expect(legend.bottom, lessThan(chat.top), reason: 'chú giải ở trên nút chat');
       expect(legend.overlaps(chat), isFalse);
       expect(legend.overlaps(osm), isFalse, reason: 'không che dòng ghi công');
       for (final fab in tester.widgetList<FloatingActionButton>(find.byType(FloatingActionButton))) {
         final r = tester.getRect(find.byWidget(fab));
         expect(legend.overlaps(r), isFalse, reason: 'chú giải chồng nút ${fab.tooltip}');
       }
-    });
 
-    testWidgets('ẩn khi thẻ khu đang mở (selectedArea != null), hiện lại khi đóng thẻ', (tester) async {
-      final mapProvider = await pumpScreen(tester);
-      expect(find.byType(CampusMapLegend), findsOneWidget);
-
-      mapProvider.selectArea(_area('HIGHLY_CONFIDENTIAL'));
+      // Bấm lại nút (i) → đóng chú giải
+      await tester.tap(toggle);
       await tester.pump();
       expect(find.byType(CampusMapLegend), findsNothing);
-      expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
-
-      mapProvider.selectArea(null);
-      await tester.pump();
-      expect(find.byType(CampusMapLegend), findsOneWidget);
     });
   });
 }
