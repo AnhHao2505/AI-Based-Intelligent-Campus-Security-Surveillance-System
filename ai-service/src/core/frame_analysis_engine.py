@@ -195,6 +195,7 @@ class FrameAnalysisEngine:
         receiver.expires_at = getattr(donor, "expires_at", None)
         receiver.starts_at = getattr(donor, "starts_at", None)
         receiver.is_inherited_identity = True
+        receiver.identity_contested = False
         receiver.inherited_mismatch_count = getattr(donor, "inherited_mismatch_count", 0)
         receiver.identity_verified_at = None
         if hasattr(receiver.face_info, "is_inherited"):
@@ -230,6 +231,7 @@ class FrameAnalysisEngine:
         person.expires_at = None
         person.starts_at = None
         person.is_inherited_identity = False
+        person.identity_contested = False
         person.inherited_mismatch_count = 0
         person.identity_verified_at = None
         person.pending_reverify_code = None
@@ -301,6 +303,8 @@ class FrameAnalysisEngine:
         Hai người đang thấy chồng lấn nhau: ByteTrack có thể tráo ID, khiến danh tính của người bị che dính sang người
         đang che. Danh tính đã nhận diện của cả hai được đánh dấu chưa xác nhận (như danh tính kế thừa): pipeline quét
         lại mặt mỗi frame, mặt đúng người -> xác nhận lại; mặt người khác -> đổi hoặc gỡ danh tính.
+        Đánh dấu identity_contested: điểm mặt thấp chỉ được tính để gỡ danh tính sau khi hai box đã tách nhau
+        (đi ngang người khác không phải bằng chứng tráo ID).
         """
         persons = [self.active_tracks[tid] for tid, _ in visible_tracks if tid >= 0 and tid in self.active_tracks]
         contested: Set[int] = set()
@@ -316,6 +320,7 @@ class FrameAnalysisEngine:
             if not (p.face_detected and p.face_info and p.face_info.matched_code):
                 continue
             p.is_inherited_identity = True
+            p.identity_contested = True
             logger.info(
                 f"🫂 [FrameAnalysisEngine:{camera_code}] Track #{p.track_id} ({p.face_info.matched_code}) chồng lấn người khác "
                 f"-> quét lại mặt để xác nhận danh tính"

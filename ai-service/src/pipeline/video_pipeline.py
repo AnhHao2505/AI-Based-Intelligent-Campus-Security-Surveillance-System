@@ -13,7 +13,7 @@ from ..core.zone_state_machine import ZoneStateMachine, ZoneState
 from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
-from ..core.frame_analysis_engine import FrameAnalysisEngine
+from ..core.frame_analysis_engine import FrameAnalysisEngine, OCCLUSION_CONTEST_IOU, OCCLUSION_CONTEST_IOM
 from ..integration.mqtt_client import get_security_mqtt_client
 from ..integration.storage_service import StorageService
 from ..utils.visualizer import FrameVisualizer
@@ -628,13 +628,17 @@ class VideoPipeline:
         existing.last_reverify_attempt_time = current_time
         return True
 
-    def _maybe_revoke_inherited_identity(self, existing, is_reverifying: bool, face_result, best_score: float) -> bool:
+    def _maybe_revoke_inherited_identity(
+        self, existing, is_reverifying: bool, face_result, best_score: float, overlapping: bool = False
+    ) -> bool:
         """
         Track nhận danh tính KẾ THỪA (từ track vừa mất dấu gần đó) mà 2 lần quét lại ra điểm RÕ LÀ NGƯỜI KHÁC
         (điểm cao nhất < FACE_REVOKE_MAX_SCORE) -> gỡ danh tính, xử lý như người lạ.
         Điểm từ FACE_REVOKE_MAX_SCORE tới dưới ngưỡng khớp là vùng mơ hồ (người thật nghiêng mặt, mờ): không tính,
         không reset bộ đếm. Điểm <= 0 (không tính được vector) cũng không tính.
         Danh tính tự nhận diện trên chính track này (không kế thừa) không bao giờ bị gỡ ở đây.
+        Danh tính tự nhận diện chỉ bị đánh dấu do chồng lấn (identity_contested): khi box còn chồng lấn người khác
+        (overlapping) thì điểm thấp không được tính; chỉ tính sau khi hai box đã tách nhau.
         """
         if not (is_reverifying and existing is not None and existing.face_info is not None
                 and existing.face_info.matched_code):
@@ -645,6 +649,12 @@ class VideoPipeline:
         revoke_max = float(getattr(settings, "FACE_REVOKE_MAX_SCORE", 0.30))
         if best_score <= 0.0 or best_score >= revoke_max:
             return False
+        if overlapping and getattr(existing, "identity_contested", False):
+            logger.debug(
+                f"🫂 [VideoPipeline:{self.camera_code}] Track #{existing.track_id}: điểm mặt {best_score:.2f} khi còn "
+                f"chồng lấn người khác -> không tính để gỡ danh tính [{existing.face_info.matched_code}]"
+            )
+            return False
         existing.inherited_mismatch_count = getattr(existing, "inherited_mismatch_count", 0) + 1
         if existing.inherited_mismatch_count < 2:
             return False
@@ -653,6 +663,7 @@ class VideoPipeline:
         existing.face_info = face_result  # kết quả không khớp -> không còn danh tính
         existing.face_detected = True
         existing.is_inherited_identity = False
+        existing.identity_contested = False
         existing.inherited_mismatch_count = 0
         existing.identity_verified_at = None
         existing.alert_unknown_sent = False
@@ -1084,6 +1095,7 @@ class VideoPipeline:
                     # và bắt buộc kích hoạt kiểm tra khuôn mặt ngay ở frame đầu tiên (reverify_due = True)
                     # bất kể điểm match trước đó của track cha cao bao nhiêu (kể cả >= 0.82).
                     existing.is_inherited_identity = True
+                    existing.identity_contested = False
                     if existing.face_info:
                         existing.face_info.is_inherited = True
 
@@ -1241,6 +1253,7 @@ class VideoPipeline:
                                     existing.pending_reverify_count = 0
                                     # Đã xác thực khuôn mặt độc lập trên track này -> Xóa cờ kế thừa!
                                     existing.is_inherited_identity = False
+                                    existing.identity_contested = False
                                     existing.inherited_mismatch_count = 0
                                     if existing.face_info:
                                         existing.face_info.is_inherited = False
@@ -1282,6 +1295,7 @@ class VideoPipeline:
                                     existing.pending_reverify_code = None
                                     existing.pending_reverify_count = 0
                                     existing.is_inherited_identity = False
+                                    existing.identity_contested = False
                                     if existing.face_info:
                                         existing.face_info.is_inherited = False
 
@@ -1382,7 +1396,16 @@ class VideoPipeline:
                             logger.debug(
                                 f"❓ [VideoPipeline:{self.camera_code}] [FaceMatcher] Track #{track_id} -> Không khớp khuôn mặt trong CSDL (UNKNOWN)"
                             )
-                            self._maybe_revoke_inherited_identity(existing, is_reverifying, face_result, last_sc)
+                            overlapping_now = any(
+                                otid >= 0 and otid != track_id and (
+                                    bbox.iou(ob) > OCCLUSION_CONTEST_IOU
+                                    or bbox.intersection_ratio(ob) > OCCLUSION_CONTEST_IOM
+                                )
+                                for otid, ob in detected_tracks
+                            )
+                            self._maybe_revoke_inherited_identity(
+                                existing, is_reverifying, face_result, last_sc, overlapping=overlapping_now
+                            )
 
                         # Mặt đã qua lọc kích thước và độ mờ: engine dùng mốc này để quyết định có giữ thêm (hold) trước khi chốt UNKNOWN
                         face_result.seen_at = current_time

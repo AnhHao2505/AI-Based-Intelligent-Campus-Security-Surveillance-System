@@ -131,6 +131,9 @@ class TrackedPerson:
     # Lần gần nhất danh tính hiện tại được xác nhận bằng khuôn mặt quét trên CHÍNH track này (None = chỉ kế thừa).
     # Hai track cùng mang một mã người: track xác nhận gần nhất giữ danh tính, track kia bị gỡ (1 người chỉ ở 1 chỗ).
     identity_verified_at: Optional[float] = None
+    # Danh tính tự nhận diện bị đánh dấu quét lại CHỈ vì box chồng lấn người khác (không phải kế thừa từ track cha).
+    # Trong lúc còn chồng lấn, điểm mặt thấp không được tính để gỡ danh tính (mặt bị che / nghiêng / lẫn người bên cạnh).
+    identity_contested: bool = False
     
     # Cờ trạng thái đã bắn thông báo
     alert_unauthorized_sent: bool = False
