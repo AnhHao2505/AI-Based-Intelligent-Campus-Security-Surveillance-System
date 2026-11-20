@@ -38,7 +38,6 @@ class MinioStorageServiceTest {
         ReflectionTestUtils.setField(minioStorageService, "minioEndpoint", "http://localhost:9000");
         ReflectionTestUtils.setField(minioStorageService, "bucketFaces", "face-profiles");
         ReflectionTestUtils.setField(minioStorageService, "bucketEvidence", "security-evidence");
-        ReflectionTestUtils.setField(minioStorageService, "bucketSnapshots", "camera-snapshots");
     }
 
     @Test
@@ -49,7 +48,7 @@ class MinioStorageServiceTest {
         minioStorageService.initBuckets();
 
         // 3 bucket: face-profiles, security-evidence, camera-snapshots
-        verify(minioClient, times(3)).makeBucket(any(MakeBucketArgs.class));
+        verify(minioClient, times(2)).makeBucket(any(MakeBucketArgs.class));
         verify(minioClient, never()).setBucketPolicy(any(SetBucketPolicyArgs.class));
     }
 
@@ -142,7 +141,7 @@ class MinioStorageServiceTest {
         ArgumentCaptor<DeleteBucketPolicyArgs> captor = ArgumentCaptor.forClass(DeleteBucketPolicyArgs.class);
         verify(minioClient, times(1)).deleteBucketPolicy(captor.capture());
         assertEquals("face-profiles", captor.getValue().bucket());
-        verify(minioClient, times(3)).getBucketPolicy(any(GetBucketPolicyArgs.class));
+        verify(minioClient, times(2)).getBucketPolicy(any(GetBucketPolicyArgs.class));
     }
 
     @Test
@@ -154,8 +153,8 @@ class MinioStorageServiceTest {
         minioStorageService.initBuckets();
 
         ArgumentCaptor<DeleteBucketPolicyArgs> captor = ArgumentCaptor.forClass(DeleteBucketPolicyArgs.class);
-        verify(minioClient, times(3)).deleteBucketPolicy(captor.capture());
-        assertEquals(List.of("face-profiles", "security-evidence", "camera-snapshots"),
+        verify(minioClient, times(2)).deleteBucketPolicy(captor.capture());
+        assertEquals(List.of("face-profiles", "security-evidence"),
                 captor.getAllValues().stream().map(DeleteBucketPolicyArgs::bucket).toList());
     }
 
@@ -179,7 +178,7 @@ class MinioStorageServiceTest {
         assertDoesNotThrow(() -> minioStorageService.initBuckets());
 
         verify(minioClient, never()).deleteBucketPolicy(any(DeleteBucketPolicyArgs.class));
-        verify(minioClient, times(3)).getBucketPolicy(any(GetBucketPolicyArgs.class));
+        verify(minioClient, times(2)).getBucketPolicy(any(GetBucketPolicyArgs.class));
     }
 
     @Test
@@ -188,13 +187,12 @@ class MinioStorageServiceTest {
         givenBucketsExist();
         when(minioClient.getBucketPolicy(any(GetBucketPolicyArgs.class)))
                 .thenThrow(minioError("AccessDenied"))
-                .thenThrow(new IOException("connection reset"))
                 .thenReturn("{\"Statement\":[]}");
         doThrow(minioError("AccessDenied")).when(minioClient).deleteBucketPolicy(any(DeleteBucketPolicyArgs.class));
 
         assertDoesNotThrow(() -> minioStorageService.initBuckets());
 
-        verify(minioClient, times(3)).getBucketPolicy(any(GetBucketPolicyArgs.class));
+        verify(minioClient, times(2)).getBucketPolicy(any(GetBucketPolicyArgs.class));
         verify(minioClient, times(1)).deleteBucketPolicy(any(DeleteBucketPolicyArgs.class));
     }
 
@@ -222,8 +220,8 @@ class MinioStorageServiceTest {
         minioStorageService.initBuckets();
 
         ArgumentCaptor<SetBucketEncryptionArgs> captor = ArgumentCaptor.forClass(SetBucketEncryptionArgs.class);
-        verify(minioClient, times(4)).setBucketEncryption(captor.capture());
-        assertEquals(List.of("face-profiles", "security-evidence", "camera-snapshots", "camera-recordings"),
+        verify(minioClient, times(3)).setBucketEncryption(captor.capture());
+        assertEquals(List.of("face-profiles", "security-evidence", "camera-recordings"),
                 captor.getAllValues().stream().map(SetBucketEncryptionArgs::bucket).toList());
         captor.getAllValues().forEach(args ->
                 assertEquals(SseAlgorithm.AES256, args.config().rule().sseAlgorithm(), args.bucket()));
@@ -241,7 +239,7 @@ class MinioStorageServiceTest {
         minioStorageService.uploadSecurityEvidence(new byte[]{1}, "CAM-1", "UNAUTHORIZED_ACCESS", 1L);
 
         verify(minioClient, never()).setBucketEncryption(any(SetBucketEncryptionArgs.class));
-        verify(minioClient, times(3)).getBucketEncryption(any(GetBucketEncryptionArgs.class));
+        verify(minioClient, times(2)).getBucketEncryption(any(GetBucketEncryptionArgs.class));
     }
 
     @Test
@@ -253,7 +251,7 @@ class MinioStorageServiceTest {
         assertDoesNotThrow(() -> minioStorageService.initBuckets());
 
         verify(minioClient, never()).setBucketEncryption(any(SetBucketEncryptionArgs.class));
-        verify(minioClient, times(3)).getBucketPolicy(any(GetBucketPolicyArgs.class));
+        verify(minioClient, times(2)).getBucketPolicy(any(GetBucketPolicyArgs.class));
     }
 
     // ===== B3 / B4: statObject =====
@@ -353,7 +351,7 @@ class MinioStorageServiceTest {
     }
 
     @Test
-    @DisplayName("NFR-05: khởi động -> ghi 1 object nhỏ có SSE vào camera-snapshots rồi xoá đúng object đó")
+    @DisplayName("NFR-05: khởi động -> ghi 1 object nhỏ có SSE vào security-evidence rồi xoá đúng object đó")
     void initBuckets_startupProbe_writesEncryptedObjectThenRemovesIt() throws Exception {
         givenBucketsExist();
 
@@ -361,12 +359,12 @@ class MinioStorageServiceTest {
 
         ArgumentCaptor<PutObjectArgs> put = ArgumentCaptor.forClass(PutObjectArgs.class);
         verify(minioClient, times(1)).putObject(put.capture());
-        assertEquals("camera-snapshots", put.getValue().bucket());
+        assertEquals("security-evidence", put.getValue().bucket());
         assertTrue(put.getValue().object().startsWith(MinioStorageService.SSE_PROBE_PREFIX));
         assertNotNull(put.getValue().sse());
         ArgumentCaptor<RemoveObjectArgs> remove = ArgumentCaptor.forClass(RemoveObjectArgs.class);
         verify(minioClient, times(1)).removeObject(remove.capture());
-        assertEquals("camera-snapshots", remove.getValue().bucket());
+        assertEquals("security-evidence", remove.getValue().bucket());
         assertEquals(put.getValue().object(), remove.getValue().object());
     }
 

@@ -14,6 +14,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RoiGeometryValidator {
 
+    /** Diện tích chuẩn hóa tối thiểu (5% khung hình) để tránh AI bỏ sót đối tượng. */
+    private static final double MIN_NORMALIZED_AREA = 0.05;
+
     public void validate(RoiGeometry geometry) {
         if (geometry == null) {
             throw new CameraException(CameraErrorCode.ERR_ROI_007);
@@ -63,6 +66,22 @@ public class RoiGeometryValidator {
         if (distinctVertices.size() < 3) {
             throw new CameraException(CameraErrorCode.ERR_ROI_004);
         }
+
+        if (computeNormalizedArea(vertices) < MIN_NORMALIZED_AREA) {
+            throw new CameraException(CameraErrorCode.ERR_ROI_008);
+        }
+    }
+
+    private double computeNormalizedArea(List<RoiGeometry.RoiPolygon.Vertex> vertices) {
+        double sum = 0.0;
+        int n = vertices.size();
+        for (int i = 0; i < n; i++) {
+            var curr = vertices.get(i);
+            var next = vertices.get((i + 1) % n);
+            sum += curr.getX().doubleValue() * next.getY().doubleValue()
+                    - next.getX().doubleValue() * curr.getY().doubleValue();
+        }
+        return Math.abs(sum) / 2.0;
     }
 
     private void validateCoordinate(BigDecimal x, BigDecimal y) {

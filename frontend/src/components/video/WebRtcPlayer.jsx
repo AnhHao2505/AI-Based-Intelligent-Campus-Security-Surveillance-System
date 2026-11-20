@@ -907,10 +907,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			{/* Thanh OSD Phía Trên */}
 			<div className="cctv-osd-top-bar">
 				<div className="cctv-osd-top-left">
-					<span className="cctv-spec-code" style={{ marginRight: "6px" }}>
-						{displayCamCode}
-					</span>
-					<span className="cctv-cam-name-isolated">{displayCamName}</span>
+					<span className="cctv-spec-code">{displayCamCode}</span>
 				</div>
 
 				<div className="cctv-osd-top-right">

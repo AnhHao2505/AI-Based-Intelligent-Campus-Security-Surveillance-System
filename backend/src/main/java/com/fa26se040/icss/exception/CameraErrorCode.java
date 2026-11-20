@@ -19,6 +19,7 @@ public enum CameraErrorCode {
     ERR_ROI_004("ERR_ROI_004", HttpStatus.BAD_REQUEST, "Polygon ROI phải có ít nhất 3 đỉnh phân biệt"),
     ERR_ROI_005("ERR_ROI_005", HttpStatus.BAD_REQUEST, "Nhãn polygon ROI không được vượt quá 100 ký tự"),
     ERR_ROI_007("ERR_ROI_007", HttpStatus.BAD_REQUEST, "Camera phải có ít nhất 1 vùng giám sát ROI"),
+    ERR_ROI_008("ERR_ROI_008", HttpStatus.BAD_REQUEST, "Diện tích vùng phát hiện xâm nhập phải đạt tối thiểu 5% khung hình"),
     ERR_STREAM_003("ERR_STREAM_003", HttpStatus.BAD_REQUEST, "Camera đang ở trạng thái ngừng hoạt động (INACTIVE), không thể thao tác luồng stream"),
     ERR_STREAM_004("ERR_STREAM_004", HttpStatus.BAD_REQUEST, "Camera đang phát trực tiếp (ONLINE), vui lòng ngắt stream trước khi thay đổi cấu hình kết nối"),
     ERR_STREAM_005("ERR_STREAM_005", HttpStatus.CONFLICT, "Địa chỉ luồng RTSP này đang được sử dụng bởi camera khác"),

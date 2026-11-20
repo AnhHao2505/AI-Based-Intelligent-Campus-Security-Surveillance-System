@@ -29,7 +29,7 @@
 .roi-modal-container {
   background: var(--theme-bg-surface, #1e293b);
   border: 1px solid var(--theme-border, #334155);
-  border-radius: 8px;
+  border-radius: 12px;
   width: 96vw;
   max-width: 1550px;
   height: 92vh;
@@ -69,6 +69,7 @@
 .roi-counter-badge {
   font-size: 0.75rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   padding: 0.25rem 0.65rem;
   border-radius: 9999px;
   background: var(--theme-info-bg, rgba(3, 78, 162, 0.08));
@@ -87,11 +88,11 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   border: 1px solid transparent;
 }
 
@@ -214,7 +215,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 1.5rem;
   overflow: hidden;
   user-select: none;
 }
@@ -225,38 +226,50 @@
   max-width: 100%;
   max-height: 100%;
   display: inline-block;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-  border-radius: 4px;
-  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  border-radius: 6px;
+  overflow: visible;
   line-height: 0;
 }
 
 .roi-snapshot-img {
   display: block;
   max-width: 100%;
-  max-height: calc(92vh - 140px);
+  max-height: calc(92vh - 160px);
+  border-radius: 6px;
   object-fit: contain;
   pointer-events: none;
 }
 
 .roi-grid-canvas {
-  width: min(960px, 68vw);
+  width: min(1040px, 66vw);
   aspect-ratio: 16 / 9;
-  max-height: calc(92vh - 140px);
+  max-height: calc(92vh - 160px);
+  border-radius: 6px;
   background-color: #0f172a;
   background-image:
     linear-gradient(to right, rgba(148, 163, 184, 0.14) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(148, 163, 184, 0.14) 1px, transparent 1px);
   background-size: 48px 48px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  border: 1px solid rgba(148, 163, 184, 0.32);
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  padding: 12px 16px;
-  color: rgba(226, 232, 240, 0.72);
-  font-size: 0.78rem;
-  line-height: 1.2;
+  padding: 12px 14px;
   pointer-events: none;
+}
+
+.roi-grid-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: rgba(226, 232, 240, 0.88);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .roi-svg-overlay,
@@ -379,13 +392,16 @@
 
 .roi-poly-label-svg {
   fill: #ffffff;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
   text-anchor: middle;
   dominant-baseline: middle;
+  paint-order: stroke fill;
+  stroke: rgba(15, 23, 42, 0.88);
+  stroke-width: 4px;
+  stroke-linejoin: round;
   pointer-events: none;
   user-select: none;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
 }
 
 .roi-first-target-halo,
@@ -532,7 +548,22 @@
 .roi-poly-sub,
 .roi-poly-meta {
   font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
   color: var(--theme-text-secondary, #475569);
+}
+
+.roi-area-error {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--theme-danger-text, #dc2626);
+}
+
+.roi-area-warning {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #b45309;
 }
 
 .roi-poly-delete-btn {

@@ -16,6 +16,8 @@ import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 
 const MAX_POLYGONS = 10;
 const MIN_VERTICES = 3;
+const MIN_AREA_PERCENT = 5;
+const MAX_RECOMMENDED_AREA_PERCENT = 90;
 
 export default function RoiEditorModal({
 	isOpen,
@@ -50,7 +52,9 @@ export default function RoiEditorModal({
 	const imgRef = useRef(null);
 
 	// URL MinIO (http://host:9000/bucket/key) -> /api/media/bucket/key; ảnh /api/media tải kèm JWT qua useAuthorizedImage
-	const formattedSnapshot = snapshotBase64 ? formatImageUrl(snapshotBase64) : null;
+	const formattedSnapshot = snapshotBase64
+		? formatImageUrl(snapshotBase64)
+		: null;
 
 	const rawImageSrc = formattedSnapshot
 		? formattedSnapshot.startsWith("data:") ||
@@ -59,7 +63,11 @@ export default function RoiEditorModal({
 			? formattedSnapshot
 			: `data:image/jpeg;base64,${formattedSnapshot}`
 		: null;
-	const { url: imageSrc, loading: imageLoading, error: imageError } = useAuthorizedImage(rawImageSrc);
+	const {
+		url: imageSrc,
+		loading: imageLoading,
+		error: imageError,
+	} = useAuthorizedImage(rawImageSrc);
 
 	// Initialize from initialRoiGeometry
 	useEffect(() => {
@@ -87,7 +95,7 @@ export default function RoiEditorModal({
 			const polys = Array.isArray(initialRoiGeometry?.polygons)
 				? initialRoiGeometry.polygons.map((p, idx) => ({
 						id: `poly_${Date.now()}_${idx}`,
-						label: p.label || `Vùng giám sát ${idx + 1}`,
+						label: p.label || `Vùng phát hiện xâm nhập ${idx + 1}`,
 						vertices: (p.vertices || []).map((v) => ({
 							x: Number(v.x),
 							y: Number(v.y),
@@ -143,13 +151,13 @@ export default function RoiEditorModal({
 	// Complete drawing polygon
 	const completeCurrentPolygon = useCallback(() => {
 		if (draftVertices.length < MIN_VERTICES) {
-			setError(`Vùng giám sát phải có ít nhất ${MIN_VERTICES} đỉnh.`);
+			setError(`Vùng phát hiện xâm nhập phải có ít nhất ${MIN_VERTICES} đỉnh.`);
 			return;
 		}
 
 		const newPolygon = {
 			id: `poly_${Date.now()}`,
-			label: `Vùng giám sát ${polygons.length + 1}`,
+			label: `Vùng phát hiện xâm nhập ${polygons.length + 1}`,
 			vertices: [...draftVertices],
 		};
 
@@ -276,7 +284,9 @@ export default function RoiEditorModal({
 	// Start Polygon Drawing
 	const startDrawingPolygon = () => {
 		if (polygons.length >= MAX_POLYGONS) {
-			setError(`Đã đạt giới hạn tối đa ${MAX_POLYGONS} vùng giám sát đa giác.`);
+			setError(
+				`Đã đạt giới hạn tối đa ${MAX_POLYGONS} vùng phát hiện xâm nhập.`,
+			);
 			return;
 		}
 		setError(null);
@@ -326,7 +336,9 @@ export default function RoiEditorModal({
 		}
 
 		if (polygons.length < 1) {
-			setError("Camera phải có ít nhất 1 vùng giám sát ROI (tối đa 10 vùng) trước khi lưu.");
+			setError(
+				"Camera phải có ít nhất 1 vùng phát hiện xâm nhập (tối đa 10 vùng) trước khi lưu.",
+			);
 			return;
 		}
 
@@ -335,7 +347,14 @@ export default function RoiEditorModal({
 			const p = polygons[i];
 			if (!p.vertices || p.vertices.length < MIN_VERTICES) {
 				setError(
-					`Vùng giám sát "${p.label || i + 1}" phải có ít nhất ${MIN_VERTICES} đỉnh.`,
+					`Vùng phát hiện xâm nhập "${p.label || i + 1}" phải có ít nhất ${MIN_VERTICES} đỉnh.`,
+				);
+				return;
+			}
+			const areaPct = computeAreaPercent(p.vertices);
+			if (areaPct < MIN_AREA_PERCENT) {
+				setError(
+					`Vùng "${p.label || i + 1}" quá nhỏ (${areaPct.toFixed(2)}% < ${MIN_AREA_PERCENT}% khung hình), dễ gây bỏ sót xâm nhập. Vui lòng mở rộng vùng.`,
 				);
 				return;
 			}
@@ -391,6 +410,18 @@ export default function RoiEditorModal({
 		};
 	};
 
+	// Shoelace formula on normalized [0,1] coordinates -> area percentage (0..100)
+	const computeAreaPercent = (vertices) => {
+		if (!vertices || vertices.length < 3) return 0;
+		let sum = 0;
+		for (let i = 0; i < vertices.length; i++) {
+			const curr = vertices[i];
+			const next = vertices[(i + 1) % vertices.length];
+			sum += curr.x * next.y - next.x * curr.y;
+		}
+		return Math.abs(sum) * 50;
+	};
+
 	if (!isOpen) return null;
 
 	const selectedPoly =
@@ -410,10 +441,10 @@ export default function RoiEditorModal({
 								size={20}
 								color="#38bdf8"
 							/>
-							Cấu hình vùng quan sát của camera
+							Cấu hình vùng phát hiện xâm nhập
 						</h3>
 						<span className="roi-counter-badge">
-							{polygons.length}/10 vùng giám sát (tối thiểu 1)
+							{polygons.length}/10 vùng (tối thiểu 1)
 						</span>
 					</div>
 
@@ -445,6 +476,7 @@ export default function RoiEditorModal({
 						<button
 							className="roi-modal-close-btn"
 							onClick={onClose}
+							aria-label="Đóng"
 						>
 							<X size={20} />
 						</button>
@@ -463,10 +495,10 @@ export default function RoiEditorModal({
 										className="roi-btn roi-btn-primary"
 										onClick={startDrawingPolygon}
 										disabled={polygons.length >= MAX_POLYGONS}
-										title="Khoanh vùng đa giác để giám sát: Người lạ, Xâm nhập, Ngoài giờ"
+										title="Khoanh vùng đa giác để phát hiện xâm nhập"
 									>
 										<Plus size={16} />
-										Vẽ vùng giám sát (Đa giác)
+										Vẽ vùng mới
 									</button>
 								) : (
 									<>
@@ -541,8 +573,13 @@ export default function RoiEditorModal({
 										<p>Đang tải ảnh...</p>
 									</div>
 								) : (
-									<div className="roi-grid-canvas" aria-label="Khung lưới ROI 16:9">
-										<span>Khung lưới chuẩn hóa 16:9 (Camera chưa phát Live)</span>
+									<div
+										className="roi-grid-canvas"
+										aria-label="Khung lưới 16:9"
+									>
+										<span className="roi-grid-status-pill">
+											Khung lưới chuẩn hóa 16:9 • Camera chưa phát Live
+										</span>
 									</div>
 								)}
 
@@ -589,8 +626,11 @@ export default function RoiEditorModal({
 													x={centroid.x}
 													y={centroid.y}
 													className="roi-poly-label-svg"
+													style={{
+														fontSize: `${Math.max(16, Math.round(imgDimensions.width * 0.016))}px`,
+													}}
 												>
-													{poly.label || `Vùng ${pIdx + 1}`}
+													{poly.label || `Vùng phát hiện xâm nhập ${pIdx + 1}`}
 												</text>
 
 												{/* Draggable vertex handles */}
@@ -732,11 +772,14 @@ export default function RoiEditorModal({
 					{/* Sidebar Section */}
 					<div className="roi-sidebar">
 						<div className="roi-sidebar-header">
-							<span>Vùng giám sát ROI</span>
+							<span>Vùng phát hiện xâm nhập</span>
 						</div>
 
 						{error && (
-							<div className="roi-error-banner" role="alert">
+							<div
+								className="roi-error-banner"
+								role="alert"
+							>
 								{error}
 							</div>
 						)}
@@ -745,14 +788,17 @@ export default function RoiEditorModal({
 							{/* Polygons */}
 							<div className="roi-section-group">
 								<div className="roi-section-heading">
-									<span>Vùng đa giác giám sát ({polygons.length}/10)</span>
+									<span>Danh sách vùng ({polygons.length}/10)</span>
 								</div>
 								<div className="roi-polygon-list">
 									{polygons.length === 0 ? (
 										<div className="roi-empty-state">
-											<p className="roi-empty-state-title">Chưa có vùng giám sát nào.</p>
+											<p className="roi-empty-state-title">
+												Chưa có vùng phát hiện xâm nhập nào.
+											</p>
 											<span className="roi-empty-state-hint">
-												Vui lòng vẽ ít nhất 1 vùng ROI (tối đa 10 vùng) trước khi lưu.
+												Vui lòng vẽ ít nhất 1 vùng phát hiện xâm nhập (tối đa 10
+												vùng) trước khi lưu.
 											</span>
 										</div>
 									) : (
@@ -760,6 +806,9 @@ export default function RoiEditorModal({
 											const isSelected =
 												selectedItem?.type === "POLYGON" &&
 												selectedItem.index === idx;
+											const areaPct = computeAreaPercent(poly.vertices);
+											const isTooSmall = areaPct < MIN_AREA_PERCENT;
+											const isTooLarge = areaPct > MAX_RECOMMENDED_AREA_PERCENT;
 											return (
 												<div
 													key={poly.id || idx}
@@ -772,11 +821,23 @@ export default function RoiEditorModal({
 														<span className="roi-poly-badge">{idx + 1}</span>
 														<div>
 															<div className="roi-poly-label">
-																{poly.label || `Vùng giám sát ${idx + 1}`}
+																{poly.label ||
+																	`Vùng phát hiện xâm nhập ${idx + 1}`}
 															</div>
 															<div className="roi-poly-meta">
-																{poly.vertices?.length || 0} đỉnh đa giác
+																{poly.vertices?.length || 0} đỉnh •{" "}
+																{areaPct.toFixed(1)}% khung hình
 															</div>
+															{isTooSmall && (
+																<div className="roi-area-error">
+																	Quá nhỏ (&lt; {MIN_AREA_PERCENT}%), dễ bỏ sót
+																</div>
+															)}
+															{isTooLarge && (
+																<div className="roi-area-warning">
+																	Phủ &gt; {MAX_RECOMMENDED_AREA_PERCENT}%, dễ báo giả
+																</div>
+															)}
 														</div>
 													</div>
 
@@ -805,14 +866,11 @@ export default function RoiEditorModal({
 											size={15}
 											color="#eab308"
 										/>
-										<span>
-											Chi tiết vùng:{" "}
-											{selectedPoly.label || `Vùng ${selectedItem.index + 1}`}
-										</span>
+										<span>Chi tiết vùng: </span>
 									</div>
 
 									<div className="roi-form-group">
-										<label className="roi-form-label">Tên vùng giám sát</label>
+										<label className="roi-form-label">Tên</label>
 										<input
 											type="text"
 											className="roi-form-input"

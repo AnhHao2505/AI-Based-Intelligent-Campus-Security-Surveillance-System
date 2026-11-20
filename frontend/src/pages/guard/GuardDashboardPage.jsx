@@ -2019,9 +2019,6 @@ export function SecuritySurveillancePage() {
 							<div className="soc-evidence-meta-panel">
 								<div className="soc-evidence-meta-row">
 									<span className="soc-evidence-meta-label">Camera:</span>
-									<span className="soc-evidence-meta-val">
-										<strong>{evidenceModalAlert.cameraCode}</strong> — {evidenceModalAlert.cameraName}
-									</span>
 								</div>
 								<div className="soc-evidence-meta-row">
 									<span className="soc-evidence-meta-label">Thời điểm:</span>

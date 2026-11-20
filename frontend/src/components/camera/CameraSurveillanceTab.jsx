@@ -6,10 +6,7 @@ import {
 	resolveRoiModalSnapshot,
 } from "../../utils/roiUtils";
 
-export default function CameraSurveillanceTab({
-	camera,
-	onOpenRoiEditor,
-}) {
+export default function CameraSurveillanceTab({ camera, onOpenRoiEditor }) {
 	const playerRef = useRef(null);
 	const [showRoiOverlay, setShowRoiOverlay] = useState(true);
 	const [playerStatus, setPlayerStatus] = useState("connecting");
@@ -20,7 +17,10 @@ export default function CameraSurveillanceTab({
 
 	const handleOpenEditor = () => {
 		if (!onOpenRoiEditor) return;
-		const snapshotMeta = resolveRoiModalSnapshot(playerStatus, playerRef.current);
+		const snapshotMeta = resolveRoiModalSnapshot(
+			playerStatus,
+			playerRef.current,
+		);
 		onOpenRoiEditor(snapshotMeta);
 	};
 
@@ -77,7 +77,7 @@ export default function CameraSurveillanceTab({
 							}
 						>
 							<Scan size={16} />
-							<span>Thiết lập / Chỉnh sửa vùng ROI</span>
+							<span>Thiết lập / Chỉnh sửa vùng</span>
 						</button>
 					)}
 
@@ -97,7 +97,7 @@ export default function CameraSurveillanceTab({
 								checked={showRoiOverlay}
 								onChange={(e) => setShowRoiOverlay(e.target.checked)}
 							/>
-							<span>Hiện vùng giám sát ({totalRoiCount})</span>
+							<span>Hiện vùng ({totalRoiCount})</span>
 						</label>
 					)}
 				</div>
@@ -108,7 +108,7 @@ export default function CameraSurveillanceTab({
 					<div className="roi-live-banner">
 						<div className="roi-live-badge">
 							<span className="pulse-dot-red" />
-							<span>LUỒNG TRỰC TIẾP &amp; LỚP PHỦ ROI</span>
+							<span>LUỒNG TRỰC TIẾP &amp;</span>
 						</div>
 					</div>
 
@@ -139,21 +139,23 @@ export default function CameraSurveillanceTab({
 								autoPlay={true}
 								onStatusChange={setPlayerStatus}
 							/>
-							{showRoiOverlay && totalRoiCount > 0 && playerStatus === "live" && (
-								<div
-									style={{
-										position: "absolute",
-										top: 0,
-										left: 0,
-										width: "100%",
-										height: "100%",
-										pointerEvents: "none",
-										zIndex: 10,
-									}}
-								>
-									{renderRoiSvgElements(1920, 1080)}
-								</div>
-							)}
+							{showRoiOverlay &&
+								totalRoiCount > 0 &&
+								playerStatus === "live" && (
+									<div
+										style={{
+											position: "absolute",
+											top: 0,
+											left: 0,
+											width: "100%",
+											height: "100%",
+											pointerEvents: "none",
+											zIndex: 10,
+										}}
+									>
+										{renderRoiSvgElements(1920, 1080)}
+									</div>
+								)}
 						</div>
 					</div>
 				</div>
@@ -164,28 +166,33 @@ export default function CameraSurveillanceTab({
 							className="roi-preview-stage roi-grid-preview-stage"
 							style={{ width: "100%", maxWidth: "860px" }}
 						>
-							<div className="roi-grid-canvas" style={{ width: "100%" }}>
+							<div
+								className="roi-grid-canvas"
+								style={{ width: "100%" }}
+							>
 								<span>
 									{totalRoiCount > 0
 										? `Khung lưới 16:9 — ${totalRoiCount} vùng giám sát (Camera đang Offline)`
 										: "Khung lưới 16:9 — Chưa cấu hình vùng ROI (cần ít nhất 1 vùng)"}
 								</span>
 							</div>
-							{showRoiOverlay && totalRoiCount > 0 && playerStatus === "live" && (
-								<div
-									style={{
-										position: "absolute",
-										top: 0,
-										left: 0,
-										width: "100%",
-										height: "100%",
-										pointerEvents: "none",
-										zIndex: 10,
-									}}
-								>
-									{renderRoiSvgElements(1920, 1080)}
-								</div>
-							)}
+							{showRoiOverlay &&
+								totalRoiCount > 0 &&
+								playerStatus === "live" && (
+									<div
+										style={{
+											position: "absolute",
+											top: 0,
+											left: 0,
+											width: "100%",
+											height: "100%",
+											pointerEvents: "none",
+											zIndex: 10,
+										}}
+									>
+										{renderRoiSvgElements(1920, 1080)}
+									</div>
+								)}
 						</div>
 					</div>
 
