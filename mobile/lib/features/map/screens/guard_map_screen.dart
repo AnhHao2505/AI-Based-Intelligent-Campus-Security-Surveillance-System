@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'dart:math' show Point, max;
 
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show kDebugMode, listEquals;
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
@@ -98,6 +99,10 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
   /// Góc xoay 2D hiện tại của camera (độ, 0 = hướng Bắc).
   double _cameraBearing = 0;
 
+  /// Bộ đếm mô phỏng đi bộ (chỉ dùng ở chế độ Debug trên Emulator).
+  Timer? _simTimer;
+  bool _isWalkingSim = false;
+
   @override
   void initState() {
     super.initState();
@@ -129,6 +134,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
 
   @override
   void dispose() {
+    _simTimer?.cancel();
     _provider.removeListener(_onProviderChanged);
     super.dispose();
   }
@@ -347,6 +353,86 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     } else if (_provider.errorMessage != null) {
       _showSnack(_provider.errorMessage!);
     }
+  }
+
+  void _stopWalkSimulation({bool resumeGps = false}) {
+    _simTimer?.cancel();
+    _simTimer = null;
+    if (_isWalkingSim && mounted) {
+      setState(() => _isWalkingSim = false);
+    } else {
+      _isWalkingSim = false;
+    }
+    if (resumeGps) {
+      _provider.setSimulatedGpsOverride(false);
+    }
+  }
+
+  void _startWalkSimulation() {
+    final route = _provider.currentRoute;
+    if (route == null || route.points.length < 2) {
+      _showSnack('Hãy chọn phòng và bấm Dẫn đường trước khi mô phỏng đi bộ');
+      return;
+    }
+    _simTimer?.cancel();
+
+    const dist = Distance();
+    const stepMeters = 2.5;
+    final steps = <({LatLng point, int floorOrder, double heading})>[];
+    for (var i = 1; i < route.points.length; i++) {
+      final a = route.points[i - 1];
+      final b = route.points[i];
+      final segMeters = dist.as(LengthUnit.Meter, a.latLng, b.latLng);
+      final bearing = segMeters > 0.2 ? dist.bearing(a.latLng, b.latLng) : 0.0;
+      final n = (segMeters / stepMeters).ceil().clamp(1, 40);
+      for (var k = 0; k < n; k++) {
+        final t = k / n;
+        final lat = a.latLng.latitude + (b.latLng.latitude - a.latLng.latitude) * t;
+        final lon = a.latLng.longitude + (b.latLng.longitude - a.latLng.longitude) * t;
+        steps.add((point: LatLng(lat, lon), floorOrder: a.floorOrder, heading: bearing));
+      }
+    }
+    final last = route.points.last;
+    steps.add((point: last.latLng, floorOrder: last.floorOrder, heading: steps.isNotEmpty ? steps.last.heading : 0.0));
+
+    var idx = 0;
+    var lastFloor = steps.first.floorOrder;
+    if (_provider.selectedFloorOrder != lastFloor) {
+      _provider.selectFloor(lastFloor);
+    }
+    setState(() => _isWalkingSim = true);
+    _provider.setSimulatedGpsOverride(true, location: steps.first.point, heading: steps.first.heading);
+
+    _simTimer = Timer.periodic(const Duration(milliseconds: 700), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      idx++;
+      if (idx >= steps.length) {
+        _stopWalkSimulation();
+        _showSnack('Đã tới điểm đến (mô phỏng)');
+        return;
+      }
+      final s = steps[idx];
+      if (s.floorOrder != lastFloor) {
+        lastFloor = s.floorOrder;
+        _provider.selectFloor(s.floorOrder);
+      }
+      _provider.updateGuardLocation(s.point, heading: s.heading);
+    });
+  }
+
+  void _teleportIndoorForTest() {
+    _stopWalkSimulation();
+    final pt = _provider.findIndoorTestPoint();
+    if (pt == null) {
+      _showSnack('Chưa tải xong bản đồ tòa nhà');
+      return;
+    }
+    _provider.setSimulatedGpsOverride(true, location: pt);
+    _focusOn(pt, 18.2);
+    _showSnack('Đã đặt GPS vào trong Tòa Epsilon. Bấm Dẫn đường để chọn tầng!');
   }
 
   Future<void> _toggleFollowGps() async {
@@ -808,6 +894,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           campusError: provider.campusError,
           hasCampus: provider.campus != null,
           visibleCampus: provider.visibleCampus ?? provider.campus,
+          isSimulatingGps: provider.isSimulatingGps,
         ));
     final mapProvider = _provider;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -923,6 +1010,51 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                         padding: const EdgeInsets.all(6),
                         constraints: const BoxConstraints(),
                       ),
+                      if (kDebugMode) ...[
+                        const SizedBox(width: 2),
+                        PopupMenuButton<String>(
+                          key: const ValueKey('map-debug-sim-menu'),
+                          tooltip: 'Mô phỏng GPS (Debug)',
+                          padding: const EdgeInsets.all(6),
+                          constraints: const BoxConstraints(),
+                          icon: Icon(
+                            _isWalkingSim ? Icons.directions_walk_rounded : Icons.directions_run_rounded,
+                            size: 20,
+                            color: (_isWalkingSim || mapState.isSimulatingGps)
+                                ? AppColors.primary
+                                : AppColors.txtSecondary(context),
+                          ),
+                          onSelected: (value) {
+                            if (value == 'walk') {
+                              if (_isWalkingSim) {
+                                _stopWalkSimulation();
+                              } else {
+                                _startWalkSimulation();
+                              }
+                            } else if (value == 'indoor') {
+                              _teleportIndoorForTest();
+                            } else if (value == 'reset') {
+                              _stopWalkSimulation(resumeGps: true);
+                              _showSnack('Đã khôi phục GPS thiết bị');
+                            }
+                          },
+                          itemBuilder: (ctx) => [
+                            PopupMenuItem(
+                              value: 'walk',
+                              child: Text(_isWalkingSim ? 'Dừng mô phỏng đi bộ' : 'Mô phỏng đi bộ theo tuyến'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'indoor',
+                              child: Text('Đặt GPS vào trong Tòa Epsilon'),
+                            ),
+                            if (mapState.isSimulatingGps)
+                              const PopupMenuItem(
+                                value: 'reset',
+                                child: Text('Khôi phục GPS thiết bị'),
+                              ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(width: 2),
                       if (mapState.isLoadingPins || mapState.isLoadingCampus)
                         const Padding(
@@ -1158,10 +1290,12 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                     ? null
                     : _focusFloorChange,
                 onCancelRoute: () {
+                  _stopWalkSimulation();
                   if (_isFollowingGps) setState(() => _isFollowingGps = false);
                   mapProvider.clearRoute();
                 },
                 onClose: () {
+                  _stopWalkSimulation();
                   if (_isFollowingGps) setState(() => _isFollowingGps = false);
                   mapProvider.selectArea(null);
                   mapProvider.clearRoute();
