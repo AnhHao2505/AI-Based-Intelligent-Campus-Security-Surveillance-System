@@ -53,7 +53,6 @@ class MediaControllerTest extends AbstractIntegrationTest {
 
     private static final String FACES = "face-profiles";
     private static final String EVIDENCE = "security-evidence";
-    private static final String SNAPSHOTS = "camera-snapshots";
     private static final byte[] IMAGE = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01, 0x02};
 
     @Autowired
@@ -80,7 +79,6 @@ class MediaControllerTest extends AbstractIntegrationTest {
     void setUp() {
         when(minioStorageService.getFacesBucket()).thenReturn(FACES);
         when(minioStorageService.getEvidenceBucket()).thenReturn(EVIDENCE);
-        when(minioStorageService.getSnapshotsBucket()).thenReturn(SNAPSHOTS);
         suffix = UUID.randomUUID().toString().substring(0, 8);
         admin = saveUser("MDAD", Role.ADMIN);
         fm = saveUser("MDFM", Role.FACILITY_MANAGER);
@@ -131,10 +129,10 @@ class MediaControllerTest extends AbstractIntegrationTest {
     // ===== M1: JWT bắt buộc =====
 
     @Test
-    @DisplayName("M1: không token -> 401 (cả 3 bucket và bucket lạ), không chạm MinIO")
+    @DisplayName("M1: không token -> 401 (cả 2 bucket và bucket lạ), không chạm MinIO")
     void noToken_401() throws Exception {
         for (String path : new String[]{"/api/media/face-profiles/SV-1/a.jpg", "/api/media/security-evidence/a.jpg",
-                "/api/media/camera-snapshots/CAM-1/a.jpg", "/api/media/unknown-bucket/a.jpg"}) {
+                "/api/media/unknown-bucket/a.jpg"}) {
             mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
         }
         verify(minioStorageService, never()).statObject(anyString(), anyString());
@@ -143,22 +141,21 @@ class MediaControllerTest extends AbstractIntegrationTest {
     // ===== M4: phân quyền theo bucket =====
 
     @Test
-    @DisplayName("M4: NORMAL_USER -> 403 cả 3 bucket, không chạm MinIO")
+    @DisplayName("M4: NORMAL_USER -> 403 cả 2 bucket, không chạm MinIO")
     void normalUser_403_allBuckets() throws Exception {
-        for (String bucket : new String[]{FACES, EVIDENCE, SNAPSHOTS}) {
+        for (String bucket : new String[]{FACES, EVIDENCE}) {
             mockMvc.perform(getAs(normalUser, "/api/media/" + bucket + "/x/a.jpg")).andExpect(status().isForbidden());
         }
         verify(minioStorageService, never()).statObject(anyString(), anyString());
     }
 
     @Test
-    @DisplayName("M4: FACILITY_MANAGER, GUARD -> 403 face-profiles và camera-snapshots, 200 security-evidence")
+    @DisplayName("M4: FACILITY_MANAGER, GUARD -> 403 face-profiles, 200 security-evidence")
     void fmAndGuard_onlyEvidence() throws Exception {
         String evidence = "2026-10-18/CAM-" + suffix + "/INTRUSION_Track1_101500.jpg";
         for (User user : new User[]{fm, guard}) {
             givenObject(EVIDENCE, evidence, "image/jpeg");
             mockMvc.perform(getAs(user, "/api/media/face-profiles/SV-1/SV-1_front.jpg")).andExpect(status().isForbidden());
-            mockMvc.perform(getAs(user, "/api/media/camera-snapshots/CAM-1/roi.jpg")).andExpect(status().isForbidden());
             mockMvc.perform(getAs(user, "/api/media/security-evidence/" + evidence))
                     .andExpect(status().isOk())
                     .andExpect(content().bytes(IMAGE));
@@ -166,18 +163,15 @@ class MediaControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("M4: ADMIN -> 200 cả 3 bucket")
+    @DisplayName("M4: ADMIN -> 200 cả 2 bucket")
     void admin_200_allBuckets() throws Exception {
         String face = "FACE-" + suffix + "/FACE-" + suffix + "_front.jpg";
         String evidence = "2026-10-18/CAM-" + suffix + "/UNKNOWN_PERSON_Track2_101500.jpg";
-        String snapshot = "CAM-" + suffix + "/roi_reference_20261018_101500.jpg";
         givenObject(FACES, face, "image/jpeg");
         givenObject(EVIDENCE, evidence, "image/jpeg");
-        givenObject(SNAPSHOTS, snapshot, "image/jpeg");
 
         mockMvc.perform(getAs(admin, "/api/media/face-profiles/" + face)).andExpect(status().isOk()).andExpect(content().bytes(IMAGE));
         mockMvc.perform(getAs(admin, "/api/media/security-evidence/" + evidence)).andExpect(status().isOk()).andExpect(content().bytes(IMAGE));
-        mockMvc.perform(getAs(admin, "/api/media/camera-snapshots/" + snapshot)).andExpect(status().isOk()).andExpect(content().bytes(IMAGE));
     }
 
     @Test
@@ -266,10 +260,10 @@ class MediaControllerTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("M3/M5: Cache-Control = private, no-store; nosniff; Content-Type từ statObject; Content-Length")
     void headersAndContentType() throws Exception {
-        String snapshot = "CAM-" + suffix + "/roi.png";
-        givenObject(SNAPSHOTS, snapshot, "image/png");
+        String evidence = "2026-10-18/CAM-" + suffix + "/roi.png";
+        givenObject(EVIDENCE, evidence, "image/png");
 
-        mockMvc.perform(getAs(admin, "/api/media/camera-snapshots/" + snapshot))
+        mockMvc.perform(getAs(admin, "/api/media/security-evidence/" + evidence))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "private, no-store"))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
@@ -281,10 +275,10 @@ class MediaControllerTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("M5: storage không có content-type -> application/octet-stream")
     void missingContentType_fallsBackToOctetStream() throws Exception {
-        String snapshot = "CAM-" + suffix + "/roi.bin";
-        givenObject(SNAPSHOTS, snapshot, null);
+        String evidence = "2026-10-18/CAM-" + suffix + "/roi.bin";
+        givenObject(EVIDENCE, evidence, null);
 
-        mockMvc.perform(getAs(admin, "/api/media/camera-snapshots/" + snapshot))
+        mockMvc.perform(getAs(admin, "/api/media/security-evidence/" + evidence))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "application/octet-stream"));
     }
@@ -333,18 +327,6 @@ class MediaControllerTest extends AbstractIntegrationTest {
         assertTrue(body.contains("FACE_PROFILE") && body.contains("VIEW_PHOTO"), body);
 
         mockMvc.perform(getAs(fm, "/api/access-control/audit-logs?module=SECURITY")).andExpect(status().isForbidden());
-    }
-
-    @Test
-    @DisplayName("B5: xem camera-snapshots không ghi audit")
-    void viewSnapshot_noAudit() throws Exception {
-        String snapshot = "CAM-" + suffix + "/roi_reference_20261018_101500.jpg";
-        givenObject(SNAPSHOTS, snapshot, "image/jpeg");
-
-        mockMvc.perform(getAs(admin, "/api/media/camera-snapshots/" + snapshot)).andExpect(status().isOk());
-
-        assertEquals(0, auditCountByTargetId(snapshot));
-        assertEquals(0, auditCountByTargetId("CAM-" + suffix));
     }
 
     @Test
