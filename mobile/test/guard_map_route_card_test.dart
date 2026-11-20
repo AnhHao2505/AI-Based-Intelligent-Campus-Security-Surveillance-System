@@ -221,6 +221,56 @@ void main() {
       expect(route2.distanceMeters, isNot(equals(route1.distanceMeters)));
       p.dispose();
     });
+
+    test('Chọn tầng đứng riêng (guardFloorOrder) khi GPS trong tòa nhà: gắn (x, y) đúng tầng và giữ qua real-time GPS', () async {
+      final cleaned = campus.withoutAlpha();
+      final f2Nodes = cleaned.graph!.nodes
+          .where(
+            (n) =>
+                n.building == 'Tòa Epsilon' &&
+                n.floorOrder == 2 &&
+                !n.isVirtual &&
+                cleaned.buildingAt(latitude: n.latitude, longitude: n.longitude) == 'Tòa Epsilon',
+          )
+          .toList();
+      final f2Node = f2Nodes.first;
+      final f2Node2 = f2Nodes.last;
+      final outdoorGps = cleaned.graph!.nodes.firstWhere((n) => n.isOutdoor);
+
+      final p = MapProvider(ApiClient(),
+          campusRepository: _DiskCampusRepository(campus), routeSettingsService: _FixedRouteSettings(RouteEtaSettings.defaults));
+      await p.loadCampusMap();
+
+      // 1. GPS ngoài sân → không cần hỏi tầng (needsStartFloorPrompt == false)
+      p.updateGuardLocation(LatLng(outdoorGps.latitude, outdoorGps.longitude));
+      expect(p.needsStartFloorPrompt, isFalse);
+
+      // 2. GPS trong tòa nhà → cần hỏi tầng (needsStartFloorPrompt == true)
+      final indoorGps1 = LatLng(f2Node.latitude, f2Node.longitude);
+      p.updateGuardLocation(indoorGps1);
+      expect(p.needsStartFloorPrompt, isTrue);
+
+      // Đang mở xem Tầng 4 trên bản đồ, nhưng bảo vệ chọn đang đứng ở Tầng 2
+      p.selectFloor(4);
+      await p.calculateRouteTo(destPin, startFloorOrder: 2);
+      final r1 = p.currentRoute!;
+      expect(r1.startFloorOrder, 2);
+      expect(r1.points.first.floorOrder, 2);
+
+      // Cập nhật GPS real-time khi di chuyển sang vị trí khác trên Tầng 2 → vẫn giữ startFloorOrder = 2 dù đang xem Tầng 4
+      final indoorGps2 = LatLng(f2Node2.latitude, f2Node2.longitude);
+      p.updateGuardLocation(indoorGps2);
+      final r2 = p.currentRoute!;
+      expect(r2.startFloorOrder, 2);
+      expect(r2.points.first.floorOrder, 2);
+
+      // Chọn "Đang ở ngoài sân (Tầng G)" (forceOutdoorStart) → xuất phát từ outdoorGps (floor 0)
+      await p.calculateRouteTo(destPin, startFloorOrder: 0, forceOutdoorStart: true);
+      final rOutdoor = p.currentRoute!;
+      expect(rOutdoor.startMode, CampusRouteStartMode.outdoorGps);
+      expect(rOutdoor.startFloorOrder, 0);
+      p.dispose();
+    });
   });
 
   testWidgets('UX dẫn đường gọn: đoạn ngoài trời luôn nổi bật; chạm tiêu đề focus phòng đích & chip đổi tầng tương tác',
@@ -236,10 +286,16 @@ void main() {
       destinationFloorOrder: 4,
     );
 
-    // Khi đang xem Tầng 4, đoạn đi bộ ngoài sân (OUTDOOR) vẫn có current = true để không bị mờ chìm vào nền tối
+    // Khi đang xem Tầng 4, chỉ vẽ đoạn thuộc Tầng 4 (current = true); đoạn ngoài sân (Tầng G) là current = false
     final geoAtF4 = routeGeoJson(route, currentFloor: 4);
-    final feats = (geoAtF4['features'] as List).cast<Map>();
-    expect(feats.first['properties']['current'], isTrue);
+    final featsAtF4 = (geoAtF4['features'] as List).cast<Map>();
+    expect(featsAtF4.first['properties']['current'], isFalse);
+    expect(featsAtF4.last['properties']['current'], isTrue);
+
+    // Khi đang xem Tầng G (0), đoạn ngoài sân có current = true
+    final geoAtG = routeGeoJson(route, currentFloor: 0);
+    final featsAtG = (geoAtG['features'] as List).cast<Map>();
+    expect(featsAtG.first['properties']['current'], isTrue);
 
     CampusFloorChange? tappedStep;
     var tappedDest = false;

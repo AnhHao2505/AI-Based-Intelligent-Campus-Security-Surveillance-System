@@ -1,4 +1,4 @@
-import 'dart:math' show Point;
+import 'dart:math' show Point, max;
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
@@ -36,15 +36,18 @@ const String _incidentPinSource = 'campus-incident-pin';
 const String _incidentPinLayer = campusIncidentPinLayerId;
 const String _guardSource = 'campus-guard';
 const String _routeSource = 'campus-route';
-const String _routeFloorsSource = 'campus-route-floors';
 const String _portalsSource = 'campus-portals';
 const String _roomLabelsSource = 'campus-room-labels';
 
 /// Ảnh symbol đã vẽ (PNG), dùng lại khi style nạp lại / mở lại màn; chỉ vẽ một lần cho mỗi id.
 final Map<String, CampusSprite> _spriteCache = {};
 
-/// Tuyến trên đồ thị (không phải hướng thẳng): đoạn ở tầng đang xem đậm, đoạn ở tầng khác / đoạn đổi tầng mờ.
-const List<Object> _routeGraphFilter = ['!=', ['get', 'direct'], true];
+/// Tuyến trên đồ thị: CHỈ vẽ đoạn thuộc đúng tầng đang xem (theo chuẩn Google/Apple Maps Indoor, không lộ đường mờ tầng khác).
+const List<Object> _routeGraphFilter = [
+  'all',
+  ['!=', ['get', 'direct'], true],
+  ['==', ['get', 'current'], true],
+];
 const List<Object> _routeDirectFilter = ['==', ['get', 'direct'], true];
 
 /// Lề khi đưa khung bao (khuôn viên / tuyến đường) vào màn hình: chừa thanh tiêu đề + chip toà ở trên, thanh tầng + nút phải và dock ở dưới.
@@ -91,6 +94,9 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
 
   /// Hiện/ẩn bảng chú giải màu cấp khu khi bấm nút (i) trên thanh tiêu đề.
   bool _showLegend = false;
+
+  /// Góc xoay 2D hiện tại của camera (độ, 0 = hướng Bắc).
+  double _cameraBearing = 0;
 
   @override
   void initState() {
@@ -148,19 +154,24 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
 
   // ------------------------------------------------------------------ camera
 
-  void _focusOn(LatLng target, double zoom, {double? bearing}) {
+  void _focusOn(LatLng target, double minZoom, {double? bearing, bool preserveCamera = true}) {
     if (_map == null || !_styleReady) {
-      _pendingFocus = (target: target, zoom: zoom);
+      _pendingFocus = (target: target, zoom: minZoom);
       return;
     }
+    final cur = _map!.cameraPosition;
+    final targetZoom = (preserveCamera && cur != null) ? max(cur.zoom, minZoom) : minZoom;
+    final targetBearing = (bearing != null && bearing.isFinite && bearing >= 0)
+        ? bearing
+        : (preserveCamera && cur != null ? cur.bearing : campusDefaultBearing);
     _map!.animateCamera(
       ml.CameraUpdate.newCameraPosition(ml.CameraPosition(
         target: ml.LatLng(target.latitude, target.longitude),
-        zoom: zoom,
+        zoom: targetZoom,
         tilt: campusDefaultTilt,
-        bearing: (bearing != null && bearing.isFinite && bearing >= 0) ? bearing : campusDefaultBearing,
+        bearing: targetBearing,
       )),
-      duration: const Duration(milliseconds: 650),
+      duration: const Duration(milliseconds: 550),
     );
   }
 
@@ -175,6 +186,167 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       ),
       duration: const Duration(milliseconds: 700),
     );
+  }
+
+  void _syncCameraBearing() {
+    final b = _map?.cameraPosition?.bearing;
+    if (b != null && b.isFinite && (b - _cameraBearing).abs() > 0.5 && mounted) {
+      setState(() => _cameraBearing = b);
+    }
+  }
+
+  /// Xoay góc nhìn 2D theo chiều kim đồng hồ 45° (giữ nguyên mặt phẳng tilt = 0°).
+  void _rotate2dStep() {
+    final map = _map;
+    if (map == null || !_styleReady) return;
+    if (_isFollowingGps && mounted) setState(() => _isFollowingGps = false);
+    final cur = map.cameraPosition;
+    final currentBearing = cur?.bearing ?? _cameraBearing;
+    final nextBearing = ((currentBearing + 45) % 360);
+    setState(() => _cameraBearing = nextBearing);
+    map.animateCamera(
+      ml.CameraUpdate.newCameraPosition(ml.CameraPosition(
+        target: cur?.target ??
+            ml.LatLng(
+              _provider.visibleCampusCenter?.latitude ?? 10.8405,
+              _provider.visibleCampusCenter?.longitude ?? 106.8112,
+            ),
+        zoom: cur?.zoom ?? 18.0,
+        tilt: campusDefaultTilt,
+        bearing: nextBearing,
+      )),
+      duration: const Duration(milliseconds: 280),
+    );
+  }
+
+  /// Đưa góc nhìn 2D về hướng Bắc (bearing = 0°, tilt = 0°).
+  void _resetNorth2d() {
+    final map = _map;
+    if (map == null || !_styleReady) return;
+    final cur = map.cameraPosition;
+    setState(() => _cameraBearing = 0);
+    map.animateCamera(
+      ml.CameraUpdate.newCameraPosition(ml.CameraPosition(
+        target: cur?.target ??
+            ml.LatLng(
+              _provider.visibleCampusCenter?.latitude ?? 10.8405,
+              _provider.visibleCampusCenter?.longitude ?? 106.8112,
+            ),
+        zoom: cur?.zoom ?? 18.0,
+        tilt: campusDefaultTilt,
+        bearing: 0,
+      )),
+      duration: const Duration(milliseconds: 300),
+    );
+  }
+
+  /// Hộp thoại 1 chạm hỏi tầng bảo vệ đang đứng khi GPS ở trong tòa nhà hoặc chưa xác định vị trí.
+  Future<({int floorOrder, bool forceOutdoor})?> _promptStartFloor(List<int> floors) {
+    final sorted = (floors.isEmpty ? [0, 1, 2, 3, 4] : [...floors])..sort();
+    return showModalBottomSheet<({int floorOrder, bool forceOutdoor})>(
+      context: context,
+      backgroundColor: AppColors.crd(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bạn đang đứng ở tầng nào?',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.txtPrimary(ctx),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Hệ thống dùng tọa độ GPS (x, y) của bạn tại tầng này để dẫn đường chính xác.',
+                style: TextStyle(fontSize: 12.5, color: AppColors.txtSecondary(ctx)),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  for (var i = 0; i < sorted.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.surf(ctx),
+                          foregroundColor: AppColors.txtPrimary(ctx),
+                          elevation: 0,
+                          minimumSize: const Size(0, 48),
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: BorderSide(color: AppColors.crdBorder(ctx)),
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(ctx, (floorOrder: sorted[i], forceOutdoor: false)),
+                        child: Text(
+                          _shortFloorLabel(sorted[i]),
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryLight,
+                    side: BorderSide(color: AppColors.primaryLight.withAlpha(110)),
+                    minimumSize: const Size(0, 42),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () => Navigator.pop(ctx, (floorOrder: 0, forceOutdoor: true)),
+                  icon: const Icon(Icons.park_outlined, size: 18),
+                  label: const Text('Đang ở ngoài sân (Tầng G)', style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startNavigationTo(AreaPinModel area) async {
+    int? startFloorOrder;
+    var forceOutdoor = false;
+
+    if (_provider.needsStartFloorPrompt) {
+      final picked = await _promptStartFloor(_provider.availableFloorOrders);
+      if (picked == null || !mounted) return;
+      startFloorOrder = picked.floorOrder;
+      forceOutdoor = picked.forceOutdoor;
+    }
+
+    await _provider.calculateRouteTo(
+      area,
+      startFloorOrder: startFloorOrder,
+      forceOutdoorStart: forceOutdoor,
+    );
+    if (!mounted) return;
+    final route = _provider.currentRoute;
+    if (route != null) {
+      final startFloor = route.startMode == CampusRouteStartMode.outdoorGps ? 0 : route.startFloorOrder;
+      if (_provider.selectedFloorOrder != startFloor) {
+        _provider.selectFloor(startFloor);
+      }
+      _fitRoute(route.latLngs);
+      if (route.message != null) _showSnack(route.message!);
+    } else if (_provider.errorMessage != null) {
+      _showSnack(_provider.errorMessage!);
+    }
   }
 
   Future<void> _toggleFollowGps() async {
@@ -304,6 +476,17 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           enableInteraction: false,
         );
       }
+      // Viền ranh giới phòng 2D sắc nét để các phòng liền kề tách bạch rõ ràng
+      await map.addLineLayer(
+        'campus-room',
+        'campus-room-border-layer',
+        const ml.LineLayerProperties(
+          lineColor: '#334155',
+          lineWidth: 1.6,
+          lineOpacity: 0.9,
+        ),
+        enableInteraction: false,
+      );
       // Cầu thang / thang máy: trên khối 3D, dưới tên phòng / tuyến đường / ghim (CampusMapView.jsx:1447-1485).
       // Không đặt symbol-height-offset: MapLibre Android chưa hỗ trợ (maplibre_gl 0.28, layer_properties.dart:925-937).
       await map.addGeoJsonSource(_portalsSource, empty);
@@ -312,12 +495,12 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         'campus-portals-layer',
         const ml.SymbolLayerProperties(
           iconImage: ['get', 'iconImage'],
-          iconSize: ['interpolate', ['linear'], ['zoom'], 16.5, 0.55, 19.5, 0.88],
+          iconSize: ['interpolate', ['linear'], ['zoom'], 15.5, 0.52, 19.5, 0.88],
           iconAllowOverlap: true,
           iconIgnorePlacement: false,
           iconOpacity: 0.96,
         ),
-        minzoom: 16.5,
+        minzoom: 15.5,
         enableInteraction: false,
       );
       await map.addGeoJsonSource(_routeSource, empty);
@@ -326,8 +509,8 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         'campus-route-outline',
         const ml.LineLayerProperties(
           lineColor: '#ffffff',
-          lineWidth: ['case', ['get', 'current'], 8.5, 5.0],
-          lineOpacity: ['case', ['get', 'current'], 1.0, 0.55],
+          lineWidth: 8.5,
+          lineOpacity: 1.0,
           lineCap: 'round',
           lineJoin: 'round',
         ),
@@ -339,8 +522,8 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         'campus-route-line',
         const ml.LineLayerProperties(
           lineColor: _routeActiveColor,
-          lineWidth: ['case', ['get', 'current'], 5.5, 3.0],
-          lineOpacity: ['case', ['get', 'current'], 1.0, 0.6],
+          lineWidth: 5.5,
+          lineOpacity: 1.0,
           lineCap: 'round',
           lineJoin: 'round',
         ),
@@ -357,21 +540,6 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           lineDasharray: [1.5, 1.5],
         ),
         filter: _routeDirectFilter,
-        enableInteraction: false,
-      );
-      // Chỗ đổi tầng (Lên / Xuống tầng X): chấm cam, mờ khi không thuộc tầng đang xem
-      await map.addGeoJsonSource(_routeFloorsSource, empty);
-      await map.addCircleLayer(
-        _routeFloorsSource,
-        'campus-route-floors-layer',
-        const ml.CircleLayerProperties(
-          circleColor: selectedRoomColor,
-          circleRadius: ['case', ['get', 'current'], 8, 5],
-          circleOpacity: ['case', ['get', 'current'], 1.0, 0.4],
-          circleStrokeColor: '#ffffff',
-          circleStrokeWidth: 2,
-          circlePitchAlignment: 'viewport',
-        ),
         enableInteraction: false,
       );
       await map.addGeoJsonSource(_pinsSource, empty);
@@ -580,8 +748,6 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
 
       await map.setGeoJsonSource(_guardSource, pointGeoJson(p.guardLocation));
       await map.setGeoJsonSource(_routeSource, routeGeoJson(p.currentRoute, currentFloor: p.selectedFloorOrder));
-      await map.setGeoJsonSource(
-          _routeFloorsSource, floorChangesGeoJson(p.currentRoute, currentFloor: p.selectedFloorOrder));
     } catch (e) {
       debugPrint('[GuardMapScreen] sync layers: $e');
     } finally {
@@ -681,7 +847,12 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                   key: ValueKey(isDark),
                   styleString: campusMapStyleJson(dark: isDark),
                   initialCameraPosition: initial,
-                  compassEnabled: false,
+                  trackCameraPosition: true,
+                  rotateGesturesEnabled: true,
+                  tiltGesturesEnabled: false,
+                  compassEnabled: true,
+                  compassViewPosition: ml.CompassViewPosition.topRight,
+                  compassViewMargins: const Point(14, 146),
                   // Đã có OsmAttributionBar riêng ở mép đáy; tắt nút (i) mặc định của MapLibre Android để không mở
                   // dialog trắng trống khi chạm nhầm.
                   attributionEnabled: false,
@@ -690,6 +861,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                     _styleReady = false;
                     controller.onFeatureTapped.add(_onFeatureTapped);
                   },
+                  onCameraIdle: _syncCameraBearing,
                   onStyleLoadedCallback: _onStyleLoaded,
                 );
               },
@@ -910,6 +1082,24 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                   child: const Icon(Icons.my_location_rounded, size: 20),
                 ),
                 const SizedBox(height: 8),
+                GestureDetector(
+                  onLongPress: _resetNorth2d,
+                  child: FloatingActionButton.small(
+                    heroTag: 'fab_rotate_2d',
+                    backgroundColor: _cameraBearing.abs() > 1
+                        ? AppColors.primary.withAlpha(235)
+                        : AppColors.crd(context),
+                    foregroundColor: _cameraBearing.abs() > 1 ? Colors.white : AppColors.txtPrimary(context),
+                    elevation: 3,
+                    onPressed: _rotate2dStep,
+                    tooltip: 'Xoay góc 2D (giữ để về Bắc)',
+                    child: Transform.rotate(
+                      angle: -_cameraBearing * pi / 180,
+                      child: const Icon(Icons.explore_rounded, size: 20),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 FloatingActionButton.small(
                   heroTag: 'fab_zoom_in',
                   backgroundColor: AppColors.crd(context),
@@ -960,16 +1150,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                 area: mapState.selectedArea!,
                 currentRoute: mapState.currentRoute,
                 isLoadingRoute: mapState.isLoadingRoute,
-                onNavigateTap: () async {
-                  await mapProvider.calculateRouteTo(mapState.selectedArea!);
-                  final route = mapProvider.currentRoute;
-                  if (route != null) {
-                    _fitRoute(route.latLngs);
-                    if (route.message != null) _showSnack(route.message!);
-                  } else if (mapProvider.errorMessage != null) {
-                    _showSnack(mapProvider.errorMessage!);
-                  }
-                },
+                onNavigateTap: () => _startNavigationTo(mapState.selectedArea!),
                 onFocusDestination: mapState.currentRoute == null
                     ? null
                     : () => _focusRouteDestination(mapState.selectedArea!),

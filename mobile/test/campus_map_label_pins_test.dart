@@ -118,8 +118,14 @@ void main() {
     });
 
     test('sàn → phòng → tường → cầu thang → tuyến đường → ghim khu; không trùng id', () {
-      expect(campusLayerOrder.take(4), ['campus-slab-layer', 'campus-room-layer', 'campus-wall-layer', 'campus-portals-layer']);
-      for (final route in ['campus-route-outline', 'campus-route-line', 'campus-route-direct', 'campus-route-floors-layer']) {
+      expect(campusLayerOrder.take(5), [
+        'campus-slab-layer',
+        'campus-room-layer',
+        'campus-wall-layer',
+        'campus-room-border-layer',
+        'campus-portals-layer',
+      ]);
+      for (final route in ['campus-route-outline', 'campus-route-line', 'campus-route-direct']) {
         expect(at(route), greaterThan(at('campus-portals-layer')), reason: route);
         expect(at(route), lessThan(at('campus-pins-layer')), reason: route);
       }

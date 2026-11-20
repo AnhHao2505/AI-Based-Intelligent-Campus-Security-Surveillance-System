@@ -214,6 +214,8 @@ CampusRoute planCampusRoute({
   LatLng? gps,
   String? selectedBuilding,
   int selectedFloorOrder = 0,
+  int? guardFloorOrder,
+  bool forceOutdoorStart = false,
   required double? destinationLatitude,
   required double? destinationLongitude,
   String? destinationBuilding,
@@ -233,7 +235,7 @@ CampusRoute planCampusRoute({
   // ---- điểm xuất phát
   final gpsBuilding = gps == null ? null : campus?.buildingAt(latitude: gps.latitude, longitude: gps.longitude);
   CampusGraphNode? outdoorStart;
-  if (graph != null && gps != null && gpsBuilding == null) {
+  if (graph != null && gps != null && (gpsBuilding == null || forceOutdoorStart)) {
     final n = _nearest(graph.nodes.where((x) => x.isOutdoor), gps.latitude, gps.longitude);
     if (n != null && _dist(gps.latitude, gps.longitude, n) <= kGpsFarFromCampusMeters) outdoorStart = n;
   }
@@ -242,6 +244,7 @@ CampusRoute planCampusRoute({
   final CampusRoutePoint startPoint;
   String? startBuilding;
   var startFloor = 0;
+  var attachGpsToIndoorStart = false;
   List<CampusGraphNode> startCandidates = const [];
   if (outdoorStart != null) {
     mode = CampusRouteStartMode.outdoorGps;
@@ -254,7 +257,7 @@ CampusRoute planCampusRoute({
       throw const CampusRouteUnavailable(
           'NO_START', 'Chưa xác định được vị trí của bạn. Chọn toà và tầng bạn đang đứng rồi dẫn đường lại.');
     }
-    startFloor = selectedFloorOrder;
+    startFloor = guardFloorOrder ?? selectedFloorOrder;
     if (graph != null) {
       final inBuilding = graph.nodes.where((n) => !n.isOutdoor && n.building == startBuilding).toList();
       var onFloor = inBuilding.where((n) => n.floorOrder == startFloor).toList();
@@ -262,16 +265,32 @@ CampusRoute planCampusRoute({
         startFloor = 0;
         onFloor = inBuilding.where((n) => n.floorOrder == 0).toList();
       }
-      final vertical = onFloor.where((n) => n.isVerticalAccess).toList();
-      startCandidates = vertical.isNotEmpty ? vertical : onFloor.where((n) => !n.isVirtual).toList();
+      // Khi GPS nằm trong tòa nhà (hoặc gần khuôn viên) và đã có tầng đứng, gắn (x, y) thật vào nút gần nhất trên tầng đó
+      final gpsNearIndoor = gps != null && gpsBuilding != null;
+      if (gpsNearIndoor) {
+        final realNodes = onFloor.where((n) => !n.isVirtual).toList();
+        final nearest = _nearest(realNodes.isNotEmpty ? realNodes : onFloor, gps.latitude, gps.longitude);
+        if (nearest != null) {
+          startCandidates = [nearest];
+          attachGpsToIndoorStart = true;
+        }
+      }
+      if (startCandidates.isEmpty) {
+        final vertical = onFloor.where((n) => n.isVerticalAccess).toList();
+        startCandidates = vertical.isNotEmpty ? vertical : onFloor.where((n) => !n.isVirtual).toList();
+      }
     }
-    final anchor = startCandidates.isNotEmpty ? startCandidates.first : null;
-    startPoint = anchor != null
-        ? CampusRoutePoint(LatLng(anchor.latitude, anchor.longitude), building: startBuilding, floorOrder: startFloor)
-        : (gps != null
-            ? CampusRoutePoint(gps, building: startBuilding, floorOrder: startFloor)
-            : throw const CampusRouteUnavailable(
-                'NO_START', 'Chưa xác định được vị trí của bạn. Chọn toà và tầng bạn đang đứng rồi dẫn đường lại.'));
+    if (attachGpsToIndoorStart && gps != null) {
+      startPoint = CampusRoutePoint(gps, building: startBuilding, floorOrder: startFloor);
+    } else {
+      final anchor = startCandidates.isNotEmpty ? startCandidates.first : null;
+      startPoint = anchor != null
+          ? CampusRoutePoint(LatLng(anchor.latitude, anchor.longitude), building: startBuilding, floorOrder: startFloor)
+          : (gps != null
+              ? CampusRoutePoint(gps, building: startBuilding, floorOrder: startFloor)
+              : throw const CampusRouteUnavailable(
+                  'NO_START', 'Chưa xác định được vị trí của bạn. Chọn toà và tầng bạn đang đứng rồi dẫn đường lại.'));
+    }
   }
 
   CampusRoute direct(CampusRoutePoint from) {
@@ -304,7 +323,7 @@ CampusRoute planCampusRoute({
   final points = <CampusRoutePoint>[];
   var meters = best.lengthMeters;
   final first = best.nodes.first;
-  if (mode == CampusRouteStartMode.outdoorGps) {
+  if (mode == CampusRouteStartMode.outdoorGps || attachGpsToIndoorStart) {
     final leg = _dist(gps!.latitude, gps.longitude, first);
     if (leg > _attachEpsilonMeters) {
       points.add(startPoint);
@@ -388,9 +407,7 @@ Map<String, dynamic> routeGeoJson(CampusRoute? route, {required int currentFloor
     for (var i = 1; i < route.points.length; i++) {
       final a = route.points[i - 1];
       final b = route.points[i];
-      final isOutdoor = a.building == 'OUTDOOR' && b.building == 'OUTDOOR';
-      final current =
-          route.isDirectFallback || isOutdoor || (a.floorOrder == b.floorOrder && a.floorOrder == currentFloor);
+      final current = route.isDirectFallback || (a.floorOrder == b.floorOrder && a.floorOrder == currentFloor);
       if (runCurrent == null || runCurrent == current) {
         runCurrent = current;
         run.add(b);

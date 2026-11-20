@@ -80,6 +80,19 @@ class MapProvider extends ChangeNotifier {
   CampusRoute? _currentRoute;
   CampusRoute? get currentRoute => _currentRoute;
 
+  /// Tầng bảo vệ đứng khi bắt đầu dẫn đường (tách biệt với tầng đang xem trên bản đồ).
+  int? _navigationStartFloorOrder;
+  bool _navigationForceOutdoor = false;
+
+  /// True khi cần hỏi bảo vệ đang đứng ở tầng nào (chưa có GPS hoặc GPS nằm trong phạm vi tòa nhà).
+  /// Khi GPS ở ngoài sân (`buildingAt == null`), tự động coi là Tầng G và dẫn đường ngay.
+  bool get needsStartFloorPrompt {
+    final gps = _guardLocation;
+    if (gps == null) return true;
+    final routingCampus = _visibleCampus ?? _campus;
+    return routingCampus?.buildingAt(latitude: gps.latitude, longitude: gps.longitude) != null;
+  }
+
   LatLng? _guardLocation;
   LatLng? get guardLocation => _guardLocation;
 
@@ -203,6 +216,8 @@ class MapProvider extends ChangeNotifier {
             gps: _guardLocation,
             selectedBuilding: _selectedBuilding ?? effectiveBuilding,
             selectedFloorOrder: _selectedFloorOrder,
+            guardFloorOrder: _navigationStartFloorOrder,
+            forceOutdoorStart: _navigationForceOutdoor,
             destinationLatitude: destination.centerLatitude,
             destinationLongitude: destination.centerLongitude,
             destinationBuilding: destination.building,
@@ -393,8 +408,14 @@ class MapProvider extends ChangeNotifier {
   /// Dựng tuyến tới khu [destination] trên đồ thị khuôn viên (trong nhà + ngoài trời, nhiều tầng, nhiều toà).
   /// Xuất phát: GPS ngoài trời trong khuôn viên; còn lại (trong nhà / không GPS / GPS xa) theo toà + tầng đang chọn.
   /// Thời gian dự kiến dùng cấu hình route-settings, đọc lại mỗi lần dẫn đường để đổi cấu hình có hiệu lực ngay.
-  Future<void> calculateRouteTo(AreaPinModel destination) async {
+  Future<void> calculateRouteTo(
+    AreaPinModel destination, {
+    int? startFloorOrder,
+    bool forceOutdoorStart = false,
+  }) async {
     _selectedArea = destination;
+    _navigationStartFloorOrder = startFloorOrder;
+    _navigationForceOutdoor = forceOutdoorStart;
     _isLoadingRoute = true;
     _errorMessage = null;
     notifyListeners();
@@ -410,6 +431,8 @@ class MapProvider extends ChangeNotifier {
         gps: _guardLocation,
         selectedBuilding: _selectedBuilding,
         selectedFloorOrder: _selectedFloorOrder,
+        guardFloorOrder: startFloorOrder,
+        forceOutdoorStart: forceOutdoorStart,
         destinationLatitude: pinHasCoordinates(destination) ? destination.centerLatitude : null,
         destinationLongitude: pinHasCoordinates(destination) ? destination.centerLongitude : null,
         destinationBuilding: destination.building,
@@ -433,6 +456,8 @@ class MapProvider extends ChangeNotifier {
   void clearRoute() {
     _currentRoute = null;
     _lastRoutedGps = null;
+    _navigationStartFloorOrder = null;
+    _navigationForceOutdoor = false;
     notifyListeners();
   }
 
