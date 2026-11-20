@@ -235,7 +235,8 @@ CampusRoute planCampusRoute({
   // ---- điểm xuất phát
   final gpsBuilding = gps == null ? null : campus?.buildingAt(latitude: gps.latitude, longitude: gps.longitude);
   CampusGraphNode? outdoorStart;
-  if (graph != null && gps != null && (gpsBuilding == null || forceOutdoorStart)) {
+  final wantOutdoor = forceOutdoorStart || (gpsBuilding == null && (guardFloorOrder == null || guardFloorOrder == 0));
+  if (graph != null && gps != null && wantOutdoor) {
     final n = _nearest(graph.nodes.where((x) => x.isOutdoor), gps.latitude, gps.longitude);
     if (n != null && _dist(gps.latitude, gps.longitude, n) <= kGpsFarFromCampusMeters) outdoorStart = n;
   }
@@ -265,12 +266,11 @@ CampusRoute planCampusRoute({
         startFloor = 0;
         onFloor = inBuilding.where((n) => n.floorOrder == 0).toList();
       }
-      // Khi GPS nằm trong tòa nhà (hoặc gần khuôn viên) và đã có tầng đứng, gắn (x, y) thật vào nút gần nhất trên tầng đó
-      final gpsNearIndoor = gps != null && gpsBuilding != null;
-      if (gpsNearIndoor) {
+      // Khi GPS nằm trong tòa nhà hoặc trong phạm vi khuôn viên và đã có tầng đứng, gắn (x, y) thật vào nút gần nhất trên tầng đó
+      if (gps != null) {
         final realNodes = onFloor.where((n) => !n.isVirtual).toList();
         final nearest = _nearest(realNodes.isNotEmpty ? realNodes : onFloor, gps.latitude, gps.longitude);
-        if (nearest != null) {
+        if (nearest != null && (gpsBuilding != null || _dist(gps.latitude, gps.longitude, nearest) <= kGpsFarFromCampusMeters)) {
           startCandidates = [nearest];
           attachGpsToIndoorStart = true;
         }

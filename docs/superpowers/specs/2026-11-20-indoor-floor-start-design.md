@@ -19,8 +19,7 @@
 - **Anti-goal**: Khi bảo vệ đang đứng ngoài sân, tuyệt đối không bắt chọn tầng thừa; khi đang mở xem Tầng 4 trên bản đồ để kiểm tra sự cố, không lấy nhầm Tầng 4 làm nơi xuất phát nếu bảo vệ đang ở Tầng 1 hoặc ngoài sân.
 
 ## 3. Ràng buộc kỹ thuật
-- **Ngoài sân (`gpsBuilding == null` và gần khuôn viên)**: Tự động coi là `Tầng G` (`floorOrder = 0`), dẫn đường ngay lập tức (0 chạm thêm).
-- **Trong tòa nhà (`gpsBuilding != null`) hoặc mất/không có GPS**: Bắt buộc hỏi tầng xuất phát trước khi tính tuyến.
+- **Luôn hỏi chọn tầng bằng Bottom Sheet 1 chạm khi bấm Dẫn đường**: Bất kể GPS đang ở trong hay ngoài phạm vi tòa nhà (phục vụ thực tế demo tại FPT HCM khi Tòa Epsilon còn đang xây dựng), luôn hiện sheet chọn tầng (`G`, `1`, `2`, `3`, `4` hoặc `Đang ở ngoài sân (Tầng G)`).
 - **Real-time GPS**: Khi đang dẫn đường, `MapProvider` giữ nguyên tầng xuất phát đã chọn (`navigationStartFloorOrder`) để `updateGuardLocation` tái tính tuyến mượt khi bảo vệ di chuyển $\ge 1\,\text{m}$, không hỏi lại liên tục.
 
 ## 4. Các phương án đã cân nhắc

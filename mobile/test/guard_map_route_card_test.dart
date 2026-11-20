@@ -269,6 +269,13 @@ void main() {
       final rOutdoor = p.currentRoute!;
       expect(rOutdoor.startMode, CampusRouteStartMode.outdoorGps);
       expect(rOutdoor.startFloorOrder, 0);
+
+      // Khi GPS đang đứng ở ngoài sân (demo thực tế) nhưng bảo vệ chọn đứng ở Tầng 2 → vẫn tính từ Tầng 2 + (x, y)
+      p.updateGuardLocation(LatLng(outdoorGps.latitude, outdoorGps.longitude));
+      await p.calculateRouteTo(destPin, startFloorOrder: 2);
+      final rPickedFromOutside = p.currentRoute!;
+      expect(rPickedFromOutside.startMode, CampusRouteStartMode.selectedFloor);
+      expect(rPickedFromOutside.startFloorOrder, 2);
       p.dispose();
     });
   });

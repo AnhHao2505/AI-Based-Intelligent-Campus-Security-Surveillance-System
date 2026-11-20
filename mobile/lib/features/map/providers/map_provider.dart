@@ -99,35 +99,21 @@ class MapProvider extends ChangeNotifier {
   double? _guardHeading;
   double? get guardHeading => _guardHeading;
 
-  bool _isSimulatingGps = false;
-  bool get isSimulatingGps => _isSimulatingGps;
+  bool _isDebugPinGps = false;
+  bool get isDebugPinGps => _isDebugPinGps;
 
-  /// Chế độ mô phỏng GPS phục vụ kiểm thử trên Emulator (tạm ngưng ghi đè từ GPS thiết bị).
-  void setSimulatedGpsOverride(bool enabled, {LatLng? location, double? heading}) {
-    _isSimulatingGps = enabled;
-    if (enabled) {
+  /// Chế độ Debug: ghim tạm vị trí GPS tại một điểm bất kỳ trên bản đồ để test chọn tầng & dẫn đường.
+  /// Truyền `null` để khôi phục GPS thật từ thiết bị.
+  void setDebugGpsPin(LatLng? location) {
+    if (location != null) {
+      _isDebugPinGps = true;
       _locationSubscription?.pause();
-      if (location != null) {
-        updateGuardLocation(location, heading: heading);
-        return;
-      }
+      updateGuardLocation(location);
     } else {
+      _isDebugPinGps = false;
       _locationSubscription?.resume();
+      notifyListeners();
     }
-    notifyListeners();
-  }
-
-  /// Tìm một tọa độ mẫu nằm bên trong tòa nhà hiện tại để test luồng chọn tầng trong nhà.
-  LatLng? findIndoorTestPoint() {
-    final c = _visibleCampus ?? _campus;
-    final graph = c?.graph;
-    if (c == null || graph == null) return null;
-    for (final n in graph.nodes) {
-      if (!n.isOutdoor && !n.isVirtual && c.buildingAt(latitude: n.latitude, longitude: n.longitude) != null) {
-        return LatLng(n.latitude, n.longitude);
-      }
-    }
-    return visibleCampusCenter;
   }
 
   bool _isLoadingPins = false;
@@ -308,7 +294,7 @@ class MapProvider extends ChangeNotifier {
 
       // 1. Sử dụng ngay vị trí GPS gần nhất của thiết bị nếu có
       final lastKnown = await Geolocator.getLastKnownPosition();
-      if (lastKnown != null && !_isSimulatingGps) {
+      if (lastKnown != null && !_isDebugPinGps) {
         final pos = LatLng(lastKnown.latitude, lastKnown.longitude);
         debugPrint('[MapProvider] Using last known location: ${pos.latitude}, ${pos.longitude}');
         updateGuardLocation(pos, heading: lastKnown.heading);
@@ -317,7 +303,7 @@ class MapProvider extends ChangeNotifier {
       // 2. Lấy vị trí GPS thực tế hiện tại
       Geolocator.getCurrentPosition(locationSettings: locationSettings)
           .then((position) {
-        if (_isSimulatingGps) return;
+        if (_isDebugPinGps) return;
         final pos = LatLng(position.latitude, position.longitude);
         debugPrint('[MapProvider] Fresh current position: ${pos.latitude}, ${pos.longitude}');
         updateGuardLocation(pos, heading: position.heading);
@@ -331,7 +317,7 @@ class MapProvider extends ChangeNotifier {
         locationSettings: locationSettings,
       ).listen(
         (Position newPos) {
-          if (_isSimulatingGps) return;
+          if (_isDebugPinGps) return;
           final pos = LatLng(newPos.latitude, newPos.longitude);
           debugPrint('[MapProvider] GPS stream update: ${pos.latitude}, ${pos.longitude}');
           updateGuardLocation(pos, heading: newPos.heading);
@@ -462,7 +448,7 @@ class MapProvider extends ChangeNotifier {
         graph: routingCampus?.graph,
         campus: routingCampus,
         gps: _guardLocation,
-        selectedBuilding: _selectedBuilding,
+        selectedBuilding: _selectedBuilding ?? (startFloorOrder != null ? effectiveBuilding : null),
         selectedFloorOrder: _selectedFloorOrder,
         guardFloorOrder: startFloorOrder,
         forceOutdoorStart: forceOutdoorStart,
