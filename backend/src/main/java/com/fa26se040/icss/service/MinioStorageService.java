@@ -53,9 +53,6 @@ public class MinioStorageService {
     @Value("${minio.bucket.evidence:security-evidence}")
     private String bucketEvidence;
 
-    @Value("${minio.bucket.snapshots:camera-snapshots}")
-    private String bucketSnapshots;
-
     @Value("${minio.bucket.recordings:camera-recordings}")
     private String bucketRecordings;
 
@@ -70,7 +67,7 @@ public class MinioStorageService {
 
     @PostConstruct
     public void initBuckets() {
-        List<String> buckets = new ArrayList<>(List.of(bucketFaces, bucketEvidence, bucketSnapshots));
+        List<String> buckets = new ArrayList<>(List.of(bucketFaces, bucketEvidence));
         if (bucketRecordings != null && !bucketRecordings.isBlank()) {
             buckets.add(bucketRecordings);
         }
@@ -121,10 +118,6 @@ public class MinioStorageService {
 
     public String getEvidenceBucket() {
         return bucketEvidence;
-    }
-
-    public String getSnapshotsBucket() {
-        return bucketSnapshots;
     }
 
     public String getRecordingsBucket() { return bucketRecordings; }
@@ -337,32 +330,6 @@ public class MinioStorageService {
     }
 
     /**
-     * Upload camera ROI reference snapshot into 'camera-snapshots' bucket:
-     * Path: camera-snapshots/{cameraCode}/roi_reference_{timestamp}.jpg
-     */
-    public String uploadRoiReferenceSnapshot(byte[] imageBytes, String cameraCode) {
-        if (imageBytes == null || imageBytes.length == 0) {
-            return null;
-        }
-
-        String timestamp = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss").format(OffsetDateTime.now());
-        String fileName = String.format("roi_reference_%s.jpg", timestamp);
-        String objectName = String.format("%s/%s", cameraCode, fileName);
-
-        try {
-            ensureBucketExists(bucketSnapshots);
-            putObjectEncrypted(bucketSnapshots, objectName, imageBytes, "image/jpeg");
-
-            String fileUrl = minioEndpoint + "/" + bucketSnapshots + "/" + objectName;
-            log.info("[MINIO] Uploaded ROI reference snapshot: {}", fileUrl);
-            return fileUrl;
-        } catch (Exception e) {
-            log.error("[MINIO ERROR] Failed to upload ROI reference snapshot for camera {}: {}", cameraCode, e.getMessage(), e);
-            throw new RuntimeException("Failed to upload snapshot to MinIO: " + e.getMessage(), e);
-        }
-    }
-
-    /**
      * NFR-05: lưu object với ServerSideEncryptionS3 (SSE-S3, khoá KMS mặc định của MinIO). Không có đường lưu dạng rõ:
      * MinIO từ chối SSE (chưa cấu hình KMS / lỗi KMS) -> log ERROR [NFR-05] + {@link com.fa26se040.icss.exception.StorageEncryptionException}.
      */
@@ -384,26 +351,26 @@ public class MinioStorageService {
     }
 
     /**
-     * NFR-05: kiểm lúc khởi động — ghi rồi xoá một object nhỏ có SSE vào bucket snapshots (không ai liệt kê bucket này).
+     * NFR-05: kiểm lúc khởi động — ghi rồi xoá một object nhỏ có SSE vào bucket evidence.
      * Lỗi chỉ log ERROR [NFR-05], không làm sập backend.
      */
     void verifyEncryptedWriteAtStartup() {
         String objectName = SSE_PROBE_PREFIX + UUID.randomUUID() + ".txt";
         byte[] payload = "NFR-05 startup probe".getBytes(StandardCharsets.UTF_8);
         try {
-            putObjectEncrypted(bucketSnapshots, objectName, payload, "text/plain");
+            putObjectEncrypted(bucketEvidence, objectName, payload, "text/plain");
         } catch (Exception e) {
             log.error("[NFR-05] Kiểm tra lúc khởi động THẤT BẠI: không ghi được object có SSE vào bucket {} ({}). "
-                            + "Upload ảnh khuôn mặt / bằng chứng / ảnh khách sẽ bị từ chối cho tới khi MinIO có KMS.",
-                    bucketSnapshots, MinioBucketEncryption.describe(e));
+                            + "Upload ảnh khuôn mặt / bằng chứng sẽ bị từ chối cho tới khi MinIO có KMS.",
+                    bucketEvidence, MinioBucketEncryption.describe(e));
             return;
         }
         try {
-            minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucketSnapshots).object(objectName).build());
-            log.info("[NFR-05] Kiểm tra lúc khởi động: ghi + xoá object có SSE ở bucket {} thành công", bucketSnapshots);
+            minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucketEvidence).object(objectName).build());
+            log.info("[NFR-05] Kiểm tra lúc khởi động: ghi + xoá object có SSE ở bucket {} thành công", bucketEvidence);
         } catch (Exception e) {
             log.error("[NFR-05] Kiểm tra lúc khởi động: ghi object có SSE được nhưng không xoá được {}/{} ({})",
-                    bucketSnapshots, objectName, MinioBucketEncryption.describe(e));
+                    bucketEvidence, objectName, MinioBucketEncryption.describe(e));
         }
     }
 }

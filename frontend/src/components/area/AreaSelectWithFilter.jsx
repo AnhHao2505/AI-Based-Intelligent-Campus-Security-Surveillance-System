@@ -46,9 +46,17 @@ export default function AreaSelectWithFilter({
 	className = "",
 	error,
 	hint,
+	defaultBuilding = "ALL",
+	defaultFloor = "ALL",
 }) {
-	const [buildingFilter, setBuildingFilter] = useState("ALL");
-	const [floorFilter, setFloorFilter] = useState("ALL");
+	const [buildingFilter, setBuildingFilter] = useState(() => {
+		if (!defaultBuilding || defaultBuilding === "ALL") return "ALL";
+		return formatBuilding(defaultBuilding) || defaultBuilding;
+	});
+	const [floorFilter, setFloorFilter] = useState(() => {
+		if (!defaultFloor || defaultFloor === "ALL") return "ALL";
+		return formatFloor(defaultFloor) || defaultFloor;
+	});
 
 	const normalizedAreas = useMemo(
 		() =>
@@ -109,7 +117,26 @@ export default function AreaSelectWithFilter({
 		}
 	}, [floorFilter, floorListForBuilding]);
 
-	const showBuildingFilter = buildingList.length >= 2;
+	// Đồng bộ khi defaultBuilding / defaultFloor từ component cha thay đổi
+	useEffect(() => {
+		if (defaultBuilding && defaultBuilding !== "ALL") {
+			const formatted = formatBuilding(defaultBuilding) || defaultBuilding;
+			if (buildingList.includes(formatted)) {
+				setBuildingFilter(formatted);
+			}
+		}
+	}, [defaultBuilding, buildingList]);
+
+	useEffect(() => {
+		if (defaultFloor && defaultFloor !== "ALL") {
+			const formatted = formatFloor(defaultFloor) || defaultFloor;
+			if (floorListForBuilding.includes(formatted)) {
+				setFloorFilter(formatted);
+			}
+		}
+	}, [defaultFloor, floorListForBuilding]);
+
+	const showBuildingFilter = buildingList.length >= 1;
 	const showFloorFilter = floorListForAll.length >= 2;
 	const showFilterBar = showBuildingFilter || showFloorFilter;
 	const isSingleFilter =

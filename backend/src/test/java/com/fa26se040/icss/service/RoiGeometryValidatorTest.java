@@ -153,4 +153,27 @@ class RoiGeometryValidatorTest {
         CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
         assertEquals(CameraErrorCode.ERR_ROI_003, ex.getErrorCode());
     }
+
+    @Test
+    @DisplayName("Validate: should throw ERR_ROI_008 when polygon area is smaller than 5% of frame")
+    void testValidateThrowsWhenAreaTooSmall() {
+        // Tam giác 0.05 x 0.05 => diện tích = 0.00125 (0.125% < 5%)
+        List<RoiGeometry.RoiPolygon.Vertex> tinyVertices = List.of(
+                RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.1000")).y(new BigDecimal("0.1000")).build(),
+                RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.1500")).y(new BigDecimal("0.1000")).build(),
+                RoiGeometry.RoiPolygon.Vertex.builder().x(new BigDecimal("0.1000")).y(new BigDecimal("0.1500")).build()
+        );
+
+        RoiGeometry.RoiPolygon polygon = RoiGeometry.RoiPolygon.builder()
+                .label("Tiny Polygon")
+                .vertices(tinyVertices)
+                .build();
+
+        RoiGeometry geometry = RoiGeometry.builder()
+                .polygons(List.of(polygon))
+                .build();
+
+        CameraException ex = assertThrows(CameraException.class, () -> validator.validate(geometry));
+        assertEquals(CameraErrorCode.ERR_ROI_008, ex.getErrorCode());
+    }
 }
