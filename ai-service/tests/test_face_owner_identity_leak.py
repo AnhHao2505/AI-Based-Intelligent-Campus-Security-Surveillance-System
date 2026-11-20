@@ -224,11 +224,8 @@ def test_parent_identity_is_safe_rules():
 
 
 class TestDetectorFaceFilter(unittest.TestCase):
-    @patch("os.path.exists", return_value=True)
-    @patch("cv2.FaceDetectorYN.create")
-    def setUp(self, _mock_yn_create, _mock_exists):
+    def setUp(self):
         self.detector = FaceDetector(upscale_threshold=160, max_dim=480)
-        self.detector.detector = MagicMock()
 
     def _faces(self):
         return [

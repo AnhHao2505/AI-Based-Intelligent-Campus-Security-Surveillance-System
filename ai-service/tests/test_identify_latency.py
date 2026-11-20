@@ -35,7 +35,7 @@ class TestIdentifyLatency(unittest.TestCase):
         track_id = 1
         bbox = BoundingBox(x1=100, y1=100, x2=200, y2=300)
 
-        # 1. Không thấy mặt (YuNet trả None)
+        # 1. Không thấy mặt (SCRFD trả None)
         self.pipeline.face_detector.detect_best_face_in_crop.return_value = None
         self.pipeline.human_detector.detect_and_track.return_value = [(track_id, bbox)]
         self.pipeline.process_frame(frame, current_time=current_time)

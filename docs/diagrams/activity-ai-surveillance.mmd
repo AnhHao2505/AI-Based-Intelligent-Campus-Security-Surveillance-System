@@ -21,7 +21,7 @@ flowchart TB
         a_reuse["Reuse Cached Authorization Status"]
         
         %% Branching 2: Biometrics (Only when not cached)
-        a_crop["Crop Upper-body & Detect Face (YuNet)"]
+        a_crop["Crop Upper-body & Detect Face (SCRFD)"]
         d_face{"Face detected &<br>quality sufficient?"}
         a_embed["Extract 512-D Embedding (ArcFace)"]
         a_match["Cosine Similarity Search against RAM Cache"]

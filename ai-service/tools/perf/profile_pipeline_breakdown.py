@@ -76,7 +76,7 @@ def profile_stages(video_path: str, num_frames: int = 60, warmup_frames: int = 5
     metrics: Dict[str, List[float]] = {
         "1_Motion_MOG2": [],
         "2_YOLO_ByteTrack": [],
-        "3_Face_Detect_YuNet": [],
+        "3_Face_Detect_SCRFD": [],
         "4_Face_Embed_ArcFace": [],
         "5_Vector_Match_RAM": [],
         "6_Analysis_Engine": [],
@@ -147,7 +147,7 @@ def profile_stages(video_path: str, num_frames: int = 60, warmup_frames: int = 5
         metrics["2_YOLO_ByteTrack"].append(t_yolo)
 
         # STAGE 3, 4, 5: Face Detection, Embedding, Matching
-        t_yunet_sum = 0.0
+        t_scrfd_sum = 0.0
         t_embed_sum = 0.0
         t_match_sum = 0.0
 
@@ -175,10 +175,10 @@ def profile_stages(video_path: str, num_frames: int = 60, warmup_frames: int = 5
                     person_upper_crop = frame[y1:y1 + crop_h, x1:x2]
                     
                     if person_upper_crop.size > 0:
-                        # 3. YuNet Face Detect
-                        t_yn0 = time.perf_counter()
+                        # 3. SCRFD Face Detect
+                        t_scrfd0 = time.perf_counter()
                         face_res = pipeline.face_detector.detect_best_face_in_crop(person_upper_crop, offset_xy=(x1, y1))
-                        t_yunet_sum += (time.perf_counter() - t_yn0) * 1000.0
+                        t_scrfd_sum += (time.perf_counter() - t_scrfd0) * 1000.0
 
                         if face_res:
                             fx1, fy1, fx2, fy2 = face_res.bbox.to_int_xyxy()
@@ -196,7 +196,7 @@ def profile_stages(video_path: str, num_frames: int = 60, warmup_frames: int = 5
                                 match = pipeline.face_matcher.match_face(face_crop)
                                 t_match_sum += (time.perf_counter() - t_m0) * 1000.0
 
-        metrics["3_Face_Detect_YuNet"].append(t_yunet_sum)
+        metrics["3_Face_Detect_SCRFD"].append(t_scrfd_sum)
         metrics["4_Face_Embed_ArcFace"].append(t_embed_sum)
         metrics["5_Vector_Match_RAM"].append(t_match_sum)
 

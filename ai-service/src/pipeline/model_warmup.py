@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def warmup_pipeline_models(pipeline) -> bool:
     """
-    Khởi động (warm-up) trước các model deep learning (YOLO, YuNet, ArcFace)
+    Khởi động (warm-up) trước các model deep learning (YOLO, SCRFD, ArcFace)
     ngay khi khởi động AI Service bằng dummy input, loại bỏ độ trễ giật lag (frame age spike)
     cho những frame đầu tiên của camera (P1-06).
     """
@@ -47,7 +47,7 @@ def warmup_pipeline_models(pipeline) -> bool:
                 face_detector.detect(dummy_frame)
             warmed_count += 1
         except Exception as e:
-            logger.warning(f"⚠️ [Warmup] Lỗi khi warm-up FaceDetector (SCRFD/YuNet): {e}")
+            logger.warning(f"⚠️ [Warmup] Lỗi khi warm-up FaceDetector (SCRFD): {e}")
 
     # 3. Warm-up ArcFace Face Embedder
     # VideoPipeline giữ embedder trong face_matcher.embedder (không có thuộc tính face_embedder riêng).

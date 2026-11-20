@@ -39,13 +39,6 @@ class TestSCRFDDetector(unittest.TestCase):
         self.assertEqual(detector.backend, "scrfd")
         self.assertIsNotNone(detector.session)
 
-    def test_scrfd_fallback_to_yunet_when_explicit(self):
-        """Khởi tạo FaceDetector với model YuNet sẽ kích hoạt backend YuNet"""
-        if os.path.exists(settings.MODEL_YUNET_PATH):
-            detector = FaceDetector(model_path=settings.MODEL_YUNET_PATH)
-            self.assertEqual(detector.backend, "yunet")
-            self.assertIsNotNone(detector.detector)
-
     def test_scrfd_detection_on_sample_frame(self):
         """Kiểm tra SCRFD phát hiện khuôn mặt và trả về đủ 5 điểm mốc landmarks"""
         if self.sample_frame is None:
@@ -278,17 +271,6 @@ class TestSCRFDDetector(unittest.TestCase):
         scale = np.sqrt(M[0, 0]**2 + M[0, 1]**2)
         self.assertLess(scale, 0.05)
         self.assertGreaterEqual(scale, 0.005)
-
-    def test_detect_yunet_handles_grayscale_image(self):
-        """_detect_yunet không bị crash ValueError khi ảnh đầu vào có shape (H, W)"""
-        from unittest.mock import MagicMock
-        detector = FaceDetector()
-        mock_yn = MagicMock()
-        mock_yn.detect.return_value = (None, None)
-        detector.detector = mock_yn
-        gray_img = np.zeros((100, 100), dtype=np.uint8)
-        res = detector._detect_yunet(gray_img)
-        self.assertEqual(res, [])
 
 
 if __name__ == "__main__":

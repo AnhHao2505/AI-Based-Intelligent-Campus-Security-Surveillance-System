@@ -66,7 +66,7 @@ def test_configure_system_threads_reads_env_and_configures_libraries():
 
 def test_model_warmup_and_health_readiness():
     """
-    P1-06: warmup_pipeline_models chạy dummy inference qua YOLO, YuNet, ArcFace.
+    P1-06: warmup_pipeline_models chạy dummy inference qua YOLO, SCRFD, ArcFace.
     Endpoint /health phản ánh models_warmed_up và chỉ UP khi đã warmup.
     """
     mock_pipeline = MagicMock()

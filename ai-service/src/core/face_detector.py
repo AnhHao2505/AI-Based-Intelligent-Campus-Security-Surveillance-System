@@ -26,9 +26,8 @@ logger = logging.getLogger(__name__)
 
 class FaceDetector:
     """
-    Module phát hiện khuôn mặt sử dụng mô hình InsightFace SCRFD-2.5G (thay thế YuNet).
+    Module phát hiện khuôn mặt sử dụng mô hình InsightFace SCRFD-2.5G.
     Hỗ trợ nhận diện khuôn mặt cả trên toàn khung hình và crop từ BBox của người.
-    Tương thích ngược với YuNet khi truyền đường dẫn mô hình YuNet hoặc trong unit test mock.
     """
     def __init__(
         self,
@@ -42,7 +41,7 @@ class FaceDetector:
         registration_max_dim: Optional[int] = None
     ):
         # Mặc định sử dụng SCRFD-2.5G
-        default_model = getattr(settings, "MODEL_FACE_DETECTOR_PATH", getattr(settings, "MODEL_SCRFD_PATH", settings.MODEL_YUNET_PATH))
+        default_model = getattr(settings, "MODEL_FACE_DETECTOR_PATH", settings.MODEL_SCRFD_PATH)
         self.model_path = model_path or default_model
         self.score_threshold = score_threshold if score_threshold is not None else settings.DEFAULT_FACE_CONFIDENCE
         self.nms_threshold = nms_threshold if nms_threshold is not None else settings.DEFAULT_FACE_NMS_THRESHOLD
@@ -58,7 +57,6 @@ class FaceDetector:
         self.fixed_input_size = int(np.ceil(raw_fixed / 32.0) * 32) if raw_fixed and raw_fixed > 0 else 0
 
         self.backend = "scrfd"
-        self.detector = None  # Dành cho YuNet hoặc unit test mock
         self.session = None   # Dành cho SCRFD ONNX Runtime
         
         # Cấu hình SCRFD Feature Pyramid Strides & Anchor Centers Cache
@@ -89,25 +87,6 @@ class FaceDetector:
             logger.warning(f"⚠️ Không thể tự động tải mô hình SCRFD: {e}")
 
     def _init_detector(self):
-        # Kiểm tra nếu đang chạy test mock cv2.FaceDetectorYN.create hoặc được truyền đường dẫn YuNet
-        is_mocked = hasattr(cv2.FaceDetectorYN, "create") and isinstance(cv2.FaceDetectorYN.create, MagicMock)
-        is_explicit_yunet = "yunet" in os.path.basename(self.model_path).lower()
-
-        if is_mocked or is_explicit_yunet:
-            self.backend = "yunet"
-            if not is_mocked and not os.path.exists(self.model_path):
-                raise FileNotFoundError(f"Không tìm thấy mô hình YuNet tại: {self.model_path}")
-        
-            self.detector = cv2.FaceDetectorYN.create(
-                model=self.model_path,
-                config="",
-                input_size=(320, 320),
-                score_threshold=self.score_threshold,
-                nms_threshold=self.nms_threshold,
-                top_k=5000
-            )
-            return
-
         # Khởi tạo mô hình SCRFD-2.5G qua ONNX Runtime
         self.backend = "scrfd"
         if not os.path.exists(self.model_path):
@@ -236,37 +215,6 @@ class FaceDetector:
 
         return results
 
-    def _detect_yunet(self, image: np.ndarray, offset_xy: Tuple[int, int] = (0, 0)) -> List[FaceDetectionResult]:
-        h, w = image.shape[:2]
-        self.detector.setInputSize((w, h))
-        _, faces = self.detector.detect(image)
-
-        results = []
-        if faces is not None and len(faces) > 0:
-            off_x, off_y = offset_xy
-            for face in faces:
-                bbox_raw = face[0:4].astype(float)
-                score = float(face[-1])
-                
-                x1 = bbox_raw[0] + off_x
-                y1 = bbox_raw[1] + off_y
-                x2 = x1 + bbox_raw[2]
-                y2 = y1 + bbox_raw[3]
-
-                landmarks = []
-                raw_landmarks = face[4:14].astype(float).reshape((5, 2))
-                for pt in raw_landmarks:
-                    landmarks.append((pt[0] + off_x, pt[1] + off_y))
-
-                results.append(
-                    FaceDetectionResult(
-                        bbox=BoundingBox(x1=x1, y1=y1, x2=x2, y2=y2, confidence=score),
-                        score=score,
-                        landmarks=landmarks
-                    )
-                )
-        return results
-
     def detect_in_image(
         self,
         image: np.ndarray,
@@ -327,9 +275,8 @@ class FaceDetector:
                 )
             return scaled_faces
 
-        # Nếu có gán detector mock hoặc đang chạy backend YuNet
-        if self.detector is not None:
-            return self._detect_yunet(image, offset_xy=offset_xy)
+        if self.session is None:
+            return []
 
         return self._detect_scrfd(image, offset_xy=offset_xy)
 

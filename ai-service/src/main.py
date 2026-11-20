@@ -350,7 +350,11 @@ async def health_check():
         and getattr(default_pipeline, "human_detector", None) is not None
         and getattr(default_pipeline.human_detector, "model", None) is not None
     ) or os.path.exists(settings.MODEL_YOLO_PATH)
-    yunet_loaded = os.path.exists(settings.MODEL_YUNET_PATH)
+    scrfd_loaded = (
+        pipeline_ready
+        and getattr(default_pipeline, "face_detector", None) is not None
+        and getattr(default_pipeline.face_detector, "session", None) is not None
+    ) or os.path.exists(settings.MODEL_FACE_DETECTOR_PATH)
     arcface_loaded = os.path.exists(settings.MODEL_ARCFACE_PATH)
 
     mqtt_connected = bool(default_pipeline.mqtt_client.is_connected) if (default_pipeline and default_pipeline.mqtt_client) else False
@@ -365,14 +369,14 @@ async def health_check():
         except Exception:
             db_connected = False
 
-    is_healthy = pipeline_ready and yolo_loaded and yunet_loaded and arcface_loaded and models_warmed_up
+    is_healthy = pipeline_ready and yolo_loaded and scrfd_loaded and arcface_loaded and models_warmed_up
     return {
         "status": "UP" if is_healthy else "DOWN",
         "pipeline_ready": pipeline_ready,
         "models_warmed_up": models_warmed_up,
         "models": {
             "yolo_model": yolo_loaded,
-            "yunet_model": yunet_loaded,
+            "scrfd_model": scrfd_loaded,
             "arcface_model": arcface_loaded
         },
         "db_connected": db_connected,

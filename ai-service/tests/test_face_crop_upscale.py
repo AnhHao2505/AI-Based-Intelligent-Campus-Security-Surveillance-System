@@ -6,11 +6,8 @@ from src.core.entity import BoundingBox, FaceDetectionResult
 from src.core.face_detector import FaceDetector
 
 class TestFaceCropUpscale(unittest.TestCase):
-    @patch("os.path.exists", return_value=True)
-    @patch("cv2.FaceDetectorYN.create")
-    def setUp(self, mock_yn_create, mock_exists):
+    def setUp(self):
         self.detector = FaceDetector(upscale_threshold=160)
-        self.detector.detector = MagicMock()
 
     def test_small_crop_upscaled_and_coordinates_mapped_accurately(self):
         """Crop nhỏ (< 160px) được phóng to trước khi detect, toạ độ bbox và landmarks quy đổi đúng về frame gốc"""
@@ -19,7 +16,7 @@ class TestFaceCropUpscale(unittest.TestCase):
         offset_xy = (200, 300)
 
         # scale = 160 / 80 = 2.0 -> resized crop sẽ là w=160, h=200
-        # Giả lập YuNet phát hiện mặt trên ảnh phóng to tại [40, 50, 80, 90]
+        # Giả lập SCRFD phát hiện mặt trên ảnh phóng to tại [40, 50, 80, 90]
         detected_on_resized = FaceDetectionResult(
             bbox=BoundingBox(x1=40.0, y1=50.0, x2=80.0, y2=90.0, confidence=0.92),
             score=0.92,

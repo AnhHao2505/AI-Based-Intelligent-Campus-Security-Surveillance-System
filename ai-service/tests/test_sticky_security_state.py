@@ -465,7 +465,7 @@ def test_unauthorized_person_entering_roi_never_triggers_unknown_alert():
     bbox_in_roi = BoundingBox(450, 450, 550, 600, confidence=0.9)
 
     # Frame 1: Vua cham chan vao ROI luc t = 100.0s.
-    # Face Detector (YuNet) phat hien co mat nhung ArcFace chua match kip (matched_code = None, access_checked = False)
+    # Face Detector (SCRFD) phat hien co mat nhung ArcFace chua match kip (matched_code = None, access_checked = False)
     face_unmatched = FaceDetectionResult(
         bbox=bbox_in_roi,
         score=0.85,

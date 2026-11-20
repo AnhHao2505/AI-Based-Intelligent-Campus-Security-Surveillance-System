@@ -83,7 +83,7 @@ def diagnose_tracking_accuracy():
 
 def diagnose_recognition_accuracy():
     print("\n" + "=" * 80)
-    print("PHẦN 2: CHẨN ĐOÁN ĐỘ CHÍNH XÁC CỦA NHẬN DIỆN (YUNET + ARCFACE)")
+    print("PHẦN 2: CHẨN ĐOÁN ĐỘ CHÍNH XÁC CỦA NHẬN DIỆN (SCRFD + ARCFACE)")
     print("=" * 80)
     
     fd = FaceDetector()
@@ -92,9 +92,9 @@ def diagnose_recognition_accuracy():
     print(f"  * Ngưỡng khớp mặt hiện tại (FACE_MATCH_THRESHOLD): {settings.FACE_MATCH_THRESHOLD}")
     print(f"  * Ngưỡng thẩm định lại (FACE_REVERIFY_SCORE_THRESHOLD): {getattr(settings, 'FACE_REVERIFY_SCORE_THRESHOLD', 0.82)}")
     
-    # 2.1 Kiểm tra độ nhạy của YuNet với các kích thước khuôn mặt
+    # 2.1 Kiểm tra độ nhạy của SCRFD với các kích thước khuôn mặt
     test_sizes = [16, 24, 32, 64, 112, 200]
-    print("\n  2.1 Kiểm tra YuNet Face Detector theo kích thước ảnh crop:")
+    print("\n  2.1 Kiểm tra SCRFD Face Detector theo kích thước ảnh crop:")
     for sz in test_sizes:
         # Tạo ảnh giả lập mặt
         face_syn = np.full((sz, sz, 3), 180, dtype=np.uint8)

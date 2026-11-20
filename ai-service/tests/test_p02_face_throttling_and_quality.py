@@ -23,9 +23,9 @@ def test_unidentified_track_throttling_intervals(
 ):
     """
     Xác nhận Cascade Gate:
-    - Trong ROI: YuNet chạy mỗi frame để bắt khoảnh khắc nét nhất.
+    - Trong ROI: SCRFD chạy mỗi frame để bắt khoảnh khắc nét nhất.
     - ArcFace được điều tốc với chu kỳ tối thiểu 0.2s/lần (FACE_SCAN_INITIAL_INTERVAL).
-    - Ngoài ROI: YuNet được throttle 1.0s/lần (FACE_SCAN_BACKOFF_INTERVAL).
+    - Ngoài ROI: SCRFD được throttle 1.0s/lần (FACE_SCAN_BACKOFF_INTERVAL).
     """
     pipeline = VideoPipeline(camera_code="CAM-THROTTLE-TEST", enable_motion_gating=False)
     pipeline.face_scan_initial_interval = 0.2
@@ -47,13 +47,13 @@ def test_unidentified_track_throttling_intervals(
     # Chưa nhận diện được danh tính (match_face trả về None)
     pipeline.face_matcher.match_face.return_value = None
 
-    # --- 1. TRONG ROI: YuNet chạy mỗi frame, ArcFace throttle 0.2s/lần ---
-    # Frame 1: t = 0.0s -> YuNet chạy, ArcFace chạy lần 1
+    # --- 1. TRONG ROI: SCRFD chạy mỗi frame, ArcFace throttle 0.2s/lần ---
+    # Frame 1: t = 0.0s -> SCRFD chạy, ArcFace chạy lần 1
     pipeline.process_frame(frame, current_time=0.0)
     assert pipeline.face_detector.detect_best_face_in_crop.call_count == 1
     assert pipeline.face_matcher.match_face.call_count == 1
 
-    # Frame 2: t = 0.1s -> YuNet chạy (frame 2), ArcFace bị throttle (chưa đủ 0.2s)
+    # Frame 2: t = 0.1s -> SCRFD chạy (frame 2), ArcFace bị throttle (chưa đủ 0.2s)
     pipeline.process_frame(frame, current_time=0.1)
     assert pipeline.face_detector.detect_best_face_in_crop.call_count == 2
     assert pipeline.face_matcher.match_face.call_count == 1
@@ -73,13 +73,13 @@ def test_unidentified_track_throttling_intervals(
     assert pipeline.face_detector.detect_best_face_in_crop.call_count == 5
     assert pipeline.face_matcher.match_face.call_count == 3
 
-    # --- 2. NGOÀI ROI: YuNet được throttle 1.0s/lần ---
+    # --- 2. NGOÀI ROI: SCRFD được throttle 1.0s/lần ---
     pipeline.roi_polygon = [Point(0, 0), Point(50, 0), Point(50, 50), Point(0, 50)] # bbox ở ngoài ROI
-    # t = 0.5s: Vừa ra ngoài ROI -> YuNet bị throttle (chưa đủ 1.0s từ lần cuối ở 0.4s)
+    # t = 0.5s: Vừa ra ngoài ROI -> SCRFD bị throttle (chưa đủ 1.0s từ lần cuối ở 0.4s)
     pipeline.process_frame(frame, current_time=0.5)
     assert pipeline.face_detector.detect_best_face_in_crop.call_count == 5
 
-    # t = 1.4s: Đã đủ 1.0s -> YuNet chạy lần 6
+    # t = 1.4s: Đã đủ 1.0s -> SCRFD chạy lần 6
     pipeline.process_frame(frame, current_time=1.4)
     assert pipeline.face_detector.detect_best_face_in_crop.call_count == 6
 
