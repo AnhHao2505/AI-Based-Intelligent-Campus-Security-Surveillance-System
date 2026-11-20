@@ -98,12 +98,13 @@ void main() {
     );
     await _pumpCard(tester, destPin, route);
     final minutes = ((route.distanceMeters / 1.0 + route.floorsClimbed * 60) / 60).ceil();
-    expect(find.text('Lộ trình: ${route.formattedDistance} • $minutes phút đi bộ'), findsOneWidget);
-    expect(find.text('Lên tầng 4'), findsOneWidget);
+    expect(find.text('$minutes phút đi bộ · ${route.formattedDistance}'), findsOneWidget);
+    expect(find.textContaining('Tầng G → Tầng 4'), findsOneWidget);
+    expect(find.text('Lên tầng 4'), findsNothing);
     expect(find.text(CampusRoute.directFallbackMessage), findsNothing);
-    expect(find.textContaining('Xuất phát'), findsNothing);
+    expect(find.textContaining('Từ '), findsNothing);
     expect(find.textContaining('OSRM'), findsNothing);
-    expect(find.text('Hủy dẫn đường'), findsOneWidget);
+    expect(find.text('Hủy'), findsOneWidget);
   });
 
   testWidgets('Thẻ khu: không có đường trên đồ thị → câu "Chưa có đường đi…, hiển thị hướng thẳng"', (tester) async {
@@ -122,7 +123,7 @@ void main() {
     await _pumpCard(tester, destPin, route);
     expect(find.text('Chưa có đường đi trên bản đồ, hiển thị hướng thẳng'), findsOneWidget);
     // 100 / 1,45 + 4 × 14 = 124,97 giây → làm tròn lên 3 phút
-    expect(find.text('Lộ trình: 100 m • 3 phút đi bộ'), findsOneWidget);
+    expect(find.text('3 phút đi bộ · 100 m'), findsOneWidget);
   });
 
   testWidgets('Thẻ khu: xuất phát theo toà / tầng đang chọn → ghi rõ điểm xuất phát', (tester) async {
@@ -138,8 +139,8 @@ void main() {
       destinationFloorOrder: 4,
     );
     await _pumpCard(tester, destPin, route);
-    expect(find.text('Xuất phát: cầu thang / thang máy Tòa Epsilon • Tầng 2 (toà / tầng đang chọn)'), findsOneWidget);
-    expect(find.text('Lên tầng 4'), findsOneWidget);
+    expect(find.text('Từ Tầng 2 (Tòa Epsilon)'), findsOneWidget);
+    expect(find.textContaining('Tầng 2 → Tầng 4'), findsOneWidget);
   });
 
   group('MapProvider.calculateRouteTo', () {
@@ -171,5 +172,106 @@ void main() {
       expect(p.isLoadingRoute, isFalse);
       p.dispose();
     });
+
+    test('Clean Tòa Alpha: danh sách toà và tuyến đường chỉ dùng Tòa Epsilon + lối đi ngoài trời', () async {
+      final p = MapProvider(ApiClient(),
+          campusRepository: _DiskCampusRepository(campus), routeSettingsService: _FixedRouteSettings(RouteEtaSettings.defaults));
+      await p.loadCampusMap();
+      expect(p.buildings, ['Tòa Epsilon']);
+      expect(p.effectiveBuilding, 'Tòa Epsilon');
+      expect(p.visibleCampus!.buildings.map((b) => b.name).toList(), ['Tòa Epsilon']);
+
+      // Ngay cả khi GPS nằm tại vị trí Tòa Alpha cũ (10.8414, 106.81), tuyến tới Tòa Epsilon
+      // không bao giờ đi xuyên qua hành lang hay giếng trời của Tòa Alpha.
+      p.updateGuardLocation(const LatLng(10.8414, 106.81));
+      await p.calculateRouteTo(destPin);
+      final route = p.currentRoute!;
+      expect(route.isDirectFallback, isFalse);
+      expect(route.points.any((pt) => pt.building == 'Tòa Alpha'), isFalse);
+      expect(route.points.last.building, 'Tòa Epsilon');
+
+      // focusIncident hoặc selectBuilding với pin/tên Tòa Alpha cũ không được phép bật lại Tòa Alpha trên MapProvider
+      final alphaIncident = _pin(building: 'Tòa Alpha', floor: 'Tầng 1', lat: 10.8414, lon: 106.8100);
+      p.focusIncident(alphaIncident);
+      expect(p.selectedBuilding, 'Tòa Epsilon');
+      expect(p.effectiveBuilding, 'Tòa Epsilon');
+      p.dispose();
+    });
+
+    test('Real-time GPS: không ép tọa độ về mock cố định và tự động tính lại lộ trình khi di chuyển', () async {
+      final p = MapProvider(ApiClient(),
+          campusRepository: _DiskCampusRepository(campus), routeSettingsService: _FixedRouteSettings(RouteEtaSettings.defaults));
+      await p.loadCampusMap();
+
+      // Tọa độ đường N3 / khu vực lân cận không bị ép về campusCenter cố định
+      const realGps1 = LatLng(10.840483, 106.811052);
+      p.updateGuardLocation(realGps1, heading: 45);
+      expect(p.guardLocation, realGps1);
+      expect(p.guardHeading, 45);
+
+      await p.calculateRouteTo(destPin);
+      final route1 = p.currentRoute!;
+      expect(route1.points.first.latLng, realGps1);
+
+      // Bảo vệ di chuyển sang điểm GPS mới → currentRoute tự động cập nhật real-time
+      const realGps2 = LatLng(10.840792, 106.811328);
+      p.updateGuardLocation(realGps2, heading: 90);
+      final route2 = p.currentRoute!;
+      expect(route2.points.first.latLng, realGps2);
+      expect(route2.distanceMeters, isNot(equals(route1.distanceMeters)));
+      p.dispose();
+    });
+  });
+
+  testWidgets('UX dẫn đường gọn: đoạn ngoài trời luôn nổi bật; chạm tiêu đề focus phòng đích & chip đổi tầng tương tác',
+      (tester) async {
+    final o = campus.withoutAlpha().graph!.nodes.firstWhere((n) => n.isOutdoor);
+    final route = planCampusRoute(
+      graph: campus.withoutAlpha().graph,
+      campus: campus.withoutAlpha(),
+      gps: LatLng(o.latitude, o.longitude),
+      destinationLatitude: destPin.centerLatitude,
+      destinationLongitude: destPin.centerLongitude,
+      destinationBuilding: destPin.building,
+      destinationFloorOrder: 4,
+    );
+
+    // Khi đang xem Tầng 4, đoạn đi bộ ngoài sân (OUTDOOR) vẫn có current = true để không bị mờ chìm vào nền tối
+    final geoAtF4 = routeGeoJson(route, currentFloor: 4);
+    final feats = (geoAtF4['features'] as List).cast<Map>();
+    expect(feats.first['properties']['current'], isTrue);
+
+    CampusFloorChange? tappedStep;
+    var tappedDest = false;
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: AreaDetailCard(
+          area: destPin,
+          currentRoute: route,
+          isLoadingRoute: false,
+          onNavigateTap: () {},
+          onCancelRoute: () {},
+          onClose: () {},
+          onFocusDestination: () => tappedDest = true,
+          onSelectFloorStep: (step) => tappedStep = step,
+        ),
+      ),
+    ));
+
+    // Không hiển thị các nút/text thừa (tọa độ thô, khoảng cách chim bay, nút lặp)
+    expect(find.textContaining('10.840'), findsNothing);
+    expect(find.textContaining('Cách bạn'), findsNothing);
+    expect(find.text('Bám GPS'), findsNothing);
+    expect(find.text('Toàn tuyến'), findsNothing);
+    expect(find.text('Phòng đích'), findsNothing);
+    expect(find.textContaining('Tầng G → Tầng 4'), findsOneWidget);
+
+    await tester.tap(find.text(destPin.name));
+    await tester.tap(find.textContaining('Tầng G → Tầng 4'));
+
+    expect(tappedDest, isTrue);
+    expect(tappedStep, isNotNull);
+    expect(tappedStep!.toFloor, 4);
   });
 }

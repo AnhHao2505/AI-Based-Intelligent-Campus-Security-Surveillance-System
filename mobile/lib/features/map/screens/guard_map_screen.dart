@@ -6,6 +6,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../data/campus_floor_resolver.dart';
+import '../data/campus_graph.dart' show haversineMeters;
 import '../data/campus_map_data.dart';
 import '../data/campus_map_overlays.dart';
 import '../data/campus_map_sprites.dart';
@@ -19,9 +21,8 @@ import '../widgets/osm_attribution_bar.dart';
 import '../../chat/widgets/floating_guard_chat_button.dart';
 import '../../incident/widgets/peer_claim_notice.dart';
 
-/// Các loại khối 3D trong asset (thuộc tính `layer`), vẽ theo thứ tự này. Độ mờ theo web (CampusMapView.jsx:1386-1424).
-/// Lớp `door` (mặt bằng cửa, không có màu / chiều cao) web không vẽ; khung cửa 3D đã nằm trong lớp `wall`
-/// (wallKind DOOR_THRESHOLD / DOOR_JAMB / DOOR_LINTEL, campusIndoor3dData.js:3036-3100).
+/// Các lớp mặt bằng 2D trong asset (thuộc tính `layer`), vẽ theo thứ tự này trên mặt phẳng z = 0.
+/// Lớp `door` (mặt bằng cửa) không vẽ riêng vì khung cửa đã nằm trong lớp `wall`.
 const List<({String layer, double opacity})> _campusLayers = [
   (layer: 'slab', opacity: 0.96),
   (layer: 'room', opacity: 0.9),
@@ -46,18 +47,15 @@ final Map<String, CampusSprite> _spriteCache = {};
 const List<Object> _routeGraphFilter = ['!=', ['get', 'direct'], true];
 const List<Object> _routeDirectFilter = ['==', ['get', 'direct'], true];
 
-/// Lề khi đưa khung bao (khuôn viên / tuyến đường) vào màn hình: chừa thanh tiêu đề + chip ở trên, thẻ khu ở dưới.
-const EdgeInsets _fitPadding = EdgeInsets.fromLTRB(40, 170, 40, 220);
+/// Lề khi đưa khung bao (khuôn viên / tuyến đường) vào màn hình: chừa thanh tiêu đề + chip toà ở trên, thanh tầng + nút phải và dock ở dưới.
+const EdgeInsets _fitPadding = EdgeInsets.fromLTRB(32, 132, 72, 110);
+const EdgeInsets _routeFitPadding = EdgeInsets.fromLTRB(36, 136, 76, 210);
 
-/// Nút chat bảo vệ góc dưới trái: lề đáy (tính từ mép trên dải ghi công) và cỡ FloatingActionButton mặc định.
-const double _chatButtonBottom = 28;
-const double _chatButtonSize = 56;
+/// Màu lộ trình xanh lam sáng (tương phản rõ với đường nền OSM tối và khối phòng màu cam).
+const String _routeActiveColor = '#0EA5E9';
 
-/// Chú giải cấp khu đặt ngay trên nút chat, hở 12 dp (chừa huy hiệu tin chưa đọc nhô 4 dp khỏi đỉnh nút).
-const double _legendGapAboveChat = 12;
-
-/// Phần bên phải chú giải không được lấn: cột nút nổi (lề 16 + FloatingActionButton.small rộng 40) + hở 12.
-const double _legendRightReserve = 16 + 40 + 12;
+/// Nút chat bảo vệ góc dưới trái: lề đáy (tính từ mép trên dải ghi công).
+const double _chatButtonBottom = 20;
 
 class GuardMapScreen extends StatefulWidget {
   final AreaPinModel? initialDestination;
@@ -75,10 +73,6 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
   ml.CameraPosition? _initialCamera;
   ({LatLng target, double zoom})? _pendingFocus;
 
-  // Đáy cụm tiêu đề + chip (toạ độ màn hình, dp) — để đặt la bàn MapLibre ngay bên dưới
-  final GlobalKey _topBarKey = GlobalKey();
-  double? _topBarBottom;
-
   // Chữ ký dữ liệu đã đẩy lên bản đồ (tránh gửi lại GeoJSON lớn khi không đổi)
   String? _campusKey;
   String? _highlightKey;
@@ -91,6 +85,13 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
   final Set<String> _styleImages = {};
   bool _syncAgain = false;
 
+  /// Chế độ camera tự động bám theo vị trí GPS real-time khi bảo vệ di chuyển.
+  bool _isFollowingGps = false;
+  LatLng? _lastFollowedGps;
+
+  /// Hiện/ẩn bảng chú giải màu cấp khu khi bấm nút (i) trên thanh tiêu đề.
+  bool _showLegend = false;
+
   @override
   void initState() {
     super.initState();
@@ -102,6 +103,10 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       await _provider.initLocation();
       await _provider.fetchAreaPins();
       if (!mounted) return;
+
+      if (_provider.selectedBuilding == null && _provider.buildings.length == 1) {
+        _provider.selectBuilding(_provider.buildings.first);
+      }
 
       final dest = widget.initialDestination;
       if (dest != null) {
@@ -122,11 +127,28 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     super.dispose();
   }
 
-  void _onProviderChanged() => _scheduleSync();
+  void _onProviderChanged() {
+    _scheduleSync();
+    final gps = _provider.guardLocation;
+    if (_isFollowingGps && gps != null) {
+      final moved = _lastFollowedGps == null ||
+          haversineMeters(
+                _lastFollowedGps!.latitude,
+                _lastFollowedGps!.longitude,
+                gps.latitude,
+                gps.longitude,
+              ) >=
+              1.0;
+      if (moved) {
+        _lastFollowedGps = gps;
+        _focusOn(gps, 18.3, bearing: _provider.guardHeading);
+      }
+    }
+  }
 
   // ------------------------------------------------------------------ camera
 
-  void _focusOn(LatLng target, double zoom) {
+  void _focusOn(LatLng target, double zoom, {double? bearing}) {
     if (_map == null || !_styleReady) {
       _pendingFocus = (target: target, zoom: zoom);
       return;
@@ -136,45 +158,53 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         target: ml.LatLng(target.latitude, target.longitude),
         zoom: zoom,
         tilt: campusDefaultTilt,
-        bearing: campusDefaultBearing,
+        bearing: (bearing != null && bearing.isFinite && bearing >= 0) ? bearing : campusDefaultBearing,
       )),
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 650),
     );
   }
 
-  void _fitBounds(double south, double west, double north, double east) {
+  void _fitBounds(double south, double west, double north, double east, {EdgeInsets padding = _fitPadding}) {
     _map?.animateCamera(
       ml.CameraUpdate.newLatLngBounds(
         ml.LatLngBounds(southwest: ml.LatLng(south, west), northeast: ml.LatLng(north, east)),
-        left: _fitPadding.left,
-        top: _fitPadding.top,
-        right: _fitPadding.right,
-        bottom: _fitPadding.bottom,
+        left: padding.left,
+        top: padding.top,
+        right: padding.right,
+        bottom: padding.bottom,
       ),
       duration: const Duration(milliseconds: 700),
     );
   }
 
-  void _flyToCampus() {
-    final b = _provider.campus?.bounds;
-    if (b == null) {
-      _showSnack(_provider.campusError ?? 'Chưa tải được dữ liệu bản đồ khuôn viên');
+  Future<void> _toggleFollowGps() async {
+    if (_isFollowingGps) {
+      if (mounted) setState(() => _isFollowingGps = false);
       return;
     }
-    _fitBounds(b.south, b.west, b.north, b.east);
-    _showSnack('Đã di chuyển tới toàn cảnh khuôn viên');
-  }
-
-  Future<void> _centerOnGuard() async {
     if (_provider.guardLocation == null) {
       await _provider.initLocation();
     }
-    final target = _provider.guardLocation ?? _provider.campusCenter;
-    if (target != null) _focusOn(target, 17.5);
+    final gps = _provider.guardLocation;
+    if (gps != null) {
+      if (mounted) {
+        setState(() {
+          _isFollowingGps = true;
+          _lastFollowedGps = gps;
+        });
+      }
+      _focusOn(gps, 18.3, bearing: _provider.guardHeading);
+      return;
+    }
+    final target = _provider.visibleCampusCenter ?? _provider.campusCenter;
+    if (target != null) _focusOn(target, 18.0);
   }
 
   void _fitRoute(List<LatLng> points) {
     if (points.isEmpty) return;
+    if (_isFollowingGps && mounted) {
+      setState(() => _isFollowingGps = false);
+    }
     var s = points.first.latitude, n = s, w = points.first.longitude, e = w;
     for (final p in points) {
       if (p.latitude < s) s = p.latitude;
@@ -182,7 +212,30 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       if (p.longitude < w) w = p.longitude;
       if (p.longitude > e) e = p.longitude;
     }
-    _fitBounds(s, w, n, e);
+    _fitBounds(s, w, n, e, padding: _routeFitPadding);
+  }
+
+  void _focusRouteDestination(AreaPinModel area) {
+    if (_isFollowingGps) {
+      setState(() => _isFollowingGps = false);
+    }
+    final destFloor = floorOrderOfPin(area, _provider.visibleCampus ?? _provider.campus) ?? 0;
+    if (_provider.selectedFloorOrder != destFloor) {
+      _provider.selectFloor(destFloor);
+    }
+    if (area.centerLatitude != 0.0) {
+      _focusOn(area.latLng, 18.6);
+    }
+  }
+
+  void _focusFloorChange(CampusFloorChange change) {
+    if (_isFollowingGps) {
+      setState(() => _isFollowingGps = false);
+    }
+    if (_provider.selectedFloorOrder != change.toFloor) {
+      _provider.selectFloor(change.toFloor);
+    }
+    _focusOn(change.latLng, 18.6);
   }
 
   void _showSnack(String text) {
@@ -204,11 +257,10 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     );
   }
 
-  /// Camera ban đầu: tâm + zoom vừa khung bao khối 3D trong asset; chưa có asset thì theo vị trí GPS / khu đầu tiên.
+  /// Camera ban đầu: tâm + zoom vừa khung bao khối 3D của các tòa hiển thị (Tòa Epsilon); chưa có asset thì theo vị trí GPS / khu đầu tiên.
   ml.CameraPosition? _computeInitialCamera(Size size) {
-    final campus = _provider.campus;
-    if (campus != null) {
-      final b = campus.bounds;
+    final b = _provider.visibleCampusBounds ?? _provider.campus?.bounds;
+    if (b != null) {
       return ml.CameraPosition(
         target: ml.LatLng(b.centerLatitude, b.centerLongitude),
         zoom: zoomToFitBounds(b, size.width, size.height, paddingPx: _fitPadding.left),
@@ -242,15 +294,12 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       }
       for (final l in _campusLayers) {
         await map.addGeoJsonSource('campus-${l.layer}', empty);
-        await map.addFillExtrusionLayer(
+        await map.addFillLayer(
           'campus-${l.layer}',
           'campus-${l.layer}-layer',
-          ml.FillExtrusionLayerProperties(
-            fillExtrusionColor: const ['get', 'color'],
-            fillExtrusionBase: const ['get', 'baseHeight'],
-            fillExtrusionHeight: const ['get', 'extrudeHeight'],
-            fillExtrusionOpacity: l.opacity,
-            fillExtrusionVerticalGradient: true,
+          ml.FillLayerProperties(
+            fillColor: const ['get', 'color'],
+            fillOpacity: l.opacity,
           ),
           enableInteraction: false,
         );
@@ -277,8 +326,8 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         'campus-route-outline',
         const ml.LineLayerProperties(
           lineColor: '#ffffff',
-          lineWidth: ['case', ['get', 'current'], 7.5, 4.0],
-          lineOpacity: ['case', ['get', 'current'], 1.0, 0.35],
+          lineWidth: ['case', ['get', 'current'], 8.5, 5.0],
+          lineOpacity: ['case', ['get', 'current'], 1.0, 0.55],
           lineCap: 'round',
           lineJoin: 'round',
         ),
@@ -288,10 +337,10 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       await map.addLineLayer(
         _routeSource,
         'campus-route-line',
-        ml.LineLayerProperties(
-          lineColor: colorHex(AppColors.primaryLight),
-          lineWidth: const ['case', ['get', 'current'], 5.0, 2.5],
-          lineOpacity: const ['case', ['get', 'current'], 1.0, 0.35],
+        const ml.LineLayerProperties(
+          lineColor: _routeActiveColor,
+          lineWidth: ['case', ['get', 'current'], 5.5, 3.0],
+          lineOpacity: ['case', ['get', 'current'], 1.0, 0.6],
           lineCap: 'round',
           lineJoin: 'round',
         ),
@@ -302,10 +351,10 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       await map.addLineLayer(
         _routeSource,
         'campus-route-direct',
-        ml.LineLayerProperties(
-          lineColor: colorHex(AppColors.primaryLight),
-          lineWidth: 4.0,
-          lineDasharray: const [1.5, 1.5],
+        const ml.LineLayerProperties(
+          lineColor: _routeActiveColor,
+          lineWidth: 4.5,
+          lineDasharray: [1.5, 1.5],
         ),
         filter: _routeDirectFilter,
         enableInteraction: false,
@@ -448,16 +497,17 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     _syncing = true;
     try {
       final p = _provider;
-      final campus = p.campus;
+      final campus = p.visibleCampus ?? p.campus;
+      final effectiveBldg = p.effectiveBuilding;
 
-      final campusKey = '${campus?.seedVersion}|${p.selectedBuilding}|${p.selectedFloorOrder}';
+      final campusKey = '${campus?.seedVersion}|$effectiveBldg|${p.selectedFloorOrder}';
       if (campusKey != _campusKey) {
         _campusKey = campusKey;
         for (final l in _campusLayers) {
           await map.setGeoJsonSource(
             'campus-${l.layer}',
             campus?.featureCollectionFor(
-                  building: p.selectedBuilding,
+                  building: effectiveBldg,
                   floorOrder: p.selectedFloorOrder,
                   layers: {l.layer},
                 ) ??
@@ -471,9 +521,9 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       if (portalsKey != _portalsKey) {
         _portalsKey = portalsKey;
         final sw = Stopwatch()..start();
-        final portals = portalSymbolsGeoJson(campus, building: p.selectedBuilding, floorOrder: p.selectedFloorOrder);
+        final portals = portalSymbolsGeoJson(campus, building: effectiveBldg, floorOrder: p.selectedFloorOrder);
         await map.setGeoJsonSource(_portalsSource, portals);
-        debugPrint('[MAP] portals ${p.selectedBuilding ?? 'ALL'}/${p.selectedFloorOrder}: '
+        debugPrint('[MAP] portals ${effectiveBldg ?? 'ALL'}/${p.selectedFloorOrder}: '
             '${(portals['features'] as List).length} điểm, ${sw.elapsedMilliseconds} ms');
       }
 
@@ -485,7 +535,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         final labels = roomLabelsGeoJson(
           campus,
           p.areaPins,
-          building: p.selectedBuilding,
+          building: effectiveBldg,
           floorOrder: p.selectedFloorOrder,
           selectedAreaId: p.selectedArea?.id,
         );
@@ -494,7 +544,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           await _ensureImage(map, id);
         }
         await map.setGeoJsonSource(_roomLabelsSource, labels);
-        debugPrint('[MAP] room labels ${p.selectedBuilding ?? 'ALL'}/${p.selectedFloorOrder}: '
+        debugPrint('[MAP] room labels ${effectiveBldg ?? 'ALL'}/${p.selectedFloorOrder}: '
             '${(labels['features'] as List).length} nhãn, dựng $built ms, tổng ${sw.elapsedMilliseconds} ms');
       }
 
@@ -503,8 +553,8 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         _highlightKey = highlight;
         await map.setLayerProperties(
           'campus-room-layer',
-          ml.FillExtrusionLayerProperties(
-            fillExtrusionColor: highlight == null
+          ml.FillLayerProperties(
+            fillColor: highlight == null
                 ? const ['get', 'color']
                 : [
                     'case',
@@ -567,28 +617,15 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     if (!mounted) return;
     final pin = findAreaPinById(_provider.areaPins, areaId, selected: _provider.selectedArea);
     if (pin == null) return;
+    if (_isFollowingGps) setState(() => _isFollowingGps = false);
     _provider.selectArea(pin);
     _focusOn(pin.latLng, 17.8);
   }
 
   // ------------------------------------------------------------------ UI
 
-  /// Lề trên của la bàn: dưới đáy cụm tiêu đề đã đo; chưa đo được thì ít nhất dưới thanh trạng thái + thẻ tiêu đề.
-  double _compassTopMargin(BuildContext context) {
-    final measured = _topBarBottom;
-    if (measured != null) return measured + 8;
-    return MediaQuery.viewPaddingOf(context).top + 80;
-  }
-
-  /// Đo đáy cụm tiêu đề sau khi vẽ (cụm cao thêm khi có banner lỗi / chip tầng); đổi thì vẽ lại để cập nhật la bàn.
-  void _measureTopBar() {
-    final box = _topBarKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize || !mounted) return;
-    final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
-    if (_topBarBottom == null || (bottom - _topBarBottom!).abs() > 0.5) {
-      setState(() => _topBarBottom = bottom);
-    }
-  }
+  /// Nhãn ngắn trên thanh chọn tầng dọc: 0 → G, còn lại → số tầng.
+  static String _shortFloorLabel(int floorOrder) => floorOrder == 0 ? 'G' : '$floorOrder';
 
   @override
   Widget build(BuildContext context) {
@@ -604,20 +641,21 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           isLoadingCampus: provider.isLoadingCampus,
           campusError: provider.campusError,
           hasCampus: provider.campus != null,
-          pinCount: provider.filteredPins.length,
+          visibleCampus: provider.visibleCampus ?? provider.campus,
         ));
     final mapProvider = _provider;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // Mọi thứ nổi ở đáy màn đặt trên dải ghi công OSM để không che chữ
     final bottomInset = osmAttributionBarHeight + MediaQuery.viewPaddingOf(context).bottom;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _measureTopBar());
+    final destFloorOrder = mapState.selectedArea == null
+        ? null
+        : floorOrderOfPin(mapState.selectedArea!, mapState.visibleCampus);
+    final floorsDesc = [...mapState.floors]..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
       body: Stack(
         children: [
-          // 1. Bản đồ MapLibre: nền OSM + khối 3D theo toà / tầng + ghim khu + GPS + tuyến đường.
-          // Con KHÔNG định vị và chiếm hết chỗ để Stack (body của Scaffold, ràng buộc lỏng) có kích thước cả màn —
-          // Positioned.fill sẽ làm Stack co theo cột tiêu đề.
+          // 1. Bản đồ MapLibre 2D phẳng (tilt = 0°, bearing = 0°) — khớp tuyệt đối từng phòng và icon ở mọi tầng
           SizedBox.expand(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -643,15 +681,10 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                   key: ValueKey(isDark),
                   styleString: campusMapStyleJson(dark: isDark),
                   initialCameraPosition: initial,
-                  compassEnabled: true,
-                  // La bàn: góc trên phải, ngay dưới cụm tiêu đề + chip (cụm đó đã nằm dưới thanh trạng thái nhờ
-                  // SafeArea) → không đè thanh trạng thái, không bị thẻ tiêu đề che, vẫn bấm được. Lề tính theo dp.
-                  compassViewPosition: ml.CompassViewPosition.topRight,
-                  compassViewMargins: Point(16, _compassTopMargin(context)),
-                  // Nút (i) của MapLibre: góc dưới phải, trên dải ghi công, lệch trái khỏi cột nút nổi (rộng 40 + lề 16)
-                  attributionEnabled: true,
-                  attributionButtonPosition: ml.AttributionButtonPosition.bottomRight,
-                  attributionButtonMargins: Point(72, bottomInset + 6),
+                  compassEnabled: false,
+                  // Đã có OsmAttributionBar riêng ở mép đáy; tắt nút (i) mặc định của MapLibre Android để không mở
+                  // dialog trắng trống khi chạm nhầm.
+                  attributionEnabled: false,
                   onMapCreated: (controller) {
                     _map = controller;
                     _styleReady = false;
@@ -663,24 +696,22 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
             ),
           ),
 
-          // 2. Thanh tiêu đề + chip toà + chip tầng
+          // 2. Thanh tiêu đề gọn + nút chú giải (i) + làm mới (chỉ hiện chọn tòa khi có nhiều hơn 1 tòa)
           SafeArea(
             child: Column(
-              key: _topBarKey,
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppColors.crd(context).withAlpha(235),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.crdBorder(context)),
+                    color: AppColors.crd(context).withAlpha(238),
+                    borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withAlpha(25),
-                        blurRadius: 10,
+                        color: Colors.black.withAlpha(35),
+                        blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
                     ],
@@ -692,58 +723,70 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                         color: AppColors.txtPrimary(context),
                         onPressed: () => Navigator.pop(context),
                         tooltip: 'Quay lại',
-                        padding: EdgeInsets.zero,
+                        padding: const EdgeInsets.all(6),
                         constraints: const BoxConstraints(),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 6),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Bản Đồ Tuần Tra',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.txtPrimary(context),
-                              ),
-                            ),
-                            Text(
-                              '${mapState.pinCount} khu vực bảo vệ • ${campusFloorLabel(mapState.selectedFloor)}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.txtSecondary(context),
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          'Bản Đồ Tuần Tra',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.txtPrimary(context),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      IconButton(
+                        key: const ValueKey('map-legend-toggle'),
+                        icon: Icon(
+                          _showLegend ? Icons.info_rounded : Icons.info_outline_rounded,
+                          size: 20,
+                        ),
+                        color: _showLegend ? AppColors.primary : AppColors.txtSecondary(context),
+                        onPressed: () => setState(() => _showLegend = !_showLegend),
+                        tooltip: 'Chú giải màu khu vực',
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 2),
                       if (mapState.isLoadingPins || mapState.isLoadingCampus)
-                        const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryLight),
+                        const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryLight),
+                          ),
                         )
                       else
                         IconButton(
-                          icon: const Icon(Icons.refresh_rounded, size: 22),
+                          icon: const Icon(Icons.refresh_rounded, size: 21),
                           color: AppColors.txtPrimary(context),
                           onPressed: () => mapProvider.fetchAreaPins(),
                           tooltip: 'Làm mới',
-                          padding: EdgeInsets.zero,
+                          padding: const EdgeInsets.all(6),
                           constraints: const BoxConstraints(),
                         ),
                     ],
                   ),
                 ),
 
+                if (_showLegend)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(14, 0, 72, 6),
+                    child: CampusMapLegend(),
+                  ),
+
                 if (mapState.campusError != null)
                   Container(
-                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    margin: const EdgeInsets.fromLTRB(14, 0, 14, 6),
                     padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
                     decoration: BoxDecoration(
                       color: Colors.orange.withAlpha(40),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.orange.shade300),
                     ),
                     child: Row(
@@ -769,23 +812,26 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                     height: 38,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: mapState.buildings.length + 1,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      itemCount: mapState.buildings.length > 1
+                          ? mapState.buildings.length + 1
+                          : mapState.buildings.length,
                       itemBuilder: (context, index) {
-                        final isAll = index == 0;
-                        final bldName = isAll ? null : mapState.buildings[index - 1];
-                        final isSelected = mapState.selectedBuilding == bldName;
-
-                        String chipLabel;
-                        if (isAll) {
-                          chipLabel = 'Tất cả';
-                        } else if (bldName != null &&
-                            (bldName.trim().toLowerCase().startsWith('tòa ') ||
-                                bldName.trim().toLowerCase().startsWith('toa '))) {
-                          chipLabel = bldName.trim();
-                        } else {
-                          chipLabel = 'Tòa ${bldName ?? ""}';
-                        }
+                        final hasAllChip = mapState.buildings.length > 1;
+                        final isAll = hasAllChip && index == 0;
+                        final bldName = isAll
+                            ? null
+                            : mapState.buildings[hasAllChip ? index - 1 : index];
+                        final isSelected = hasAllChip
+                            ? mapState.selectedBuilding == bldName
+                            : (mapState.selectedBuilding == bldName || mapState.selectedBuilding == null);
+                        final chipLabel = isAll
+                            ? 'Tất cả'
+                            : (bldName != null &&
+                                    (bldName.trim().toLowerCase().startsWith('tòa ') ||
+                                        bldName.trim().toLowerCase().startsWith('toa ')))
+                                ? bldName.trim()
+                                : 'Tòa ${bldName ?? ""}';
 
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
@@ -799,78 +845,93 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                       },
                     ),
                   ),
-
-                if (mapState.hasCampus && mapState.floors.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: SizedBox(
-                      height: 34,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        children: [
-                          for (final f in mapState.floors)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: _chip(
-                                context,
-                                label: campusFloorLabel(f),
-                                selected: mapState.selectedFloor == f,
-                                onSelected: () => mapProvider.selectFloor(f),
-                                dense: true,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
 
-          // 3. Nút nổi bên phải
+          // 3. Cột điều khiển bên phải: Thanh chọn tầng dọc (4..G) + Toàn tuyến (khi dẫn đường) + Bám GPS + Phóng to/Thu nhỏ
           Positioned(
-            right: 16,
-            bottom: bottomInset + ((mapState.selectedArea != null) ? 320 : 32),
+            right: 14,
+            bottom: bottomInset + (mapState.selectedArea != null ? 182 : 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                if (mapState.hasCampus && floorsDesc.isNotEmpty)
+                  Container(
+                    key: const ValueKey('vertical-floor-rail'),
+                    width: 40,
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.crd(context).withAlpha(238),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(45),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final f in floorsDesc)
+                          _floorRailItem(
+                            context,
+                            label: _shortFloorLabel(f),
+                            selected: mapState.selectedFloor == f,
+                            hasTargetBadge: destFloorOrder == f && mapState.selectedFloor != f,
+                            onTap: () => mapProvider.selectFloor(f),
+                          ),
+                      ],
+                    ),
+                  ),
+                if (mapState.currentRoute != null) ...[
+                  const SizedBox(height: 8),
+                  FloatingActionButton.small(
+                    heroTag: 'fab_fit_route',
+                    backgroundColor: AppColors.crd(context),
+                    foregroundColor: const Color(0xFF0EA5E9),
+                    elevation: 4,
+                    onPressed: () => _fitRoute(mapState.currentRoute!.latLngs),
+                    tooltip: 'Toàn tuyến',
+                    child: const Icon(Icons.route_rounded, size: 20),
+                  ),
+                ],
+                const SizedBox(height: 8),
                 FloatingActionButton.small(
                   heroTag: 'fab_my_loc',
-                  backgroundColor: AppColors.crd(context),
-                  foregroundColor: AppColors.primaryLight,
+                  backgroundColor: _isFollowingGps ? AppColors.primary : AppColors.crd(context),
+                  foregroundColor: _isFollowingGps ? Colors.white : AppColors.primaryLight,
                   elevation: 4,
-                  onPressed: _centerOnGuard,
-                  tooltip: 'Vị trí của tôi',
+                  onPressed: _toggleFollowGps,
+                  tooltip: _isFollowingGps ? 'Đang bám GPS' : 'Bám GPS',
                   child: const Icon(Icons.my_location_rounded, size: 20),
                 ),
-                const SizedBox(height: 10),
-                FloatingActionButton.small(
-                  heroTag: 'fab_campus_center',
-                  backgroundColor: AppColors.crd(context),
-                  foregroundColor: Colors.orange.shade600,
-                  elevation: 4,
-                  onPressed: _flyToCampus,
-                  tooltip: 'Toàn cảnh khuôn viên',
-                  child: const Icon(Icons.school_rounded, size: 20),
-                ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 FloatingActionButton.small(
                   heroTag: 'fab_zoom_in',
                   backgroundColor: AppColors.crd(context),
                   foregroundColor: AppColors.txtPrimary(context),
                   elevation: 3,
-                  onPressed: () => _map?.animateCamera(ml.CameraUpdate.zoomIn()),
+                  onPressed: () {
+                    if (_isFollowingGps) setState(() => _isFollowingGps = false);
+                    _map?.animateCamera(ml.CameraUpdate.zoomIn());
+                  },
                   tooltip: 'Phóng to',
                   child: const Icon(Icons.add_rounded, size: 20),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 FloatingActionButton.small(
                   heroTag: 'fab_zoom_out',
                   backgroundColor: AppColors.crd(context),
                   foregroundColor: AppColors.txtPrimary(context),
                   elevation: 3,
-                  onPressed: () => _map?.animateCamera(ml.CameraUpdate.zoomOut()),
+                  onPressed: () {
+                    if (_isFollowingGps) setState(() => _isFollowingGps = false);
+                    _map?.animateCamera(ml.CameraUpdate.zoomOut());
+                  },
                   tooltip: 'Thu nhỏ',
                   child: const Icon(Icons.remove_rounded, size: 20),
                 ),
@@ -878,62 +939,103 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
             ),
           ),
 
-          // 3b. Nút chat bảo vệ — ẩn khi thẻ khu đang mở (thẻ cao hơn mọi vị trí đặt cố định nên sẽ che nút);
-          // đóng thẻ thì nút hiện lại.
+          // 3b. Nút chat bảo vệ — ẩn khi thẻ khu đang mở
           if (mapState.selectedArea == null)
             Positioned(
-              left: 16,
+              left: 14,
               bottom: bottomInset + _chatButtonBottom,
               child: const FloatingGuardChatButton(heroTag: 'fab_chat_map'),
             ),
 
-          // 3b'. Chú giải màu cấp khu (giống web) — ngay trên nút chat, không lấn cột nút bên phải; ẩn cùng nút chat
-          // khi thẻ khu đang mở.
-          if (mapState.selectedArea == null)
-            Positioned(
-              left: 16,
-              right: _legendRightReserve,
-              bottom: bottomInset + _chatButtonBottom + _chatButtonSize + _legendGapAboveChat,
-              child: const Align(alignment: Alignment.bottomLeft, child: CampusMapLegend()),
-            ),
-
-          // 3c. Dòng ghi công OpenStreetMap — luôn hiện, không bị nút / thẻ che
+          // 3c. Dòng ghi công OpenStreetMap — luôn hiện ở mép đáy
           const Positioned(left: 0, right: 0, bottom: 0, child: OsmAttributionBar()),
 
-          // 4. Thẻ chi tiết khu khi đang chọn khu
+          // 4. Compact Navigation / Area Dock khi đang chọn khu
           if (mapState.selectedArea != null)
             Positioned(
               left: 0,
               right: 0,
               bottom: bottomInset,
-              child: Selector<MapProvider, LatLng?>(
-                selector: (_, provider) => provider.guardLocation,
-                builder: (context, guardLocation, _) => AreaDetailCard(
-                  area: mapState.selectedArea!,
-                  guardLocation: guardLocation,
-                  currentRoute: mapState.currentRoute,
-                  isLoadingRoute: mapState.isLoadingRoute,
-                  onNavigateTap: () async {
-                    await mapProvider.calculateRouteTo(mapState.selectedArea!);
-                    final route = mapProvider.currentRoute;
-                    if (route != null) {
-                      _fitRoute(route.latLngs);
-                      if (route.message != null) _showSnack(route.message!);
-                    } else if (mapProvider.errorMessage != null) {
-                      _showSnack(mapProvider.errorMessage!);
-                    }
-                  },
-                  onCancelRoute: () {
-                    mapProvider.clearRoute();
-                  },
-                  onClose: () {
-                    mapProvider.selectArea(null);
-                    mapProvider.clearRoute();
-                  },
-                ),
+              child: AreaDetailCard(
+                area: mapState.selectedArea!,
+                currentRoute: mapState.currentRoute,
+                isLoadingRoute: mapState.isLoadingRoute,
+                onNavigateTap: () async {
+                  await mapProvider.calculateRouteTo(mapState.selectedArea!);
+                  final route = mapProvider.currentRoute;
+                  if (route != null) {
+                    _fitRoute(route.latLngs);
+                    if (route.message != null) _showSnack(route.message!);
+                  } else if (mapProvider.errorMessage != null) {
+                    _showSnack(mapProvider.errorMessage!);
+                  }
+                },
+                onFocusDestination: mapState.currentRoute == null
+                    ? null
+                    : () => _focusRouteDestination(mapState.selectedArea!),
+                onSelectFloorStep: mapState.currentRoute == null
+                    ? null
+                    : _focusFloorChange,
+                onCancelRoute: () {
+                  if (_isFollowingGps) setState(() => _isFollowingGps = false);
+                  mapProvider.clearRoute();
+                },
+                onClose: () {
+                  if (_isFollowingGps) setState(() => _isFollowingGps = false);
+                  mapProvider.selectArea(null);
+                  mapProvider.clearRoute();
+                },
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _floorRailItem(
+    BuildContext context, {
+    required String label,
+    required bool selected,
+    required bool hasTargetBadge,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 28,
+        margin: const EdgeInsets.symmetric(vertical: 1.5),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                color: selected ? Colors.white : AppColors.txtSecondary(context),
+              ),
+            ),
+            if (hasTargetBadge)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF0EA5E9),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -943,13 +1045,12 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     required String label,
     required bool selected,
     required VoidCallback onSelected,
-    bool dense = false,
   }) {
     return FilterChip(
       label: Text(
         label,
         style: TextStyle(
-          fontSize: dense ? 11 : 12,
+          fontSize: 12,
           fontWeight: selected ? FontWeight.bold : FontWeight.normal,
           color: selected ? Colors.white : AppColors.txtSecondary(context),
         ),
@@ -962,7 +1063,6 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       side: BorderSide(color: selected ? AppColors.primary : AppColors.crdBorder(context)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-      visualDensity: dense ? VisualDensity.compact : null,
     );
   }
 }

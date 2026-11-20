@@ -102,7 +102,7 @@ class AreaPinModel {
     final parts = <String>[];
     final b = building?.trim() ?? '';
     final f = floor?.trim() ?? '';
-    // API đã trả tên có tiền tố ("Tòa Alpha", "Tầng Trệt") -> chỉ thêm tiền tố khi tên chưa có
+    // API đã trả tên có tiền tố ("Tòa Epsilon", "Tầng Trệt") -> chỉ thêm tiền tố khi tên chưa có
     if (b.isNotEmpty) parts.add(withPrefix(b, 'Tòa', const ['tòa', 'toà', 'toa']));
     if (f.isNotEmpty) parts.add(withPrefix(f, 'Tầng', const ['tầng', 'tang']));
     return parts.isEmpty ? 'Khuôn viên ngoài trời' : parts.join(' • ');

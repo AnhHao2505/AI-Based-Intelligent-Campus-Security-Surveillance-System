@@ -44,10 +44,10 @@ String campusMapStyleJson({required bool dark}) {
   });
 }
 
-/// Góc nghiêng / xoay mặc định giống web (CAMPUS_CENTER.pitch / bearing, CampusMapView.jsx:67-73).
-/// Chỉ là tham số trình bày; tâm và zoom mặc định lấy từ khung bao asset.
-const double campusDefaultTilt = 52;
-const double campusDefaultBearing = -12;
+/// Góc nhìn 2D phẳng từ trên xuống (khóa Bắc) cho màn hình dẫn đường bảo vệ — mọi tầng nằm cùng mặt phẳng z = 0
+/// để ghim khu, nhãn tên phòng, cầu thang và tuyến đường khớp khít chính xác tuyệt đối, không lệch thị sai.
+const double campusDefaultTilt = 0;
+const double campusDefaultBearing = 0;
 
 /// Màu phòng đang chọn ở chế độ quản lý của web (campusIndoor3dData.js:2838-2843).
 const String selectedRoomColor = '#f97316';

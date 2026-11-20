@@ -573,7 +573,7 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                     ),
                     child: Center(
                       child: Text(
-                        'Admin chưa tạo lịch trực cho tuần này.',
+                        'Chưa có lịch trực cho tuần này.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 13, color: AppColors.txtMuted(context)),
                       ),

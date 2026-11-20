@@ -82,6 +82,12 @@ class CampusFloorChange {
 
   /// "Lên tầng 2" / "Xuống tầng G".
   String get label => '${isUp ? 'Lên' : 'Xuống'} tầng ${toFloor == 0 ? 'G' : toFloor}';
+
+  /// Phương tiện đổi tầng hiển thị cho người dùng.
+  String get viaLabel => via == 'ELEVATOR' ? 'Thang máy' : 'Cầu thang bộ';
+
+  /// Khoảng tầng di chuyển, vd "Tầng G → Tầng 3".
+  String get floorRangeLabel => '${campusFloorLabel(fromFloor)} → ${campusFloorLabel(toFloor)}';
 }
 
 /// Điểm xuất phát được chọn thế nào.
@@ -382,7 +388,9 @@ Map<String, dynamic> routeGeoJson(CampusRoute? route, {required int currentFloor
     for (var i = 1; i < route.points.length; i++) {
       final a = route.points[i - 1];
       final b = route.points[i];
-      final current = route.isDirectFallback || (a.floorOrder == b.floorOrder && a.floorOrder == currentFloor);
+      final isOutdoor = a.building == 'OUTDOOR' && b.building == 'OUTDOOR';
+      final current =
+          route.isDirectFallback || isOutdoor || (a.floorOrder == b.floorOrder && a.floorOrder == currentFloor);
       if (runCurrent == null || runCurrent == current) {
         runCurrent = current;
         run.add(b);
