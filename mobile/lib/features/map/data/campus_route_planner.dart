@@ -117,6 +117,7 @@ class CampusRoute {
   /// Toà / tầng xuất phát (chế độ [CampusRouteStartMode.selectedFloor]).
   final String? startBuilding;
   final int startFloorOrder;
+  final String? warningMessage;
 
   const CampusRoute({
     required this.points,
@@ -129,6 +130,7 @@ class CampusRoute {
     required this.eta,
     this.startBuilding,
     this.startFloorOrder = 0,
+    this.warningMessage,
   });
 
   List<LatLng> get latLngs => [for (final p in points) p.latLng];
@@ -143,7 +145,7 @@ class CampusRoute {
 
   String get formattedDuration => '${etaMinutes < 1 ? 1 : etaMinutes} phút đi bộ';
 
-  String? get message => isDirectFallback ? directFallbackMessage : null;
+  String? get message => isDirectFallback ? directFallbackMessage : warningMessage;
 }
 
 /// Không dựng được tuyến (thiếu toạ độ, chưa biết điểm xuất phát).
@@ -246,6 +248,7 @@ CampusRoute planCampusRoute({
   String? startBuilding;
   var startFloor = 0;
   var attachGpsToIndoorStart = false;
+  String? routeWarning;
   List<CampusGraphNode> startCandidates = const [];
   if (outdoorStart != null) {
     mode = CampusRouteStartMode.outdoorGps;
@@ -266,13 +269,17 @@ CampusRoute planCampusRoute({
         startFloor = 0;
         onFloor = inBuilding.where((n) => n.floorOrder == 0).toList();
       }
-      // Khi GPS nằm trong tòa nhà hoặc trong phạm vi khuôn viên và đã có tầng đứng, gắn (x, y) thật vào nút gần nhất trên tầng đó
+      // Chỉ gắn (x, y) trực tiếp vào tầng trong nhà khi GPS nằm trong tòa nhà hoặc sát mép tường (<= 10m);
+      // nếu GPS ở ngoài sân xa mà bấm nhầm tầng 1..4 thì xuất phát từ cầu thang tầng đó (không vẽ đường bay ngang sân).
       if (gps != null) {
         final realNodes = onFloor.where((n) => !n.isVirtual).toList();
         final nearest = _nearest(realNodes.isNotEmpty ? realNodes : onFloor, gps.latitude, gps.longitude);
-        if (nearest != null && (gpsBuilding != null || _dist(gps.latitude, gps.longitude, nearest) <= kGpsFarFromCampusMeters)) {
+        if (nearest != null && (gpsBuilding != null || _dist(gps.latitude, gps.longitude, nearest) <= 10.0)) {
           startCandidates = [nearest];
           attachGpsToIndoorStart = true;
+        } else if (guardFloorOrder != null && gpsBuilding == null) {
+          routeWarning =
+              'GPS đang ở ngoài tòa nhà, lộ trình tạm xuất phát từ cầu thang / thang máy ${campusFloorLabel(startFloor)}.';
         }
       }
       if (startCandidates.isEmpty) {
@@ -350,6 +357,7 @@ CampusRoute planCampusRoute({
     eta: eta,
     startBuilding: mode == CampusRouteStartMode.selectedFloor ? startBuilding : null,
     startFloorOrder: mode == CampusRouteStartMode.selectedFloor ? best.nodes.first.floorOrder : 0,
+    warningMessage: routeWarning,
   );
 }
 

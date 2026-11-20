@@ -243,9 +243,10 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     );
   }
 
-  /// Hộp thoại 1 chạm hỏi tầng bảo vệ đang đứng khi GPS ở trong tòa nhà hoặc chưa xác định vị trí.
+  /// Hộp thoại 1 chạm hỏi tầng bảo vệ đang đứng khi bấm Dẫn đường.
   Future<({int floorOrder, bool forceOutdoor})?> _promptStartFloor(List<int> floors) {
     final sorted = (floors.isEmpty ? [0, 1, 2, 3, 4] : [...floors])..sort();
+    final isOutdoorGps = _provider.guardLocation != null && !_provider.needsStartFloorPrompt;
     return showModalBottomSheet<({int floorOrder, bool forceOutdoor})>(
       context: context,
       backgroundColor: AppColors.crd(context),
@@ -269,10 +270,30 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
               ),
               const SizedBox(height: 4),
               Text(
-                'Hệ thống dùng tọa độ GPS (x, y) của bạn tại tầng này để dẫn đường chính xác.',
+                isOutdoorGps
+                    ? 'GPS hiện ở ngoài tòa nhà. Chọn "Ngoài sân" để đi từ vị trí GPS của bạn, hoặc chọn tầng nếu bạn đang ở trong tòa.'
+                    : 'Hệ thống dùng tọa độ GPS (x, y) của bạn tại tầng này để dẫn đường chính xác.',
                 style: TextStyle(fontSize: 12.5, color: AppColors.txtSecondary(ctx)),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
+              if (isOutdoorGps) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      minimumSize: const Size(0, 44),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => Navigator.pop(ctx, (floorOrder: 0, forceOutdoor: true)),
+                    icon: const Icon(Icons.park_outlined, size: 18),
+                    label: const Text('Đang ở ngoài sân (Tầng G)', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               Row(
                 children: [
                   for (var i = 0; i < sorted.length; i++) ...[
@@ -300,21 +321,23 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                   ],
                 ],
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primaryLight,
-                    side: BorderSide(color: AppColors.primaryLight.withAlpha(110)),
-                    minimumSize: const Size(0, 42),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              if (!isOutdoorGps) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryLight,
+                      side: BorderSide(color: AppColors.primaryLight.withAlpha(110)),
+                      minimumSize: const Size(0, 42),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => Navigator.pop(ctx, (floorOrder: 0, forceOutdoor: true)),
+                    icon: const Icon(Icons.park_outlined, size: 18),
+                    label: const Text('Đang ở ngoài sân (Tầng G)', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
-                  onPressed: () => Navigator.pop(ctx, (floorOrder: 0, forceOutdoor: true)),
-                  icon: const Icon(Icons.park_outlined, size: 18),
-                  label: const Text('Đang ở ngoài sân (Tầng G)', style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
-              ),
+              ],
             ],
           ),
         ),
