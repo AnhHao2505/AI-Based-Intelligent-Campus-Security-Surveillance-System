@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 ROI_MIN_DWELL_SECONDS = 0.2
 TRACK_COASTING_SECONDS = 1.5
 ACCESS_DECISION_EXTRA_WAIT_SECONDS = 0.2
+# - OCCLUSION_CONTEST_IOU / IOM: hai người đang thấy chồng lấn tới mức này thì ByteTrack có thể tráo ID giữa họ
+#   -> danh tính đã nhận diện của cả hai bị coi là chưa chắc, phải quét lại mặt để xác nhận.
+OCCLUSION_CONTEST_IOU = 0.20
+OCCLUSION_CONTEST_IOM = 0.35
 
 def parse_time_str(time_str: Optional[str]) -> Optional[Any]:
     if not time_str or not isinstance(time_str, str):
@@ -192,8 +196,130 @@ class FrameAnalysisEngine:
         receiver.starts_at = getattr(donor, "starts_at", None)
         receiver.is_inherited_identity = True
         receiver.inherited_mismatch_count = getattr(donor, "inherited_mismatch_count", 0)
+        receiver.identity_verified_at = None
         if hasattr(receiver.face_info, "is_inherited"):
             receiver.face_info.is_inherited = True
+
+    @staticmethod
+    def _is_double_box_glitch(b1: BoundingBox, b2: BoundingBox) -> bool:
+        """Hai box gần như trùng nhau là box kép detector sinh cho CÙNG một người, không phải hai người."""
+        iou = b1.iou(b2)
+        if iou >= 0.85:
+            return True
+        if iou < 0.50:
+            return False
+        min_w = min(b1.width, b2.width)
+        min_h = min(b1.height, b2.height)
+        if min_w <= 0 or min_h <= 0:
+            return False
+        dx = abs(b1.center.x - b2.center.x)
+        dy = abs(b1.center.y - b2.center.y)
+        # Box kép của 1 người: tâm hai box gần như trùng khớp (< 20% kích thước)
+        # Hai người thật đứng sát nhau: tâm tách biệt (dx >= 20% min_w hoặc dy >= 20% min_h)
+        return dx < 0.20 * min_w and dy < 0.20 * min_h
+
+    def _release_identity(self, person: TrackedPerson, current_time: float, camera_code: str, reason: str) -> None:
+        """
+        Gỡ danh tính khỏi track (danh tính đó đang được xác nhận bằng khuôn mặt ở một người khác trong frame).
+        Track trở thành người chưa xác thực: được quét mặt lại từ đầu, có lại khoảng chờ xác thực tính từ bây giờ,
+        rồi bị cảnh báo theo danh tính thật (hoặc UNKNOWN) như một lượt vào ROI bình thường.
+        """
+        old_code = person.face_info.matched_code if person.face_info else None
+        person.face_detected = False
+        person.face_info = None
+        person.expires_at = None
+        person.starts_at = None
+        person.is_inherited_identity = False
+        person.inherited_mismatch_count = 0
+        person.identity_verified_at = None
+        person.pending_reverify_code = None
+        person.pending_reverify_count = 0
+        person.alert_unknown_sent = False
+        person.alert_unauthorized_sent = False
+        person.alert_after_hours_sent = False
+        person.unknown_verdict_time = None
+        person.unknown_verdict_session_id = None
+        person.identity_update_sent = False
+        person.entry_logged_as_unknown = False
+        person.roi_entry_logged = False
+        self.track_last_unknown_alert_time.pop(person.track_id, None)
+        self.track_last_unauthorized_alert_time.pop(person.track_id, None)
+        if person.is_in_roi:
+            person.roi_enter_time = current_time
+        new_state = "VERIFYING" if (person.is_in_roi or getattr(person, "has_entered_roi", False)) else "NEUTRAL"
+        logger.warning(
+            f"🧭 [FrameAnalysisEngine:{camera_code}] Track #{person.track_id}: gỡ danh tính [{old_code}] ({reason})"
+        )
+        self._set_security_display_state(person, new_state, camera_code, reason)
+
+    def _enforce_unique_identities(
+        self, detected_tracks: List[Tuple[int, BoundingBox]], current_time: float, camera_code: str
+    ) -> None:
+        """
+        Một người chỉ đứng ở một chỗ: trong cùng frame không được có hai box đang thấy mang cùng một mã người.
+        Xảy ra khi người A bị người B che -> ByteTrack đẩy track của A sang B (hoặc B kế thừa danh tính của A),
+        rồi A hiện ra lại và được nhận diện đúng trên track mới. Track được xác nhận bằng mặt GẦN NHẤT giữ danh tính
+        (cùng frame thì điểm khớp cao hơn giữ); track kia bị gỡ danh tính. Hai box chỉ là box kép của cùng một người
+        thì để khối khử trùng lặp xử lý.
+        """
+        boxes = {tid: b for tid, b in detected_tracks if tid >= 0}
+        claims: Dict[str, List[Tuple[int, float, float, bool]]] = {}
+        for tid in boxes:
+            pending = tid not in self.active_tracks
+            if pending:
+                face = self.pending_faces.get(tid)
+                verified_at = getattr(face, "matched_at", None) if face else None
+            else:
+                p = self.active_tracks[tid]
+                face = p.face_info if p.face_detected else None
+                verified_at = getattr(p, "identity_verified_at", None)
+            code = getattr(face, "matched_code", None) if face else None
+            if not code:
+                continue
+            score = float(getattr(face, "score", 0.0) or 0.0)
+            claims.setdefault(code, []).append((tid, verified_at, score, pending))
+
+        for code, holders in claims.items():
+            if len(holders) < 2:
+                continue
+            winner = max(holders, key=lambda h: (h[1] if h[1] is not None else float("-inf"), h[2]))
+            if winner[1] is None:
+                continue  # Không track nào tự xác nhận bằng mặt: chờ quét lại mặt phân xử
+            for tid, _verified_at, _score, pending in holders:
+                if tid == winner[0] or self._is_double_box_glitch(boxes[tid], boxes[winner[0]]):
+                    continue
+                if pending:
+                    self.pending_faces.pop(tid, None)
+                    continue
+                self._release_identity(
+                    self.active_tracks[tid], current_time, camera_code,
+                    f"{code} đang được nhận diện bằng khuôn mặt ở Track #{winner[0]}"
+                )
+
+    def _contest_identities_on_overlap(self, visible_tracks: List[Tuple[int, BoundingBox]], camera_code: str) -> None:
+        """
+        Hai người đang thấy chồng lấn nhau: ByteTrack có thể tráo ID, khiến danh tính của người bị che dính sang người
+        đang che. Danh tính đã nhận diện của cả hai được đánh dấu chưa xác nhận (như danh tính kế thừa): pipeline quét
+        lại mặt mỗi frame, mặt đúng người -> xác nhận lại; mặt người khác -> đổi hoặc gỡ danh tính.
+        """
+        persons = [self.active_tracks[tid] for tid, _ in visible_tracks if tid >= 0 and tid in self.active_tracks]
+        contested: Set[int] = set()
+        for i in range(len(persons)):
+            for j in range(i + 1, len(persons)):
+                a, b = persons[i].bbox, persons[j].bbox
+                if a.iou(b) > OCCLUSION_CONTEST_IOU or a.intersection_ratio(b) > OCCLUSION_CONTEST_IOM:
+                    contested.add(persons[i].track_id)
+                    contested.add(persons[j].track_id)
+        for p in persons:
+            if p.track_id not in contested or getattr(p, "is_inherited_identity", False):
+                continue
+            if not (p.face_detected and p.face_info and p.face_info.matched_code):
+                continue
+            p.is_inherited_identity = True
+            logger.info(
+                f"🫂 [FrameAnalysisEngine:{camera_code}] Track #{p.track_id} ({p.face_info.matched_code}) chồng lấn người khác "
+                f"-> quét lại mặt để xác nhận danh tính"
+            )
 
     def _within_identity_grace(self, person: TrackedPerson, current_time: float) -> bool:
         """
@@ -585,6 +711,9 @@ class FrameAnalysisEngine:
             pts = scale_polygon_to_frame(roi_polygon, fw, fh) if (fw > 0 and fh > 0) else roi_polygon
             active_pixel_polys.append((pts, "Vùng ROI"))
 
+        # Một mã người chỉ được mang bởi một box đang thấy (gỡ danh tính bị dính sang người che khuất)
+        self._enforce_unique_identities(detected_tracks, current_time, camera_code)
+
         # Khử trùng lặp bounding box kép (double-box glitch) do detector sinh ra trong cùng frame
         filtered_detected_tracks: List[Tuple[int, BoundingBox]] = []
         if len(detected_tracks) <= 1:
@@ -597,27 +726,11 @@ class FrameAnalysisEngine:
                 return (1 if has_face else 0, b.confidence)
 
             sorted_tracks = sorted(detected_tracks, key=_track_prio, reverse=True)
-            def _is_double_box_glitch(b1: BoundingBox, b2: BoundingBox) -> bool:
-                iou = b1.iou(b2)
-                if iou >= 0.85:
-                    return True
-                if iou < 0.50:
-                    return False
-                min_w = min(b1.width, b2.width)
-                min_h = min(b1.height, b2.height)
-                if min_w <= 0 or min_h <= 0:
-                    return False
-                dx = abs(b1.center.x - b2.center.x)
-                dy = abs(b1.center.y - b2.center.y)
-                # Box kép của 1 người: tâm hai box gần như trùng khớp (< 20% kích thước)
-                # Hai người thật đứng sát nhau: tâm tách biệt (dx >= 20% min_w hoặc dy >= 20% min_h)
-                return dx < 0.20 * min_w and dy < 0.20 * min_h
-
             kept_tracks = []
             for tid, bbox in sorted_tracks:
                 if tid < 0:
                     continue
-                is_duplicate = any(_is_double_box_glitch(bbox, kb) for _, kb in kept_tracks)
+                is_duplicate = any(self._is_double_box_glitch(bbox, kb) for _, kb in kept_tracks)
                 if not is_duplicate:
                     kept_tracks.append((tid, bbox))
                 else:
@@ -644,6 +757,8 @@ class FrameAnalysisEngine:
                     person.face_info = self.pending_faces.pop(track_id)
                     person.expires_at = getattr(person.face_info, "expires_at", None)
                     person.starts_at = getattr(person.face_info, "starts_at", None)
+                    if getattr(person.face_info, "matched_code", None):
+                        person.identity_verified_at = getattr(person.face_info, "matched_at", None) or current_time
 
                 # Kế thừa danh tính và trạng thái cảnh báo nếu track mới đè lên vị trí track cũ (ByteTrack switch ID)
                 detected_tids = {tid for tid, _ in detected_tracks}
@@ -728,6 +843,8 @@ class FrameAnalysisEngine:
                     person.face_info = self.pending_faces.pop(track_id)
                     person.expires_at = getattr(person.face_info, "expires_at", None)
                     person.starts_at = getattr(person.face_info, "starts_at", None)
+                    if getattr(person.face_info, "matched_code", None):
+                        person.identity_verified_at = getattr(person.face_info, "matched_at", None) or current_time
 
             # Kiểm tra nằm trong Surveillance Polygons
             in_roi = False
@@ -1129,6 +1246,8 @@ class FrameAnalysisEngine:
                     # 2. Nếu đã là UNAUTHORIZED hoặc INTRUSION: Chốt khóa giữ nguyên trạng thái ĐỎ (Sticky State),
                     # tuyệt đối KHÔNG bao giờ tự động chuyển thành AUTHORIZED!
 
+        self._contest_identities_on_overlap(filtered_detected_tracks, camera_code)
+
         inactive_ids = []
         detected_tids_all = {tid for tid, _ in detected_tracks}
         visible_bboxes = [b for vis_tid, b in filtered_detected_tracks if vis_tid >= 0]
@@ -1266,5 +1385,10 @@ class FrameAnalysisEngine:
             self.active_tracks[track_id].face_info = face_result
             self.active_tracks[track_id].expires_at = getattr(face_result, "expires_at", None)
             self.active_tracks[track_id].starts_at = getattr(face_result, "starts_at", None)
+            # Mặt khớp mã người quét trên chính track này: danh tính đã được xác nhận tại thời điểm khớp
+            curr_p.identity_verified_at = (
+                (getattr(face_result, "matched_at", None) or time.time())
+                if getattr(face_result, "matched_code", None) else None
+            )
         else:
             self.pending_faces[track_id] = face_result

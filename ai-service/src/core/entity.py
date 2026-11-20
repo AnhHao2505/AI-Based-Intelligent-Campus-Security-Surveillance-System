@@ -128,6 +128,9 @@ class TrackedPerson:
     last_reverify_attempt_time: float = 0.0
     # Số lần quét lại danh tính kế thừa ra điểm rõ là người khác (< FACE_REVOKE_MAX_SCORE)
     inherited_mismatch_count: int = 0
+    # Lần gần nhất danh tính hiện tại được xác nhận bằng khuôn mặt quét trên CHÍNH track này (None = chỉ kế thừa).
+    # Hai track cùng mang một mã người: track xác nhận gần nhất giữ danh tính, track kia bị gỡ (1 người chỉ ở 1 chỗ).
+    identity_verified_at: Optional[float] = None
     
     # Cờ trạng thái đã bắn thông báo
     alert_unauthorized_sent: bool = False

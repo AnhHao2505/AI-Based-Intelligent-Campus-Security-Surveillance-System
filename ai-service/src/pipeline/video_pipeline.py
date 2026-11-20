@@ -654,6 +654,7 @@ class VideoPipeline:
         existing.face_detected = True
         existing.is_inherited_identity = False
         existing.inherited_mismatch_count = 0
+        existing.identity_verified_at = None
         existing.alert_unknown_sent = False
         existing.alert_unauthorized_sent = False
         existing.unknown_verdict_time = None
@@ -1248,6 +1249,7 @@ class VideoPipeline:
                                         existing.face_info.score = score
                                         face_result.score = score
                                     if not is_parent_inherited:
+                                        existing.identity_verified_at = current_time
                                         continue
                                 else:
                                     # Mã mới KHÁC danh tính hiện tại:
