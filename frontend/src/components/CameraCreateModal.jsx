@@ -4,8 +4,7 @@ import { createCamera } from "../services/cameraService";
 import { getAllAreas } from "../services/areaService";
 import "../styles/cameraShared.css";
 import "../styles/CameraCreateModal.css";
-import { formatLocation } from "../utils/formatLocation";
-import Select from "./ui/Select";
+import AreaSelectWithFilter from "./area/AreaSelectWithFilter";
 
 export default function CameraCreateModal({
 	isOpen,
@@ -135,24 +134,18 @@ export default function CameraCreateModal({
 							<label htmlFor="areaId">
 								Khu vực phân công <span className="required">*</span>
 							</label>
-							<Select
+							<AreaSelectWithFilter
 								id="areaId"
 								name="areaId"
+								areas={availableAreas}
 								value={formData.areaId}
 								onChange={handleChange}
+								placeholder="-- Chọn khu vực --"
+								placeholderDisabled
 								required
 								disabled={loading}
-								options={[
-									{ value: "", label: "-- Chọn khu vực --", disabled: true },
-									...availableAreas.map((area) => ({
-										value: area.id,
-										label: `${area.name} ${
-											formatLocation(area.building, area.floor, " - ")
-												? `(${formatLocation(area.building, area.floor, " - ")})`
-												: ""
-										}`,
-									})),
-								]}
+								defaultBuilding={defaultBuilding}
+								defaultFloor={defaultFloor}
 							/>
 							<span
 								style={{

@@ -81,7 +81,7 @@ export default function AccessHistoryAdminPage() {
 			setTotalPages(res?.totalPages || 0);
 			setTotalElements(res?.totalElements || 0);
 		} catch (err) {
-			setError(err?.message || "Không tải được lịch sử ra vào");
+			setError(err?.message || "Không tải được lịch sử vào khu vực");
 			setLogs([]);
 		} finally {
 			setLoading(false);
@@ -140,13 +140,13 @@ export default function AccessHistoryAdminPage() {
 		if (rangeError) {
 			return <EmptyState icon={History} title="Khoảng ngày không hợp lệ" description={rangeError} />;
 		}
-		if (loading) return <LoadingState text="Đang tải lịch sử ra vào..." />;
+		if (loading) return <LoadingState text="Đang tải lịch sử vào khu vực..." />;
 		if (error) return <ErrorState message={error} onRetry={loadLogs} />;
 		if (logs.length === 0) {
 			return (
 				<EmptyState
 					icon={History}
-					title="Không có lượt ra vào nào"
+					title="Không có lượt vào nào"
 					description="Không có bản ghi khớp bộ lọc trong khoảng ngày đã chọn."
 				/>
 			);
@@ -169,7 +169,7 @@ export default function AccessHistoryAdminPage() {
 	return (
 		<div className="ahp-container">
 			<PageHeader
-				title="Lịch sử ra vào"
+				title="Lịch sử vào khu vực"
 				description="Các lượt camera nhận diện tại mọi khu vực, gồm cả lượt bị từ chối."
 			/>
 			<div className="ahp-card">

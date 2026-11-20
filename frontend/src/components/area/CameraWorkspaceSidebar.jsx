@@ -1,11 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-	Search,
-	X,
-	Video,
-	Plus,
-	MapPin,
-} from "lucide-react";
+import { Search, X, Video, Plus, MapPin } from "lucide-react";
 import { LoadingState, ErrorState } from "../ui";
 import { formatLocation } from "../../utils/formatLocation";
 import {
@@ -82,11 +76,14 @@ export default function CameraWorkspaceSidebar({
 		<div className="zone-sidebar-wrapper">
 			{/* Search Bar */}
 			<div className="zone-sidebar-search-box">
-				<Search size={13} className="zone-sidebar-search-icon" />
+				<Search
+					size={13}
+					className="zone-sidebar-search-icon"
+				/>
 				<input
 					type="text"
 					className="zone-sidebar-search-input"
-					placeholder="Tìm mã CAM, tên hoặc khu vực..."
+					placeholder="Tìm mã CAM, tên camera hoặc tên khu vực..."
 					value={search}
 					onChange={(e) => setSearch(e.target.value)}
 					aria-label="Tìm camera trong danh sách"
@@ -173,10 +170,19 @@ export default function CameraWorkspaceSidebar({
 
 			{/* Camera List Content */}
 			<div className="zone-sidebar-content">
-				{loading && <LoadingState size="sm" text="Đang tải danh sách camera..." />}
+				{loading && (
+					<LoadingState
+						size="sm"
+						text="Đang tải danh sách camera..."
+					/>
+				)}
 
 				{!loading && error && (
-					<ErrorState size="sm" message={error} onRetry={onRetry} />
+					<ErrorState
+						size="sm"
+						message={error}
+						onRetry={onRetry}
+					/>
 				)}
 
 				{!loading && !error && filteredCameras.length === 0 && (
@@ -185,7 +191,9 @@ export default function CameraWorkspaceSidebar({
 							<Video size={22} />
 						</div>
 						<div className="area-empty-state__title">
-							{search.trim() || opStatusFilter !== "ALL" || statusFilter !== "ALL"
+							{search.trim() ||
+							opStatusFilter !== "ALL" ||
+							statusFilter !== "ALL"
 								? "Không tìm thấy camera khớp bộ lọc"
 								: "Chưa có camera nào trong danh sách"}
 						</div>
@@ -211,7 +219,9 @@ export default function CameraWorkspaceSidebar({
 							const isOnline =
 								!isDecommissioned && cam.operationalStatus === "ONLINE";
 							const info = extractCameraAreaInfo(cam);
-							const resolvedArea = info.areaId ? areaById.get(info.areaId) : null;
+							const resolvedArea = info.areaId
+								? areaById.get(info.areaId)
+								: null;
 							const areaName = resolvedArea?.name || info.areaName;
 							const locStr = formatLocation(
 								resolvedArea?.building || info.building,
@@ -248,7 +258,10 @@ export default function CameraWorkspaceSidebar({
 															: "Offline"
 												}
 											/>
-											<span className="zone-item-row__title" title={cam.name}>
+											<span
+												className="zone-item-row__title"
+												title={cam.name}
+											>
 												{cam.name}
 											</span>
 											<span className="cam-sidebar-code-chip">
@@ -263,7 +276,10 @@ export default function CameraWorkspaceSidebar({
 													: "Chưa gán khu vực"
 											}
 										>
-											<MapPin size={10} style={{ display: "inline", marginRight: 3 }} />
+											<MapPin
+												size={10}
+												style={{ display: "inline", marginRight: 3 }}
+											/>
 											{areaName
 												? `${areaName}${locStr ? ` · ${locStr}` : ""}`
 												: "Chưa gán khu vực"}
@@ -284,7 +300,10 @@ export default function CameraWorkspaceSidebar({
 												}}
 												title="Đã đặt vị trí trên bản đồ"
 											>
-												<MapPin size={10} style={{ display: "inline", marginRight: 2 }} />
+												<MapPin
+													size={10}
+													style={{ display: "inline", marginRight: 2 }}
+												/>
 												Map
 											</span>
 										)}

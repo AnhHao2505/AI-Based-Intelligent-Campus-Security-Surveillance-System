@@ -31,6 +31,7 @@ import logging
 import threading
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List, Set
+from .fmp4_writer import Fmp4VideoWriter
 
 logger = logging.getLogger(__name__)
 
@@ -102,13 +103,18 @@ def build_recording_completed_payload(
     if end_dt.tzinfo is None:
         end_dt = end_dt.replace(tzinfo=VN_TZ)
 
+    filename = os.path.basename(file_path) if file_path else os.path.basename(object_key)
+
     return {
         "event_type": "RECORDING_COMPLETED",
         "camera_code": camera_code.strip().upper(),
         "recording_type": recording_type,
         "storage_location": "CLOUD_MINIO",
         "bucket_name": bucket_name,
+        "storage_bucket": bucket_name,
         "object_key": object_key,
+        "storage_key": object_key,
+        "filename": filename,
         "start_time": start_dt.isoformat(),
         "end_time": end_dt.isoformat(),
         "duration_seconds": actual_duration,
@@ -117,6 +123,7 @@ def build_recording_completed_payload(
         "fps": int(round(fps)),
         "resolution": resolution,
         "incident_event_id": incident_event_id,
+        "event_id": incident_event_id,
     }
 
 
@@ -431,7 +438,7 @@ class StreamRecorder:
     ):
         self.camera_code = camera_code.strip().upper()
         self.base_dir = os.path.abspath(base_dir)
-        self.segment_seconds = segment_seconds
+        self.segment_seconds = max(10, int(segment_seconds))
         self.fps = fps
         self.target_w = 854
         self.target_h = 480
@@ -445,6 +452,7 @@ class StreamRecorder:
         self.segment_start_ts = 0.0
         self.segment_start_dt: Optional[datetime] = None
         self.last_frame = None
+        self.first_frame = None
         self.last_frame_ts = 0.0
         self.last_enqueue_ts = 0.0
         self._writer_lock = threading.Lock()
@@ -455,6 +463,17 @@ class StreamRecorder:
         self.worker_thread: Optional[threading.Thread] = None
         self._stop_lock = threading.Lock()
         self._is_stopped = False
+
+    def set_segment_seconds(self, seconds: int):
+        with self._writer_lock:
+            new_val = max(10, int(seconds))
+            if self.segment_seconds != new_val:
+                self.segment_seconds = new_val
+                self.target_frames_per_segment = int(self.segment_seconds * self.fps)
+                logger.info(
+                    f"⏱️ [Recorder:{self.camera_code}] Đã cập nhật thời lượng phân đoạn ghi hình: "
+                    f"{self.segment_seconds}s ({self.target_frames_per_segment} frames)"
+                )
 
     def start(self):
         if self.is_running:
@@ -520,6 +539,22 @@ class StreamRecorder:
     def _open_new_segment(self, ts: float):
         self._close_writer()
         with self._writer_lock:
+            # Luôn đồng bộ cấu hình thời lượng phân đoạn mới nhất từ settings hệ thống nếu có
+            try:
+                from ..config import settings
+                global_seg = getattr(settings, "RECORDING_SEGMENT_SECONDS", None)
+                if global_seg is not None:
+                    new_seg = max(10, int(float(global_seg)))
+                    if self.segment_seconds != new_seg:
+                        self.segment_seconds = new_seg
+                        self.target_frames_per_segment = int(self.segment_seconds * self.fps)
+                        logger.info(
+                            f"⏱️ [Recorder:{self.camera_code}] Phân đoạn mới áp dụng thời lượng: "
+                            f"{self.segment_seconds}s ({self.target_frames_per_segment} frames)"
+                        )
+            except Exception:
+                pass
+
             now_dt = _now_vn()
             self.segment_start_dt = now_dt
             self.current_file_path = self._get_target_file_path(now_dt)
@@ -529,34 +564,23 @@ class StreamRecorder:
             self.frames_in_segment = 0
 
             try:
-                # 1. Ưu tiên FourCC avc1 chuẩn FFMPEG / OpenH264 (tương thích 100% trình duyệt web)
-                self.writer = cv2.VideoWriter(
-                    self.temp_file_path,
-                    cv2.VideoWriter_fourcc(*"avc1"),
-                    self.fps,
-                    self.frame_size,
+                # Ưu tiên Fragmented MP4 (fMP4) để người dùng có thể xem video trực tiếp khi đang ghi dở
+                self.writer = Fmp4VideoWriter(
+                    self.current_file_path,
+                    fps=self.fps,
+                    frame_size=self.frame_size,
                 )
-                # 2. Thử qua Windows Media Foundation nếu FFMPEG chưa mở được
-                if self.writer is None or not self.writer.isOpened():
-                    if os.name == "nt" and hasattr(cv2, "CAP_MSMF"):
-                        self.writer = cv2.VideoWriter(
-                            self.temp_file_path,
-                            cv2.CAP_MSMF,
-                            cv2.VideoWriter_fourcc(*"avc1"),
-                            self.fps,
-                            self.frame_size,
-                        )
-                # 3. Fallback cuối cùng
-                if self.writer is None or not self.writer.isOpened():
+                if not self.writer.isOpened():
+                    logger.warning(f"⚠️ [Recorder] Fmp4VideoWriter không mở được, fallback sang cv2.VideoWriter: {self.temp_file_path}")
                     self.writer = cv2.VideoWriter(
                         self.temp_file_path,
-                        cv2.VideoWriter_fourcc(*"mp4v"),
+                        cv2.VideoWriter_fourcc(*"avc1"),
                         self.fps,
                         self.frame_size,
                     )
-                logger.debug(f"📹 [Recorder] Bắt đầu phiên ghi hình 1 phút (854x480): {self.current_file_path}")
+                logger.debug(f"📹 [Recorder] Bắt đầu phiên ghi hình fMP4 (854x480): {self.current_file_path}")
             except Exception as e:
-                logger.error(f"❌ [Recorder] Không thể mở VideoWriter ({self.temp_file_path}): {e}")
+                logger.error(f"❌ [Recorder] Không thể mở VideoWriter ({self.current_file_path}): {e}")
                 self.writer = None
 
     def _recording_loop(self):
@@ -606,6 +630,8 @@ class StreamRecorder:
                             break
 
                 if self.frames_in_segment < self.target_frames_per_segment:
+                    if self.first_frame is None:
+                        self.first_frame = stamped_frame.copy()
                     if expected_frame_idx >= self.frames_in_segment:
                         self.writer.write(stamped_frame)
                         self.frames_in_segment += 1
@@ -646,30 +672,45 @@ class StreamRecorder:
             start_dt = self.segment_start_dt or _now_vn()
             end_dt = _now_vn()
 
+            saved_first_frame = self.first_frame
             self.writer = None
             self.temp_file_path = None
             self.current_file_path = None
             self.frames_in_segment = 0
             self.segment_start_dt = None
             self.last_frame = None
+            self.first_frame = None
 
             try:
                 writer_ref.release()
-                if temp_path and os.path.exists(temp_path):
+                target_path = final_path if (final_path and os.path.exists(final_path)) else temp_path
+                if temp_path and os.path.exists(temp_path) and temp_path != final_path:
                     if frames_written > 0 and _has_valid_moov_atom(temp_path):
                         os.replace(temp_path, final_path)
-                        file_size = os.path.getsize(final_path)
-                        logger.info(
-                            f"💾 [Recorder] Đã lưu video định kỳ (854x480): {final_path} "
-                            f"({round(file_size / (1024 * 1024), 2)} MB - {frames_written} frames)"
-                        )
-                        self._schedule_minio_upload(final_path, cam_code, start_dt, end_dt, frames_written)
+                        target_path = final_path
                     else:
-                        logger.warning(f"⚠️ [Recorder] Bỏ qua file video chưa hoàn chỉnh (thiếu moov atom): {temp_path}")
+                        logger.warning(f"⚠️ [Recorder] Bỏ qua file video chưa hoàn chỉnh: {temp_path}")
                         try:
                             os.remove(temp_path)
                         except Exception:
                             pass
+                        target_path = None
+
+                if target_path and os.path.exists(target_path) and frames_written > 0 and _has_valid_moov_atom(target_path):
+                    # Lưu thumbnail khung hình đầu tiên dạng .jpg cục bộ
+                    thumb_path = target_path[:-4] + ".jpg"
+                    if saved_first_frame is not None:
+                        try:
+                            cv2.imwrite(thumb_path, saved_first_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        except Exception as thumb_err:
+                            logger.warning(f"⚠️ [Recorder] Không thể lưu thumbnail cục bộ {thumb_path}: {thumb_err}")
+
+                    file_size = os.path.getsize(target_path)
+                    logger.info(
+                        f"💾 [Recorder] Đã lưu video định kỳ (854x480): {target_path} "
+                        f"({round(file_size / (1024 * 1024), 2)} MB - {frames_written} frames)"
+                    )
+                    self._schedule_minio_upload(target_path, cam_code, start_dt, end_dt, frames_written)
             except Exception as e:
                 logger.warning(f"⚠️ [Recorder] Lỗi khi giải phóng VideoWriter: {e}")
 
@@ -710,6 +751,16 @@ class StreamRecorder:
 
                 success = storage_service.upload_video_file(file_path, bucket, obj_name)
                 if success:
+                    # Upload thumbnail JPG kèm theo nếu có
+                    local_thumb = file_path[:-4] + ".jpg"
+                    if os.path.exists(local_thumb):
+                        try:
+                            thumb_obj = obj_name[:-4] + ".jpg"
+                            storage_service.upload_video_file(local_thumb, bucket, thumb_obj)
+                            os.remove(local_thumb)
+                        except Exception as thumb_up_err:
+                            logger.warning(f"⚠️ [Recorder] Không thể upload thumbnail MinIO: {thumb_up_err}")
+
                     try:
                         os.remove(file_path)
                         logger.debug(f"🗑️ [Recorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")

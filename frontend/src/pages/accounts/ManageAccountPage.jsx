@@ -1559,7 +1559,7 @@ export default function ManageAccountPage() {
 								Bạn có chắc chắn muốn vô hiệu hóa tài khoản này? Người dùng sẽ
 								không thể đăng nhập cho đến khi được kích hoạt lại. Các đơn truy cập
 								đang chờ hoặc đã duyệt của người này sẽ bị huỷ và mọi quyền chỉ định
-								ra vào khu vực sẽ bị thu hồi; kích hoạt lại <strong>không</strong> khôi
+								vào khu vực sẽ bị thu hồi; kích hoạt lại <strong>không</strong> khôi
 								phục các quyền này.
 							</p>
 							<div className="account-confirm-user-info">
@@ -1701,7 +1701,7 @@ export default function ManageAccountPage() {
 							<p className="account-confirm-text">
 								Bạn có chắc chắn muốn xóa tài khoản này? Tài khoản sẽ bị loại bỏ
 								khỏi danh sách quản lý. Các đơn truy cập đang chờ hoặc đã duyệt của
-								người này sẽ bị huỷ và mọi quyền chỉ định ra vào khu vực sẽ bị thu hồi;
+								người này sẽ bị huỷ và mọi quyền chỉ định vào khu vực sẽ bị thu hồi;
 								khôi phục tài khoản <strong>không</strong> khôi phục các quyền này.
 							</p>
 							<div className="account-confirm-user-info">

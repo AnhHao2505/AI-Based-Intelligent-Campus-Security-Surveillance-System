@@ -82,6 +82,24 @@ class CampusFloorLayer {
   }
 }
 
+/// Tên chuẩn của Tòa Alpha (đã được dọn khỏi giao diện web và mobile, chỉ giữ Tòa Epsilon).
+const String kAlphaBuildingName = 'Tòa Alpha';
+
+/// Kiểm tra tên tòa có phải là Tòa Alpha (hoặc các bí danh Tòa HCM / Tòa FPT HCM / ALPHA) hay không.
+bool isAlphaBuildingName(String? name) {
+  if (name == null) return false;
+  final s = name.trim().toLowerCase();
+  if (s.isEmpty) return false;
+  return s == 'tòa alpha' ||
+      s == 'toa alpha' ||
+      s == 'tòa hcm' ||
+      s == 'toa hcm' ||
+      s == 'tòa fpt hcm' ||
+      s == 'toa fpt hcm' ||
+      s == 'alpha' ||
+      s.contains('alpha');
+}
+
 /// Toàn bộ dữ liệu bản đồ khuôn viên đã nạp từ mobile/assets/campus/.
 class CampusMapData {
   final int schemaVersion;
@@ -103,6 +121,71 @@ class CampusMapData {
   });
 
   static String floorKey(String building, int floorOrder) => '$building::$floorOrder';
+
+  /// Tên [name] có chỉ Tòa Alpha không (dựa trên cả danh sách alias trong manifest và tên chuẩn).
+  bool isAlphaBuilding(String? name) {
+    if (name == null) return false;
+    if (sameBuilding(name, kAlphaBuildingName)) return true;
+    return isAlphaBuildingName(name);
+  }
+
+  /// Danh sách tòa hiển thị trên ứng dụng (đã lọc bỏ Tòa Alpha, đồng bộ với VISIBLE_BUILDINGS_META của web).
+  List<CampusBuilding> get visibleBuildings => [
+        for (final b in buildings)
+          if (!isAlphaBuilding(b.name)) b,
+      ];
+
+  /// Khung bao của các tòa đang hiển thị (Tòa Epsilon); nếu rỗng thì rơi về [bounds].
+  CampusBounds get visibleBounds {
+    final visible = visibleBuildings;
+    if (visible.isEmpty || visible.length == buildings.length) return bounds;
+    var west = double.infinity, south = double.infinity, east = -double.infinity, north = -double.infinity;
+    void extend(dynamic coords) {
+      if (coords is List && coords.isNotEmpty && coords.first is num) {
+        final lon = (coords[0] as num).toDouble();
+        final lat = (coords[1] as num).toDouble();
+        west = math.min(west, lon);
+        east = math.max(east, lon);
+        south = math.min(south, lat);
+        north = math.max(north, lat);
+      } else if (coords is List) {
+        for (final c in coords) {
+          extend(c);
+        }
+      }
+    }
+
+    for (final b in visible) {
+      for (final f in b.floors) {
+        final layer = floors[floorKey(b.name, f.floorOrder)];
+        if (layer == null) continue;
+        for (final feat in layer.features) {
+          extend((feat['geometry'] as Map?)?['coordinates']);
+        }
+      }
+    }
+    if (!west.isFinite) return bounds;
+    return CampusBounds(west: west, south: south, east: east, north: north);
+  }
+
+  /// Bản sao dữ liệu bản đồ đã dọn sạch Tòa Alpha (cả khối 3D, khung bao và các nút đồ thị của Tòa Alpha).
+  CampusMapData withoutAlpha() {
+    final visible = visibleBuildings;
+    if (visible.isEmpty || visible.length == buildings.length) return this;
+    final visibleNames = {for (final b in visible) b.name};
+    final filteredFloors = <String, CampusFloorLayer>{
+      for (final entry in floors.entries)
+        if (visibleNames.contains(entry.value.building)) entry.key: entry.value,
+    };
+    return CampusMapData(
+      schemaVersion: schemaVersion,
+      seedVersion: seedVersion,
+      buildings: visible,
+      floors: filteredFloors,
+      bounds: visibleBounds,
+      graph: graph?.withoutBuilding(kAlphaBuildingName),
+    );
+  }
 
   /// Toà (tên chuẩn) ứng với tên [name] bất kỳ (tên chuẩn hoặc alias); không có thì null.
   CampusBuilding? buildingFor(String? name) {

@@ -1518,12 +1518,19 @@ class VideoPipeline:
                         has_violating_person = True
                         break
 
-        has_suspicious_motion = bool(is_suspicious_candidate) or (
-            self._suspicious_motion_start_time is not None and (current_time - self._suspicious_motion_start_time <= 2.0)
+        is_rec_running = incident_recording_manager.is_recording(self.camera_code)
+        # Chuyển động nghi vấn:
+        # - Nếu đang ghi hình sự cố: tiếp tục duy trì ghi hình khi vẫn còn chuyển động nghi vấn (is_suspicious_candidate)
+        # - Nếu chưa ghi hình: chỉ kích hoạt khi chuyển động đã duy trì đủ thời gian để sinh cảnh báo SUSPICIOUS_MOVING_OBJECT
+        has_suspicious_motion = (
+            (is_rec_running or self._incident_recording_active) and bool(is_suspicious_candidate)
+        ) or (
+            self._suspicious_motion_start_time is not None
+            and (current_time - self._suspicious_motion_start_time >= self.suspicious_motion_min_duration)
+            and (current_time - self._last_suspicious_motion_time <= 2.0)
         )
 
         has_incident_detection = (active_incident_alert is not None) or has_violating_person or has_suspicious_motion
-        is_rec_running = incident_recording_manager.is_recording(self.camera_code)
 
         if has_incident_detection:
             self._incident_last_detected_at = current_time
@@ -1734,7 +1741,16 @@ class VideoPipeline:
 
 
     def stop(self):
-        """Dừng an toàn cả ba executor khi worker/pipeline giải phóng (cancel_futures=True)"""
+        """Dừng an toàn cả ba executor và chốt phiên ghi hình sự cố nếu đang ghi dở (cancel_futures=True)"""
+        try:
+            incident_recording_manager.stop_camera_recordings(self.camera_code)
+        except Exception as ex:
+            logger.warning(f"Lỗi khi dừng incident_recording_manager trong VideoPipeline.stop: {ex}")
+        self._incident_recording_active = False
+        self._incident_first_detected_at = None
+        self._incident_last_detected_at = None
+        self._pending_incident_params = None
+
         if hasattr(self, "access_executor") and self.access_executor:
             try:
                 self.access_executor.shutdown(wait=False, cancel_futures=True)

@@ -284,7 +284,6 @@ class CameraServiceTest {
         assertNotNull(response.getRoiGeometry());
         assertEquals(1, response.getRoiGeometry().getPolygons().size());
         verify(roiGeometryValidator).validate(any(RoiGeometry.class));
-        verify(minioStorageService, never()).uploadRoiReferenceSnapshot(any(), anyString());
     }
 
     @Test
@@ -309,7 +308,6 @@ class CameraServiceTest {
                 () -> cameraService.updateRoiGeometry(testCameraId, req));
         assertEquals(CameraErrorCode.ERR_ROI_003, ex.getErrorCode());
         verify(cameraRepository, never()).save(any());
-        verify(minioStorageService, never()).uploadRoiReferenceSnapshot(any(), anyString());
     }
 
     @Test

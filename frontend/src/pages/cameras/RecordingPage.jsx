@@ -30,8 +30,96 @@ import {
   fetchDiskRecordings,
   withRecordingStreamToken,
 } from "../../services/recordingService";
+import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 import { toast } from "sonner";
 import "../../styles/RecordingPage.css";
+
+function RecordingThumbnail({ recording, isSecurity }) {
+  const { url } = useAuthorizedImage(recording.thumbnailUrl);
+  const [imgError, setImgError] = useState(false);
+
+  if (url && !imgError) {
+    return (
+      <img
+        src={url}
+        alt={recording.filename || "Recording thumbnail"}
+        className="recording-card__thumb"
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="recording-card__thumb"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        background: isSecurity
+          ? "radial-gradient(circle at center, rgba(220,38,38,0.22) 0%, #090d16 100%)"
+          : "radial-gradient(circle at center, rgba(0,163,255,0.16) 0%, #090d16 100%)",
+        color: isSecurity ? "#f87171" : "#38bdf8",
+        gap: "6px",
+        userSelect: "none",
+      }}
+    >
+      {isSecurity ? <ShieldAlert size={30} /> : <Film size={30} />}
+      <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", opacity: 0.85 }}>
+        {recording.cameraId} • 480P 15FPS
+      </span>
+    </div>
+  );
+}
+
+function RecordingTableThumbnail({ recording, onClick }) {
+  const { url } = useAuthorizedImage(recording.thumbnailUrl);
+  const [imgError, setImgError] = useState(false);
+  const isSecurity = recording.eventType === "SECURITY_EVENT";
+
+  if (url && !imgError) {
+    return (
+      <div
+        className="recording-table-thumb-wrap"
+        onClick={onClick}
+        style={{
+          position: "relative",
+          width: "64px",
+          height: "38px",
+          cursor: "pointer",
+          overflow: "hidden",
+          borderRadius: "3px",
+        }}
+      >
+        <img
+          src={url}
+          alt={recording.filename}
+          className="recording-table-thumb"
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          onError={() => setImgError(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="recording-table-thumb"
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: isSecurity ? "rgba(220,38,38,0.14)" : "rgba(0,163,255,0.14)",
+        color: isSecurity ? "#f87171" : "#38bdf8",
+        cursor: "pointer",
+      }}
+    >
+      <Play size={16} fill="currentColor" />
+    </div>
+  );
+}
 
 export default function RecordingPage() {
   const [recordings, setRecordings] = useState([]);
@@ -237,7 +325,7 @@ export default function RecordingPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <PageHeader
           title="Kho Lưu Trữ Video Ghi Hình (Video Recordings)"
-          description="Quản lý và tra cứu video ghi hình 1 phút liên tục (recording/) và video bằng chứng sự cố an ninh (evidence/). Tự động chia session chính xác 1 phút khi camera ONLINE và tự động ghi hình khi phát hiện sự cố đến khi Bảo vệ 'Xác nhận đã xem'."
+          description="Quản lý và tra cứu video ghi hình định kỳ liên tục (recording/) và video bằng chứng sự cố an ninh (evidence/). Tự động phân đoạn ghi hình khi camera ONLINE và tự động ghi hình khi phát hiện sự cố đến khi Bảo vệ 'Xác nhận đã xem'."
         />
         <div style={{ marginTop: "24px" }}>
           <Button
@@ -277,7 +365,7 @@ export default function RecordingPage() {
           </div>
           <div className="recording-stat-card__content">
             <span className="recording-stat-card__value">{normalRecordingsCount}</span>
-            <span className="recording-stat-card__label">Ghi hình định kỳ (1 phút)</span>
+            <span className="recording-stat-card__label">Video định kỳ</span>
           </div>
         </div>
 
@@ -515,19 +603,6 @@ export default function RecordingPage() {
           <h3 style={{ margin: "0 0 8px 0", color: "var(--theme-text-primary)" }}>
             Chưa có video ghi hình nào trong thư mục recording
           </h3>
-          <p
-            style={{
-              maxWidth: "540px",
-              margin: "0 auto 16px auto",
-              fontSize: "14px",
-              lineHeight: 1.6,
-              color: "var(--theme-text-secondary)",
-            }}
-          >
-            Khi bất kỳ camera nào chuyển sang trạng thái <strong>ONLINE</strong>, hệ thống sẽ tự động ghi hình liên tục và cắt thành các phân đoạn chuẩn xác đúng <strong>1 phút/video</strong> lưu tại:
-            <br />
-            <code>C:\DATN\AI-Based-Intelligent-Campus-Security-Surveillance-System\recording\{"{camera_id}"}\...</code>
-          </p>
           <Button variant="outline" size="md" onClick={loadRecordings}>
             <RefreshCw size={14} style={{ marginRight: "6px" }} /> Quét lại thư mục
           </Button>
@@ -544,26 +619,7 @@ export default function RecordingPage() {
                   className="recording-card__media"
                   onClick={() => handleOpenVideo(recording)}
                 >
-                  <div
-                    className="recording-card__thumb"
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: isSecurity
-                        ? "radial-gradient(circle at center, rgba(220,38,38,0.22) 0%, #090d16 100%)"
-                        : "radial-gradient(circle at center, rgba(0,163,255,0.16) 0%, #090d16 100%)",
-                      color: isSecurity ? "#f87171" : "#38bdf8",
-                      gap: "6px",
-                      userSelect: "none",
-                    }}
-                  >
-                    {isSecurity ? <ShieldAlert size={30} /> : <Film size={30} />}
-                    <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", opacity: 0.85 }}>
-                      {recording.cameraId} • 480P 15FPS
-                    </span>
-                  </div>
+                  <RecordingThumbnail recording={recording} isSecurity={isSecurity} />
                   <div className="recording-card__play-overlay">
                     <div className="recording-play-icon-circle">
                       <Play size={22} fill="currentColor" style={{ marginLeft: "3px" }} />
@@ -582,10 +638,17 @@ export default function RecordingPage() {
                       </>
                     ) : (
                       <>
-                        <Video size={12} /> Định kỳ 1 phút
+                        <Video size={12} /> Video định kỳ
                       </>
                     )}
                   </span>
+
+                  {/* Live Recording Badge */}
+                  {recording.status === "RECORDING" && (
+                    <span className="recording-card__live-badge">
+                      <span className="recording-live-pulse-dot" /> Đang ghi hình
+                    </span>
+                  )}
 
                   {/* Duration Badge */}
                   <span className="recording-card__duration-badge">
@@ -663,22 +726,7 @@ export default function RecordingPage() {
                 return (
                   <tr key={recording.id}>
                     <td>
-                      <div
-                        className="recording-table-thumb"
-                        onClick={() => handleOpenVideo(recording)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          background: recording.eventType === "SECURITY_EVENT"
-                            ? "rgba(220,38,38,0.18)"
-                            : "rgba(0,163,255,0.14)",
-                          color: recording.eventType === "SECURITY_EVENT" ? "#f87171" : "#38bdf8",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <Play size={16} fill="currentColor" />
-                      </div>
+                      <RecordingTableThumbnail recording={recording} onClick={() => handleOpenVideo(recording)} />
                     </td>
                     <td>
                       <span
@@ -700,7 +748,18 @@ export default function RecordingPage() {
                     </td>
                     <td>{formatDisplayTime(recording.startTime)}</td>
                     <td>
-                      <span style={{ fontWeight: 600, color: "#10b981" }}>
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color: recording.status === "RECORDING" ? "#ef4444" : "#10b981",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        {recording.status === "RECORDING" && (
+                          <span className="recording-live-pulse-dot recording-live-pulse-dot--danger" />
+                        )}
                         {recording.duration}
                       </span>
                     </td>
@@ -748,8 +807,13 @@ export default function RecordingPage() {
               <div className="recording-player-modal__title-group">
                 <Video size={18} style={{ color: "#00a3ff" }} />
                 <div>
-                  <div className="recording-player-modal__title">
-                    [{activeVideo.cameraId}] {activeVideo.cameraName}
+                  <div className="recording-player-modal__title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span>[{activeVideo.cameraId}] {activeVideo.cameraName}</span>
+                    {activeVideo.status === "RECORDING" && (
+                      <span className="recording-card__live-badge" style={{ position: "static", padding: "2px 6px", fontSize: "10px" }}>
+                        <span className="recording-live-pulse-dot" /> Đang ghi hình
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: "12px", color: "#9ca3af" }}>
                     {formatDisplayTime(activeVideo.startTime)} — Thời lượng: {measuredDurationText || activeVideo.duration} ({activeVideo.fileSize})
@@ -809,7 +873,11 @@ export default function RecordingPage() {
                       const totalSec = Math.max(1, Math.round(sec));
                       const m = String(Math.floor(totalSec / 60)).padStart(2, "0");
                       const s = String(totalSec % 60).padStart(2, "0");
-                      setMeasuredDurationText(`${m}:${s} (${totalSec}s)`);
+                      setMeasuredDurationText(
+                        activeVideo.status === "RECORDING"
+                          ? `${m}:${s} (đang ghi)`
+                          : `${m}:${s} (${totalSec}s)`
+                      );
                     }
                   }}
                   onError={() => setVideoError(true)}
@@ -822,7 +890,7 @@ export default function RecordingPage() {
             <div className="recording-player-modal__footer">
               <div className="recording-player-modal__meta-grid">
                 <div>
-                  <strong>Phân loại:</strong> {activeVideo.eventType === "SECURITY_EVENT" ? "Bằng chứng sự cố an ninh (854x480 • CFR 15 FPS)" : "Ghi hình định kỳ 1 phút (854x480 • CFR 15 FPS)"}
+                  <strong>Phân loại:</strong> {activeVideo.eventType === "SECURITY_EVENT" ? "Bằng chứng sự cố an ninh (854x480 • CFR 15 FPS)" : "Video định kỳ (854x480 • CFR 15 FPS)"}
                 </div>
                 <div>
                   <strong>Độ phân giải & Codec:</strong> {activeVideo.resolution} — {activeVideo.format}

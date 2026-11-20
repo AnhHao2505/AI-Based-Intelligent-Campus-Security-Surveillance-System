@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
 import '../data/campus_floor_resolver.dart';
+import '../data/campus_graph.dart';
 import '../data/campus_map_data.dart';
 import '../data/campus_map_repository.dart';
 import '../data/campus_route_planner.dart';
@@ -20,6 +21,10 @@ class MapProvider extends ChangeNotifier {
   CampusMapData? _campus;
   CampusMapData? get campus => _campus;
 
+  /// Bản đồ khuôn viên đã dọn sạch Tòa Alpha (chỉ giữ Tòa Epsilon như trên web).
+  CampusMapData? _visibleCampus;
+  CampusMapData? get visibleCampus => _visibleCampus;
+
   bool _isLoadingCampus = false;
   bool get isLoadingCampus => _isLoadingCampus;
 
@@ -29,6 +34,15 @@ class MapProvider extends ChangeNotifier {
   /// Tâm khuôn viên = tâm khung bao các khối 3D trong asset (không viết cứng toạ độ); null khi chưa nạp được.
   LatLng? get campusCenter {
     final b = _campus?.bounds;
+    return b == null ? null : LatLng(b.centerLatitude, b.centerLongitude);
+  }
+
+  /// Khung bao của các tòa đang hiển thị (Tòa Epsilon, đã loại bỏ Tòa Alpha).
+  CampusBounds? get visibleCampusBounds => _visibleCampus?.bounds ?? _campus?.visibleBounds;
+
+  /// Tâm của các tòa đang hiển thị (Tòa Epsilon).
+  LatLng? get visibleCampusCenter {
+    final b = visibleCampusBounds;
     return b == null ? null : LatLng(b.centerLatitude, b.centerLongitude);
   }
 
@@ -49,6 +63,16 @@ class MapProvider extends ChangeNotifier {
   String? _selectedBuilding;
   String? get selectedBuilding => _selectedBuilding;
 
+  /// Tòa hiệu lực để vẽ khối 3D, cầu thang và nhãn phòng (đồng bộ effectiveBuilding3d của web: loại bỏ Tòa Alpha).
+  String? get effectiveBuilding {
+    if (_selectedBuilding != null && !_isAlpha(_selectedBuilding)) {
+      return _selectedBuilding;
+    }
+    if (_buildings.isNotEmpty) return _buildings.first;
+    final vis = _campus?.visibleBuildings ?? const <CampusBuilding>[];
+    return vis.isNotEmpty ? vis.first.name : _selectedBuilding;
+  }
+
   AreaPinModel? _selectedArea;
   AreaPinModel? get selectedArea => _selectedArea;
 
@@ -56,11 +80,41 @@ class MapProvider extends ChangeNotifier {
   CampusRoute? _currentRoute;
   CampusRoute? get currentRoute => _currentRoute;
 
+  /// Tầng bảo vệ đứng khi bắt đầu dẫn đường (tách biệt với tầng đang xem trên bản đồ).
+  int? _navigationStartFloorOrder;
+  bool _navigationForceOutdoor = false;
+
+  /// True khi cần hỏi bảo vệ đang đứng ở tầng nào (chưa có GPS hoặc GPS nằm trong phạm vi tòa nhà).
+  /// Khi GPS ở ngoài sân (`buildingAt == null`), tự động coi là Tầng G và dẫn đường ngay.
+  bool get needsStartFloorPrompt {
+    final gps = _guardLocation;
+    if (gps == null) return true;
+    final routingCampus = _visibleCampus ?? _campus;
+    return routingCampus?.buildingAt(latitude: gps.latitude, longitude: gps.longitude) != null;
+  }
+
   LatLng? _guardLocation;
   LatLng? get guardLocation => _guardLocation;
 
   double? _guardHeading;
   double? get guardHeading => _guardHeading;
+
+  bool _isDebugPinGps = false;
+  bool get isDebugPinGps => _isDebugPinGps;
+
+  /// Chế độ Debug: ghim tạm vị trí GPS tại một điểm bất kỳ trên bản đồ để test chọn tầng & dẫn đường.
+  /// Truyền `null` để khôi phục GPS thật từ thiết bị.
+  void setDebugGpsPin(LatLng? location) {
+    if (location != null) {
+      _isDebugPinGps = true;
+      _locationSubscription?.pause();
+      updateGuardLocation(location);
+    } else {
+      _isDebugPinGps = false;
+      _locationSubscription?.resume();
+      notifyListeners();
+    }
+  }
 
   bool _isLoadingPins = false;
   bool get isLoadingPins => _isLoadingPins;
@@ -75,19 +129,29 @@ class MapProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   StreamSubscription<Position>? _locationSubscription;
+  RouteEtaSettings _lastEtaSettings = RouteEtaSettings.defaults;
+  LatLng? _lastRoutedGps;
 
-  /// Chuẩn hóa vị trí GPS, tự động đưa thiết bị máy ảo (hoặc tọa độ ngoài khuôn viên trên đường N3 / Mountain View)
-  /// về sân trường FPT University để bảo vệ luôn nằm trong khuôn viên khi thử nghiệm trên máy ảo.
-  LatLng _normalizePosition(double lat, double lng) {
-    if (((lat - 10.8468).abs() < 0.005 && (lng - 106.8091).abs() < 0.005) ||
-        ((lat - 37.42).abs() < 0.1 && (lng - -122.08).abs() < 0.1)) {
-      final center = campusCenter;
-      if (center != null) {
-        debugPrint('[MapProvider] Phát hiện tọa độ máy ảo mặc định ($lat, $lng). Tự động chuẩn hóa về sân trường ($center).');
-        return center;
+  bool _isAlpha(String? building) =>
+      _campus?.isAlphaBuilding(building) ?? isAlphaBuildingName(building);
+
+  void _syncVisibleBuildings() {
+    final bldSet = <String>{};
+    for (final pin in _areaPins) {
+      if (pin.building != null && pin.building!.trim().isNotEmpty) {
+        final canonical = _campus?.buildingFor(pin.building)?.name ?? pin.building!.trim();
+        if (!_isAlpha(canonical)) {
+          bldSet.add(canonical);
+        }
       }
     }
-    return LatLng(lat, lng);
+    for (final b in _campus?.visibleBuildings ?? const <CampusBuilding>[]) {
+      bldSet.add(b.name);
+    }
+    _buildings = bldSet.toList()..sort();
+    if (_selectedBuilding != null && _isAlpha(_selectedBuilding)) {
+      _selectedBuilding = _buildings.isNotEmpty ? _buildings.first : null;
+    }
   }
 
   MapProvider(this._apiClient, {RouteSettingsService? routeSettingsService, CampusMapRepository? campusRepository})
@@ -102,6 +166,8 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _campus = await _campusRepository.load();
+      _visibleCampus = _campus?.withoutAlpha();
+      _syncVisibleBuildings();
       _clampFloorToBuilding();
     } on CampusMapLoadException catch (e) {
       debugPrint('[MapProvider] $e');
@@ -115,15 +181,20 @@ class MapProvider extends ChangeNotifier {
     }
   }
 
-  /// Các tầng có bản đồ 3D của toà đang chọn (null = mọi toà).
-  List<int> get availableFloorOrders => _campus?.floorOrdersFor(_selectedBuilding) ?? const [0];
+  /// Các tầng có bản đồ 3D của toà đang chọn (null = các tòa hiển thị).
+  List<int> get availableFloorOrders {
+    if (_selectedBuilding != null && !_isAlpha(_selectedBuilding)) {
+      return (_visibleCampus ?? _campus)?.floorOrdersFor(_selectedBuilding) ?? const [0];
+    }
+    return (_visibleCampus ?? _campus)?.floorOrdersFor(null) ?? const [0];
+  }
 
-  /// Ghim khu theo toà / tầng đang chọn (bỏ khu không có toạ độ; khu không có tầng luôn hiện).
+  /// Ghim khu theo toà / tầng đang chọn (bỏ khu không có toạ độ và khu thuộc Tòa Alpha đã xóa; khu không có tầng luôn hiện).
   List<AreaPinModel> get filteredPins => filterPinsForView(
-        pins: _areaPins,
+        pins: _areaPins.where((p) => !_isAlpha(p.building)).toList(),
         building: _selectedBuilding,
         floorOrder: _selectedFloorOrder,
-        campus: _campus,
+        campus: _visibleCampus ?? _campus,
       );
 
   void _clampFloorToBuilding() {
@@ -133,7 +204,53 @@ class MapProvider extends ChangeNotifier {
     }
   }
 
-  /// Initialize location tracking using geolocator
+  /// Cập nhật vị trí GPS thực tế (real-time) từ thiết bị và tự động tính lại lộ trình nếu đang dẫn đường.
+  void updateGuardLocation(LatLng location, {double? heading}) {
+    if (!location.latitude.isFinite || !location.longitude.isFinite) return;
+    _guardLocation = location;
+    if (heading != null && heading.isFinite) {
+      _guardHeading = heading;
+    }
+
+    // Khi đang ở chế độ dẫn đường, tự động cập nhật lộ trình theo vị trí GPS real-time (ngưỡng dịch chuyển >= 1m)
+    final destination = _selectedArea;
+    if (_currentRoute != null && destination != null && pinHasCoordinates(destination)) {
+      final movedEnough = _lastRoutedGps == null ||
+          haversineMeters(
+                _lastRoutedGps!.latitude,
+                _lastRoutedGps!.longitude,
+                location.latitude,
+                location.longitude,
+              ) >=
+              1.0;
+      if (movedEnough) {
+        try {
+          final routingCampus = _visibleCampus ?? _campus;
+          final destFloor = floorOrderOfPin(destination, routingCampus);
+          _currentRoute = planCampusRoute(
+            graph: routingCampus?.graph,
+            campus: routingCampus,
+            gps: _guardLocation,
+            selectedBuilding: _selectedBuilding ?? effectiveBuilding,
+            selectedFloorOrder: _selectedFloorOrder,
+            guardFloorOrder: _navigationStartFloorOrder,
+            forceOutdoorStart: _navigationForceOutdoor,
+            destinationLatitude: destination.centerLatitude,
+            destinationLongitude: destination.centerLongitude,
+            destinationBuilding: destination.building,
+            destinationFloorOrder: destFloor,
+            eta: _lastEtaSettings,
+          );
+          _lastRoutedGps = location;
+        } catch (e) {
+          debugPrint('[MapProvider] Real-time route update skipped: $e');
+        }
+      }
+    }
+    notifyListeners();
+  }
+
+  /// Initialize real-time location tracking using geolocator (no fixed mock fallback)
   Future<void> initLocation() async {
     _isLocating = true;
     notifyListeners();
@@ -141,9 +258,10 @@ class MapProvider extends ChangeNotifier {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        debugPrint('[MapProvider] Location services are disabled on device/emulator.');
-        _guardLocation ??= campusCenter;
+        debugPrint('[MapProvider] Location services are disabled on device.');
+        _isLocating = false;
         notifyListeners();
+        return;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
@@ -155,18 +273,16 @@ class MapProvider extends ChangeNotifier {
           permission == LocationPermission.deniedForever) {
         debugPrint('[MapProvider] Location permission not granted: $permission');
         _isLocating = false;
-        _guardLocation ??= campusCenter;
         notifyListeners();
         return;
       }
 
-      // Configure settings specifically for Android Emulator & Real Devices
       late LocationSettings locationSettings;
       if (defaultTargetPlatform == TargetPlatform.android) {
         locationSettings = AndroidSettings(
           accuracy: LocationAccuracy.best,
-          distanceFilter: 0, // Catch every tiny movement from emulator
-          forceLocationManager: true, // Forces Android LocationManager for emulator mock GPS
+          distanceFilter: 0,
+          forceLocationManager: true,
           intervalDuration: const Duration(milliseconds: 500),
         );
       } else {
@@ -176,52 +292,42 @@ class MapProvider extends ChangeNotifier {
         );
       }
 
-      // 1. Instantly use last known position if available
+      // 1. Sử dụng ngay vị trí GPS gần nhất của thiết bị nếu có
       final lastKnown = await Geolocator.getLastKnownPosition();
-      if (lastKnown != null) {
-        final pos = _normalizePosition(lastKnown.latitude, lastKnown.longitude);
+      if (lastKnown != null && !_isDebugPinGps) {
+        final pos = LatLng(lastKnown.latitude, lastKnown.longitude);
         debugPrint('[MapProvider] Using last known location: ${pos.latitude}, ${pos.longitude}');
-        _guardLocation = pos;
-        _guardHeading = lastKnown.heading;
-        notifyListeners();
-      } else {
-        _guardLocation ??= campusCenter;
-        notifyListeners();
+        updateGuardLocation(pos, heading: lastKnown.heading);
       }
 
-      // 2. Fetch fresh position asynchronously
+      // 2. Lấy vị trí GPS thực tế hiện tại
       Geolocator.getCurrentPosition(locationSettings: locationSettings)
           .then((position) {
-        final pos = _normalizePosition(position.latitude, position.longitude);
+        if (_isDebugPinGps) return;
+        final pos = LatLng(position.latitude, position.longitude);
         debugPrint('[MapProvider] Fresh current position: ${pos.latitude}, ${pos.longitude}');
-        _guardLocation = pos;
-        _guardHeading = position.heading;
-        notifyListeners();
+        updateGuardLocation(pos, heading: position.heading);
       }).catchError((e) {
         debugPrint('[MapProvider] getCurrentPosition timeout/error: $e');
       });
 
-      // 3. Start continuous live tracking stream
+      // 3. Lắng nghe luồng GPS real-time liên tục
       _locationSubscription?.cancel();
       _locationSubscription = Geolocator.getPositionStream(
         locationSettings: locationSettings,
       ).listen(
         (Position newPos) {
-          final pos = _normalizePosition(newPos.latitude, newPos.longitude);
+          if (_isDebugPinGps) return;
+          final pos = LatLng(newPos.latitude, newPos.longitude);
           debugPrint('[MapProvider] GPS stream update: ${pos.latitude}, ${pos.longitude}');
-          _guardLocation = pos;
-          _guardHeading = newPos.heading;
-          notifyListeners();
-
+          updateGuardLocation(pos, heading: newPos.heading);
         },
         onError: (err) {
           debugPrint('[MapProvider] getPositionStream error: $err');
         },
       );
-
     } catch (e) {
       debugPrint('[MapProvider] initLocation exception: $e');
-      _guardLocation ??= campusCenter;
     } finally {
       _isLocating = false;
       notifyListeners();
@@ -251,20 +357,10 @@ class MapProvider extends ChangeNotifier {
 
       _areaPins = items
           .map((e) => AreaPinModel.fromJson(Map<String, dynamic>.from(e as Map)))
-          .where((p) => p.isActive && p.centerLatitude != 0.0 && p.centerLongitude != 0.0)
+          .where((p) => p.isActive && p.centerLatitude != 0.0 && p.centerLongitude != 0.0 && !_isAlpha(p.building))
           .toList();
 
-      // Extract unique building names for filter (quy về tên chuẩn của bản đồ 3D khi có)
-      final bldSet = <String>{};
-      for (final pin in _areaPins) {
-        if (pin.building != null && pin.building!.trim().isNotEmpty) {
-          bldSet.add(_campus?.buildingFor(pin.building)?.name ?? pin.building!.trim());
-        }
-      }
-      for (final b in _campus?.buildings ?? const <CampusBuilding>[]) {
-        bldSet.add(b.name);
-      }
-      _buildings = bldSet.toList()..sort();
+      _syncVisibleBuildings();
     } catch (e) {
       _errorMessage = ApiClient.formatError(e);
     } finally {
@@ -274,7 +370,11 @@ class MapProvider extends ChangeNotifier {
   }
 
   void selectBuilding(String? building) {
-    _selectedBuilding = building;
+    if (building != null && _isAlpha(building)) {
+      _selectedBuilding = _buildings.isNotEmpty ? _buildings.first : null;
+    } else {
+      _selectedBuilding = building;
+    }
     _clampFloorToBuilding();
     notifyListeners();
   }
@@ -291,7 +391,8 @@ class MapProvider extends ChangeNotifier {
   void selectArea(AreaPinModel? area) {
     if (area?.id != _incidentAreaId) _incidentAreaId = null;
     _selectedArea = area;
-    _highlightRoomId = area == null ? null : resolveIncidentFocus(area, _campus).roomId;
+    final targetCampus = _visibleCampus ?? _campus;
+    _highlightRoomId = area == null ? null : resolveIncidentFocus(area, targetCampus).roomId;
     notifyListeners();
   }
 
@@ -307,14 +408,18 @@ class MapProvider extends ChangeNotifier {
               orElse: () => null,
             ) ??
         pin;
-    final focus = resolveIncidentFocus(resolved, _campus);
+    final targetCampus = _visibleCampus ?? _campus;
+    final focus = resolveIncidentFocus(resolved, targetCampus);
     _selectedArea = resolved;
     _incidentAreaId = resolved.id;
     _highlightRoomId = focus.roomId;
-    if (focus.building != null) {
+    if (focus.building != null && !_isAlpha(focus.building)) {
       _selectedBuilding = focus.building;
+    } else if (_selectedBuilding == null || _isAlpha(_selectedBuilding)) {
+      _selectedBuilding = effectiveBuilding;
     }
     _selectedFloorOrder = focus.floorOrder;
+    _clampFloorToBuilding();
     notifyListeners();
     return focus;
   }
@@ -322,27 +427,38 @@ class MapProvider extends ChangeNotifier {
   /// Dựng tuyến tới khu [destination] trên đồ thị khuôn viên (trong nhà + ngoài trời, nhiều tầng, nhiều toà).
   /// Xuất phát: GPS ngoài trời trong khuôn viên; còn lại (trong nhà / không GPS / GPS xa) theo toà + tầng đang chọn.
   /// Thời gian dự kiến dùng cấu hình route-settings, đọc lại mỗi lần dẫn đường để đổi cấu hình có hiệu lực ngay.
-  Future<void> calculateRouteTo(AreaPinModel destination) async {
+  Future<void> calculateRouteTo(
+    AreaPinModel destination, {
+    int? startFloorOrder,
+    bool forceOutdoorStart = false,
+  }) async {
     _selectedArea = destination;
+    _navigationStartFloorOrder = startFloorOrder;
+    _navigationForceOutdoor = forceOutdoorStart;
     _isLoadingRoute = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       final eta = await _routeSettingsService.load();
-      final destFloor = floorOrderOfPin(destination, _campus);
+      _lastEtaSettings = eta;
+      final routingCampus = _visibleCampus ?? _campus;
+      final destFloor = floorOrderOfPin(destination, routingCampus);
       _currentRoute = planCampusRoute(
-        graph: _campus?.graph,
-        campus: _campus,
+        graph: routingCampus?.graph,
+        campus: routingCampus,
         gps: _guardLocation,
-        selectedBuilding: _selectedBuilding,
+        selectedBuilding: _selectedBuilding ?? (startFloorOrder != null ? effectiveBuilding : null),
         selectedFloorOrder: _selectedFloorOrder,
+        guardFloorOrder: startFloorOrder,
+        forceOutdoorStart: forceOutdoorStart,
         destinationLatitude: pinHasCoordinates(destination) ? destination.centerLatitude : null,
         destinationLongitude: pinHasCoordinates(destination) ? destination.centerLongitude : null,
         destinationBuilding: destination.building,
         destinationFloorOrder: destFloor,
         eta: eta,
       );
+      _lastRoutedGps = _guardLocation;
     } on CampusRouteUnavailable catch (e) {
       _currentRoute = null;
       _errorMessage = e.message;
@@ -358,6 +474,9 @@ class MapProvider extends ChangeNotifier {
 
   void clearRoute() {
     _currentRoute = null;
+    _lastRoutedGps = null;
+    _navigationStartFloorOrder = null;
+    _navigationForceOutdoor = false;
     notifyListeners();
   }
 
@@ -390,7 +509,7 @@ class MapProvider extends ChangeNotifier {
       // Chưa có toạ độ nào → (0, 0) = "không có toạ độ" (pinHasCoordinates); màn bản đồ ghép lại theo id / tên khi
       // danh sách khu đã tải (focusIncident).
       final latLng = targetLatLng ??
-          (_areaPins.isNotEmpty ? _areaPins.first.latLng : campusCenter) ??
+          (_areaPins.isNotEmpty ? _areaPins.first.latLng : (visibleCampusCenter ?? campusCenter)) ??
           const LatLng(0, 0);
       matchedPin = AreaPinModel(
         id: areaId ?? 'incident_target',

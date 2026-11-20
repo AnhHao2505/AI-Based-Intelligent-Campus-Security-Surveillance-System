@@ -40,7 +40,7 @@ import java.util.Set;
  * Phục vụ ảnh từ các bucket MinIO private qua backend. Yêu cầu JWT như API khác (không permitAll).
  *
  * <ul>
- *   <li>Phân quyền theo bucket, mặc định từ chối: camera-snapshots, face-profiles -> ADMIN;
+ *   <li>Phân quyền theo bucket, mặc định từ chối: face-profiles -> ADMIN;
  *       security-evidence -> ADMIN, GUARD, FACILITY_MANAGER. Tên bucket lấy từ MinioStorageService (minio.bucket.*).</li>
  *   <li>Xem ảnh khuôn mặt / bằng chứng ghi audit VIEW_PHOTO; không ghi được audit -> 500, không trả ảnh.</li>
  *   <li>Trả stream, Content-Type theo statObject, {@code Cache-Control: private, no-store}, {@code nosniff}.</li>
@@ -119,7 +119,6 @@ public class MediaController {
     /** Bucket -> role được xem. Bucket không có trong map -> từ chối. */
     private Map<String, Set<Role>> bucketAccess() {
         return Map.of(
-                minioStorageService.getSnapshotsBucket(), EnumSet.of(Role.ADMIN),
                 minioStorageService.getFacesBucket(), EnumSet.of(Role.ADMIN),
                 minioStorageService.getEvidenceBucket(), EnumSet.of(Role.ADMIN, Role.GUARD, Role.FACILITY_MANAGER)
         );
@@ -137,7 +136,7 @@ public class MediaController {
             targetType = AuditTargetType.SECURITY_EVIDENCE;
             targetId = objectName;
         } else {
-            return; // camera-snapshots: không ghi audit
+            return;
         }
         User actor = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new UnauthorizedException("Không tìm thấy thông tin người dùng"));

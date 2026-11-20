@@ -115,7 +115,7 @@ void main() {
   });
 
   group('MapProvider + asset', () {
-    test('tâm khuôn viên lấy từ khung bao asset, mặc định tầng trệt', () async {
+    test('tâm khuôn viên lấy từ khung bao asset, mặc định tầng trệt; Tòa Alpha đã bị loại khỏi danh sách chọn', () async {
       final provider = MapProvider(ApiClient(), campusRepository: _repo());
       expect(provider.campusCenter, isNull);
       await provider.loadCampusMap();
@@ -123,20 +123,21 @@ void main() {
       expect(provider.selectedFloorOrder, 0);
       expect(provider.campusCenter!.latitude, closeTo(campus.bounds.centerLatitude, 1e-12));
       expect(provider.campusCenter!.longitude, closeTo(campus.bounds.centerLongitude, 1e-12));
+      expect(provider.buildings, ['Tòa Epsilon']);
       provider.selectBuilding('Tòa Alpha');
-      expect(provider.availableFloorOrders, [0, 1, 2]);
+      expect(provider.selectedBuilding, 'Tòa Epsilon');
+      expect(provider.availableFloorOrders, [0, 1, 2, 3, 4]);
       provider.selectFloor(2);
       provider.selectBuilding('Tòa Epsilon');
       expect(provider.selectedFloorOrder, 2);
       provider.dispose();
     });
 
-    test('đổi sang toà ít tầng hơn → tầng được kéo về tầng hợp lệ', () async {
+    test('tầng ngoài danh sách tầng của toà đang hiển thị → tầng được kéo về tầng hợp lệ', () async {
       final provider = MapProvider(ApiClient(), campusRepository: _repo());
       await provider.loadCampusMap();
+      provider.selectFloor(99);
       provider.selectBuilding('Tòa Epsilon');
-      provider.selectFloor(4);
-      provider.selectBuilding('Tòa Alpha');
       expect(provider.selectedFloorOrder, 0);
       provider.dispose();
     });

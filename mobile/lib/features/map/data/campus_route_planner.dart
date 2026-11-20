@@ -82,6 +82,12 @@ class CampusFloorChange {
 
   /// "Lên tầng 2" / "Xuống tầng G".
   String get label => '${isUp ? 'Lên' : 'Xuống'} tầng ${toFloor == 0 ? 'G' : toFloor}';
+
+  /// Phương tiện đổi tầng hiển thị cho người dùng.
+  String get viaLabel => via == 'ELEVATOR' ? 'Thang máy' : 'Cầu thang bộ';
+
+  /// Khoảng tầng di chuyển, vd "Tầng G → Tầng 3".
+  String get floorRangeLabel => '${campusFloorLabel(fromFloor)} → ${campusFloorLabel(toFloor)}';
 }
 
 /// Điểm xuất phát được chọn thế nào.
@@ -111,6 +117,7 @@ class CampusRoute {
   /// Toà / tầng xuất phát (chế độ [CampusRouteStartMode.selectedFloor]).
   final String? startBuilding;
   final int startFloorOrder;
+  final String? warningMessage;
 
   const CampusRoute({
     required this.points,
@@ -123,6 +130,7 @@ class CampusRoute {
     required this.eta,
     this.startBuilding,
     this.startFloorOrder = 0,
+    this.warningMessage,
   });
 
   List<LatLng> get latLngs => [for (final p in points) p.latLng];
@@ -137,7 +145,7 @@ class CampusRoute {
 
   String get formattedDuration => '${etaMinutes < 1 ? 1 : etaMinutes} phút đi bộ';
 
-  String? get message => isDirectFallback ? directFallbackMessage : null;
+  String? get message => isDirectFallback ? directFallbackMessage : warningMessage;
 }
 
 /// Không dựng được tuyến (thiếu toạ độ, chưa biết điểm xuất phát).
@@ -208,6 +216,8 @@ CampusRoute planCampusRoute({
   LatLng? gps,
   String? selectedBuilding,
   int selectedFloorOrder = 0,
+  int? guardFloorOrder,
+  bool forceOutdoorStart = false,
   required double? destinationLatitude,
   required double? destinationLongitude,
   String? destinationBuilding,
@@ -227,7 +237,8 @@ CampusRoute planCampusRoute({
   // ---- điểm xuất phát
   final gpsBuilding = gps == null ? null : campus?.buildingAt(latitude: gps.latitude, longitude: gps.longitude);
   CampusGraphNode? outdoorStart;
-  if (graph != null && gps != null && gpsBuilding == null) {
+  final wantOutdoor = forceOutdoorStart || (gpsBuilding == null && (guardFloorOrder == null || guardFloorOrder == 0));
+  if (graph != null && gps != null && wantOutdoor) {
     final n = _nearest(graph.nodes.where((x) => x.isOutdoor), gps.latitude, gps.longitude);
     if (n != null && _dist(gps.latitude, gps.longitude, n) <= kGpsFarFromCampusMeters) outdoorStart = n;
   }
@@ -236,6 +247,8 @@ CampusRoute planCampusRoute({
   final CampusRoutePoint startPoint;
   String? startBuilding;
   var startFloor = 0;
+  var attachGpsToIndoorStart = false;
+  String? routeWarning;
   List<CampusGraphNode> startCandidates = const [];
   if (outdoorStart != null) {
     mode = CampusRouteStartMode.outdoorGps;
@@ -248,7 +261,7 @@ CampusRoute planCampusRoute({
       throw const CampusRouteUnavailable(
           'NO_START', 'Chưa xác định được vị trí của bạn. Chọn toà và tầng bạn đang đứng rồi dẫn đường lại.');
     }
-    startFloor = selectedFloorOrder;
+    startFloor = guardFloorOrder ?? selectedFloorOrder;
     if (graph != null) {
       final inBuilding = graph.nodes.where((n) => !n.isOutdoor && n.building == startBuilding).toList();
       var onFloor = inBuilding.where((n) => n.floorOrder == startFloor).toList();
@@ -256,16 +269,35 @@ CampusRoute planCampusRoute({
         startFloor = 0;
         onFloor = inBuilding.where((n) => n.floorOrder == 0).toList();
       }
-      final vertical = onFloor.where((n) => n.isVerticalAccess).toList();
-      startCandidates = vertical.isNotEmpty ? vertical : onFloor.where((n) => !n.isVirtual).toList();
+      // Chỉ gắn (x, y) trực tiếp vào tầng trong nhà khi GPS nằm trong tòa nhà hoặc sát mép tường (<= 10m);
+      // nếu GPS ở ngoài sân xa mà bấm nhầm tầng 1..4 thì xuất phát từ cầu thang tầng đó (không vẽ đường bay ngang sân).
+      if (gps != null) {
+        final realNodes = onFloor.where((n) => !n.isVirtual).toList();
+        final nearest = _nearest(realNodes.isNotEmpty ? realNodes : onFloor, gps.latitude, gps.longitude);
+        if (nearest != null && (gpsBuilding != null || _dist(gps.latitude, gps.longitude, nearest) <= 10.0)) {
+          startCandidates = [nearest];
+          attachGpsToIndoorStart = true;
+        } else if (guardFloorOrder != null && gpsBuilding == null) {
+          routeWarning =
+              'GPS đang ở ngoài tòa nhà, lộ trình tạm xuất phát từ cầu thang / thang máy ${campusFloorLabel(startFloor)}.';
+        }
+      }
+      if (startCandidates.isEmpty) {
+        final vertical = onFloor.where((n) => n.isVerticalAccess).toList();
+        startCandidates = vertical.isNotEmpty ? vertical : onFloor.where((n) => !n.isVirtual).toList();
+      }
     }
-    final anchor = startCandidates.isNotEmpty ? startCandidates.first : null;
-    startPoint = anchor != null
-        ? CampusRoutePoint(LatLng(anchor.latitude, anchor.longitude), building: startBuilding, floorOrder: startFloor)
-        : (gps != null
-            ? CampusRoutePoint(gps, building: startBuilding, floorOrder: startFloor)
-            : throw const CampusRouteUnavailable(
-                'NO_START', 'Chưa xác định được vị trí của bạn. Chọn toà và tầng bạn đang đứng rồi dẫn đường lại.'));
+    if (attachGpsToIndoorStart && gps != null) {
+      startPoint = CampusRoutePoint(gps, building: startBuilding, floorOrder: startFloor);
+    } else {
+      final anchor = startCandidates.isNotEmpty ? startCandidates.first : null;
+      startPoint = anchor != null
+          ? CampusRoutePoint(LatLng(anchor.latitude, anchor.longitude), building: startBuilding, floorOrder: startFloor)
+          : (gps != null
+              ? CampusRoutePoint(gps, building: startBuilding, floorOrder: startFloor)
+              : throw const CampusRouteUnavailable(
+                  'NO_START', 'Chưa xác định được vị trí của bạn. Chọn toà và tầng bạn đang đứng rồi dẫn đường lại.'));
+    }
   }
 
   CampusRoute direct(CampusRoutePoint from) {
@@ -298,7 +330,7 @@ CampusRoute planCampusRoute({
   final points = <CampusRoutePoint>[];
   var meters = best.lengthMeters;
   final first = best.nodes.first;
-  if (mode == CampusRouteStartMode.outdoorGps) {
+  if (mode == CampusRouteStartMode.outdoorGps || attachGpsToIndoorStart) {
     final leg = _dist(gps!.latitude, gps.longitude, first);
     if (leg > _attachEpsilonMeters) {
       points.add(startPoint);
@@ -325,6 +357,7 @@ CampusRoute planCampusRoute({
     eta: eta,
     startBuilding: mode == CampusRouteStartMode.selectedFloor ? startBuilding : null,
     startFloorOrder: mode == CampusRouteStartMode.selectedFloor ? best.nodes.first.floorOrder : 0,
+    warningMessage: routeWarning,
   );
 }
 

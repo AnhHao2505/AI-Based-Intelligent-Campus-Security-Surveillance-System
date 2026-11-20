@@ -8,6 +8,7 @@ import threading
 import numpy as np
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Callable
+from .fmp4_writer import Fmp4VideoWriter
 
 from ..config import settings
 from .stream_recorder import (
@@ -86,6 +87,7 @@ class IncidentRecorder:
         self.target_w = 854
         self.target_h = 480
         self.writer: Optional[cv2.VideoWriter] = None
+        self.first_frame: Optional[np.ndarray] = None
         self.frames_written = 0
         self.is_running = False
         self._writer_lock = threading.Lock()
@@ -117,33 +119,22 @@ class IncidentRecorder:
 
         with self._writer_lock:
             try:
-                # 1. Ưu tiên FourCC avc1 chuẩn FFMPEG / OpenH264 (tương thích 100% trình duyệt web)
-                self.writer = cv2.VideoWriter(
-                    self.temp_file_path,
-                    cv2.VideoWriter_fourcc(*"avc1"),
-                    self.fps,
-                    (self.target_w, self.target_h),
+                # Ghi trực tiếp fMP4 vào self.file_path để người dùng có thể xem video ngay trong khi đang ghi dở
+                self.writer = Fmp4VideoWriter(
+                    self.file_path,
+                    fps=self.fps,
+                    frame_size=(self.target_w, self.target_h),
                 )
-                # 2. Thử qua Windows Media Foundation nếu FFMPEG chưa mở được
-                if self.writer is None or not self.writer.isOpened():
-                    if os.name == "nt" and hasattr(cv2, "CAP_MSMF"):
-                        self.writer = cv2.VideoWriter(
-                            self.temp_file_path,
-                            cv2.CAP_MSMF,
-                            cv2.VideoWriter_fourcc(*"avc1"),
-                            self.fps,
-                            (self.target_w, self.target_h),
-                        )
-                # 3. Fallback cuối cùng
-                if self.writer is None or not self.writer.isOpened():
+                if not self.writer.isOpened():
+                    logger.warning(f"⚠️ [IncidentRecorder] Fmp4VideoWriter không mở được, fallback sang cv2.VideoWriter: {self.temp_file_path}")
                     self.writer = cv2.VideoWriter(
                         self.temp_file_path,
-                        cv2.VideoWriter_fourcc(*"mp4v"),
+                        cv2.VideoWriter_fourcc(*"avc1"),
                         self.fps,
                         (self.target_w, self.target_h),
                     )
                 logger.info(
-                    f"🚨 [IncidentRecorder] MỞ FILE GHI HÌNH SỰ CỐ camera [{self.camera_code}]: {self.file_path} @ 854x480 ({self.fps}fps)"
+                    f"🚨 [IncidentRecorder] MỞ FILE GHI HÌNH SỰ CỐ fMP4 camera [{self.camera_code}]: {self.file_path} @ 854x480 ({self.fps}fps)"
                 )
             except Exception as e:
                 logger.error(f"❌ [IncidentRecorder] Không thể mở VideoWriter: {e}")
@@ -200,6 +191,7 @@ class IncidentRecorder:
         frame_interval = 1.0 / self.fps
         next_frame_time = time.time()
         last_real_frame = None
+        last_new_frame_ts = time.time()
 
         while self.is_running:
             now_ts = time.time()
@@ -224,8 +216,17 @@ class IncidentRecorder:
 
             if real_frame is not None and real_frame.size > 0:
                 last_real_frame = real_frame
+                last_new_frame_ts = now_ts
                 frame_to_write = self._draw_incident_overlay_on_real_frame(real_frame, elapsed, now_dt)
             elif last_real_frame is not None and last_real_frame.size > 0:
+                # Nếu không nhận được frame mới quá lâu (luồng camera bị ngắt hoặc StreamWorker đã dừng)
+                stale_limit = float(getattr(settings, "INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS", 5.0)) + 3.0
+                if now_ts - last_new_frame_ts > stale_limit:
+                    logger.info(
+                        f"⏹️ [IncidentRecorder] Camera [{self.camera_code}] không còn nhận được frame mới ({now_ts - last_new_frame_ts:.1f}s > {stale_limit:.1f}s). "
+                        f"Tự động chốt file video sự cố."
+                    )
+                    break
                 frame_to_write = self._draw_incident_overlay_on_real_frame(last_real_frame, elapsed, now_dt)
             else:
                 time.sleep(0.05)
@@ -233,6 +234,8 @@ class IncidentRecorder:
 
             with self._writer_lock:
                 if self.writer is not None and frame_to_write is not None:
+                    if self.first_frame is None:
+                        self.first_frame = frame_to_write.copy()
                     self.writer.write(frame_to_write)
                     self.frames_written += 1
 
@@ -259,27 +262,42 @@ class IncidentRecorder:
             frames_count = self.frames_written
             inc_id = self.incident_id
 
+            saved_first_frame = self.first_frame
             self.writer = None
+            self.first_frame = None
             self.is_running = False
 
             try:
                 writer_ref.release()
-                if temp_path and os.path.exists(temp_path):
+                target_path = final_path if (final_path and os.path.exists(final_path)) else temp_path
+                if temp_path and os.path.exists(temp_path) and temp_path != final_path:
                     if frames_count > 0 and _has_valid_moov_atom(temp_path):
                         os.replace(temp_path, final_path)
-                        size_mb = os.path.getsize(final_path) / (1024 * 1024)
-                        duration_s = frames_count / max(self.fps, 1.0)
-                        logger.info(
-                            f"✅ [IncidentRecorder] ĐÃ CHỐT XONG VIDEO BẰNG CHỨNG SỰ CỐ (854x480): {final_path} "
-                            f"({size_mb:.2f} MB - {frames_count} frames - {duration_s:.1f}s)"
-                        )
-                        self._schedule_minio_upload(final_path, cam_code, start_dt, end_dt, frames_count, inc_id)
+                        target_path = final_path
                     else:
-                        logger.warning(f"⚠️ [IncidentRecorder] Bỏ qua file sự cố chưa hoàn chỉnh hoặc không có frame: {temp_path}")
+                        logger.warning(f"⚠️ [IncidentRecorder] Bỏ qua file sự cố chưa hoàn chỉnh: {temp_path}")
                         try:
                             os.remove(temp_path)
                         except Exception:
                             pass
+                        target_path = None
+
+                if target_path and os.path.exists(target_path) and frames_count > 0 and _has_valid_moov_atom(target_path):
+                    # Lưu thumbnail khung hình đầu tiên dạng .jpg cục bộ
+                    thumb_path = target_path[:-4] + ".jpg"
+                    if saved_first_frame is not None:
+                        try:
+                            cv2.imwrite(thumb_path, saved_first_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        except Exception as thumb_err:
+                            logger.warning(f"⚠️ [IncidentRecorder] Không thể lưu thumbnail cục bộ {thumb_path}: {thumb_err}")
+
+                    size_mb = os.path.getsize(target_path) / (1024 * 1024)
+                    duration_s = frames_count / max(self.fps, 1.0)
+                    logger.info(
+                        f"✅ [IncidentRecorder] ĐÃ CHỐT XONG VIDEO BẰNG CHỨNG SỰ CỐ fMP4 (854x480): {target_path} "
+                        f"({size_mb:.2f} MB - {frames_count} frames - {duration_s:.1f}s)"
+                    )
+                    self._schedule_minio_upload(target_path, cam_code, start_dt, end_dt, frames_count, inc_id)
             except Exception as e:
                 logger.warning(f"⚠️ [IncidentRecorder] Lỗi khi giải phóng VideoWriter: {e}")
 
@@ -321,6 +339,16 @@ class IncidentRecorder:
 
                 success = storage_service.upload_video_file(file_path, bucket, obj_name)
                 if success:
+                    # Upload thumbnail JPG kèm theo nếu có
+                    local_thumb = file_path[:-4] + ".jpg"
+                    if os.path.exists(local_thumb):
+                        try:
+                            thumb_obj = obj_name[:-4] + ".jpg"
+                            storage_service.upload_video_file(local_thumb, bucket, thumb_obj)
+                            os.remove(local_thumb)
+                        except Exception as thumb_up_err:
+                            logger.warning(f"⚠️ [IncidentRecorder] Không thể upload thumbnail MinIO: {thumb_up_err}")
+
                     get_security_mqtt_client().publish_recording_event(telemetry_payload)
                     try:
                         os.remove(file_path)

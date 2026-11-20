@@ -6,15 +6,30 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -24,8 +39,12 @@ import java.util.regex.Pattern;
 public class MediaMtxService {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
-    private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(15);
+    private static final long DVR_LIST_CACHE_TTL_MS = 2000L;
     private static final Pattern RTSP_CREDENTIALS_PATTERN = Pattern.compile("(rtsps?://[^:/@\\s]+:)([^@\\s]+)(@)", Pattern.CASE_INSENSITIVE);
+
+    private record CachedDvrTimeline(long fetchedAtMs, DvrTimelineDto timeline) {}
+    private final Map<String, CachedDvrTimeline> dvrTimelineCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private final RestTemplate restTemplate = createRestTemplate();
 
@@ -42,14 +61,17 @@ public class MediaMtxService {
 
     public static final String INTERNAL_RTSP_USER = "icss-internal";
 
-    @Value("${mediamtx.api.url:http://localhost:9997}")
-    private String mediaMtxApiUrl = "http://localhost:9997";
+    @Value("${mediamtx.api.url:http://127.0.0.1:9997}")
+    private String mediaMtxApiUrl = "http://127.0.0.1:9997";
 
     @Value("${mediamtx.rtsp.url:rtsp://localhost:8554}")
     private String mediaMtxRtspUrl = "rtsp://localhost:8554";
 
     @Value("${mediamtx.whep.base-url:http://localhost:8889}")
     private String mediaMtxWhepBaseUrl = "http://localhost:8889";
+
+    @Value("${mediamtx.playback.url:http://127.0.0.1:9996}")
+    private String mediaMtxPlaybackUrl = "http://127.0.0.1:9996";
 
     @Value("${icss.internal.service-key:}")
     private String internalServiceKey = "";
@@ -279,6 +301,226 @@ public class MediaMtxService {
                 Thread.currentThread().interrupt();
                 return PathReadinessState.NOT_READY;
             }
+        }
+    }
+
+    public record DvrSegmentDto(
+            String path,
+            String start,
+            long startMs,
+            String end,
+            long endMs,
+            double durationSeconds
+    ) {}
+
+    public record DvrTimelineDto(
+            String cameraCode,
+            String streamPath,
+            long serverNowMs,
+            List<DvrSegmentDto> segments
+    ) {}
+
+    /**
+     * Lấy danh sách các khoảng thời gian DVR liên tục từ MediaMTX Playback Server (:9996/list).
+     * Tự động kiểm tra path chính (cam-xxx) và fallback sang luồng phân giải cao (cam-xxx_main).
+     */
+    public DvrTimelineDto getDvrTimeline(String cameraCode, Long startMsFilter, Long endMsFilter) {
+        long nowMs = System.currentTimeMillis();
+        String basePath = formatPathName(cameraCode);
+        if (basePath.isEmpty() || mediaMtxPlaybackUrl == null || mediaMtxPlaybackUrl.isBlank()) {
+            return new DvrTimelineDto(cameraCode, basePath, nowMs, Collections.emptyList());
+        }
+
+        if (startMsFilter == null && endMsFilter == null) {
+            CachedDvrTimeline cached = dvrTimelineCache.get(basePath);
+            if (cached != null && (nowMs - cached.fetchedAtMs()) <= DVR_LIST_CACHE_TTL_MS && !cached.timeline().segments().isEmpty()) {
+                return new DvrTimelineDto(cached.timeline().cameraCode(), cached.timeline().streamPath(), nowMs, cached.timeline().segments());
+            }
+        }
+
+        List<DvrSegmentDto> segments = fetchDvrSegmentsForPath(basePath, startMsFilter, endMsFilter);
+        String resolvedPath = basePath;
+        if (segments.isEmpty() && !basePath.endsWith("_main")) {
+            String mainPath = basePath + "_main";
+            List<DvrSegmentDto> mainSegments = fetchDvrSegmentsForPath(mainPath, startMsFilter, endMsFilter);
+            if (!mainSegments.isEmpty()) {
+                segments = mainSegments;
+                resolvedPath = mainPath;
+            }
+        }
+        DvrTimelineDto dto = new DvrTimelineDto(cameraCode != null ? cameraCode.trim().toUpperCase() : resolvedPath, resolvedPath, nowMs, segments);
+        if (startMsFilter == null && endMsFilter == null && !segments.isEmpty()) {
+            dvrTimelineCache.put(basePath, new CachedDvrTimeline(nowMs, dto));
+        }
+        return dto;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<DvrSegmentDto> fetchDvrSegmentsForPath(String pathName, Long startMsFilter, Long endMsFilter) {
+        String basePlayback = mediaMtxPlaybackUrl.trim().replaceAll("/+$", "");
+        StringBuilder url = new StringBuilder(basePlayback)
+                .append("/list?path=")
+                .append(URLEncoder.encode(pathName, StandardCharsets.UTF_8));
+        if (startMsFilter != null && startMsFilter > 0) {
+            url.append("&start=").append(URLEncoder.encode(Instant.ofEpochMilli(startMsFilter).toString(), StandardCharsets.UTF_8));
+        }
+        if (endMsFilter != null && endMsFilter > 0) {
+            url.append("&end=").append(URLEncoder.encode(Instant.ofEpochMilli(endMsFilter).toString(), StandardCharsets.UTF_8));
+        }
+
+        try {
+            List<?> rawList = restTemplate.exchange(
+                    url.toString(),
+                    HttpMethod.GET,
+                    new HttpEntity<>(createControlApiHeaders()),
+                    List.class
+            ).getBody();
+            if (rawList == null || rawList.isEmpty()) {
+                return Collections.emptyList();
+            }
+            List<DvrSegmentDto> result = new ArrayList<>();
+            for (Object itemObj : rawList) {
+                if (!(itemObj instanceof Map<?, ?> item)) {
+                    continue;
+                }
+                Object startObj = item.get("start");
+                Object durObj = item.get("duration");
+                if (startObj == null || !(durObj instanceof Number durNum)) {
+                    continue;
+                }
+                double durationSec = durNum.doubleValue();
+                if (durationSec <= 0) {
+                    continue;
+                }
+                long startMs = OffsetDateTime.parse(String.valueOf(startObj)).toInstant().toEpochMilli();
+                long endMs = startMs + Math.round(durationSec * 1000.0);
+                String endIso = Instant.ofEpochMilli(endMs).toString();
+                result.add(new DvrSegmentDto(pathName, String.valueOf(startObj), startMs, endIso, endMs, durationSec));
+            }
+            result.sort(Comparator.comparingLong(DvrSegmentDto::startMs));
+            return result;
+        } catch (HttpClientErrorException e) {
+            // MediaMTX trả 400/404 khi thư mục recording chưa tồn tại cho path này
+            log.debug("MediaMTX DVR chưa có bản ghi cho path [{}]: {}", pathName, e.getMessage());
+            return Collections.emptyList();
+        } catch (Exception e) {
+            log.warn("Lỗi truy vấn danh sách DVR từ MediaMTX cho path [{}]: {}", pathName, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Stream luồng fMP4 trực tiếp từ MediaMTX Playback Server (:9996/get) bắt đầu tại mốc startMs.
+     * Hỗ trợ playback tức thì bất kỳ thời điểm nào trên dòng thời gian YouTube-Live DVR.
+     */
+    public ResponseEntity<StreamingResponseBody> streamDvrPlayback(
+            String cameraCode,
+            long requestedStartMs,
+            Double requestedDurationSec,
+            String explicitPath) {
+        if (mediaMtxPlaybackUrl == null || mediaMtxPlaybackUrl.isBlank()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+
+        String basePath = formatPathName(cameraCode);
+        String candidatePath = (explicitPath != null && !explicitPath.isBlank())
+                ? formatPathName(explicitPath)
+                : null;
+        if (candidatePath != null && !candidatePath.equals(basePath) && !candidatePath.equals(basePath + "_main")) {
+            candidatePath = basePath;
+        }
+
+        DvrTimelineDto timeline = getDvrTimeline(cameraCode, null, null);
+        List<DvrSegmentDto> segments = timeline.segments();
+        if (segments.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        String resolvedPath = (candidatePath != null && !candidatePath.isEmpty()) ? candidatePath : timeline.streamPath();
+        DvrSegmentDto matchedSeg = null;
+        for (DvrSegmentDto seg : segments) {
+            if (requestedStartMs >= seg.startMs() - 5000L && requestedStartMs <= seg.endMs() + 5000L) {
+                matchedSeg = seg;
+                break;
+            }
+        }
+        // Nếu không khớp chính xác (ví dụ gap nhỏ giữa 2 đoạn), chọn đoạn gần nhất sau requestedStartMs nếu trong vòng 60s
+        if (matchedSeg == null) {
+            for (DvrSegmentDto seg : segments) {
+                if (seg.startMs() >= requestedStartMs && seg.startMs() - requestedStartMs <= 60_000L) {
+                    matchedSeg = seg;
+                    break;
+                }
+            }
+        }
+        if (matchedSeg == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        long effectiveStartMs = Math.max(matchedSeg.startMs(), requestedStartMs);
+        // Bảo đảm có tối thiểu ~2 giây dữ liệu ở sát mép LIVE để thẻ <video> giải mã được khung hình đầu
+        if (matchedSeg.endMs() - effectiveStartMs < 2000L && matchedSeg.endMs() - matchedSeg.startMs() >= 2000L) {
+            effectiveStartMs = matchedSeg.endMs() - 2000L;
+        }
+        double availableSec = Math.max(1.0, (matchedSeg.endMs() - effectiveStartMs) / 1000.0);
+        double maxSliceSec = (requestedDurationSec != null && requestedDurationSec > 0)
+                ? Math.min(requestedDurationSec, 3600.0)
+                : 1800.0;
+        double effectiveDurationSec = Math.max(1.0, Math.min(availableSec, maxSliceSec));
+
+        String startParam = Instant.ofEpochMilli(effectiveStartMs).toString();
+        String basePlayback = mediaMtxPlaybackUrl.trim().replaceAll("/+$", "");
+        String targetUrl = String.format(Locale.US,
+                "%s/get?path=%s&start=%s&duration=%.3f&format=fmp4",
+                basePlayback,
+                URLEncoder.encode(resolvedPath, StandardCharsets.UTF_8),
+                URLEncoder.encode(startParam, StandardCharsets.UTF_8),
+                effectiveDurationSec);
+
+        try {
+            HttpURLConnection conn = (HttpURLConnection) URI.create(targetUrl).toURL().openConnection();
+            conn.setRequestMethod("GET");
+            String authHeader = createControlApiHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+            if (authHeader != null && !authHeader.isBlank()) {
+                conn.setRequestProperty(HttpHeaders.AUTHORIZATION, authHeader);
+            }
+            conn.setConnectTimeout(4000);
+            conn.setReadTimeout(30000);
+            int status = conn.getResponseCode();
+            if (status >= 400) {
+                try (InputStream err = conn.getErrorStream()) {
+                    String errMsg = err != null ? new String(err.readAllBytes(), StandardCharsets.UTF_8) : "";
+                    log.warn("MediaMTX playback /get trả HTTP {} cho [{}]: {}", status, resolvedPath, errMsg);
+                }
+                conn.disconnect();
+                return ResponseEntity.status(status == 404 ? HttpStatus.NOT_FOUND : HttpStatus.BAD_GATEWAY).build();
+            }
+
+            StreamingResponseBody body = outputStream -> {
+                try (InputStream in = conn.getInputStream()) {
+                    byte[] buffer = new byte[16384];
+                    int bytesRead;
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, bytesRead);
+                        outputStream.flush();
+                    }
+                } catch (java.io.IOException ioEx) {
+                    // Client (trình duyệt) đóng kết nối sớm khi người dùng tua sang mốc khác
+                    log.debug("DVR stream kết thúc sớm cho [{}]: {}", resolvedPath, ioEx.getMessage());
+                } finally {
+                    conn.disconnect();
+                }
+            };
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.valueOf("video/mp4"))
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                    .header("X-DVR-Start-Ms", String.valueOf(effectiveStartMs))
+                    .header("X-DVR-Duration-Sec", String.format(Locale.US, "%.3f", effectiveDurationSec))
+                    .body(body);
+        } catch (Exception e) {
+            log.error("Lỗi proxy luồng DVR từ MediaMTX cho [{}]: {}", resolvedPath, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
         }
     }
 }

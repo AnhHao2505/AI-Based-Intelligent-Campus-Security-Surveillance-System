@@ -270,7 +270,7 @@ export default function AreaAssignedPersonnelModal({
 			await revokeAssignedPersonnel(area.id, revokeItem.id, {
 				reason: trimmedRevokeReason,
 			});
-			toast.success(`Đã thu hồi quyền ra vào của ${revokeItem.user?.fullName}`);
+			toast.success(`Đã thu hồi quyền vào khu vực của ${revokeItem.user?.fullName}`);
 			setRevokeItem(null);
 			loadData();
 		} catch (err) {
@@ -323,7 +323,7 @@ export default function AreaAssignedPersonnelModal({
 				isOpen={isOpen}
 				onClose={onClose}
 				title="Nhân viên chỉ định"
-				subtitle={`Quản lý danh sách người được đặc cách ra vào: ${area.name}`}
+				subtitle={`Quản lý danh sách người được đặc cách vào khu vực: ${area.name}`}
 				icon={Users}
 				iconVariant="brand"
 				size="xl"
@@ -665,7 +665,7 @@ export default function AreaAssignedPersonnelModal({
 				<Modal
 					isOpen={Boolean(revokeItem)}
 					onClose={() => setRevokeItem(null)}
-					title="Thu hồi quyền chỉ định ra vào"
+					title="Thu hồi quyền chỉ định vào khu vực"
 					subtitle={`Thu hồi quyền của: ${revokeItem.user?.fullName} (${revokeItem.user?.userCode})`}
 					icon={UserX}
 					iconVariant="danger"

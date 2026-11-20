@@ -25,6 +25,7 @@ import { useAuth } from "../../context/AuthContext";
 import "../../styles/AccessRequestPage.css";
 import PageHeader from "../../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState, DialogPanel, Select } from "../../components/ui";
+import AreaSelectWithFilter from "../../components/area/AreaSelectWithFilter";
 import { formatLocation } from "../../utils/formatLocation";
 import { formatDateTime, formatRange } from "../../utils/formatDateTime";
 import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobox";
@@ -559,7 +560,7 @@ export default function AccessRequestPage() {
 		<div className="arp-container">
 			<PageHeader
 				title="Yêu cầu truy cập"
-				description="Gửi yêu cầu ra vào khu vực cần cấp phép và theo dõi trạng thái các yêu cầu của bạn."
+				description="Gửi yêu cầu vào khu vực cần cấp phép và theo dõi trạng thái các yêu cầu của bạn."
 			/>
 			{/* THẺ 1: YÊU CẦU TRUY CẬP MỚI
 			    Hiện hay ẩn dựa trên kết quả available-areas (BE quyết khu nào tự xin được),
@@ -653,7 +654,7 @@ export default function AccessRequestPage() {
 								/>
 								<div className="arp-type-btn__name">Cá nhân</div>
 								<div className="arp-type-btn__desc">
-									Đăng ký quyền ra vào khu vực cho chính bạn.
+									Đăng ký quyền vào khu vực cho chính bạn.
 								</div>
 							</button>
 
@@ -675,7 +676,7 @@ export default function AccessRequestPage() {
 								/>
 								<div className="arp-type-btn__name">Nhóm nội bộ</div>
 								<div className="arp-type-btn__desc">
-									Đăng ký quyền ra vào cho một nhóm thành viên theo danh sách mã
+									Đăng ký quyền vào khu vực cho một nhóm thành viên theo danh sách mã
 									số.
 								</div>
 							</button>
@@ -688,19 +689,14 @@ export default function AccessRequestPage() {
 							<span>Khu vực cần truy cập</span>
 							<span className="arp-required">*</span>
 						</label>
-						<Select
+						<AreaSelectWithFilter
 							id="arp-area"
+							areas={areaList}
 							value={selectedAreaId}
 							onChange={handleAreaChange}
 							disabled={loadingAreas || submitting}
 							required
-							options={[
-								{ value: "", label: "-- Chọn khu vực cần đăng ký truy cập --" },
-								...areaList.map((a) => {
-									const loc = formatLocation(a.building, a.floor);
-									return { value: a.id, label: loc ? `${a.name} (${loc})` : a.name };
-								}),
-							]}
+							placeholder="-- Chọn khu vực cần đăng ký truy cập --"
 						/>
 
 						{currentArea &&

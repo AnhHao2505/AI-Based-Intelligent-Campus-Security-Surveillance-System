@@ -118,8 +118,14 @@ void main() {
     });
 
     test('sàn → phòng → tường → cầu thang → tuyến đường → ghim khu; không trùng id', () {
-      expect(campusLayerOrder.take(4), ['campus-slab-layer', 'campus-room-layer', 'campus-wall-layer', 'campus-portals-layer']);
-      for (final route in ['campus-route-outline', 'campus-route-line', 'campus-route-direct', 'campus-route-floors-layer']) {
+      expect(campusLayerOrder.take(5), [
+        'campus-slab-layer',
+        'campus-room-layer',
+        'campus-wall-layer',
+        'campus-room-border-layer',
+        'campus-portals-layer',
+      ]);
+      for (final route in ['campus-route-outline', 'campus-route-line', 'campus-route-direct']) {
         expect(at(route), greaterThan(at('campus-portals-layer')), reason: route);
         expect(at(route), lessThan(at('campus-pins-layer')), reason: route);
       }
@@ -267,12 +273,15 @@ void main() {
       final provider = MapProvider(ApiClient(), campusRepository: _DiskCampusRepository(campus));
       await provider.loadCampusMap();
 
-      final label = (labelsAlphaG()['features'] as List).cast<Map>().firstWhere((f) => f['id'] == 'in-1');
-      provider.selectArea(findAreaPinById(pins, label['id'] as String));
+      final epsRoom = _roomPoint(campus, 'Tòa Epsilon', 0, 1);
+      final epsPin = _pin('eps-1', 'Phòng Epsilon', epsRoom.point, building: 'Tòa Epsilon');
+      final epsLabels = roomLabelsGeoJson(campus, [epsPin], building: 'Tòa Epsilon', floorOrder: 0);
+      final label = (epsLabels['features'] as List).cast<Map>().firstWhere((f) => f['id'] == 'eps-1');
+      provider.selectArea(findAreaPinById([epsPin], label['id'] as String));
 
-      expect(provider.selectedArea!.id, 'in-1');
+      expect(provider.selectedArea!.id, 'eps-1');
       expect(provider.highlightRoomId, label['properties']['id']);
-      expect(provider.highlightRoomId, room1.roomId);
+      expect(provider.highlightRoomId, epsRoom.roomId);
     });
   });
 }

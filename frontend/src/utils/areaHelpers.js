@@ -12,7 +12,7 @@ export const AREA_LEVEL_CONFIG = {
     bgColor: 'rgba(16, 185, 129, 0.08)',
     borderColor: 'rgba(16, 185, 129, 0.35)',
     icon: 'globe',
-    description: 'Khu vực tự do ra vào cho tất cả người dùng trong khuôn viên (ai cũng vào).'
+    description: 'Khu vực tự do vào cho tất cả người dùng trong khuôn viên (ai cũng vào).'
   },
   // Gộp loại 19/10 (V83): INTERNAL_CONFIDENTIAL + CONFIDENTIAL_CONTACT_REQUIRED -> CONFIDENTIAL. Loại ⇔ cấp (1/2/3).
   CONFIDENTIAL: {

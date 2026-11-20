@@ -1,5 +1,6 @@
-from ..utils.security import mask_rtsp_url
 import os
+import re
+from ..utils.security import mask_rtsp_url
 from ..utils.ffmpeg_options import get_ffmpeg_capture_options
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = get_ffmpeg_capture_options()
 import cv2
@@ -11,21 +12,26 @@ from typing import Optional, Dict, Any, List, Iterable
 def select_stream_path(camera_code: str, available_paths: Optional[Iterable[str]] = None) -> str:
     """
     Chọn luồng MediaMTX tối ưu cho AI & Recording:
+    - Định dạng chuẩn MediaMTX luôn là lowercase (ví dụ: cam-006 hoặc cam-006_main).
     - Nếu có luồng chính ({camera_code}_main) trong danh sách available_paths -> chọn {camera_code}_main.
     - Ngược lại -> chọn {camera_code}.
     """
     if not camera_code:
         return ""
     code = camera_code.strip()
+    formatted = re.sub(r"[^a-z0-9_-]", "", code.lower()).strip()
     if not available_paths:
-        return code
+        return formatted
 
     paths_set = set(p.strip() for p in available_paths if p)
-    main_variant = f"{code}_main"
+    main_variant = f"{formatted}_main"
     for p in paths_set:
-        if p.lower() == main_variant.lower():
+        if p.lower() == main_variant:
             return p
-    return code
+    for p in paths_set:
+        if p.lower() == formatted:
+            return p
+    return formatted
 
 def resolve_camera_rtsp_url(
     camera_code: str,
@@ -33,13 +39,17 @@ def resolve_camera_rtsp_url(
     available_paths: Optional[Iterable[str]] = None
 ) -> str:
     """
-    Tạo RTSP URL gateway cho camera, tự động ưu tiên {camera_code}_main nếu có trong MediaMTX.
-    Mặc định sử dụng settings.MEDIAMTX_RTSP_URL.
+    Tạo RTSP URL gateway cho camera, tự động ưu tiên {camera_code}_main nếu có trong MediaMTX
+    và gắn thông tin xác thực nội bộ icss-internal để MediaMTX không trả về 401.
     """
     stream_name = select_stream_path(camera_code, available_paths)
     effective_base = base_rtsp_gateway or getattr(settings, "MEDIAMTX_RTSP_URL", "rtsp://localhost:8554")
-    base = effective_base.rstrip("/")
-    return f"{base}/{stream_name}"
+    try:
+        from ..security import build_internal_rtsp_url
+        return build_internal_rtsp_url(effective_base, stream_name)
+    except Exception:
+        base = effective_base.rstrip("/")
+        return f"{base}/{stream_name}"
 
 from .video_pipeline import VideoPipeline
 from .stream_recorder import StreamRecorder
@@ -106,6 +116,15 @@ class CameraStreamWorker:
 
         self.camera_code = camera_code.strip()
         self.rtsp_url = rtsp_url.strip()
+        if "8554" in self.rtsp_url and "@" not in self.rtsp_url:
+            try:
+                from ..security import build_internal_rtsp_url
+                path_part = self.rtsp_url.split("/")[-1]
+                clean_path = re.sub(r"[^a-z0-9_-]", "", path_part.lower()).strip()
+                base_part = self.rtsp_url.rsplit("/", 1)[0]
+                self.rtsp_url = build_internal_rtsp_url(base_part, clean_path)
+            except Exception as e:
+                logger.warning(f"Không thể gắn internal RTSP secret cho [{self.camera_code}]: {e}")
         self.analysis_max_fps = analysis_max_fps if analysis_max_fps is not None else getattr(settings, "ANALYSIS_MAX_FPS", 10.0)
         self.pipeline = VideoPipeline(camera_code=self.camera_code, analysis_max_fps=self.analysis_max_fps)
         if not roi_geometry:
@@ -116,11 +135,11 @@ class CameraStreamWorker:
             self.pipeline.set_roi_config(polygons=polys)
             logger.info(f"Stream Worker camera [{self.camera_code}] đã tải {len(polys)} ROI polygons từ DB.")
         
-        # Recorder tự động ghi hình toàn bộ luồng camera theo từng phân đoạn 1 phút tại C:\DATN\...\recording
+        # Recorder tự động ghi hình toàn bộ luồng camera theo từng phân đoạn tại C:\DATN\...\recording
         self.recorder = StreamRecorder(
             camera_code=self.camera_code,
             base_dir=settings.RECORDING_BASE_DIR,
-            segment_seconds=settings.RECORDING_SEGMENT_SECONDS
+            segment_seconds=int(getattr(settings, "RECORDING_SEGMENT_SECONDS", 60))
         )
 
         self.is_running = False
@@ -137,6 +156,10 @@ class CameraStreamWorker:
         self.new_frame_event = threading.Event()
         from ..utils.system_threads import enable_high_precision_timer
         enable_high_precision_timer()
+
+    def set_recording_segment_seconds(self, seconds: int):
+        if self.recorder is not None:
+            self.recorder.set_segment_seconds(seconds)
 
     def add_client(self):
         """Đăng ký client đang xem live-annotated stream (P1-05 Lazy Overlay)"""
@@ -223,6 +246,11 @@ class CameraStreamWorker:
             self.analysis_thread = None
         if self.recorder:
             self.recorder.stop()
+        # Chốt phiên ghi hình sự cố nếu đang ghi dở khi camera dừng
+        try:
+            incident_recording_manager.stop_camera_recordings(self.camera_code)
+        except Exception as ex:
+            logger.warning(f"Lỗi khi dừng incident_recording_manager trong StreamWorker.stop: {ex}")
         if hasattr(self, "pipeline") and self.pipeline is not None:
             try:
                 self.pipeline.stop()
@@ -305,60 +333,65 @@ class CameraStreamWorker:
         last_processed_frame_id = -1
         last_analysis_time = 0.0
 
-        while self.is_running:
-            min_analysis_interval = (1.0 / self.analysis_max_fps) if (self.analysis_max_fps and self.analysis_max_fps > 0) else 0.0
-            if min_analysis_interval > 0:
-                now = time.time()
-                elapsed = now - last_analysis_time
-                if elapsed < min_analysis_interval:
-                    sleep_dur = min(0.05, max(0.001, min_analysis_interval - elapsed))
-                    time.sleep(sleep_dur)
+        try:
+            while self.is_running:
+                min_analysis_interval = (1.0 / self.analysis_max_fps) if (self.analysis_max_fps and self.analysis_max_fps > 0) else 0.0
+                if min_analysis_interval > 0:
+                    now = time.time()
+                    elapsed = now - last_analysis_time
+                    if elapsed < min_analysis_interval:
+                        sleep_dur = min(0.05, max(0.001, min_analysis_interval - elapsed))
+                        time.sleep(sleep_dur)
+                        continue
+
+                with self.raw_frame_lock:
+                    if self.raw_frame is not None and self.frame_id != last_processed_frame_id:
+                        frame = self.raw_frame.copy()
+                        last_processed_frame_id = self.frame_id
+                    else:
+                        frame = None
+
+                if frame is None:
+                    self.new_frame_event.wait(timeout=0.005)
+                    self.new_frame_event.clear()
                     continue
 
-            with self.raw_frame_lock:
-                if self.raw_frame is not None and self.frame_id != last_processed_frame_id:
-                    frame = self.raw_frame.copy()
-                    last_processed_frame_id = self.frame_id
-                else:
-                    frame = None
-
-            if frame is None:
-                self.new_frame_event.wait(timeout=0.005)
-                self.new_frame_event.clear()
-                continue
-
-            last_analysis_time = time.time()
-            try:
-                need_annotated = (
-                    self.has_active_client
-                    or incident_recording_manager.is_recording(self.camera_code)
-                    or getattr(self.pipeline, "is_incident_active_or_pending", False)
-                )
-                annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(
-                    frame,
-                    need_annotated=need_annotated
-                )
-                with self.lock:
-                    self.latest_frame = annotated_frame
-                if need_annotated or alerts:
-                    incident_recording_manager.write_frame_for_camera(self.camera_code, annotated_frame)
-
-                frame_counter += 1
-                if time.time() - fps_timer >= 2.0:
-                    self.processed_fps = round(frame_counter / (time.time() - fps_timer), 1)
-                    fps_timer = time.time()
-                    frame_counter = 0
-                    active_cnt = len(self.pipeline.analysis_engine.active_tracks) if self.pipeline else 0
-                    state_val = self.pipeline.state_machine.state.value if (self.pipeline and hasattr(self.pipeline, "state_machine")) else "N/A"
-                    logger.debug(
-                        f"📊 [StreamWorker:{self.camera_code}] Trạng thái: {self.processed_fps} FPS | Vùng: {state_val} | Người đang theo dõi: {active_cnt}"
+                last_analysis_time = time.time()
+                try:
+                    need_annotated = (
+                        self.has_active_client
+                        or incident_recording_manager.is_recording(self.camera_code)
+                        or getattr(self.pipeline, "is_incident_active_or_pending", False)
                     )
+                    annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(
+                        frame,
+                        need_annotated=need_annotated
+                    )
+                    with self.lock:
+                        self.latest_frame = annotated_frame
+                    if need_annotated or alerts:
+                        incident_recording_manager.write_frame_for_camera(self.camera_code, annotated_frame)
 
-            except Exception as e:
-                logger.error(f"Lỗi phân tích frame camera [{self.camera_code}]: {e}")
-                time.sleep(0.05)
+                    frame_counter += 1
+                    if time.time() - fps_timer >= 2.0:
+                        self.processed_fps = round(frame_counter / (time.time() - fps_timer), 1)
+                        fps_timer = time.time()
+                        frame_counter = 0
+                        active_cnt = len(self.pipeline.analysis_engine.active_tracks) if self.pipeline else 0
+                        state_val = self.pipeline.state_machine.state.value if (self.pipeline and hasattr(self.pipeline, "state_machine")) else "N/A"
+                        logger.debug(
+                            f"📊 [StreamWorker:{self.camera_code}] Trạng thái: {self.processed_fps} FPS | Vùng: {state_val} | Người đang theo dõi: {active_cnt}"
+                        )
 
-        logger.info(f"Đã đóng Analysis Thread cho camera [{self.camera_code}].")
+                except Exception as e:
+                    logger.error(f"Lỗi phân tích frame camera [{self.camera_code}]: {e}")
+                    time.sleep(0.05)
+        finally:
+            try:
+                incident_recording_manager.stop_camera_recordings(self.camera_code)
+            except Exception:
+                pass
+            logger.info(f"Đã đóng Analysis Thread cho camera [{self.camera_code}].")
 
     def get_current_raw_frame(self) -> Optional[Any]:
         with self.raw_frame_lock:

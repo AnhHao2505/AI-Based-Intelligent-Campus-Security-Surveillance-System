@@ -23,17 +23,13 @@ import {
 	X,
 	Film,
 	CirclePlay,
-	Download,
 	ExternalLink,
-	RefreshCw,
 	UserX,
 	Box,
 	Layers,
 	Filter,
 	ChevronDown,
-	VideoOff,
 } from "lucide-react";
-import { fetchDiskRecordings, withRecordingStreamToken } from "../../services/recordingService";
 import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 import WebRtcPlayer from "../../components/video/WebRtcPlayer";
 import { fetchCameras } from "../../services/cameraService";
@@ -497,9 +493,6 @@ export function SecuritySurveillancePage() {
 	const [statusNotification, setStatusNotification] = useState(null);
 	const [evidenceModalAlert, setEvidenceModalAlert] = useState(null);
 	const [evidenceModalTab, setEvidenceModalTab] = useState("image"); // "image" | "video"
-	const [incidentVideoLoading, setIncidentVideoLoading] = useState(false);
-	const [incidentVideoData, setIncidentVideoData] = useState(null);
-	const [incidentVideoError, setIncidentVideoError] = useState(null);
 
 	const flashTimeoutRef = useRef(null);
 	const soundEnabledRef = useRef(soundEnabled);
@@ -534,8 +527,6 @@ export function SecuritySurveillancePage() {
 					setIsCategoryDropdownOpen(false);
 				} else if (evidenceModalAlert) {
 					setEvidenceModalAlert(null);
-					setIncidentVideoData(null);
-					setIncidentVideoError(null);
 				} else if (isTheaterMode) {
 					setIsTheaterMode(false);
 				}
@@ -668,6 +659,25 @@ export function SecuritySurveillancePage() {
 		}
 		return summary;
 	}, [cameraList, activeAlerts]);
+
+	// Gom danh sách cảnh báo chưa ghi nhận theo mã camera chuẩn hóa để gắn chấm đỏ trực tiếp lên thanh tua DVR
+	// Khi bảo vệ bấm "Ghi nhận" (Đã xem) hoặc sự cố đã đóng -> chấm đỏ của sự cố đó biến mất khỏi thanh tua
+	const alertsByCamera = useMemo(() => {
+		const map = {};
+		for (const alert of activeAlerts) {
+			if (alert.socAcknowledged || !isAlertPending(alert.status)) continue;
+			const cCode = (alert.camCodeClean || alert.cameraCode || "")
+				.toLowerCase()
+				.replace(/[^a-z0-9_-]/g, "")
+				.trim();
+			if (!cCode) continue;
+			if (!map[cCode]) {
+				map[cCode] = [];
+			}
+			map[cCode].push(alert);
+		}
+		return map;
+	}, [activeAlerts]);
 
 	// Sắp xếp danh sách camera: Mặc định tăng dần, tự động đưa camera có sự cố lên đầu theo mức độ ưu tiên
 	const sortedCameras = useMemo(() => {
@@ -1122,140 +1132,15 @@ export function SecuritySurveillancePage() {
 		triggerNotification("Đã khôi phục toàn bộ danh sách sự cố an ninh");
 	};
 
-	// Tải và phát video hiện trường sự cố trực tiếp trong tab này
-	const loadIncidentVideo = async (alert) => {
-		if (!alert) return;
-		setIncidentVideoLoading(true);
-		setIncidentVideoError(null);
-		try {
-			const camCode = alert.camCodeClean || alert.cameraCode;
-			const list = await fetchDiskRecordings({ cameraId: camCode });
-			if (!list || list.length === 0) {
-				setIncidentVideoError("Chưa có bản ghi video nào của camera này trên máy chủ.");
-				return;
-			}
-
-			// Ưu tiên 1: Video sự cố an ninh (SECURITY_EVENT hoặc file Incident)
-			const alertTime = alert.detectedAt
-				? new Date(alert.detectedAt).getTime()
-				: (alert.rawTime || Date.now());
-			// Cửa sổ thời gian hợp lệ:
-			// - Video phải bắt đầu tối đa 30 giây TRƯỚC alert (buffer nhỏ cho độ trễ hệ thống)
-			// - Video phải bắt đầu tối đa 10 phút SAU alert (ghi hình bắt đầu sau 2s, cộng thêm buffer)
-			// Điều này đảm bảo không nhận nhầm video từ sự cố khác cùng camera
-			const BEFORE_ALERT_BUFFER_MS = 30 * 1000;       // 30 giây trước alert
-			const AFTER_ALERT_WINDOW_MS  = 10 * 60 * 1000;  // 10 phút sau alert
-
-			// Ưu tiên 1: Video sự cố (SECURITY_EVENT hoặc tên file bắt đầu "incident")
-			// bắt đầu trong cửa sổ [-30s, +10min] so với thời điểm alert
-			const incidentVideos = list.filter((v) => {
-				const isSecurityEvent =
-					v.eventType === "SECURITY_EVENT" ||
-					(v.filename && v.filename.toLowerCase().startsWith("incident"));
-				if (!isSecurityEvent) return false;
-				const videoTime = new Date(v.startTime).getTime();
-				// Video phải bắt đầu sau (alertTime - 30s) và trước (alertTime + 10min)
-				return (
-					videoTime >= alertTime - BEFORE_ALERT_BUFFER_MS &&
-					videoTime <= alertTime + AFTER_ALERT_WINDOW_MS
-				);
-			});
-
-			// Ưu tiên 2: Fallback — bất kỳ bản ghi nào trong cửa sổ [-30s, +10min]
-			const nearbyVideos = list.filter((v) => {
-				const videoTime = new Date(v.startTime).getTime();
-				return (
-					videoTime >= alertTime - BEFORE_ALERT_BUFFER_MS &&
-					videoTime <= alertTime + AFTER_ALERT_WINDOW_MS
-				);
-			});
-
-			let bestMatch = null;
-			if (incidentVideos.length > 0) {
-				// Sắp xếp theo khoảng cách thời gian nhỏ nhất so với alert
-				incidentVideos.sort((a, b) => {
-					const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
-					const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
-					return diffA - diffB;
-				});
-				bestMatch = incidentVideos[0];
-			} else if (nearbyVideos.length > 0) {
-				// Fallback: Bản ghi định kỳ gần thời điểm sự cố nhất (trong ±1 giờ)
-				nearbyVideos.sort((a, b) => {
-					const diffA = Math.abs(new Date(a.startTime).getTime() - alertTime);
-					const diffB = Math.abs(new Date(b.startTime).getTime() - alertTime);
-					return diffA - diffB;
-				});
-				bestMatch = nearbyVideos[0];
-			} else {
-				// Không tìm thấy video nào trong cửa sổ thời gian hợp lệ
-				bestMatch = null;
-			}
-
-			if (!bestMatch || !bestMatch.videoUrl) {
-				// Không có video nào trong cửa sổ [-30s, +10min] — tránh hiển thị video sai sự cố
-				setIncidentVideoError(
-					"Không tìm thấy video sự cố trong vòng 10 phút sau thời điểm phát hiện. " +
-					"Video có thể chưa được lưu hoặc đã bị xoá khỏi hệ thống.",
-				);
-				return;
-			}
-
-			let signedUrl = bestMatch.videoUrl;
-			try {
-				signedUrl = await withRecordingStreamToken(bestMatch.videoUrl);
-			} catch (tokenErr) {
-				console.warn("Lỗi xin stream token, fallback sang URL trực tiếp:", tokenErr);
-			}
-
-			setIncidentVideoData({
-				...bestMatch,
-				signedUrl,
-			});
-		} catch (err) {
-			console.warn("Lỗi tải video sự cố:", err);
-			setIncidentVideoError(err.message || "Không thể kết nối đến máy chủ video.");
-		} finally {
-			setIncidentVideoLoading(false);
-		}
-	};
-
-	// Mở modal xem Ảnh hoặc Video sự cố trong tab hiện tại
+	// Mở modal xem Ảnh hoặc Video hiện trường (YouTube-Live DVR Playback tại mốc sự cố)
 	const handleOpenIncidentMedia = (alert, initialTab = "image") => {
 		setEvidenceModalAlert(alert);
 		setEvidenceModalTab(initialTab);
-		setIncidentVideoData(null);
-		setIncidentVideoError(null);
-		if (initialTab === "video") {
-			loadIncidentVideo(alert);
-		}
 	};
 
 	// Chuyển đổi qua lại giữa Ảnh và Video trong modal
 	const handleSwitchModalTab = (tab) => {
 		setEvidenceModalTab(tab);
-		if (tab === "video" && !incidentVideoData && !incidentVideoLoading) {
-			loadIncidentVideo(evidenceModalAlert);
-		}
-	};
-
-	// Tải file video MP4 về máy
-	const handleDownloadIncidentVideo = async () => {
-		if (!incidentVideoData) return;
-		const popup = window.open("", "_blank");
-		try {
-			const signedUrl = await withRecordingStreamToken(
-				incidentVideoData.downloadUrl || incidentVideoData.videoUrl,
-			);
-			if (popup) {
-				popup.location.href = signedUrl;
-			} else {
-				window.location.assign(signedUrl);
-			}
-		} catch {
-			popup?.close();
-			triggerNotification("Không thể lấy liên kết tải video");
-		}
 	};
 
 	// Chuyển trực tiếp video sang camera cụ thể
@@ -1575,6 +1460,9 @@ export function SecuritySurveillancePage() {
 											cameraCode={camera.cameraCode}
 											cameraName={camera.name}
 											enabled={camera.status === "ONLINE"}
+											enableDvr={true}
+											alerts={alertsByCamera[camera.code] || []}
+											compactScrubber={cameraLayout > 1}
 											host={
 												import.meta.env.VITE_MEDIAMTX_HOST ||
 												(typeof window !== "undefined" && window.location.hostname
@@ -2020,13 +1908,12 @@ export function SecuritySurveillancePage() {
 				)}
 			</div>
 
-			{/* Modal hiển thị ảnh và video bằng chứng quả tang từ AI */}
+			{/* Modal hiển thị ảnh và video hiện trường sự cố (YouTube-Live DVR Playback) */}
 			{evidenceModalAlert && (
 				<div
 					className="soc-evidence-modal-backdrop"
 					onClick={() => {
 						setEvidenceModalAlert(null);
-						setIncidentVideoData(null);
 					}}
 				>
 					<div
@@ -2058,7 +1945,6 @@ export function SecuritySurveillancePage() {
 								className="soc-evidence-close-btn"
 								onClick={() => {
 									setEvidenceModalAlert(null);
-									setIncidentVideoData(null);
 								}}
 								title="Đóng (ESC)"
 							>
@@ -2083,13 +1969,14 @@ export function SecuritySurveillancePage() {
 									onClick={() => handleSwitchModalTab("video")}
 								>
 									<Film size={14} />
-									<span>Video hiện trường sự cố</span>
+									<span>Video DVR sự cố &amp; trực tiếp</span>
 								</button>
 							</div>
 
 							{evidenceModalTab === "image" ? (
 								<div className="soc-evidence-image-container">
 									<EvidenceImage
+										key={evidenceModalAlert.id}
 										src={evidenceModalAlert.imageUrl}
 										alt="Ảnh bằng chứng vi phạm an ninh"
 										className="soc-evidence-full-img"
@@ -2097,77 +1984,41 @@ export function SecuritySurveillancePage() {
 								</div>
 							) : (
 								<div className="soc-evidence-video-container">
-									{incidentVideoLoading ? (
-										<div className="soc-video-loading-box">
-											<Loader2 size={32} className="soc-spinner" />
-											<span>Đang kết nối và tải video sự cố...</span>
-										</div>
-									) : incidentVideoError ? (
-										<div className="soc-video-empty-box">
-											<VideoOff size={48} color="#94a3b8" strokeWidth={1.5} />
-											<p className="soc-video-unavailable-title">Video không khả dụng</p>
-											<p className="soc-video-unavailable-sub">
-												Không tìm thấy video sự cố tương ứng với thời điểm phát hiện.
-											</p>
-										</div>
-									) : incidentVideoData?.signedUrl ? (
-										<div className="soc-video-player-wrapper">
-											<video
-												key={incidentVideoData.signedUrl}
-												src={incidentVideoData.signedUrl}
-												controls
-												autoPlay
-												preload="auto"
-												className="soc-evidence-video-player"
-												onError={() =>
-													setIncidentVideoError(
-														"Không thể phát trực tiếp video trên trình duyệt (codec chưa hỗ trợ hoặc tệp đang ghi). Bạn có thể tải file MP4 về máy.",
-													)
-												}
-											>
-												Trình duyệt không hỗ trợ thẻ video HTML5.
-											</video>
-											<div className="soc-video-meta-bar">
-												<span>
-													<strong>Tệp:</strong> {incidentVideoData.filename || incidentVideoData.id}
-												</span>
-												{incidentVideoData.durationDisplay && (
-													<span>
-														<strong>Thời lượng:</strong> {incidentVideoData.durationDisplay}
-													</span>
-												)}
-												<button
-													type="button"
-													className="btn-soc-dl-video"
-													onClick={handleDownloadIncidentVideo}
-													title="Tải video này về máy"
-												>
-													<Download size={12} /> Tải MP4
-												</button>
-											</div>
-										</div>
-									) : (
-										<div className="soc-video-empty-box">
-											<Film size={36} color="#64748b" />
-											<p>Chưa có video được chọn</p>
-											<button
-												type="button"
-												className="btn-soc-retry-video"
-												onClick={() => loadIncidentVideo(evidenceModalAlert)}
-											>
-												<RefreshCw size={13} /> Tải video
-											</button>
-										</div>
-									)}
+									<WebRtcPlayer
+										key={`evidence-dvr-${evidenceModalAlert.camCodeClean || evidenceModalAlert.cameraCode || "cam"}`}
+										streamPath={evidenceModalAlert.camCodeClean || "cam-006"}
+										cameraCode={evidenceModalAlert.cameraCode || "CAM-006"}
+										cameraName={evidenceModalAlert.cameraName || "Camera hiện trường"}
+										enabled={true}
+										enableDvr={true}
+										enableTrackingToggle={false}
+										showLiveTag={true}
+										initialSeekTimeMs={
+											evidenceModalAlert.detectedAt
+												? new Date(evidenceModalAlert.detectedAt).getTime()
+												: evidenceModalAlert.rawTime
+										}
+										focusedAlertId={evidenceModalAlert.id}
+										alerts={alertsByCamera[evidenceModalAlert.camCodeClean] || []}
+										onAlertMarkerClick={(clickedAlert) => {
+											if (clickedAlert) {
+												setEvidenceModalAlert(clickedAlert);
+											}
+										}}
+										host={
+											import.meta.env.VITE_MEDIAMTX_HOST ||
+											(typeof window !== "undefined" && window.location.hostname
+												? `${window.location.hostname}:8889`
+												: "localhost:8889")
+										}
+										muted={false}
+									/>
 								</div>
 							)}
 
 							<div className="soc-evidence-meta-panel">
 								<div className="soc-evidence-meta-row">
 									<span className="soc-evidence-meta-label">Camera:</span>
-									<span className="soc-evidence-meta-val">
-										<strong>{evidenceModalAlert.cameraCode}</strong> — {evidenceModalAlert.cameraName}
-									</span>
 								</div>
 								<div className="soc-evidence-meta-row">
 									<span className="soc-evidence-meta-label">Thời điểm:</span>
@@ -2230,7 +2081,6 @@ export function SecuritySurveillancePage() {
 											evidenceModalAlert.cameraCode,
 										);
 										setEvidenceModalAlert(null);
-										setIncidentVideoData(null);
 									}}
 									title="Chuyển màn hình sang xem trực tiếp camera này"
 								>
@@ -2242,7 +2092,6 @@ export function SecuritySurveillancePage() {
 									className="btn-soc-evidence-close"
 									onClick={() => {
 										setEvidenceModalAlert(null);
-										setIncidentVideoData(null);
 									}}
 								>
 									Đóng

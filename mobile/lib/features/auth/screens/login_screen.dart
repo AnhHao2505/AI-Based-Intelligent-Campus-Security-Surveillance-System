@@ -358,19 +358,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             ],
                           ),
                   ),
-                  const SizedBox(height: 20),
-
-                  // Server URL configuration helper
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: _showServerConfigDialog,
-                      icon: Icon(Icons.settings_ethernet, size: 16, color: AppColors.txtMuted(context)),
-                      label: Text(
-                        'Máy chủ: ${ApiEndpoints.baseUrl}',
-                        style: TextStyle(fontSize: 11, color: AppColors.txtMuted(context)),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

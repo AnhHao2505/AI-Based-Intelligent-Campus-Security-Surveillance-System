@@ -18,11 +18,14 @@ webrtcAllowOrigins: ['*']
 webrtcLocalUDPAddress: :8189
 webrtcAdditionalHosts: ['127.0.0.1']
 
-# 3. Playback Server (Tắt để tránh truy cập fMP4 không qua Backend RecordingStreamTokenService V2)
-playback: no
+# 3. Playback Server (Cổng 9996 — chỉ phục vụ nội bộ qua Backend ICSS, bắt buộc Basic Auth icss-internal)
+playback: yes
+playbackAddress: :9996
 
-# 4. Cấu hình định dạng ghi hình fMP4 mặc định (an toàn khi mất điện, không mất moov atom)
+# 4. Cấu hình định dạng ghi hình fMP4 mặc định cho YouTube-Live DVR Playback (an toàn khi mất điện, không mất moov atom)
 pathDefaults:
+  record: yes
+  recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f
   recordFormat: fmp4
   recordPartDuration: 1s
   recordSegmentDuration: 1m

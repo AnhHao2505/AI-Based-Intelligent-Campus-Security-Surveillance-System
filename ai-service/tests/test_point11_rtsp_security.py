@@ -49,8 +49,14 @@ def test_validate_snapshot_rtsp_url_blocks_ssrf_and_invalid_schemes():
 def test_resolve_camera_rtsp_url_uses_settings_mediamtx():
     """Điểm 11: resolve_camera_rtsp_url dùng settings.MEDIAMTX_RTSP_URL làm base mặc định"""
     with patch.object(settings, "MEDIAMTX_RTSP_URL", "rtsp://mediamtx-edge.campus:8554"):
-        resolved = resolve_camera_rtsp_url("CAM-TEST-01")
-        assert resolved.startswith("rtsp://mediamtx-edge.campus:8554/"), f"Thực tế: {resolved}"
+        with patch.object(settings, "INTERNAL_SERVICE_KEY", ""):
+            resolved = resolve_camera_rtsp_url("CAM-TEST-01")
+            assert resolved == "rtsp://mediamtx-edge.campus:8554/cam-test-01", f"Thực tế: {resolved}"
+
+        with patch.object(settings, "INTERNAL_SERVICE_KEY", "unit-test-secret"):
+            resolved_auth = resolve_camera_rtsp_url("CAM-TEST-01")
+            assert resolved_auth.startswith("rtsp://icss-internal:"), f"Thực tế: {resolved_auth}"
+            assert resolved_auth.endswith("@mediamtx-edge.campus:8554/cam-test-01"), f"Thực tế: {resolved_auth}"
 
 
 def test_uvicorn_token_masking_filter_masks_query_args():

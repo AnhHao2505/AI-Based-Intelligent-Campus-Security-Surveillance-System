@@ -108,7 +108,7 @@ export default function ReportFilterModal({ isOpen, onClose, onReportGenerated }
       isOpen={isOpen}
       onClose={onClose}
       title="Tạo Báo Cáo Giám Sát An Ninh"
-      subtitle="Tổng hợp dữ liệu sự cố, ra vào và ca trực theo chu kỳ thời gian"
+      subtitle="Tổng hợp dữ liệu sự cố, lượt vào và ca trực theo chu kỳ thời gian"
       icon={FileText}
       iconVariant="brand"
       size="md"
@@ -194,7 +194,7 @@ export default function ReportFilterModal({ isOpen, onClose, onReportGenerated }
             <span>Phạm vi nội dung báo cáo:</span>
           </div>
           <p className="leading-relaxed m-0 text-slate-600 dark:text-slate-400">
-            Hệ thống sẽ tổng hợp toàn bộ sự cố AI đã phát hiện, kết quả kiểm soát ra vào tại các camera,
+            Hệ thống sẽ tổng hợp toàn bộ sự cố AI đã phát hiện, kết quả kiểm soát vào khu vực tại các camera,
             tỉ lệ thực thi ca trực của đội bảo vệ và thống kê cơ sở hạ tầng trong khoảng thời gian đã chọn.
           </p>
         </div>

@@ -307,7 +307,7 @@ export default function CameraInspectorDrawer({
 			...prev,
 			roiGeometry: { ...prev?.roiGeometry, ...newRoi },
 		}));
-		toast.success("Cấu hình vùng giám sát (ROI) đã được lưu thành công!");
+		toast.success("Cấu hình vùng phát hiện xâm nhập đã được lưu thành công!");
 		loadCameraDetails();
 		onCameraMutated?.();
 	};
@@ -537,7 +537,7 @@ export default function CameraInspectorDrawer({
 							onClick={() => setActiveTab("surveillance")}
 						>
 							<Layers size={14} />
-							<span>Vùng ROI</span>
+							<span>Vùng phát hiện xâm nhập</span>
 						</button>
 					</div>
 

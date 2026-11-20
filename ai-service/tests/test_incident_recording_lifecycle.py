@@ -155,3 +155,50 @@ def test_incident_recording_ends_when_no_detection_anymore(mocked_pipeline):
         mock_manager.stop_camera_recordings.assert_called_once_with("CAM-TEST-INCIDENT")
         assert not pipeline._incident_recording_active
         assert pipeline._incident_first_detected_at is None
+
+
+def test_pipeline_stop_stops_incident_recordings(mocked_pipeline):
+    """
+    Khi dừng pipeline (camera dừng stream / offline), bất kỳ phiên ghi hình sự cố
+    nào đang chạy dở phải lập tức được chốt và đóng lại.
+    """
+    pipeline = mocked_pipeline
+    with patch("src.pipeline.video_pipeline.incident_recording_manager") as mock_manager:
+        pipeline._incident_recording_active = True
+        pipeline._incident_first_detected_at = 10.0
+        pipeline._incident_last_detected_at = 20.0
+
+        pipeline.stop()
+
+        mock_manager.stop_camera_recordings.assert_called_once_with("CAM-TEST-INCIDENT")
+        assert not pipeline._incident_recording_active
+        assert pipeline._incident_first_detected_at is None
+
+
+def test_incident_recording_stops_immediately_when_timeout_is_zero(mocked_pipeline):
+    """
+    Khi admin cấu hình INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS = 0:
+    Dừng ngay lập tức trên frame đầu tiên khi không còn phát hiện (0.0s).
+    """
+    pipeline = mocked_pipeline
+    pipeline.incident_no_detection_timeout_seconds = 0.0
+
+    with patch("src.pipeline.video_pipeline.incident_recording_manager") as mock_manager:
+        mock_manager.is_recording.return_value = True
+        pipeline._incident_recording_active = True
+        pipeline._incident_first_detected_at = 10.0
+        pipeline._incident_last_detected_at = 20.0
+
+        dummy_frame = MagicMock()
+        dummy_frame.shape = (480, 640, 3)
+
+        pipeline.human_detector.detect_and_track.return_value = []
+        pipeline.motion_detector.detect_motion.return_value = MagicMock(motion_boxes=[], has_motion=False)
+        pipeline.state_machine.update.return_value = "IDLE"
+        pipeline.analysis_engine.process_frame.return_value = ([], [], [])
+        pipeline.analysis_engine.active_tracks = {}
+
+        # Khung hình tại t=20.01 (ngay khi hết detection -> dừng ngay vì timeout=0)
+        pipeline.process_frame(dummy_frame, current_time=20.01)
+        mock_manager.stop_camera_recordings.assert_called_once_with("CAM-TEST-INCIDENT")
+        assert not pipeline._incident_recording_active
