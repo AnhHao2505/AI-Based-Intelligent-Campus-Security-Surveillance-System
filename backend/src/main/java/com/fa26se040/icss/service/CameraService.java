@@ -375,6 +375,13 @@ public class CameraService {
             throw new CameraException(CameraErrorCode.ERR_STREAM_003);
         }
 
+        UUID previousAreaId = camera.getArea() != null ? camera.getArea().getId() : null;
+        CameraType previousType = camera.getCameraType() != null
+                ? camera.getCameraType()
+                : (camera.getArea() != null && camera.getArea().getAreaLevel() != null
+                        ? inferCameraTypeFromArea(camera.getArea())
+                        : null);
+
         camera.setName(request.getName().trim());
         CameraType requestedType = request.getCameraType();
 
@@ -423,6 +430,14 @@ public class CameraService {
                     request.getMapBuilding(),
                     request.getMapFloorOrder()
             );
+        }
+
+        UUID updatedAreaId = camera.getArea() != null ? camera.getArea().getId() : null;
+        boolean scopeChanged = !Objects.equals(previousAreaId, updatedAreaId)
+                || (previousType != null && camera.getCameraType() != null && previousType != camera.getCameraType());
+        boolean hasNewCoordinates = request.getMapLongitude() != null && request.getMapLatitude() != null;
+        if (scopeChanged && !hasNewCoordinates) {
+            throw new CameraException(CameraErrorCode.ERR_CAM_007);
         }
 
         Camera saved = cameraRepository.save(camera);

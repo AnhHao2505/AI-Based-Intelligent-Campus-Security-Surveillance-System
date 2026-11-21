@@ -534,4 +534,109 @@ class CameraServiceTest {
         CameraException ex = assertThrows(CameraException.class, () -> cameraService.createCamera(req));
         assertEquals(CameraErrorCode.ERR_CAM_005, ex.getErrorCode());
     }
+
+    @Test
+    @DisplayName("Edit Camera: Đổi khu vực nhưng không truyền tọa độ ghim mới phải ném ERR_CAM_007")
+    void updateCamera_changeAreaWithoutNewCoordinates_throwsErrCam007() {
+        UUID oldAreaId = UUID.randomUUID();
+        UUID newAreaId = UUID.randomUUID();
+        Area oldArea = Area.builder()
+                .id(oldAreaId)
+                .name("Phòng A")
+                .areaLevel(AreaLevel.CONFIDENTIAL)
+                .building("Tòa Epsilon")
+                .floor("Tầng 1")
+                .isActive(true)
+                .build();
+        Area newArea = Area.builder()
+                .id(newAreaId)
+                .name("Phòng B")
+                .areaLevel(AreaLevel.CONFIDENTIAL)
+                .building("Tòa Epsilon")
+                .floor("Tầng 2")
+                .isActive(true)
+                .build();
+        Camera existing = Camera.builder()
+                .id(testCameraId)
+                .name("Cam cũ")
+                .cameraCode("CAM-001")
+                .status(CameraStatus.ACTIVE)
+                .cameraType(CameraType.RESTRICTED_AREA)
+                .area(oldArea)
+                .mapLongitude(106.8091)
+                .mapLatitude(10.8411)
+                .mapBuilding("Tòa Epsilon")
+                .mapFloorOrder(1)
+                .build();
+
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(existing));
+        when(areaRepository.findByIdAndDeletedAtIsNull(newAreaId)).thenReturn(Optional.of(newArea));
+
+        com.fa26se040.icss.dto.camera.UpdateCameraRequest req =
+                com.fa26se040.icss.dto.camera.UpdateCameraRequest.builder()
+                        .name("Cam mới")
+                        .cameraType(CameraType.RESTRICTED_AREA)
+                        .areaId(newAreaId)
+                        .build();
+
+        CameraException ex = assertThrows(CameraException.class, () -> cameraService.updateCamera(testCameraId, req));
+        assertEquals(CameraErrorCode.ERR_CAM_007, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("Edit Camera: Đổi khu vực kèm tọa độ ghim mới cập nhật thành công cả Area và vị trí ghim")
+    void updateCamera_changeAreaWithNewCoordinates_updatesAreaAndPin() {
+        UUID oldAreaId = UUID.randomUUID();
+        UUID newAreaId = UUID.randomUUID();
+        Area oldArea = Area.builder()
+                .id(oldAreaId)
+                .name("Phòng A")
+                .areaLevel(AreaLevel.CONFIDENTIAL)
+                .building("Tòa Epsilon")
+                .floor("Tầng 1")
+                .isActive(true)
+                .build();
+        Area newArea = Area.builder()
+                .id(newAreaId)
+                .name("Phòng B")
+                .areaLevel(AreaLevel.CONFIDENTIAL)
+                .building("Tòa Epsilon")
+                .floor("Tầng 2")
+                .isActive(true)
+                .build();
+        Camera existing = Camera.builder()
+                .id(testCameraId)
+                .name("Cam cũ")
+                .cameraCode("CAM-001")
+                .status(CameraStatus.ACTIVE)
+                .cameraType(CameraType.RESTRICTED_AREA)
+                .area(oldArea)
+                .mapLongitude(106.8091)
+                .mapLatitude(10.8411)
+                .mapBuilding("Tòa Epsilon")
+                .mapFloorOrder(1)
+                .build();
+
+        when(cameraRepository.findById(testCameraId)).thenReturn(Optional.of(existing));
+        when(areaRepository.findByIdAndDeletedAtIsNull(newAreaId)).thenReturn(Optional.of(newArea));
+        when(cameraRepository.save(any(Camera.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        com.fa26se040.icss.dto.camera.UpdateCameraRequest req =
+                com.fa26se040.icss.dto.camera.UpdateCameraRequest.builder()
+                        .name("Cam mới")
+                        .cameraType(CameraType.RESTRICTED_AREA)
+                        .areaId(newAreaId)
+                        .mapLongitude(106.8099)
+                        .mapLatitude(10.8419)
+                        .mapBuilding("Tòa Epsilon")
+                        .mapFloorOrder(2)
+                        .build();
+
+        CameraDetailResponse res = cameraService.updateCamera(testCameraId, req);
+        assertEquals(newAreaId, res.getAssignedArea().id());
+        assertEquals(106.8099, res.getMapLongitude());
+        assertEquals(10.8419, res.getMapLatitude());
+        assertEquals("Tòa Epsilon", res.getMapBuilding());
+        assertEquals(2, res.getMapFloorOrder());
+    }
 }

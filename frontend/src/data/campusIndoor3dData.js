@@ -2821,7 +2821,11 @@ export function buildVector3dLayers({
 				return isPointInPolygonWithHoles(pt, face.ring, face.holes || []);
 			});
 
-			const isSelected = matchedArea && matchedArea.id === selectedAreaId;
+			const isSelected = Boolean(
+				matchedArea &&
+					selectedAreaId != null &&
+					String(matchedArea.id) === String(selectedAreaId),
+			);
 			if (!isGhost && matchedArea?.id != null) {
 				matchedAreaIdsOnActiveFloor.add(String(matchedArea.id));
 			}

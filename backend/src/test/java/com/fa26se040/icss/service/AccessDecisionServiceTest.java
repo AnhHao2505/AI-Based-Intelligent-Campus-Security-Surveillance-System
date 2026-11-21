@@ -7,6 +7,7 @@ import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.AreaEventSchedule;
 import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.Guest;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
@@ -15,14 +16,17 @@ import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.CameraType;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.RequestType;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaAssignedPersonnelRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.GuardIncidentAccessRepository;
+import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +44,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.stream.Stream;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -57,6 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -1576,5 +1582,58 @@ class AccessDecisionServiceTest {
         assertEquals("Camera đã ngừng hoạt động (DECOMMISSIONED)", res.getReason());
         verify(userRepository, never()).findByUserCodeAndDeletedAtIsNull(any());
         verify(cameraAccessLogService, never()).recordAccessLog(any(), any());
+    }
+
+    @Test
+    @DisplayName("Phase 3 (CORRIDOR): ban đêm cho phép Bảo vệ đang trong ca trực đi tuần hành lang, từ chối Bảo vệ hết ca và Sinh viên")
+    void phase3_corridorCamera_nightRuleExemptsOnShiftGuardOnly() {
+        GuardShiftRepository guardShiftRepository = mock(GuardShiftRepository.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(accessDecisionService, "guardShiftRepository", guardShiftRepository);
+        lenient().when(systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_START)).thenReturn("22:00");
+        lenient().when(systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_END)).thenReturn("06:00");
+
+        Camera corridorCam = Camera.builder()
+                .cameraCode("CAM-CORR-01")
+                .name("Hành lang Cánh Đông Tầng 1")
+                .cameraType(CameraType.CORRIDOR)
+                .status(CameraStatus.ACTIVE)
+                .area(null)
+                .build();
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-CORR-01")).thenReturn(Optional.of(corridorCam));
+
+        User onDutyGuard = guard("BV001", "Bảo Vệ Ca Đêm");
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("BV001")).thenReturn(Optional.of(onDutyGuard));
+        OffsetDateTime nightAt = at(23);
+        GuardShift nightShift = GuardShift.builder()
+                .guard(onDutyGuard)
+                .shiftDate(nightAt.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate())
+                .startTime(java.time.LocalTime.of(22, 0))
+                .endTime(java.time.LocalTime.of(6, 0))
+                .status(ShiftStatus.CHECKED_IN)
+                .build();
+        when(guardShiftRepository.findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(
+                eq(onDutyGuard.getId()), any(), any()))
+                .thenReturn(List.of(nightShift));
+
+        var guardAllowed = accessDecisionService.checkCameraEntry("CAM-CORR-01", "BV001", nightAt);
+        assertTrue(guardAllowed.isAllowed());
+        assertEquals("Hành lang Cánh Đông Tầng 1", guardAllowed.getAreaName());
+        assertNull(guardAllowed.getAreaId());
+
+        // Bảo vệ KHÔNG có ca trực -> từ chối
+        User offDutyGuard = guard("BV002", "Bảo Vệ Nghỉ Ca");
+        when(userRepository.findByUserCodeAndDeletedAtIsNull("BV002")).thenReturn(Optional.of(offDutyGuard));
+        when(guardShiftRepository.findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(
+                eq(offDutyGuard.getId()), any(), any()))
+                .thenReturn(List.of());
+        var offDutyDenied = accessDecisionService.checkCameraEntry("CAM-CORR-01", "BV002", nightAt);
+        assertFalse(offDutyDenied.isAllowed());
+        assertTrue(offDutyDenied.getReason().contains("không có ca trực"));
+
+        // Sinh viên đi qua hành lang ban đêm -> từ chối
+        when(userRepository.findByUserCodeAndDeletedAtIsNull(student.getUserCode())).thenReturn(Optional.of(student));
+        var studentDenied = accessDecisionService.checkCameraEntry("CAM-CORR-01", student.getUserCode(), nightAt);
+        assertFalse(studentDenied.isAllowed());
+        assertTrue(studentDenied.getReason().contains("ngoài giờ"));
     }
 }

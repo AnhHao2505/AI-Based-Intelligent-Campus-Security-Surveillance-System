@@ -37,6 +37,8 @@ export default function CameraGeneralTab({
 	isEditing: controlledIsEditing,
 	onEditingChange = null,
 	onCancelEdit = null,
+	hasUpdatedPinInEdit = false,
+	onEditScopeChange = null,
 }) {
 	const navigate = useNavigate();
 	const [internalIsEditing, setInternalIsEditing] = useState(false);
@@ -64,6 +66,26 @@ export default function CameraGeneralTab({
 			: "RESTRICTED_AREA");
 	const typeConfig = resolveCameraTypeConfig(activeCameraType);
 	const isCorridorType = activeCameraType === "CORRIDOR";
+
+	const originalCameraType =
+		camera?.cameraType ||
+		(camera?.assignedArea?.areaLevel === "PUBLIC"
+			? "PUBLIC_AREA"
+			: "RESTRICTED_AREA");
+	const originalAreaId = String(
+		camera?.areaId ||
+			camera?.assignedArea?.id ||
+			camera?.assignedAreas?.[0]?.id ||
+			"",
+	);
+	const hasLocationScopeChanged =
+		activeCameraType !== originalCameraType ||
+		(!isCorridorType && String(generalForm.areaId || "") !== originalAreaId);
+	const requiresNewPinOnMap =
+		Boolean(onPickLocationOnMap) &&
+		hasLocationScopeChanged &&
+		!hasUpdatedPinInEdit;
+	const canChangeLocationScope = Boolean(onPickLocationOnMap);
 
 	const filteredAreas = useMemo(
 		() => filterAreasForCameraType(availableAreas, activeCameraType),
@@ -115,9 +137,7 @@ export default function CameraGeneralTab({
 	};
 
 	const handleCancel = () => {
-		if (onCancelEdit) {
-			onCancelEdit();
-		} else if (camera) {
+		if (camera) {
 			const fallbackAreaId =
 				camera.areaId ||
 				camera.assignedArea?.id ||
@@ -135,10 +155,12 @@ export default function CameraGeneralTab({
 				mapFloorOrder: camera.mapFloorOrder ?? 0,
 			});
 		}
+		onCancelEdit?.();
 		setEditing(false);
 	};
 
 	const handleCameraTypeChange = (nextType) => {
+		if (!canChangeLocationScope) return;
 		const nextFiltered = filterAreasForCameraType(availableAreas, nextType);
 		const currentAreaStillValid = nextFiltered.some(
 			(a) => String(a.id) === String(generalForm.areaId),
@@ -159,9 +181,22 @@ export default function CameraGeneralTab({
 			areaId: nextAreaId,
 			name: nextName,
 		});
+		const nextScopeChanged =
+			nextType !== originalCameraType ||
+			(nextType !== "CORRIDOR" && String(nextAreaId || "") !== originalAreaId);
+		onEditScopeChange?.({
+			cameraType: nextType,
+			areaId: nextType === "CORRIDOR" ? null : nextAreaId || null,
+			scopeChanged: nextScopeChanged,
+		});
 	};
 
 	const handleFormSubmit = async (e) => {
+		if (requiresNewPinOnMap) {
+			e.preventDefault();
+			onPickLocationOnMap?.();
+			return;
+		}
 		const res = await onSubmit?.(e);
 		if (res !== false) {
 			setEditing(false);
@@ -328,7 +363,7 @@ export default function CameraGeneralTab({
 									type="button"
 									className={`cam-type-option-btn ${isSelected ? "cam-type-option-btn--active" : ""}`}
 									onClick={() => handleCameraTypeChange(opt.value)}
-									disabled={!isAdmin || saving}
+									disabled={!isAdmin || saving || !canChangeLocationScope}
 								>
 									<span className="cam-type-option-btn__title">
 										{opt.label}
@@ -407,13 +442,22 @@ export default function CameraGeneralTab({
 								className="camera-general-area-select"
 								areas={filteredAreas}
 								value={generalForm.areaId || ""}
-								onChange={(e) =>
-									setGeneralForm({ ...generalForm, areaId: e.target.value })
-								}
+								onChange={(e) => {
+									const nextAreaId = e.target.value;
+									setGeneralForm({ ...generalForm, areaId: nextAreaId });
+									const nextScopeChanged =
+										activeCameraType !== originalCameraType ||
+										String(nextAreaId || "") !== originalAreaId;
+									onEditScopeChange?.({
+										cameraType: activeCameraType,
+										areaId: nextAreaId || null,
+										scopeChanged: nextScopeChanged,
+									});
+								}}
 								placeholder="-- Chọn khu vực --"
 								placeholderDisabled
 								required
-								disabled={!isAdmin || saving}
+								disabled={!isAdmin || saving || !canChangeLocationScope}
 							/>
 
 							{showAreaExternalLink && (
@@ -453,6 +497,16 @@ export default function CameraGeneralTab({
 				)}
 			</div>
 
+			{!canChangeLocationScope && isAdmin && (
+				<div
+					className="cam-map-card__hint"
+					style={{ marginBottom: "10px", color: "#b45309" }}
+				>
+					Để đổi khu vực hoặc loại vị trí, vui lòng mở camera trên{" "}
+					<strong>Bản đồ 2D (Quản lý Khu vực)</strong> để ghim lại vị trí mới.
+				</div>
+			)}
+
 			{onPickLocationOnMap && isAdmin && (
 				<div className="cam-map-card">
 					<button
@@ -464,13 +518,31 @@ export default function CameraGeneralTab({
 						<span>
 							{isPickingLocationOnMap
 								? "Đang chọn trên bản đồ..."
-								: mapPlacement
-									? "Đặt lại vị trí trên bản đồ"
-									: "Đặt vị trí trên bản đồ"}
+								: requiresNewPinOnMap
+									? "Bắt buộc chọn lại vị trí trên bản đồ"
+									: mapPlacement
+										? "Đặt lại vị trí trên bản đồ"
+										: "Đặt vị trí trên bản đồ"}
 						</span>
 					</button>
 
-					{!mapPlacement ? (
+					{requiresNewPinOnMap ? (
+						<p
+							className="cam-map-card__empty"
+							style={{ color: "#b45309", fontWeight: 500 }}
+						>
+							Bạn đã thay đổi khu vực / loại vị trí. Bắt buộc click chọn vị trí
+							ghim mới trên bản đồ 2D trước khi lưu.
+						</p>
+					) : hasLocationScopeChanged && hasUpdatedPinInEdit ? (
+						<div
+							className="cam-map-card__hint"
+							style={{ marginTop: "6px", color: "#15803d", fontWeight: 500 }}
+						>
+							Đã ghim vị trí mới cho khu vực đã chọn — bấm{" "}
+							<strong>Lưu thông tin</strong> để hoàn tất.
+						</div>
+					) : !mapPlacement ? (
 						<p className="cam-map-card__empty">
 							Chưa ghim trên bản đồ. Bấm nút hoặc chấm trên bản đồ để ghim.
 						</p>
@@ -501,7 +573,12 @@ export default function CameraGeneralTab({
 					<button
 						type="submit"
 						className="btn-save"
-						disabled={saving}
+						disabled={saving || requiresNewPinOnMap}
+						title={
+							requiresNewPinOnMap
+								? "Vui lòng chọn lại vị trí ghim trên bản đồ cho khu vực mới"
+								: undefined
+						}
 					>
 						{saving ? (
 							<Loader2

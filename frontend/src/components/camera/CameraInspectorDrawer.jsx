@@ -65,6 +65,10 @@ export default function CameraInspectorDrawer({
 	onUndoRemoveMapLocation = null,
 	isGeneralEditing,
 	onGeneralEditingChange = null,
+	pendingEditLocation = null,
+	hasUpdatedPinInEdit = false,
+	onEditScopeChange = null,
+	onCancelGeneralEdit = null,
 }) {
 	const liveOperationalStatusRef = useRef(liveOperationalStatus);
 	liveOperationalStatusRef.current = liveOperationalStatus;
@@ -335,12 +339,20 @@ export default function CameraInspectorDrawer({
 				name: effectiveName,
 				cameraType: effectiveType,
 				areaId: effectiveType === "CORRIDOR" ? null : generalForm.areaId || null,
+				...(pendingEditLocation
+					? {
+							mapLongitude: pendingEditLocation.lng,
+							mapLatitude: pendingEditLocation.lat,
+						}
+					: {}),
 				mapBuilding:
+					pendingEditLocation?.building ||
 					mapPlacement?.building ||
 					generalForm.mapBuilding ||
 					camera?.mapBuilding ||
 					null,
 				mapFloorOrder:
+					pendingEditLocation?.floorOrder ??
 					mapPlacement?.floorOrder ??
 					generalForm.mapFloorOrder ??
 					camera?.mapFloorOrder ??
@@ -556,6 +568,9 @@ export default function CameraInspectorDrawer({
 								onUndoRemoveMapLocation={onUndoRemoveMapLocation}
 								isEditing={isGeneralEditing}
 								onEditingChange={onGeneralEditingChange}
+								hasUpdatedPinInEdit={hasUpdatedPinInEdit}
+								onEditScopeChange={onEditScopeChange}
+								onCancelEdit={onCancelGeneralEdit}
 							/>
 						)}
 

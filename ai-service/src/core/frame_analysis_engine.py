@@ -493,17 +493,8 @@ class FrameAnalysisEngine:
         else:
             person.security_display_state = new_state
 
-    def process_frame(
-        self,
-        detected_tracks: List[Tuple[int, BoundingBox]],
-        roi_polygon: Optional[List[Point]] = None,
-        camera_code: str = "CAM-001",
-        current_time: Optional[float] = None,
-        roi_polygons: Optional[List[Any]] = None,
-        frame_size: Optional[Tuple[int, int]] = None,
-        is_public_area: bool = False,
-        area_name: Optional[str] = None
-    ) -> Tuple[List[TrackedPerson], List[SecurityAlertEvent], List[Dict[str, Any]]]:
+    def is_after_hours(self, current_time: Optional[float] = None) -> bool:
+        """Kiểm tra thời điểm hiện tại có nằm trong khung giờ ngoài giờ (after_hour_start -> after_hour_end) hay không."""
         if current_time is None:
             current_time = time.time()
 
@@ -550,6 +541,24 @@ class FrameAnalysisEngine:
                 after_hours = (start <= now < end)
             else:
                 after_hours = (now >= start or now < end)
+
+        return after_hours
+
+    def process_frame(
+        self,
+        detected_tracks: List[Tuple[int, BoundingBox]],
+        roi_polygon: Optional[List[Point]] = None,
+        camera_code: str = "CAM-001",
+        current_time: Optional[float] = None,
+        roi_polygons: Optional[List[Any]] = None,
+        frame_size: Optional[Tuple[int, int]] = None,
+        is_public_area: bool = False,
+        area_name: Optional[str] = None
+    ) -> Tuple[List[TrackedPerson], List[SecurityAlertEvent], List[Dict[str, Any]]]:
+        if current_time is None:
+            current_time = time.time()
+
+        after_hours = self.is_after_hours(current_time)
 
         generated_alerts: List[SecurityAlertEvent] = []
         roi_access_events: List[Dict[str, Any]] = []

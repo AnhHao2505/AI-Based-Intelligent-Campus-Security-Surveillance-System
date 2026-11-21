@@ -200,6 +200,7 @@ export default function CampusMapView({
 	onAreaPickedForCamera = null,
 	cameraMapPlacements = {},
 	pickingCameraLocation = false,
+	pickingCameraTargetOverride = null,
 	onCancelPickCameraLocation = null,
 	onCameraLocationPicked = null,
 	onCameraPlacementRejected = null,
@@ -331,13 +332,32 @@ export default function CampusMapView({
 		editingAreaId,
 	]);
 
-	const pickingTargetCamera = useMemo(
-		() =>
-			selectedCameraId
-				? cameras.find((c) => c.id === selectedCameraId) || null
-				: null,
-		[cameras, selectedCameraId],
-	);
+	const pickingTargetCamera = useMemo(() => {
+		const base = selectedCameraId
+			? cameras.find((c) => c.id === selectedCameraId) || null
+			: null;
+		if (!base) return null;
+		if (!pickingCameraTargetOverride) return base;
+		const nextType = pickingCameraTargetOverride.cameraType || base.cameraType;
+		const isCorr = String(nextType || "").toUpperCase() === "CORRIDOR";
+		const nextAreaId = isCorr
+			? null
+			: (pickingCameraTargetOverride.areaId ?? null);
+		const nextArea = nextAreaId
+			? areas.find((a) => String(a.id) === String(nextAreaId)) || null
+			: null;
+		return {
+			...base,
+			cameraType: nextType,
+			areaId: nextAreaId,
+			assignedArea: nextArea,
+			assignedAreas: nextArea ? [nextArea] : [],
+			mapBuilding: nextArea?.building || base.mapBuilding,
+			mapFloorOrder: nextArea?.floor
+				? resolveFloorOrder(nextArea.building, nextArea.floor)
+				: base.mapFloorOrder,
+		};
+	}, [areas, cameras, pickingCameraTargetOverride, selectedCameraId]);
 
 	const pickingTargetAreaInfo = useMemo(
 		() =>
@@ -536,6 +556,16 @@ export default function CampusMapView({
 		() => splitGhostActiveGeoJSON(wallsGeoJSON),
 		[wallsGeoJSON],
 	);
+	const roomsSplit = useMemo(
+		() => splitGhostActiveGeoJSON(roomsGeoJSON),
+		[roomsGeoJSON],
+	);
+	const selectedRoomGeoJSON = useMemo(() => {
+		const selected = (roomsSplit.active?.features || []).filter(
+			(f) => f.properties?.isSelected === true,
+		);
+		return { type: "FeatureCollection", features: selected };
+	}, [roomsSplit.active]);
 	const doorsActiveGeoJSON = useMemo(() => {
 		const activeDoors = (doorsGeoJSON?.features || []).filter(
 			(f) => !f.properties?.isGhost,
@@ -599,10 +629,6 @@ export default function CampusMapView({
 		}
 		return { type: "FeatureCollection", features: swingFeatures };
 	}, [doorsActiveGeoJSON]);
-	const roomsSplit = useMemo(
-		() => splitGhostActiveGeoJSON(roomsGeoJSON),
-		[roomsGeoJSON],
-	);
 
 	// Refs tránh feedback-loop khi đồng bộ 2 chiều giữa Sidebar và Slicer 3D
 	const slicerStateRef = useRef({ building: "ALL", floorOrder: "ALL" });
@@ -1431,7 +1457,13 @@ export default function CampusMapView({
 				}
 				const placement = cameraMapPlacements?.[camId];
 				if (!placement) return;
-				const camAreaInfo = targetCam ? extractCameraAreaInfo(targetCam) : null;
+				const effectiveTargetCam =
+					camId === selectedCameraId && pickingTargetCamera
+						? pickingTargetCamera
+						: targetCam;
+				const camAreaInfo = effectiveTargetCam
+					? extractCameraAreaInfo(effectiveTargetCam)
+					: null;
 				const camArea = camAreaInfo?.areaId
 					? areas.find((a) => a.id === camAreaInfo.areaId) || null
 					: null;
@@ -1439,10 +1471,12 @@ export default function CampusMapView({
 				draggingPinRef.current = {
 					mode: "move",
 					cameraId: camId,
-					targetCam,
+					targetCam: effectiveTargetCam,
 					targetArea: camArea,
-					building: placement.building ?? null,
-					floorOrder: placement.floorOrder ?? null,
+					building:
+						effectiveTargetCam?.mapBuilding ?? placement.building ?? null,
+					floorOrder:
+						effectiveTargetCam?.mapFloorOrder ?? placement.floorOrder ?? null,
 					origin: { lng: Number(placement.lng), lat: Number(placement.lat) },
 					startPoint: e?.point
 						? { x: Number(e.point.x), y: Number(e.point.y) }
@@ -1464,6 +1498,7 @@ export default function CampusMapView({
 			canDragCameraPin,
 			isAdmin,
 			pickingCameraLocation,
+			pickingTargetCamera,
 			selectedCameraId,
 		],
 	);
@@ -2532,36 +2567,38 @@ export default function CampusMapView({
 						</Source>
 
 						{/* Viền focus 2 lớp cho khu vực đang được chọn (giữ nguyên màu cấp độ bên trong) */}
-						<Layer
-							id="campus-2d-room-selected-halo"
-							type="line"
-							source="campus-3d-rooms-src"
-							filter={["==", ["get", "isSelected"], true]}
-							layout={{
-								"line-join": "round",
-								"line-cap": "round",
-							}}
-							paint={{
-								"line-color": "#ffffff",
-								"line-width": 6,
-								"line-opacity": 0.96,
-							}}
-						/>
-						<Layer
-							id="campus-2d-room-selected-outline"
-							type="line"
-							source="campus-3d-rooms-src"
-							filter={["==", ["get", "isSelected"], true]}
-							layout={{
-								"line-join": "round",
-								"line-cap": "round",
-							}}
-							paint={{
-								"line-color": "#1d4ed8",
-								"line-width": 3.2,
-								"line-opacity": 1,
-							}}
-						/>
+						<Source
+							id="campus-2d-selected-room-src"
+							type="geojson"
+							data={selectedRoomGeoJSON}
+						>
+							<Layer
+								id="campus-2d-room-selected-halo"
+								type="line"
+								layout={{
+									"line-join": "round",
+									"line-cap": "round",
+								}}
+								paint={{
+									"line-color": "#ffffff",
+									"line-width": 6,
+									"line-opacity": 0.96,
+								}}
+							/>
+							<Layer
+								id="campus-2d-room-selected-outline"
+								type="line"
+								layout={{
+									"line-join": "round",
+									"line-cap": "round",
+								}}
+								paint={{
+									"line-color": "#1d4ed8",
+									"line-width": 3.2,
+									"line-opacity": 1,
+								}}
+							/>
+						</Source>
 
 						{/* Lớp Nhãn Tên Khu Vực & Biểu Tượng Cầu Thang / Thang Máy (2D Flat) */}
 						<Source
@@ -2633,6 +2670,31 @@ export default function CampusMapView({
 							data={cameraPinsGeoJSON}
 						>
 							<Layer
+								id="campus-2d-camera-selected-halo"
+								type="circle"
+								filter={["==", ["get", "isSelected"], 1]}
+								paint={{
+									"circle-radius": 26,
+									"circle-color": "#2563eb",
+									"circle-opacity": 0.16,
+									"circle-stroke-width": 2,
+									"circle-stroke-color": "#2563eb",
+									"circle-stroke-opacity": 0.92,
+								}}
+							/>
+							<Layer
+								id="campus-2d-camera-selected-ring"
+								type="circle"
+								filter={["==", ["get", "isSelected"], 1]}
+								paint={{
+									"circle-radius": 20,
+									"circle-color": "rgba(255,255,255,0)",
+									"circle-stroke-width": 2.4,
+									"circle-stroke-color": "#ffffff",
+									"circle-stroke-opacity": 0.98,
+								}}
+							/>
+							<Layer
 								id="campus-2d-camera-pins-layer"
 								type="symbol"
 								layout={{
@@ -2642,14 +2704,45 @@ export default function CampusMapView({
 										["linear"],
 										["zoom"],
 										15.5,
-										0.72,
+										["case", ["==", ["get", "isSelected"], 1], 0.88, 0.72],
 										18,
-										0.92,
+										["case", ["==", ["get", "isSelected"], 1], 1.1, 0.92],
 										20,
-										1.05,
+										["case", ["==", ["get", "isSelected"], 1], 1.26, 1.05],
 									],
 									"icon-allow-overlap": true,
 									"icon-ignore-placement": true,
+									"symbol-sort-key": [
+										"case",
+										["==", ["get", "isSelected"], 1],
+										0,
+										10,
+									],
+								}}
+								paint={{
+									"icon-opacity": selectedCameraId
+										? ["case", ["==", ["get", "isSelected"], 1], 1, 0.58]
+										: 1,
+								}}
+							/>
+							<Layer
+								id="campus-2d-camera-selected-label"
+								type="symbol"
+								filter={["==", ["get", "isSelected"], 1]}
+								layout={{
+									"text-field": ["get", "cameraName"],
+									"text-size": 12,
+									"text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+									"text-offset": [0, 2.3],
+									"text-anchor": "top",
+									"text-allow-overlap": true,
+									"text-ignore-placement": true,
+								}}
+								paint={{
+									"text-color": "#0f172a",
+									"text-halo-color": "#ffffff",
+									"text-halo-width": 2.2,
+									"text-halo-blur": 0.4,
 								}}
 							/>
 						</Source>

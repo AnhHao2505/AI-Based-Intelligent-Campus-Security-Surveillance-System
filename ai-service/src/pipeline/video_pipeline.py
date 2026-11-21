@@ -139,6 +139,7 @@ class VideoPipeline:
         self._incident_last_detected_at: Optional[float] = None
         self._pending_incident_params: Optional[Dict[str, Any]] = None
         self._incident_recording_active: bool = False
+        self._is_daytime_sleeping: bool = False
 
     @property
     def is_incident_active_or_pending(self) -> bool:
@@ -793,6 +794,39 @@ class VideoPipeline:
             )
         return vis_frame
 
+    def _reset_state_on_daytime_sleep(self) -> None:
+        """
+        Phase 3: Khi camera Công cộng (PUBLIC_AREA) hoặc Hành lang (CORRIDOR) bước vào giờ hoạt động ban ngày,
+        đưa pipeline về trạng thái ngủ hoàn toàn (tắt MOG2, YOLO26, SCRFD, ArcFace, SUSPICIOUS_MOVING_OBJECT,
+        check-entry, CameraAccessLog) và giải phóng track/recording tồn đọng từ ca đêm.
+        """
+        self._is_daytime_sleeping = True
+        self.analysis_engine.active_tracks.clear()
+        self.analysis_engine.pending_faces.clear()
+        self._track_face_scan_times.clear()
+        self._track_arcface_times.clear()
+        self._track_identify_stats.clear()
+        self._suspicious_motion_start_time = None
+        self._last_suspicious_candidate_time = None
+        self._cached_motion_res = None
+        if hasattr(self, "state_machine") and self.state_machine is not None:
+            self.state_machine.reset()
+
+        if self._incident_recording_active or incident_recording_manager.is_recording(self.camera_code):
+            try:
+                incident_recording_manager.stop_camera_recordings(self.camera_code)
+            except Exception as e:
+                logger.warning(f"⚠️ [VideoPipeline:{self.camera_code}] Lỗi dừng ghi hình khi chuyển sang ngủ ban ngày: {e}")
+        self._incident_recording_active = False
+        self._incident_first_detected_at = None
+        self._incident_last_detected_at = None
+        self._pending_incident_params = None
+
+        logger.info(
+            f"🌙➡️☀️ [VideoPipeline:{self.camera_code}] Camera Công cộng / Hành lang đang trong giờ hoạt động -> "
+            f"Ngủ AI 100% (tắt MOG2, YOLO26, SCRFD, ArcFace & không ghi Access Log)"
+        )
+
     def process_frame(
         self,
         frame: np.ndarray,
@@ -808,6 +842,28 @@ class VideoPipeline:
 
         if current_time is None:
             current_time = time.time()
+
+        # Phase 3: Camera PUBLIC_AREA & CORRIDOR ngủ 100% trong giờ hoạt động ban ngày
+        is_public = bool(self.face_matcher and self.face_matcher.is_camera_public(self.camera_code) is True)
+        if is_public and hasattr(self.analysis_engine, "is_after_hours"):
+            after_hours = self.analysis_engine.is_after_hours(current_time)
+            if not after_hours:
+                if not getattr(self, "_is_daytime_sleeping", False):
+                    self._reset_state_on_daytime_sleep()
+                if need_annotated is True and (self.roi_polygons or self.roi_polygon):
+                    annotated_frame = FrameVisualizer.draw_all_rois(
+                        frame.copy(),
+                        polygons=self.roi_polygons if self.roi_polygons else self.roi_polygon
+                    )
+                    return annotated_frame, [], []
+                return frame, [], []
+            elif getattr(self, "_is_daytime_sleeping", False):
+                self._is_daytime_sleeping = False
+                self._last_heartbeat_time = current_time
+                logger.info(
+                    f"☀️➡️🌙 [VideoPipeline:{self.camera_code}] Vào khung giờ ngoài giờ -> "
+                    f"Đánh thức AI (bật PERSON_INTRUSION, SUSPICIOUS_MOVING_OBJECT & quét mặt ngầm trừ Bảo vệ)"
+                )
 
         early_alerts: List[SecurityAlertEvent] = []
         h, w = frame.shape[:2]
@@ -1394,7 +1450,7 @@ class VideoPipeline:
         # ------------------------------------------------------------------
         # 4. PHÂN TÍCH XÂM NHẬP VÙNG CẤM (FRAME ANALYSIS ENGINE)
         # ------------------------------------------------------------------
-        is_public = self.face_matcher.is_camera_public(self.camera_code) if self.face_matcher else False
+        is_public = bool(self.face_matcher and self.face_matcher.is_camera_public(self.camera_code) is True)
         cam_area_name = self.face_matcher.get_camera_area_name(self.camera_code) if self.face_matcher else None
         active_persons, alerts, roi_events = self.analysis_engine.process_frame(
             detected_tracks=detected_tracks,
