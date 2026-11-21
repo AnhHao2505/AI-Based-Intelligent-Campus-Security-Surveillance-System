@@ -24,6 +24,10 @@ class IncidentProvider extends ChangeNotifier {
     stompService.onConnectionChange = () {
       notifyListeners();
     };
+    // Kết nối lại: tải lại sự cố đang mở, bù các cảnh báo phát trong lúc mất kết nối (DEF-21)
+    stompService.onReconnected = () {
+      loadActiveIncidents();
+    };
   }
 
   // ═══════════════ MULTI-INCIDENT STATE ═══════════════
