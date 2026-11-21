@@ -11,6 +11,7 @@ import {
 	ChevronRight,
 	Users,
 	Inbox,
+	Camera,
 } from "lucide-react";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
@@ -27,7 +28,12 @@ import {
 	formatDateTime,
 	canHostCancel,
 	getMissingPhotoInfo,
+	canHostReplacePhoto,
+	getErrorGuestIndex,
+	GUEST_PHOTO_FALLBACK_MAX_KB,
 } from "../../utils/guestHelpers";
+import GuestPhotoPicker from "./GuestPhotoPicker";
+import GuestPhotoThumb from "./GuestPhotoThumb";
 import "../../styles/GuestVisitPage.css";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -36,7 +42,9 @@ import useRevealMessage from "../../hooks/useRevealMessage";
 import useGuestPurposeLimits from "../../hooks/useGuestPurposeLimits";
 
 const PAGE_SIZE = 10;
-const EMPTY_GUEST = { fullName: "", organization: "" };
+// A1: mỗi khách có ảnh khuôn mặt + xác nhận đồng ý; uid làm key ổn định khi xoá khách giữa danh sách
+let guestSeq = 0;
+const newGuest = () => ({ uid: ++guestSeq, fullName: "", organization: "", photo: { file: null, consent: false } });
 
 function toIso(localValue) {
 	// datetime-local (giờ máy người dùng) -> ISO UTC; backend nhận OffsetDateTime
@@ -78,9 +86,11 @@ export default function GuestVisitPage() {
 	const [startTime, setStartTime] = useState("");
 	const [endTime, setEndTime] = useState("");
 	const [areaIds, setAreaIds] = useState([]);
-	const [guests, setGuests] = useState([{ ...EMPTY_GUEST }]);
+	const [guests, setGuests] = useState(() => [newGuest()]);
 	const [creating, setCreating] = useState(false);
 	const [createError, setCreateError] = useState("");
+	// A2: backend báo lỗi ảnh của đúng một khách (data.guestIndex) -> tô khung khách đó
+	const [errorGuestIndex, setErrorGuestIndex] = useState(null);
 	// Banner lỗi ở đầu popup tạo lượt khách, nút Gửi duyệt ở chân popup -> cuộn banner vào tầm nhìn (LT-01)
 	const createErrorRef = useRef(null);
 	useRevealMessage(createErrorRef, createError);
@@ -98,6 +108,12 @@ export default function GuestVisitPage() {
 	const cancelReasonRef = useRef(null);
 	const [cancelling, setCancelling] = useState(false);
 	const [cancelError, setCancelError] = useState("");
+
+	// A5: thay ảnh khách khi lượt Chờ duyệt / Đã duyệt chưa tới giờ bắt đầu
+	const [replaceTarget, setReplaceTarget] = useState(null); // { visit, guest }
+	const [replacePhoto, setReplacePhoto] = useState({ file: null, consent: false });
+	const [replacing, setReplacing] = useState(false);
+	const [replaceError, setReplaceError] = useState("");
 
 	const loadVisits = useCallback(async (targetPage = 0) => {
 		setLoading(true);
@@ -167,6 +183,9 @@ export default function GuestVisitPage() {
 			.catch((err) => console.error("Lỗi tải điều kiện mời khách:", err));
 	}, []);
 	const cannotHost = eligibility?.canHost === false;
+	// Phiên bản thông báo đồng ý + giới hạn ảnh lấy từ /eligibility (NORMAL_USER không đọc được System Configuration)
+	const consentVersion = eligibility?.consentNoticeVersion || null;
+	const photoMaxKb = eligibility?.photoMaxKb || GUEST_PHOTO_FALLBACK_MAX_KB;
 
 	const selectableAreas = useMemo(
 		() => areas.filter((a) => GUEST_ALLOWED_AREA_LEVELS.includes(a.areaLevel)),
@@ -178,8 +197,9 @@ export default function GuestVisitPage() {
 		setStartTime("");
 		setEndTime("");
 		setAreaIds([]);
-		setGuests([{ ...EMPTY_GUEST }]);
+		setGuests([newGuest()]);
 		setCreateError("");
+		setErrorGuestIndex(null);
 		setCreateOpen(true);
 		setLoadingAreas(true);
 		try {
@@ -231,8 +251,11 @@ export default function GuestVisitPage() {
 		setGuests((prev) => prev.map((g, i) => (i === index ? { ...g, [field]: value } : g)));
 	};
 
-	const addGuest = () => setGuests((prev) => [...prev, { ...EMPTY_GUEST }]);
-	const removeGuest = (index) => setGuests((prev) => prev.filter((_, i) => i !== index));
+	const addGuest = () => setGuests((prev) => [...prev, newGuest()]);
+	const removeGuest = (index) => {
+		setGuests((prev) => prev.filter((_, i) => i !== index));
+		setErrorGuestIndex(null);
+	};
 
 	const purposeLength = purpose.trim().length;
 	// UX-03: lý do nút "Gửi duyệt" đang khoá — cùng điều kiện với canSubmitCreate
@@ -245,27 +268,36 @@ export default function GuestVisitPage() {
 	if (guests.length === 0 || !guests.every((g) => g.fullName.trim().length >= 2)) {
 		createBlockers.push("nhập họ tên (tối thiểu 2 ký tự) cho mọi khách");
 	}
+	if (!consentVersion) {
+		createBlockers.push("tải được phiên bản thông báo đồng ý (thử tải lại trang)");
+	} else if (!guests.every((g) => g.photo.file && g.photo.consent)) {
+		createBlockers.push("chọn ảnh và tick đồng ý chụp ảnh cho mọi khách");
+	}
 	const canSubmitCreate = !creating && createBlockers.length === 0;
 
 	const submitCreate = async () => {
 		setCreating(true);
 		setCreateError("");
+		setErrorGuestIndex(null);
 		try {
 			await guestVisitService.createVisit({
 				purpose: purpose.trim(),
 				startTime: toIso(startTime),
 				endTime: toIso(endTime),
 				areaIds,
+				consentNoticeVersion: consentVersion,
 				guests: guests.map((g) => ({
 					fullName: g.fullName.trim(),
 					organization: g.organization.trim() || null,
+					consentConfirmed: g.photo.consent,
 				})),
-			});
+			}, guests.map((g) => g.photo.file));
 			setCreateOpen(false);
 			await loadVisits(0);
 		} catch (err) {
-			// Thông điệp nghiệp vụ lấy nguyên từ backend (ERR_GUEST_0xx)
+			// Thông điệp nghiệp vụ lấy nguyên từ backend (ERR_GUEST_0xx); lỗi ảnh nêu đúng khách
 			setCreateError(err?.message || "Không tạo được lượt khách.");
+			setErrorGuestIndex(getErrorGuestIndex(err));
 		} finally {
 			setCreating(false);
 		}
@@ -314,6 +346,41 @@ export default function GuestVisitPage() {
 		}
 	};
 
+	const openReplace = (visit, guest) => {
+		setReplaceTarget({ visit, guest });
+		setReplacePhoto({ file: null, consent: false });
+		setReplaceError("");
+	};
+
+	const closeReplace = () => {
+		if (replacing) return;
+		setReplaceTarget(null);
+		setReplaceError("");
+	};
+
+	const submitReplace = async () => {
+		if (!replaceTarget || !replacePhoto.file || !replacePhoto.consent || !consentVersion) return;
+		setReplacing(true);
+		setReplaceError("");
+		try {
+			await guestVisitService.uploadGuestPhoto(replaceTarget.visit.id, replaceTarget.guest.id, {
+				file: replacePhoto.file,
+				consentConfirmed: true,
+				consentNoticeVersion: consentVersion,
+			});
+			toast.success(`Đã lưu ảnh cho khách ${replaceTarget.guest.fullName}`);
+			setReplaceTarget(null);
+			// thay ảnh tăng version lượt -> tải lại chi tiết + danh sách để thao tác sau dùng version mới
+			const fresh = await guestVisitService.getVisit(replaceTarget.visit.id).catch(() => null);
+			if (fresh) setDetail(fresh);
+			await loadVisits(page);
+		} catch (err) {
+			setReplaceError(err?.message || "Không lưu được ảnh khách.");
+		} finally {
+			setReplacing(false);
+		}
+	};
+
 	const renderStatus = (status) => {
 		const cfg = getGuestVisitStatus(status);
 		return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
@@ -323,7 +390,7 @@ export default function GuestVisitPage() {
 		<div className="guest-visit">
 			<PageHeader
 				title="Khách của tôi"
-				description="Đăng ký lượt khách vào khu vực hạn chế. Quản lý cơ sở vật chất duyệt, quản trị viên gắn ảnh khách sau khi khách đồng ý tại quầy."
+				description="Đăng ký lượt khách vào khu vực hạn chế kèm ảnh khuôn mặt của từng khách (khách đã đồng ý chụp ảnh). Quản lý cơ sở vật chất xem ảnh và duyệt."
 				actions={
 					<>
 						<Button variant="secondary" icon={RefreshCw} onClick={() => loadVisits(page)} loading={loading}>
@@ -402,7 +469,7 @@ export default function GuestVisitPage() {
 													Chưa có ảnh ({getMissingPhotoInfo(v).missing}/{getMissingPhotoInfo(v).total} khách)
 												</Badge>
 												<span className="guest-visit__photo-missing-hint">
-													Khách cần đăng ký khuôn mặt tại quầy trước giờ vào
+													Mở Chi tiết để gắn ảnh cho khách trước giờ bắt đầu
 												</span>
 											</div>
 										)}
@@ -456,7 +523,7 @@ export default function GuestVisitPage() {
 				initialFocus="field"
 				onClose={() => !creating && setCreateOpen(false)}
 				title="Tạo lượt khách"
-				subtitle="Chỉ nhập họ tên và đơn vị của khách. Hệ thống không nhận CCCD, số điện thoại, địa chỉ hay email."
+				subtitle="Nhập họ tên, đơn vị và ảnh khuôn mặt của từng khách (khách phải đồng ý chụp ảnh). Hệ thống không nhận CCCD, số điện thoại, địa chỉ hay email."
 				icon={UserPlus}
 				size="lg"
 				footer={
@@ -559,7 +626,11 @@ export default function GuestVisitPage() {
 					<div className="guest-visit__field">
 						<span className="guest-visit__label">Danh sách khách *</span>
 						{guests.map((g, i) => (
-							<div className="guest-visit__guest-row" key={i}>
+							<div
+								className={`guest-visit__guest-row guest-visit__guest-row--card${errorGuestIndex === i ? " guest-visit__guest-row--error" : ""}`}
+								key={g.uid}
+								data-guest-index={i}
+							>
 								<input
 									aria-label={`Họ tên khách ${i + 1}`}
 									placeholder="Họ tên (2–100 ký tự)"
@@ -582,6 +653,18 @@ export default function GuestVisitPage() {
 									disabled={guests.length <= 1}
 									aria-label={`Xóa khách ${i + 1}`}
 									title="Xóa khách"
+								/>
+								<GuestPhotoPicker
+									id={`guest-photo-${g.uid}`}
+									guestLabel={`khách ${i + 1}`}
+									value={g.photo}
+									onChange={(next) => {
+										updateGuest(i, "photo", next);
+										if (errorGuestIndex === i) setErrorGuestIndex(null);
+									}}
+									maxKb={photoMaxKb}
+									consentVersion={consentVersion}
+									disabled={creating}
 								/>
 							</div>
 						))}
@@ -659,6 +742,14 @@ export default function GuestVisitPage() {
 											<td>{g.organization || "—"}</td>
 											<td>
 												<Badge variant={bio.variant}>{bio.label}</Badge>
+												<GuestPhotoThumb key={`${g.id}-${g.photoAttachedAt || ""}`} visitId={detail.id} guest={g} />
+												{canHostReplacePhoto(detail, g) && (
+													<div className="guest-visit__photo-view">
+														<Button variant="secondary" size="sm" icon={Camera} onClick={() => openReplace(detail, g)}>
+															{g.biometricStatus === "PHOTO_READY" || g.biometricStatus === "PHOTO_ONLY" ? "Thay ảnh" : "Gắn ảnh"}
+														</Button>
+													</div>
+												)}
 											</td>
 										</tr>
 									);
@@ -684,7 +775,7 @@ export default function GuestVisitPage() {
 						? new Date(cancelTarget.startTime) <= new Date()
 							? "Lượt đã bắt đầu: huỷ sẽ thu hồi quyền của khách ngay. Ảnh và dữ liệu khuôn mặt đã gắn được giữ thêm theo thời hạn lưu trong cấu hình hệ thống, sau đó tự động xóa."
 							: "Lượt đã được duyệt, chưa tới giờ bắt đầu: huỷ sẽ thu hồi quyền của khách và xóa ngay dữ liệu khuôn mặt đã gắn."
-						: "Lượt đang chờ duyệt sẽ bị huỷ."
+						: "Lượt đang chờ duyệt sẽ bị huỷ, ảnh và dữ liệu khuôn mặt của khách bị xóa ngay."
 				}
 				icon={Ban}
 				iconVariant="danger"
@@ -717,6 +808,49 @@ export default function GuestVisitPage() {
 					required={false}
 					disabled={cancelling}
 				/>
+			</Modal>
+
+			{/* A5: gắn / thay ảnh khách */}
+			<Modal
+				isOpen={!!replaceTarget}
+				onClose={closeReplace}
+				title={replaceTarget?.guest?.biometricStatus === "NO_PHOTO" ? "Gắn ảnh khách" : "Thay ảnh khách"}
+				subtitle="Chỉ thay được trước giờ bắt đầu của lượt. Ảnh cũ và dữ liệu khuôn mặt cũ bị xóa sau khi lưu ảnh mới."
+				icon={Camera}
+				size="md"
+				footer={
+					<Button
+						onClick={submitReplace}
+						loading={replacing}
+						disabled={replacing || !replacePhoto.file || !replacePhoto.consent || !consentVersion}
+					>
+						Lưu ảnh
+					</Button>
+				}
+			>
+				{replaceTarget && (
+					<div className="guest-visit__form">
+						{replaceError && (
+							<div className="guest-visit__alert guest-visit__alert--danger" role="alert">
+								<AlertCircle size={16} />
+								<span>{replaceError}</span>
+							</div>
+						)}
+						<div>
+							Khách: <strong>{replaceTarget.guest.fullName}</strong>
+							{replaceTarget.guest.organization && <span> ({replaceTarget.guest.organization})</span>}
+						</div>
+						<GuestPhotoPicker
+							id={`guest-replace-${replaceTarget.guest.id}`}
+							guestLabel={replaceTarget.guest.fullName}
+							value={replacePhoto}
+							onChange={setReplacePhoto}
+							maxKb={photoMaxKb}
+							consentVersion={consentVersion}
+							disabled={replacing}
+						/>
+					</div>
+				)}
 			</Modal>
 		</div>
 	);

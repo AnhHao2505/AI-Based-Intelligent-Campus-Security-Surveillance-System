@@ -25,13 +25,20 @@ import {
   getGuestBiometricStatus,
   formatDateTime,
   getMissingPhotoInfo,
+  canReviewGuestVisit,
 } from '../../utils/guestHelpers';
+import GuestPhotoThumb from './GuestPhotoThumb';
 import '../../styles/GuestVisitPage.css';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useReasonLimits } from '../../hooks/useReasonLimits';
 
 const PAGE_SIZE = 10;
+
+// C3: lượt đã bị người khác cập nhật / đã xử lý / đã tới giờ bắt đầu -> báo lỗi rồi tải lại danh sách
+const STALE_REVIEW_CODES = ['ERR_GUEST_016', 'ERR_GUEST_017', 'ERR_GUEST_023'];
+const staleReviewMessage = (err) =>
+  err?.code === 'ERR_GUEST_016' ? 'Lượt khách đã được người khác cập nhật, vui lòng tải lại.' : err?.message;
 
 const STATUS_FILTERS = [
   { value: 'PENDING', label: 'Chờ duyệt' },
@@ -192,8 +199,8 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
       setDetail(null);
       loadVisits(page);
     } catch (err) {
-      if (err?.code === 'ERR_GUEST_016') {
-        setActionError('Lượt khách đã được người khác cập nhật, vui lòng tải lại.');
+      if (STALE_REVIEW_CODES.includes(err?.code)) {
+        setActionError(staleReviewMessage(err));
         setTimeout(() => {
           setApproveTarget(null);
           setDetail(null);
@@ -231,8 +238,8 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
       setDetail(null);
       loadVisits(page);
     } catch (err) {
-      if (err?.code === 'ERR_GUEST_016') {
-        setActionError('Lượt khách đã được người khác cập nhật, vui lòng tải lại.');
+      if (STALE_REVIEW_CODES.includes(err?.code)) {
+        setActionError(staleReviewMessage(err));
         setTimeout(() => {
           setRejectTarget(null);
           setRejectReason('');
@@ -298,8 +305,8 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
   const isOwnVisit = Boolean(detail && user?.userCode && detail.hostCode === user.userCode);
   // Duyệt / từ chối / thu hồi chỉ FM (BE @PreAuthorize FACILITY_MANAGER); ADMIN và role khác chỉ xem
   const isFacilityManager = user?.role === ROLES.FACILITY_MANAGER;
-  const hasDetailActions =
-    isFacilityManager && !isOwnVisit && (detail?.status === 'PENDING' || isDetailApprovedAndActive);
+  // C1: Chi tiết chỉ để xem; duyệt / từ chối nằm trên dòng danh sách. Trong Chi tiết chỉ còn thu hồi lượt đã duyệt.
+  const hasDetailActions = isFacilityManager && !isOwnVisit && isDetailApprovedAndActive;
 
   return (
     <div className={`guest-visit ${embedded ? 'guest-visit--embedded' : ''}`}>
@@ -408,6 +415,17 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
                       >
                         Chi tiết
                       </Button>
+                      {/* C1, C2: duyệt / từ chối ngay trên dòng; ẩn khi hết Chờ duyệt, đã tới giờ bắt đầu, hoặc FM là người mời */}
+                      {isFacilityManager && canReviewGuestVisit(v, user?.userCode) && (
+                        <>
+                          <Button variant="danger" size="sm" icon={X} onClick={() => openReject(v)}>
+                            Từ chối
+                          </Button>
+                          <Button variant="primary" size="sm" icon={Check} onClick={() => openApprove(v)}>
+                            Duyệt
+                          </Button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 );
@@ -442,24 +460,6 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
               <span className="guest-visit__muted" role="note">
                 Bạn là người mời lượt này nên không được tự duyệt, từ chối hoặc thu hồi.
               </span>
-            )}
-            {hasDetailActions && detail?.status === 'PENDING' && (
-              <>
-                <Button
-                  variant="danger"
-                  icon={X}
-                  onClick={() => openReject(detail)}
-                >
-                  Từ chối
-                </Button>
-                <Button
-                  variant="primary"
-                  icon={Check}
-                  onClick={() => openApprove(detail)}
-                >
-                  Phê duyệt
-                </Button>
-              </>
             )}
             {hasDetailActions && isDetailApprovedAndActive && (
               <Button
@@ -558,6 +558,8 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
                         <td>{g.organization || '—'}</td>
                         <td>
                           <Badge variant={bio.variant}>{bio.label}</Badge>
+                          {/* B1: FM xem ảnh khách (URL có hạn, mỗi lần xem ghi audit) */}
+                          <GuestPhotoThumb key={`${g.id}-${g.photoAttachedAt || ''}`} visitId={detail.id} guest={g} />
                         </td>
                       </tr>
                     );
@@ -667,7 +669,7 @@ export default function GuestVisitReviewPage({ embedded = false, actionsContaine
               </div>
             )}
             <p style={{ margin: 0, fontSize: '14px' }}>
-              Từ chối lượt khách của <strong>{rejectTarget.hostName}</strong> ({rejectTarget.hostCode}). Vui lòng nêu rõ lý do:
+              Từ chối lượt khách của <strong>{rejectTarget.hostName}</strong> ({rejectTarget.hostCode}). Ảnh và dữ liệu khuôn mặt của khách sẽ bị xóa ngay. Vui lòng nêu rõ lý do:
             </p>
             <ReasonTextarea
               ref={rejectReasonRef}

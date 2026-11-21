@@ -32,8 +32,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.endsWith;
@@ -95,7 +93,8 @@ class AccountAuditRollbackTest extends AbstractIntegrationTest {
     @DisplayName("B5: lỗi ghi audit CREATE khi tạo tài khoản -> 500, tài khoản / face_data / audit REGISTER_FACE không tồn tại, không gửi mail")
     void auditFailure_rollsBackAccountCreation() throws Exception {
         String code = "AUDRB-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
-        String vector = IntStream.range(0, 512).mapToObj(i -> "0.03").collect(Collectors.joining(","));
+        // khuôn mặt ngẫu nhiên: đăng ký có kiểm trùng khuôn mặt
+        String vector = com.fa26se040.icss.TestFaces.csv(com.fa26se040.icss.TestFaces.random());
         aiServer.expect(requestTo(endsWith("/api/v1/faces/process-registration")))
                 .andRespond(withSuccess("{\"success\":true,\"code\":\"" + code + "\",\"face_count\":1,\"embedding_front\":["
                         + vector + "]}", MediaType.APPLICATION_JSON));

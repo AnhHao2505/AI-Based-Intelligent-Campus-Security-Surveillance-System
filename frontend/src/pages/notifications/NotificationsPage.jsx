@@ -166,10 +166,11 @@ export default function NotificationsPage() {
       if (notif.type === 'GUEST_VISIT_PENDING') {
         // Duyệt lượt khách là tab "Lượt khách" của màn Phê duyệt yêu cầu
         navigate(`/admin/access-requests?tab=guests${visitRef ? `&visitId=${encodeURIComponent(visitRef)}` : ''}`);
-      } else if (notif.type === 'GUEST_PHOTO_REQUIRED') {
+      } else if (notif.type === 'GUEST_PHOTO_REQUIRED' && (user?.role || user?.role_type) === 'ADMIN') {
+        // Thông báo cũ gửi ADMIN (trước khi host tự gắn ảnh) -> màn Ảnh khách; nay GUEST_PHOTO_REQUIRED gửi host
         navigate('/admin/guest-photos');
       } else {
-        // ADMIN không tới nhánh này: GUEST_PHOTO_REQUIRED đi nhánh trên, loại khác dừng ở BR-NT-26
+        // Host (kể cả GUEST_PHOTO_REQUIRED: gắn ảnh trong Chi tiết lượt); ADMIN dừng ở BR-NT-26 hoặc nhánh trên
         navigate(`/guest-visits${visitQuery}`);
       }
     }

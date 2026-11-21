@@ -27,6 +27,7 @@ import {
 import { ROLES, ROLE_SHORT_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
 import { notificationService } from "../../services/notificationService";
+import { guestVisitService } from "../../services/guestVisitService";
 import FptBrandLogo from "../common/FptBrandLogo";
 import "../../styles/Sidebar.css";
 
@@ -122,12 +123,30 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 		userRole === "INTERNAL_GUARD" ||
 		userRole === "OUTSOURCED_GUARD";
 
+	// BR-GV-01: người dùng thường chỉ thấy "Khách của tôi" khi đủ cấp mời khách (GUEST_HOST_MIN_LEVEL), hỏi /eligibility
+	const [canHostGuests, setCanHostGuests] = useState(false);
+	useEffect(() => {
+		if (!isNormalUser) return undefined;
+		let active = true;
+		guestVisitService
+			.getEligibility()
+			.then((data) => {
+				if (active) setCanHostGuests(data?.canHost === true);
+			})
+			.catch(() => {
+				if (active) setCanHostGuests(false);
+			});
+		return () => {
+			active = false;
+		};
+	}, [isNormalUser, user]);
+
 	const navItems = useMemo(() => {
 		if (isNormalUser) {
 			return [
 				{ to: "/access-requests", label: "Yêu cầu truy cập", Icon: KeyRound },
 				{ to: "/access-history", label: "Lịch sử vào khu vực của tôi", Icon: History },
-				{ to: "/guest-visits", label: "Khách của tôi", Icon: UserPlus },
+				...(canHostGuests ? [{ to: "/guest-visits", label: "Khách của tôi", Icon: UserPlus }] : []),
 				{ to: "/notifications", label: "Thông báo", Icon: Bell, hasUnread: true },
 			];
 		}
@@ -179,7 +198,7 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 		}
 
 		return items;
-	}, [isNormalUser, isGuard, isAdmin, isFacilityManager]);
+	}, [isNormalUser, isGuard, isAdmin, isFacilityManager, canHostGuests]);
 
 	const visible = isOpen || isPinned;
 

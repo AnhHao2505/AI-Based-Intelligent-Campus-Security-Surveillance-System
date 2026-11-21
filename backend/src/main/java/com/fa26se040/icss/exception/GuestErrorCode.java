@@ -40,7 +40,10 @@ public enum GuestErrorCode {
     ERR_GUEST_034("ERR_GUEST_034", HttpStatus.BAD_REQUEST, "Ảnh phải có đúng 1 khuôn mặt (phát hiện {n})"),
     ERR_GUEST_035("ERR_GUEST_035", HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ AI không trích xuất được khuôn mặt, vui lòng thử lại sau"),
     ERR_GUEST_036("ERR_GUEST_036", HttpStatus.SERVICE_UNAVAILABLE, "Kho lưu ảnh khách tạm thời không dùng được, vui lòng thử lại sau"),
-    ERR_GUEST_037("ERR_GUEST_037", HttpStatus.NOT_FOUND, "Khách chưa có ảnh hoặc ảnh đã bị xoá");
+    ERR_GUEST_037("ERR_GUEST_037", HttpStatus.NOT_FOUND, "Khách chưa có ảnh hoặc ảnh đã bị xoá"),
+    ERR_GUEST_038("ERR_GUEST_038", HttpStatus.CONFLICT, "Khuôn mặt này đã được đăng ký cho {target}"),
+    ERR_GUEST_039("ERR_GUEST_039", HttpStatus.CONFLICT, "Chỉ thay được ảnh khi lượt khách đang chờ duyệt hoặc đã duyệt nhưng chưa tới giờ bắt đầu"),
+    ERR_GUEST_040("ERR_GUEST_040", HttpStatus.BAD_REQUEST, "Số ảnh gửi kèm ({photos}) nhiều hơn số khách ({guests})");
 
     private final String code;
     private final HttpStatus httpStatus;

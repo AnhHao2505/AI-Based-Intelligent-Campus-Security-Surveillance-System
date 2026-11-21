@@ -21,8 +21,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.Locale;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -80,7 +78,8 @@ class StaffAccountFaceLinkIntegrationTest extends AbstractIntegrationTest {
     }
 
     private static String aiSuccessBody(String code) {
-        String vector = IntStream.range(0, 512).mapToObj(i -> "0.01").collect(Collectors.joining(","));
+        // khuôn mặt ngẫu nhiên: đăng ký có kiểm trùng khuôn mặt
+        String vector = com.fa26se040.icss.TestFaces.csv(com.fa26se040.icss.TestFaces.random());
         return "{\"success\":true,\"code\":\"" + code + "\",\"face_count\":1,\"embedding_front\":[" + vector + "]}";
     }
 

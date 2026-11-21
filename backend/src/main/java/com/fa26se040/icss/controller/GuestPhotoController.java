@@ -15,7 +15,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.UUID;
 
 /**
- * Ảnh khách (BR-GV-14..18). Chỉ ADMIN. Không endpoint nào trả object URL / key ảnh.
+ * Ảnh khách (BR-GV-14..18). Không endpoint nào trả object URL / key ảnh.
+ * Gắn / thay ảnh: host của lượt (NORMAL_USER, FACILITY_MANAGER), ADMIN không còn gắn ảnh.
+ * Xem ảnh: host xem khách của lượt mình; FM, ADMIN xem mọi lượt.
  */
 @RestController
 @RequestMapping("/api/guest-visits/{visitId}/guests/{guestId}")
@@ -25,7 +27,7 @@ public class GuestPhotoController {
     private final GuestPhotoService guestPhotoService;
 
     @PostMapping(value = "/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
     public ResponseEntity<ApiResponse<GuestResponse>> attach(@PathVariable UUID visitId,
                                                              @PathVariable UUID guestId,
                                                              @RequestParam(value = "file", required = false) MultipartFile file,
@@ -37,7 +39,7 @@ public class GuestPhotoController {
     }
 
     @PostMapping("/photo-url")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER', 'ADMIN')")
     public ResponseEntity<ApiResponse<GuestPhotoUrlResponse>> viewUrl(@PathVariable UUID visitId,
                                                                       @PathVariable UUID guestId,
                                                                       Authentication authentication) {

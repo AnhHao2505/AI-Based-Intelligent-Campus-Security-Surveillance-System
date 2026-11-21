@@ -18,7 +18,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * BR-GV-39: lượt APPROVED còn khách chưa PHOTO_READY, now ∈ [start − GUEST_PHOTO_REMINDER_MINUTES_BEFORE, start)
- * -> ADMIN nhận GUEST_PHOTO_REQUIRED đúng 1 lần (chống trùng theo thông báo tạo từ đầu cửa sổ, không thêm cột).
+ * -> host của lượt nhận GUEST_PHOTO_REQUIRED đúng 1 lần (chống trùng theo thông báo tạo từ đầu cửa sổ, không thêm cột).
+ * Host là người gắn / thay ảnh; ADMIN không gắn ảnh nữa nên không nhận.
  */
 class GuestPhotoReminderTest extends GuestTestSupport {
 
@@ -33,12 +34,12 @@ class GuestPhotoReminderTest extends GuestTestSupport {
     }
 
     private List<Notification> reminders(GuestVisit v) {
-        return notificationsOf(admin, NotificationType.GUEST_PHOTO_REQUIRED).stream()
+        return notificationsOf(hostL2, NotificationType.GUEST_PHOTO_REQUIRED).stream()
                 .filter(n -> v.getId().equals(n.getReferenceId())).toList();
     }
 
     @Test
-    @DisplayName("GV-39: trong cửa sổ + còn khách chưa có ảnh -> ADMIN nhận 1 lần; chạy lại không gửi thêm; nội dung không có tên khách")
+    @DisplayName("GV-39: trong cửa sổ + còn khách chưa có ảnh -> host nhận 1 lần, ADMIN không; chạy lại không gửi thêm; nội dung không có tên khách")
     void inWindowMissingPhoto_remindedOnce() {
         setConfig(ConfigKey.GUEST_PHOTO_REMINDER_MINUTES_BEFORE, "60");
         OffsetDateTime now = OffsetDateTime.now();
@@ -48,12 +49,12 @@ class GuestPhotoReminderTest extends GuestTestSupport {
 
         jobService.remindMissingPhotos(now);
         List<Notification> sent = reminders(v);
-        assertEquals(1, sent.size(), "ADMIN nhận đúng 1 nhắc");
+        assertEquals(1, sent.size(), "host nhận đúng 1 nhắc");
         String msg = sent.get(0).getMessage();
         assertTrue(msg.contains("1/2 khách chưa có ảnh"), msg);
         assertFalse(msg.contains("Khách Nhắc Một") || msg.contains("Khách Nhắc Hai"), "không ghi tên khách: " + msg);
-        assertTrue(notificationsOf(hostL2, NotificationType.GUEST_PHOTO_REQUIRED).stream()
-                .noneMatch(n -> v.getId().equals(n.getReferenceId())), "host không nhận GUEST_PHOTO_REQUIRED");
+        assertTrue(notificationsOf(admin, NotificationType.GUEST_PHOTO_REQUIRED).stream()
+                .noneMatch(n -> v.getId().equals(n.getReferenceId())), "ADMIN không nhận GUEST_PHOTO_REQUIRED");
 
         jobService.remindMissingPhotos(now.plusMinutes(1));
         jobService.remindMissingPhotos(now.plusMinutes(10));
