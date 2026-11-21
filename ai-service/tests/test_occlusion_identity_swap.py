@@ -2,8 +2,6 @@
 Hai người đứng sát / che nhau trong ROI: người có quyền (Gia Anh) bị người không có quyền (Minh) che.
 1) Một mã người chỉ được mang bởi một box đang thấy: Gia Anh hiện ra lại và được nhận diện bằng mặt trên track mới
    -> track cũ đang dính danh tính Gia Anh (thực ra là Minh) bị gỡ danh tính, xác thực lại từ đầu.
-2) Hai người chồng lấn: danh tính đã nhận diện bị coi là chưa chắc -> quét lại mặt; ByteTrack tráo ID sang Minh
-   thì mặt Minh không khớp Gia Anh -> gỡ danh tính (Minh chưa đăng ký) hoặc đổi sang Minh (Minh có đăng ký).
 """
 from unittest.mock import patch
 
@@ -114,20 +112,6 @@ def test_identity_held_only_by_inherited_tracks_is_left_to_face_reverify():
     assert _code(engine.active_tracks[2]) == "USER_GA"
 
 
-def test_overlapping_people_mark_identity_for_reverify():
-    engine = FrameAnalysisEngine()
-    engine.associate_face(1, _identified("USER_GA", "Phan Gia Anh", GA_BOX, matched_at=1.0))
-    engine.process_frame(detected_tracks=[(1, GA_BOX), (2, MINH_BOX)], camera_code="CAM-001", current_time=1.0)
-    assert engine.active_tracks[1].is_inherited_identity is False, "Đứng xa nhau: không quét lại"
-
-    minh_close = BoundingBox(150, 120, 250, 400)
-    engine.process_frame(detected_tracks=[(1, GA_BOX), (2, minh_close)], camera_code="CAM-001", current_time=1.2)
-    ga = engine.active_tracks[1]
-    assert ga.is_inherited_identity is True
-    assert _code(ga) == "USER_GA", "Chỉ đánh dấu quét lại, chưa gỡ danh tính"
-    assert ga.security_display_state == "AUTHORIZED"
-
-
 # ---------------------------------------------------------------- pipeline (SCRFD / ArcFace giả lập)
 
 PATCHES = (
@@ -194,32 +178,6 @@ def _run(pipeline, state, t, tracks, faces):
 
 
 @_with_patches
-def test_bytetrack_swap_onto_unregistered_person_is_revoked(*_mocks):
-    pipeline, state = _make_pipeline(minh_registered=False)
-    _run(pipeline, state, 0.0, [(1, P_GA_BOX)], [GA_FACE])
-    assert _code(pipeline.analysis_engine.active_tracks[1]) == "USER_GA"
-
-    # Minh bước tới đứng sát Gia Anh (mặt Minh cúi, chưa thấy)
-    _run(pipeline, state, 0.3, [(1, P_GA_BOX), (2, P_MINH_BOX)], [GA_FACE])
-    assert pipeline.analysis_engine.active_tracks[1].is_inherited_identity is True
-
-    # Gia Anh bị che hẳn, ByteTrack đẩy track 1 sang Minh; Minh ngẩng mặt lên
-    for t in (0.6, 0.9, 1.2):
-        _run(pipeline, state, t, [(1, P_MINH_BOX)], [MINH_FACE])
-    assert _code(pipeline.analysis_engine.active_tracks[1]) is None, "Mặt Minh rõ là người khác -> gỡ danh tính Gia Anh"
-
-
-@_with_patches
-def test_bytetrack_swap_onto_registered_person_switches_identity(*_mocks):
-    pipeline, state = _make_pipeline(minh_registered=True)
-    _run(pipeline, state, 0.0, [(1, P_GA_BOX)], [GA_FACE])
-    _run(pipeline, state, 0.3, [(1, P_GA_BOX), (2, P_MINH_BOX)], [GA_FACE])
-    for t in (0.6, 0.9, 1.2):
-        _run(pipeline, state, t, [(1, P_MINH_BOX)], [MINH_FACE])
-    assert _code(pipeline.analysis_engine.active_tracks[1]) == "USER_MINH"
-
-
-@_with_patches
 def test_person_reappearing_from_behind_leaves_single_identity_box(*_mocks):
     pipeline, state = _make_pipeline(minh_registered=False)
     _run(pipeline, state, 0.0, [(1, P_GA_BOX)], [GA_FACE])
@@ -235,68 +193,3 @@ def test_person_reappearing_from_behind_leaves_single_identity_box(*_mocks):
     holders = [tid for tid, p in tracks.items() if _code(p) == "USER_GA" and getattr(p, "is_currently_visible", True)]
     assert holders == [5], f"Chỉ được 1 box mang danh tính Gia Anh, đang có: {holders}"
     assert tracks[1].security_display_state == "VERIFYING"
-
-
-# Gia Anh quay mặt đi: SCRFD vẫn thấy mặt nhưng ArcFace ra điểm rất thấp (0.08). Mặt nằm ngoài box người bên cạnh.
-GA_TURNED_FACE = BoundingBox(110.0, 115.0, 170.0, 185.0)
-P_FAR_BOX = BoundingBox(500.0, 110.0, 700.0, 550.0)
-
-
-@_with_patches
-def test_self_verified_identity_kept_while_walking_past_someone(*_mocks):
-    """
-    Track #275 (CAM-002, 20/11): đã tự khớp mặt, đi ngang người khác -> bị đánh dấu quét lại; mặt quay đi ra điểm thấp
-    trong lúc còn chồng lấn -> trước đây bị gỡ danh tính rồi cảnh báo UNKNOWN_PERSON. Phải giữ danh tính.
-    """
-    pipeline, state = _make_pipeline(minh_registered=False)
-    _run(pipeline, state, 0.0, [(1, P_GA_BOX)], [GA_FACE])
-    assert _code(pipeline.analysis_engine.active_tracks[1]) == "USER_GA"
-
-    _run(pipeline, state, 0.3, [(1, P_GA_BOX), (2, P_MINH_BOX)], [])
-    ga = pipeline.analysis_engine.active_tracks[1]
-    assert ga.is_inherited_identity is True and ga.identity_contested is True
-
-    with patch.object(
-        pipeline, "_maybe_revoke_inherited_identity", wraps=pipeline._maybe_revoke_inherited_identity
-    ) as revoke_spy:
-        for t in (0.6, 0.9, 1.2):
-            _run(pipeline, state, t, [(1, P_GA_BOX), (2, P_MINH_BOX)], [GA_TURNED_FACE])
-
-    assert any(c.kwargs.get("overlapping") is True for c in revoke_spy.call_args_list), \
-        "Phải đi qua nhánh xét gỡ danh tính khi đang chồng lấn"
-    ga = pipeline.analysis_engine.active_tracks[1]
-    assert _code(ga) == "USER_GA", "Điểm thấp khi còn chồng lấn không được gỡ danh tính tự nhận diện"
-    assert ga.inherited_mismatch_count == 0
-    assert ga.security_display_state == "AUTHORIZED"
-
-
-@_with_patches
-def test_contested_identity_revoked_after_people_separate(*_mocks):
-    """Sau khi hai box tách nhau, điểm mặt thấp vẫn được tính: tráo ID sang người lạ vẫn bị gỡ danh tính."""
-    pipeline, state = _make_pipeline(minh_registered=False)
-    _run(pipeline, state, 0.0, [(1, P_GA_BOX)], [GA_FACE])
-    _run(pipeline, state, 0.3, [(1, P_GA_BOX), (2, P_MINH_BOX)], [])
-    assert pipeline.analysis_engine.active_tracks[1].identity_contested is True
-
-    for t in (0.6, 0.9, 1.2):
-        _run(pipeline, state, t, [(1, P_GA_BOX), (2, P_FAR_BOX)], [GA_TURNED_FACE])
-    ga = pipeline.analysis_engine.active_tracks[1]
-    assert _code(ga) is None
-    assert ga.identity_contested is False
-
-
-@_with_patches
-def test_parent_inherited_identity_still_revoked_while_overlapping(*_mocks):
-    """Danh tính kế thừa thật từ track cha (không phải chỉ do chồng lấn): giữ nguyên luật cũ, gỡ được cả khi chồng lấn."""
-    pipeline, _ = _make_pipeline(minh_registered=False)
-    engine = pipeline.analysis_engine
-    engine.associate_face(1, _identified("USER_GA", "Phan Gia Anh", GA_BOX, matched_at=1.0))
-    engine.process_frame(detected_tracks=[(1, GA_BOX), (3, MINH_BOX)], camera_code="CAM-001", current_time=1.0)
-    minh = engine.active_tracks[3]
-    FrameAnalysisEngine._copy_identity_as_inherited(minh, engine.active_tracks[1])
-    assert minh.identity_contested is False
-
-    low = FaceDetectionResult(bbox=MINH_BOX, score=0.95)
-    assert pipeline._maybe_revoke_inherited_identity(minh, True, low, 0.08, overlapping=True) is False
-    assert pipeline._maybe_revoke_inherited_identity(minh, True, low, 0.08, overlapping=True) is True
-    assert _code(minh) is None

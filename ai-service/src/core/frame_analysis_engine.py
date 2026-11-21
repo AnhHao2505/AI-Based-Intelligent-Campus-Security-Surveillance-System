@@ -24,10 +24,6 @@ logger = logging.getLogger(__name__)
 ROI_MIN_DWELL_SECONDS = 0.2
 TRACK_COASTING_SECONDS = 1.5
 ACCESS_DECISION_EXTRA_WAIT_SECONDS = 0.2
-# - OCCLUSION_CONTEST_IOU / IOM: hai người đang thấy chồng lấn tới mức này thì ByteTrack có thể tráo ID giữa họ
-#   -> danh tính đã nhận diện của cả hai bị coi là chưa chắc, phải quét lại mặt để xác nhận.
-OCCLUSION_CONTEST_IOU = 0.20
-OCCLUSION_CONTEST_IOM = 0.35
 
 def parse_time_str(time_str: Optional[str]) -> Optional[Any]:
     if not time_str or not isinstance(time_str, str):
@@ -195,7 +191,6 @@ class FrameAnalysisEngine:
         receiver.expires_at = getattr(donor, "expires_at", None)
         receiver.starts_at = getattr(donor, "starts_at", None)
         receiver.is_inherited_identity = True
-        receiver.identity_contested = False
         receiver.inherited_mismatch_count = getattr(donor, "inherited_mismatch_count", 0)
         receiver.identity_verified_at = None
         if hasattr(receiver.face_info, "is_inherited"):
@@ -231,7 +226,6 @@ class FrameAnalysisEngine:
         person.expires_at = None
         person.starts_at = None
         person.is_inherited_identity = False
-        person.identity_contested = False
         person.inherited_mismatch_count = 0
         person.identity_verified_at = None
         person.pending_reverify_code = None
@@ -297,34 +291,6 @@ class FrameAnalysisEngine:
                     self.active_tracks[tid], current_time, camera_code,
                     f"{code} đang được nhận diện bằng khuôn mặt ở Track #{winner[0]}"
                 )
-
-    def _contest_identities_on_overlap(self, visible_tracks: List[Tuple[int, BoundingBox]], camera_code: str) -> None:
-        """
-        Hai người đang thấy chồng lấn nhau: ByteTrack có thể tráo ID, khiến danh tính của người bị che dính sang người
-        đang che. Danh tính đã nhận diện của cả hai được đánh dấu chưa xác nhận (như danh tính kế thừa): pipeline quét
-        lại mặt mỗi frame, mặt đúng người -> xác nhận lại; mặt người khác -> đổi hoặc gỡ danh tính.
-        Đánh dấu identity_contested: điểm mặt thấp chỉ được tính để gỡ danh tính sau khi hai box đã tách nhau
-        (đi ngang người khác không phải bằng chứng tráo ID).
-        """
-        persons = [self.active_tracks[tid] for tid, _ in visible_tracks if tid >= 0 and tid in self.active_tracks]
-        contested: Set[int] = set()
-        for i in range(len(persons)):
-            for j in range(i + 1, len(persons)):
-                a, b = persons[i].bbox, persons[j].bbox
-                if a.iou(b) > OCCLUSION_CONTEST_IOU or a.intersection_ratio(b) > OCCLUSION_CONTEST_IOM:
-                    contested.add(persons[i].track_id)
-                    contested.add(persons[j].track_id)
-        for p in persons:
-            if p.track_id not in contested or getattr(p, "is_inherited_identity", False):
-                continue
-            if not (p.face_detected and p.face_info and p.face_info.matched_code):
-                continue
-            p.is_inherited_identity = True
-            p.identity_contested = True
-            logger.info(
-                f"🫂 [FrameAnalysisEngine:{camera_code}] Track #{p.track_id} ({p.face_info.matched_code}) chồng lấn người khác "
-                f"-> quét lại mặt để xác nhận danh tính"
-            )
 
     def _within_identity_grace(self, person: TrackedPerson, current_time: float) -> bool:
         """
@@ -1250,8 +1216,6 @@ class FrameAnalysisEngine:
                                             person.alert_after_hours_sent = True
                     # 2. Nếu đã là UNAUTHORIZED hoặc INTRUSION: Chốt khóa giữ nguyên trạng thái ĐỎ (Sticky State),
                     # tuyệt đối KHÔNG bao giờ tự động chuyển thành AUTHORIZED!
-
-        self._contest_identities_on_overlap(filtered_detected_tracks, camera_code)
 
         inactive_ids = []
         detected_tids_all = {tid for tid, _ in detected_tracks}
