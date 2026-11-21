@@ -65,6 +65,8 @@ export default function CameraInspectorDrawer({
 	onRemoveMapLocation,
 	canUndoRemovedMapLocation = false,
 	onUndoRemoveMapLocation = null,
+	isGeneralEditing,
+	onGeneralEditingChange = null,
 }) {
 	const liveOperationalStatusRef = useRef(liveOperationalStatus);
 	liveOperationalStatusRef.current = liveOperationalStatus;
@@ -323,8 +325,10 @@ export default function CameraInspectorDrawer({
 			setCamera(updated);
 			toast.success("Cập nhật thông tin camera thành công!");
 			onCameraMutated?.(updated);
+			return true;
 		} catch (err) {
 			toast.error(err?.message || "Cập nhật thông tin thất bại.");
+			return false;
 		} finally {
 			setSaving(false);
 		}
@@ -557,6 +561,8 @@ export default function CameraInspectorDrawer({
 								onRemoveMapLocation={onRemoveMapLocation}
 								canUndoRemovedMapLocation={canUndoRemovedMapLocation}
 								onUndoRemoveMapLocation={onUndoRemoveMapLocation}
+								isEditing={isGeneralEditing}
+								onEditingChange={onGeneralEditingChange}
 							/>
 						)}
 

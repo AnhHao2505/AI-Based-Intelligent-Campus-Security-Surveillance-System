@@ -335,8 +335,10 @@ export default function CameraDetailPage() {
 			const updated = await updateCamera(id, payload);
 			setCamera(updated);
 			showNotification("Cập nhật thông tin camera thành công!");
+			return true;
 		} catch (err) {
 			showError(err.message || "Cập nhật thông tin thất bại.");
+			return false;
 		} finally {
 			setSaving(false);
 		}

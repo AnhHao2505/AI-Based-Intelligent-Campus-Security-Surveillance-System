@@ -201,6 +201,7 @@ export default function CampusMapView({
 	onSelectCameraPin = null,
 	onUpdateCameraMapLocation = null,
 	onCommitCameraLocation = null,
+	canDragCameraPin = true,
 	rightDrawerContent = null,
 	isAdmin = false,
 	isFacilityManager = false,
@@ -959,7 +960,7 @@ export default function CampusMapView({
 
 	const handleMapMouseDown = useCallback(
 		(e) => {
-			if (!isAdmin || pickingCameraLocation) return;
+			if (!isAdmin || pickingCameraLocation || !canDragCameraPin) return;
 			const map = mapRef.current?.getMap?.() || mapRef.current;
 			const features = e?.features || [];
 			const pinFeat = features.find(
@@ -967,6 +968,9 @@ export default function CampusMapView({
 			);
 			if (pinFeat?.properties?.cameraId) {
 				const camId = pinFeat.properties.cameraId;
+				if (selectedCameraId && String(camId) !== String(selectedCameraId)) {
+					return;
+				}
 				const targetCam = cameras.find((c) => c.id === camId) || null;
 				if (targetCam?.status === "DECOMMISSIONED" || pinFeat.properties.statusKey === "muted") {
 					setHoverCursor("not-allowed");
@@ -1008,7 +1012,15 @@ export default function CampusMapView({
 				setHoverCursor("grabbing");
 			}
 		},
-		[areas, cameraMapPlacements, cameras, isAdmin, pickingCameraLocation],
+		[
+			areas,
+			cameraMapPlacements,
+			cameras,
+			canDragCameraPin,
+			isAdmin,
+			pickingCameraLocation,
+			selectedCameraId,
+		],
 	);
 
 	const handleMapMouseUp = useCallback(() => {
@@ -1124,7 +1136,13 @@ export default function CampusMapView({
 			if (camPinFeat?.properties && e?.point) {
 				const cp = camPinFeat.properties;
 				const isDecomm = cp.statusKey === "muted";
-				setHoverCursor(isAdmin ? (isDecomm ? "not-allowed" : "grab") : "pointer");
+				const isDraggableNow =
+					isAdmin &&
+					canDragCameraPin &&
+					(!selectedCameraId || String(cp.cameraId) === String(selectedCameraId));
+				setHoverCursor(
+					isAdmin ? (isDecomm ? "not-allowed" : isDraggableNow ? "grab" : "pointer") : "pointer",
+				);
 				setHoveredRoom({
 					x: e.point.x,
 					y: e.point.y,
@@ -1134,7 +1152,9 @@ export default function CampusMapView({
 					subtitle: isAdmin
 						? isDecomm
 							? "Camera đã ngừng hoạt động, không thể dời vị trí"
-							: "Giữ & kéo để dời vị trí · Bấm để xem cấu hình"
+							: isDraggableNow
+								? "Giữ & kéo để dời vị trí · Bấm để xem cấu hình"
+								: "Bấm để xem thông tin camera"
 						: cp.statusKey === "ok"
 							? "ONLINE"
 							: "OFFLINE",
@@ -1219,6 +1239,8 @@ export default function CampusMapView({
 			isEditingCoords,
 			pickingCameraArea,
 			pickingCameraLocation,
+			canDragCameraPin,
+			selectedCameraId,
 			onUpdateCameraMapLocation,
 			cameraStatsByArea,
 			cameraCounts,

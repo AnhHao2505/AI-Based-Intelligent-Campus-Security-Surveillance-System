@@ -9,8 +9,6 @@ import {
 	X,
 	Loader2,
 	Layers,
-	Cctv,
-	VideoOff,
 	Video,
 	MapPin,
 	Search,
@@ -45,7 +43,6 @@ import {
 	updateArea,
 	deactivateArea,
 	restoreArea,
-	getAreaCameras,
 	getTypeChangePreview,
 } from "../../services/areaService";
 import { getBuildings } from "../../services/buildingService";
@@ -136,6 +133,7 @@ export default function AreaListPage() {
 	const [sidebarDeleteTarget, setSidebarDeleteTarget] = useState(null);
 	const [pickingCameraArea, setPickingCameraArea] = useState(false);
 	const [pickingCameraLocation, setPickingCameraLocation] = useState(false);
+	const [isCameraGeneralEditing, setIsCameraGeneralEditing] = useState(false);
 	const [pickedAreaOverride, setPickedAreaOverride] = useState(null);
 	const [optimisticMapPlacements, setOptimisticMapPlacements] = useState({});
 	const [removedMapPlacementUndo, setRemovedMapPlacementUndo] = useState(null);
@@ -211,26 +209,6 @@ export default function AreaListPage() {
 	const [restoreError, setRestoreError] = useState(null);
 	const [restoreLoading, setRestoreLoading] = useState(false);
 
-	// Camera list modal states
-	const [camerasModalOpen, setCamerasModalOpen] = useState(false);
-
-	// UI-22: Escape đóng popup "Danh sách Camera"
-	useEffect(() => {
-		if (!camerasModalOpen) return undefined;
-		const handleKeyDown = (e) => {
-			if (e.key === "Escape") setCamerasModalOpen(false);
-		};
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [camerasModalOpen]);
-	const [camerasModalArea, setCamerasModalArea] = useState(null);
-	const [areaCamerasList, setAreaCamerasList] = useState([]);
-	const [loadingAreaCameras, setLoadingAreaCameras] = useState(false);
-	const [areaCamerasError, setAreaCamerasError] = useState(null);
-
-	// Search & camera inspection modal states
-	const [cameraSearchQuery, setCameraSearchQuery] = useState("");
-
 	// Assigned personnel modal states (Facility Manager & Admin)
 	const [assignedPersonnelModalOpen, setAssignedPersonnelModalOpen] =
 		useState(false);
@@ -241,29 +219,6 @@ export default function AreaListPage() {
 		if (!area) return;
 		setAssignedPersonnelModalArea(area);
 		setAssignedPersonnelModalOpen(true);
-	}, []);
-
-	const handleOpenCamerasModal = useCallback(async (area) => {
-		if (!area) return;
-		setCamerasModalArea(area);
-		setCamerasModalOpen(true);
-		setLoadingAreaCameras(true);
-		setAreaCamerasError(null);
-		setAreaCamerasList([]);
-		setCameraSearchQuery("");
-
-		try {
-			const res = await getAreaCameras(area.id);
-			const camList = res?.cameras || (Array.isArray(res) ? res : []);
-			setAreaCamerasList(camList);
-			// Sync card count immediately when modal opens
-			setCameraCounts((prev) => ({ ...prev, [area.id]: camList.length }));
-		} catch (err) {
-			console.error("Error fetching area cameras:", err);
-			setAreaCamerasError("Không thể tải danh sách camera của khu vực này.");
-		} finally {
-			setLoadingAreaCameras(false);
-		}
 	}, []);
 
 	// Form states
@@ -672,6 +627,8 @@ export default function AreaListPage() {
 			setIsCreatingOnMap(false);
 			setRebindingAreaId(null);
 			setPickingCameraArea(false);
+			setPickingCameraLocation(false);
+			setIsCameraGeneralEditing(false);
 			setPickedAreaOverride(null);
 			setSelectedCameraId(camera.id);
 			setSelectedCameraInitialTab(preferredTab || "general");
@@ -694,6 +651,7 @@ export default function AreaListPage() {
 		setSelectedCameraId(null);
 		setPickingCameraArea(false);
 		setPickingCameraLocation(false);
+		setIsCameraGeneralEditing(false);
 		setPickedAreaOverride(null);
 		syncCameraUrlParams(leftSidebarMode, null, null);
 	}, [leftSidebarMode, syncCameraUrlParams]);
@@ -960,16 +918,11 @@ export default function AreaListPage() {
 			if (!isAdmin) {
 				return;
 			}
-			if (Array.isArray(areaCameras) && areaCameras.length === 1) {
+			if (Array.isArray(areaCameras) && areaCameras.length > 0) {
 				handleSelectCamera(areaCameras[0], "general");
-				return;
-			}
-			const matchedArea = areaById.get(areaId);
-			if (matchedArea) {
-				handleOpenCamerasModal(matchedArea);
 			}
 		},
-		[areaById, handleOpenCamerasModal, handleSelectArea, handleSelectCamera, isAdmin],
+		[handleSelectArea, handleSelectCamera, isAdmin],
 	);
 
 	const handleOpenCreateCameraModal = useCallback(
@@ -1458,13 +1411,10 @@ export default function AreaListPage() {
 						<AreaListView
 							floorAreas={floorAreas}
 							selectedAreaId={selectedAreaId}
-							cameraCounts={mergedCameraCounts}
-							cameraStatsByArea={cameraStatsByArea}
 							isAdmin={isAdmin}
 							isFacilityManager={isFacilityManager}
 							onSelectArea={(id) => handleSelectArea(id, false)}
 							onOpenCreateModal={handleStartCreateOnMap}
-							onOpenCamerasModal={handleOpenCamerasModal}
 							onOpenAssignedPersonnelModal={handleOpenAssignedPersonnelModal}
 							onOpenEditModal={handleOpenEditModal}
 							onOpenDeactivateModal={handleOpenDeactivateModal}
@@ -1505,6 +1455,7 @@ export default function AreaListPage() {
 							cameraMapPlacements={cameraMapPlacements}
 							onPickLocationForCamera={(cam) => {
 								handleSelectCamera(cam, "general");
+								setIsCameraGeneralEditing(true);
 								setPickingCameraArea(false);
 								setPickingCameraLocation(true);
 							}}
@@ -1533,6 +1484,7 @@ export default function AreaListPage() {
 							onSelectCameraPin={handleSelectCameraPin}
 							onUpdateCameraMapLocation={handleUpdateCameraLocation}
 							onCommitCameraLocation={handleCommitCameraLocation}
+							canDragCameraPin={Boolean(selectedCameraId && isCameraGeneralEditing)}
 							rightDrawerContent={
 								isAdmin && selectedCameraId ? (
 									<CameraInspectorDrawer
@@ -1596,6 +1548,14 @@ export default function AreaListPage() {
 													removedMapPlacementUndo.cameraId,
 													removedMapPlacementUndo.placement,
 												);
+											}
+										}}
+										isGeneralEditing={isCameraGeneralEditing}
+										onGeneralEditingChange={(next) => {
+											setIsCameraGeneralEditing(next);
+											if (!next) {
+												setPickingCameraLocation(false);
+												setPickingCameraArea(false);
 											}
 										}}
 									/>
@@ -2075,215 +2035,6 @@ export default function AreaListPage() {
 							</button>
 						</div>
 					</DialogPanel>
-				</div>
-			)}
-
-			{/* CAMERAS INSPECTION MODAL (Tra cứu danh sách camera thuộc khu vực) */}
-			{camerasModalOpen && camerasModalArea && (
-				<div
-					className="area-modal-backdrop"
-					onClick={() => setCamerasModalOpen(false)}
-				>
-					<div
-						className="area-modal area-modal--medium"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<div className="area-modal__header">
-							<div className="area-modal__header-left">
-								<div className="area-modal__icon-badge">
-									<Cctv size={18} />
-								</div>
-								<div className="area-modal__header-text">
-									<h3 className="area-modal__title">Danh sách Camera</h3>
-								</div>
-							</div>
-							<button
-								type="button"
-								className="area-modal__close-btn"
-								onClick={() => setCamerasModalOpen(false)}
-								aria-label="Đóng"
-							>
-								<X size={16} />
-							</button>
-						</div>
-
-						<div
-							className="area-modal__body"
-							style={{ maxHeight: "480px", overflowY: "auto" }}
-						>
-							{/* Search Bar for filtering cameras in this area */}
-							<div className="area-camera-search-box">
-								<Search
-									size={15}
-									className="area-camera-search-icon"
-								/>
-								<input
-									type="text"
-									className="area-camera-search-input"
-									placeholder="Tìm camera theo tên, mã camera hoặc IP..."
-									value={cameraSearchQuery}
-									onChange={(e) => setCameraSearchQuery(e.target.value)}
-								/>
-								{cameraSearchQuery && (
-									<button
-										type="button"
-										className="area-camera-search-clear"
-										onClick={() => setCameraSearchQuery("")}
-									>
-										<X size={13} />
-									</button>
-								)}
-							</div>
-
-							{loadingAreaCameras ? (
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										justifyContent: "center",
-										padding: "40px 0",
-										gap: "10px",
-										color: "var(--theme-text-muted)",
-									}}
-								>
-									<Loader2
-										size={22}
-										className="spin-icon"
-									/>
-									<span>Đang tải danh sách camera của khu vực...</span>
-								</div>
-							) : areaCamerasError ? (
-								<div className="zone-modal-alert">
-									<AlertCircle size={16} />
-									<span>{areaCamerasError}</span>
-								</div>
-							) : areaCamerasList.length === 0 ? (
-								<div className="area-camera-empty">
-									<VideoOff
-										size={40}
-										style={{
-											color: "var(--theme-text-muted)",
-											marginBottom: "10px",
-										}}
-									/>
-									<p
-										style={{
-											margin: 0,
-											fontWeight: 700,
-											fontSize: "14px",
-											color: "var(--theme-text-primary)",
-										}}
-									>
-										Chưa có camera nào thuộc khu vực này
-									</p>
-								</div>
-							) : (
-								<div className="area-camera-list">
-									{areaCamerasList
-										.filter((cam) => {
-											if (!cameraSearchQuery) return true;
-											const q = cameraSearchQuery.toLowerCase();
-											return (
-												(cam.name || "").toLowerCase().includes(q) ||
-												(cam.cameraCode || cam.code || "")
-													.toLowerCase()
-													.includes(q) ||
-												(cam.ipAddress || "").toLowerCase().includes(q)
-											);
-										})
-										.map((cam) => {
-											const opStatus =
-												cam.operationalStatus || cam.status || "ONLINE";
-											const isOnline =
-												opStatus === "ONLINE" || opStatus === "ACTIVE";
-
-											return (
-												<button
-													key={cam.id || cam.cameraCode}
-													type="button"
-													className="area-camera-item area-camera-item--clickable"
-													onClick={() => {
-														setCamerasModalOpen(false);
-														handleSelectCamera(cam, "general");
-													}}
-													title="Mở chi tiết & cấu hình camera"
-												>
-													<div className="area-camera-item__icon">
-														<Cctv size={16} />
-													</div>
-													<div className="area-camera-item__info">
-														<div className="area-camera-item__name">
-															{cam.name || cam.cameraCode}
-														</div>
-														<div className="area-camera-item__code">
-															Mã: {cam.cameraCode || cam.code || "—"}
-															{cam.ipAddress && ` • IP: ${cam.ipAddress}`}
-														</div>
-													</div>
-													<div className="area-camera-item__right-group">
-														<span
-															className={`area-camera-status-pill ${isOnline ? "area-camera-status-pill--online" : "area-camera-status-pill--offline"}`}
-														>
-															{opStatus}
-														</span>
-													</div>
-												</button>
-											);
-										})}
-								</div>
-							)}
-						</div>
-
-						<div
-							className="area-modal__footer"
-							style={{
-								display: "flex",
-								justifyContent: "space-between",
-								alignItems: "center",
-								flexWrap: "wrap",
-								gap: "0.75rem",
-							}}
-						>
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									gap: "0.4rem",
-									fontSize: "0.775rem",
-									color: "var(--theme-text-muted)",
-								}}
-							>
-								<Info
-									size={14}
-									style={{ color: "var(--theme-info)", flexShrink: 0 }}
-								/>
-								<span>
-									{isFacilityManager
-										? "Danh sách các thiết bị camera giám sát thuộc khu vực này."
-										: "Gán, thêm hoặc mở inspector camera trực tiếp trong không gian 3D."}
-								</span>
-							</div>
-
-							<div
-								style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
-							>
-								{isAdmin && camerasModalArea?.id && (
-									<button
-										type="button"
-										className="area-camera-modal-mgmt-link"
-										onClick={() => {
-											const targetAreaId = camerasModalArea.id;
-											setCamerasModalOpen(false);
-											handleOpenCreateCameraModal(targetAreaId);
-										}}
-									>
-										<Plus size={14} />
-										<span>Thêm camera</span>
-									</button>
-								)}
-							</div>
-						</div>
-					</div>
 				</div>
 			)}
 
