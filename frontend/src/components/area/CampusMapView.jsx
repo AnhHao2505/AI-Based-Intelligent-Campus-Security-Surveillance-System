@@ -2124,7 +2124,7 @@ export default function CampusMapView({
 						<span>{AREA_LEVEL_CONFIG.PUBLIC.badgeLabel}</span>
 					</div>
 					<div className="campus-map-legend__item">
-						<span className="campus-map-legend__dot campus-map-legend__dot--contact" />
+						<span className="campus-map-legend__dot campus-map-legend__dot--internal" />
 						<span>{AREA_LEVEL_CONFIG.CONFIDENTIAL.badgeLabel}</span>
 					</div>
 					<div className="campus-map-legend__item">

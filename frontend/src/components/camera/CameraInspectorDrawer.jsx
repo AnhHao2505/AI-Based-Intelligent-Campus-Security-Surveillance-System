@@ -3,12 +3,10 @@ import {
 	X,
 	Video,
 	Info,
-	MapPin,
 	Layers,
 	Power,
 	PowerOff,
 	Trash2,
-	Focus,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -23,7 +21,6 @@ import {
 	testConnection,
 	updateRoiGeometry,
 } from "../../services/cameraService";
-import { formatLocation } from "../../utils/formatLocation";
 import {
 	applyLiveCameraStatus,
 	extractCameraAreaInfo,
@@ -397,7 +394,6 @@ export default function CameraInspectorDrawer({
 		}
 	};
 
-	const camAreaInfo = extractCameraAreaInfo(camera);
 	const isDecommissioned = camera?.status === "DECOMMISSIONED";
 
 	return (
@@ -408,16 +404,6 @@ export default function CameraInspectorDrawer({
 						<Video size={18} />
 					</div>
 					<div style={{ minWidth: 0 }}>
-						<div className="cam-inspector-drawer__title-row">
-							<h3 title={camera?.name || "Chi tiết Camera"}>
-								{camera?.name || "Đang tải..."}
-							</h3>
-							{camera?.cameraCode && (
-								<span className="cam-inspector-drawer__code">
-									{camera.cameraCode}
-								</span>
-							)}
-						</div>
 						{camera && (
 							<div className="cam-inspector-drawer__badges">
 								<span
@@ -430,26 +416,6 @@ export default function CameraInspectorDrawer({
 								>
 									● {camera.operationalStatus || "OFFLINE"}
 								</span>
-								{camAreaInfo.areaName && (
-									<button
-										type="button"
-										className="cam-inspector-drawer__area-chip"
-										onClick={() =>
-											camAreaInfo.areaId &&
-											onFocusAreaOnMap?.(camAreaInfo.areaId)
-										}
-										title="Định vị khu vực trên bản đồ 3D"
-									>
-										<MapPin size={11} />
-										<span>
-											{camAreaInfo.areaName}
-											{formatLocation(camAreaInfo.building, camAreaInfo.floor)
-												? ` (${formatLocation(camAreaInfo.building, camAreaInfo.floor)})`
-												: ""}
-										</span>
-										<Focus size={11} />
-									</button>
-								)}
 							</div>
 						)}
 					</div>
