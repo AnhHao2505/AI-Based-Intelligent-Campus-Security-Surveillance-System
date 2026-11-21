@@ -25,6 +25,7 @@ import {
 	applyLiveCameraStatus,
 	extractCameraAreaInfo,
 	isStreamConfigDirty,
+	normalizeCorridorCameraName,
 } from "../../utils/campusCameraHelpers";
 import RoiEditorModal from "./RoiEditorModal";
 import CameraGeneralTab from "./CameraGeneralTab";
@@ -96,7 +97,13 @@ export default function CameraInspectorDrawer({
 	const [confirmDecommissionOpen, setConfirmDecommissionOpen] = useState(false);
 	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
-	const [generalForm, setGeneralForm] = useState({ name: "", areaId: "" });
+	const [generalForm, setGeneralForm] = useState({
+		name: "",
+		cameraType: "RESTRICTED_AREA",
+		areaId: "",
+		mapBuilding: "",
+		mapFloorOrder: 0,
+	});
 	const [streamForm, setStreamForm] = useState({
 		host: "",
 		port: "",
@@ -128,7 +135,11 @@ export default function CameraInspectorDrawer({
 			const info = extractCameraAreaInfo(reconciled);
 			setGeneralForm({
 				name: reconciled.name || "",
+				cameraType:
+					reconciled.cameraType || info.cameraType || "RESTRICTED_AREA",
 				areaId: info.areaId || "",
+				mapBuilding: reconciled.mapBuilding || info.building || "",
+				mapFloorOrder: reconciled.mapFloorOrder ?? 0,
 			});
 			if (reconciled.streamConfig) {
 				setStreamForm({
@@ -315,9 +326,25 @@ export default function CameraInspectorDrawer({
 		e.preventDefault();
 		setSaving(true);
 		try {
+			const effectiveType = generalForm.cameraType || "RESTRICTED_AREA";
+			const effectiveName =
+				effectiveType === "CORRIDOR"
+					? normalizeCorridorCameraName(generalForm.name)
+					: (generalForm.name || "").trim();
 			const updated = await updateCamera(cameraId, {
-				name: generalForm.name,
-				areaId: generalForm.areaId,
+				name: effectiveName,
+				cameraType: effectiveType,
+				areaId: effectiveType === "CORRIDOR" ? null : generalForm.areaId || null,
+				mapBuilding:
+					mapPlacement?.building ||
+					generalForm.mapBuilding ||
+					camera?.mapBuilding ||
+					null,
+				mapFloorOrder:
+					mapPlacement?.floorOrder ??
+					generalForm.mapFloorOrder ??
+					camera?.mapFloorOrder ??
+					null,
 			});
 			setCamera(updated);
 			toast.success("Cập nhật thông tin camera thành công!");

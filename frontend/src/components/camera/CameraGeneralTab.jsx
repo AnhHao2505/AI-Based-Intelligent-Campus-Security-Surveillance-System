@@ -5,15 +5,21 @@ import {
 	Save,
 	Loader2,
 	ExternalLink,
-	Trash2,
-	RotateCcw,
 	Pencil,
 	X,
 	CheckCircle2,
 	AlertCircle,
+	ShieldCheck,
 } from "lucide-react";
 import { getLevelConfig } from "../../utils/areaHelpers";
 import { formatLocation } from "../../utils/formatLocation";
+import {
+	CAMERA_TYPE_OPTIONS,
+	filterAreasForCameraType,
+	normalizeCorridorCameraName,
+	resolveCameraTypeConfig,
+	stripCorridorPrefix,
+} from "../../utils/campusCameraHelpers";
 import AreaSelectWithFilter from "../area/AreaSelectWithFilter";
 
 export default function CameraGeneralTab({
@@ -28,9 +34,6 @@ export default function CameraGeneralTab({
 	mapPlacement = null,
 	isPickingLocationOnMap = false,
 	onPickLocationOnMap = null,
-	onRemoveMapLocation = null,
-	canUndoRemovedMapLocation = false,
-	onUndoRemoveMapLocation = null,
 	isEditing: controlledIsEditing,
 	onEditingChange = null,
 	onCancelEdit = null,
@@ -53,22 +56,59 @@ export default function CameraGeneralTab({
 		setInternalIsEditing(false);
 	}, [camera?.id]);
 
-	const selectedArea = useMemo(
-		() =>
+	const activeCameraType =
+		generalForm.cameraType ||
+		camera?.cameraType ||
+		(camera?.assignedArea?.areaLevel === "PUBLIC"
+			? "PUBLIC_AREA"
+			: "RESTRICTED_AREA");
+	const typeConfig = resolveCameraTypeConfig(activeCameraType);
+	const isCorridorType = activeCameraType === "CORRIDOR";
+
+	const filteredAreas = useMemo(
+		() => filterAreasForCameraType(availableAreas, activeCameraType),
+		[availableAreas, activeCameraType],
+	);
+
+	const selectedArea = useMemo(() => {
+		if (isCorridorType) return null;
+		return (
 			availableAreas.find((a) => String(a.id) === String(generalForm.areaId)) ||
 			camera?.assignedArea ||
 			camera?.assignedAreas?.[0] ||
-			null,
-		[availableAreas, generalForm.areaId, camera],
-	);
+			null
+		);
+	}, [availableAreas, generalForm.areaId, camera, isCorridorType]);
 
 	const selectedLevelCfg = selectedArea
 		? getLevelConfig(selectedArea.areaLevel || selectedArea.areaAccessLevel)
 		: null;
 
-	const areaLocationSubtitle = selectedArea
-		? formatLocation(selectedArea.building, selectedArea.floor)
-		: "";
+	const resolvedBuilding =
+		selectedArea?.building ||
+		mapPlacement?.building ||
+		camera?.mapBuilding ||
+		camera?.building ||
+		generalForm.mapBuilding ||
+		null;
+	const resolvedFloorOrder =
+		mapPlacement?.floorOrder ??
+		camera?.mapFloorOrder ??
+		generalForm.mapFloorOrder ??
+		null;
+	const resolvedFloorLabel =
+		selectedArea?.floor ||
+		camera?.floor ||
+		(resolvedFloorOrder != null && Number.isFinite(Number(resolvedFloorOrder))
+			? Number(resolvedFloorOrder) === 0
+				? "Tầng Trệt"
+				: `Tầng ${Number(resolvedFloorOrder)}`
+			: null);
+
+	const areaLocationSubtitle = formatLocation(
+		resolvedBuilding,
+		resolvedFloorLabel,
+	);
 
 	const handleStartEdit = () => {
 		setEditing(true);
@@ -85,10 +125,40 @@ export default function CameraGeneralTab({
 				"";
 			setGeneralForm({
 				name: camera.name || "",
+				cameraType:
+					camera.cameraType ||
+					(camera.assignedArea?.areaLevel === "PUBLIC"
+						? "PUBLIC_AREA"
+						: "RESTRICTED_AREA"),
 				areaId: fallbackAreaId,
+				mapBuilding: camera.mapBuilding || "",
+				mapFloorOrder: camera.mapFloorOrder ?? 0,
 			});
 		}
 		setEditing(false);
+	};
+
+	const handleCameraTypeChange = (nextType) => {
+		const nextFiltered = filterAreasForCameraType(availableAreas, nextType);
+		const currentAreaStillValid = nextFiltered.some(
+			(a) => String(a.id) === String(generalForm.areaId),
+		);
+		const nextAreaId =
+			nextType === "CORRIDOR"
+				? ""
+				: currentAreaStillValid
+					? generalForm.areaId
+					: nextFiltered[0]?.id || "";
+		const nextName =
+			nextType === "CORRIDOR"
+				? normalizeCorridorCameraName(generalForm.name || "")
+				: generalForm.name;
+		setGeneralForm({
+			...generalForm,
+			cameraType: nextType,
+			areaId: nextAreaId,
+			name: nextName,
+		});
 	};
 
 	const handleFormSubmit = async (e) => {
@@ -134,8 +204,37 @@ export default function CameraGeneralTab({
 					</div>
 
 					<div className="cam-general-read__item">
-						<span className="cam-general-read__label">Khu vực phụ trách</span>
-						{selectedArea ? (
+						<span className="cam-general-read__label">
+							Loại vị trí & Chế độ AI
+						</span>
+						<div className="cam-general-read__value-row">
+							<span
+								className={`cam-type-badge cam-type-badge--${activeCameraType.toLowerCase()}`}
+							>
+								<ShieldCheck size={13} />
+								<span>{typeConfig.badgeLabel}</span>
+							</span>
+						</div>
+					</div>
+
+					<div className="cam-general-read__item">
+						<span className="cam-general-read__label">
+							{isCorridorType ? "Vị trí hành lang" : "Khu vực phụ trách"}
+						</span>
+						{isCorridorType ? (
+							<div className="cam-general-read__area-box">
+								<div className="cam-general-read__area-main">
+									<span className="cam-general-read__value-primary">
+										Hành lang chung (Không gán phòng)
+									</span>
+								</div>
+								{areaLocationSubtitle && (
+									<span className="cam-general-read__subtext">
+										{areaLocationSubtitle}
+									</span>
+								)}
+							</div>
+						) : selectedArea ? (
 							<div className="cam-general-read__area-box">
 								<div className="cam-general-read__area-main">
 									<span className="cam-general-read__value-primary">
@@ -181,7 +280,11 @@ export default function CameraGeneralTab({
 								<div className="cam-general-read__pin-status cam-general-read__pin-status--ok">
 									<CheckCircle2 size={14} />
 									<span>
-										Đã ghim vị trí ({mapPlacement.building || "Khuôn viên"})
+										Đã ghim vị trí (
+										{areaLocationSubtitle ||
+											mapPlacement.building ||
+											"Khuôn viên"}
+										)
 									</span>
 								</div>
 							) : (
@@ -198,8 +301,15 @@ export default function CameraGeneralTab({
 	}
 
 	// 2. CHẾ ĐỘ CHỈNH SỬA (EDIT MODE)
+	const corridorSuffix = isCorridorType
+		? stripCorridorPrefix(generalForm.name)
+		: generalForm.name;
+
 	return (
-		<form onSubmit={handleFormSubmit} className="tab-form">
+		<form
+			onSubmit={handleFormSubmit}
+			className="tab-form"
+		>
 			<div className="cam-general-edit__top">
 				<span className="cam-general-read__section-title">
 					Chỉnh sửa thông tin
@@ -208,120 +318,170 @@ export default function CameraGeneralTab({
 
 			<div className="form-grid">
 				<div className="form-group col-span-2">
-					<label>Tên camera *</label>
-					<input
-						type="text"
-						value={generalForm.name}
-						onChange={(e) =>
-							setGeneralForm({ ...generalForm, name: e.target.value })
-						}
-						placeholder="Nhập tên nhận diện của camera..."
-						required
-						disabled={!isAdmin || saving}
-					/>
+					<label>Loại vị trí đặt camera & Chế độ AI *</label>
+					<div className="cam-type-selector-grid">
+						{CAMERA_TYPE_OPTIONS.map((opt) => {
+							const isSelected = activeCameraType === opt.value;
+							return (
+								<button
+									key={opt.value}
+									type="button"
+									className={`cam-type-option-btn ${isSelected ? "cam-type-option-btn--active" : ""}`}
+									onClick={() => handleCameraTypeChange(opt.value)}
+									disabled={!isAdmin || saving}
+								>
+									<span className="cam-type-option-btn__title">
+										{opt.label}
+									</span>
+									<span className="cam-type-option-btn__sub">
+										{opt.aiModeLabel}
+									</span>
+								</button>
+							);
+						})}
+					</div>
 				</div>
 
 				<div className="form-group col-span-2">
-					<label
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: "0.4rem",
-						}}
-					>
-						<MapPin size={15} className="text-blue" />
-						<span>Khu vực phụ trách *</span>
-					</label>
-
-					<div className="camera-general-area-row">
-						<AreaSelectWithFilter
-							className="camera-general-area-select"
-							areas={availableAreas}
-							value={generalForm.areaId || ""}
+					<label>Tên camera *</label>
+					{isCorridorType ? (
+						<div className="cam-corridor-prefix-input">
+							<span className="cam-corridor-prefix-input__addon">
+								Hành lang
+							</span>
+							<input
+								type="text"
+								value={corridorSuffix}
+								onChange={(e) => {
+									const raw = e.target.value;
+									setGeneralForm({
+										...generalForm,
+										name: raw.trim()
+											? `Hành lang ${stripCorridorPrefix(raw)}`
+											: "",
+									});
+								}}
+								placeholder="Ví dụ: Cánh Đông Tầng 1..."
+								required
+								disabled={!isAdmin || saving}
+							/>
+						</div>
+					) : (
+						<input
+							type="text"
+							value={generalForm.name}
 							onChange={(e) =>
-								setGeneralForm({ ...generalForm, areaId: e.target.value })
+								setGeneralForm({ ...generalForm, name: e.target.value })
 							}
-							placeholder="-- Chọn khu vực --"
-							placeholderDisabled
+							placeholder="Nhập tên nhận diện của camera..."
 							required
 							disabled={!isAdmin || saving}
 						/>
-
-						{showAreaExternalLink && (
-							<button
-								type="button"
-								onClick={() => navigate("/admin/areas")}
-								className="cam-pick-3d-btn"
-							>
-								<ExternalLink size={14} />
-								<span>Đến danh sách khu vực</span>
-							</button>
-						)}
-					</div>
-					{selectedArea && selectedLevelCfg && (
-						<div className="cam-map-card__hint" style={{ marginTop: "4px" }}>
-							Cấp bảo mật:{" "}
-							<strong style={{ color: selectedLevelCfg.color }}>
-								{selectedLevelCfg.badgeLabel || selectedLevelCfg.name}
-							</strong>
-						</div>
 					)}
 				</div>
+
+				{!isCorridorType ? (
+					<div className="form-group col-span-2">
+						<label
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: "0.4rem",
+							}}
+						>
+							<MapPin
+								size={15}
+								className="text-blue"
+							/>
+							<span>
+								Khu vực phụ trách (
+								{activeCameraType === "PUBLIC_AREA"
+									? "Cấp 1 · Công khai"
+									: "Cấp 2 & 3 · Hạn chế"}
+								) *
+							</span>
+						</label>
+
+						<div className="camera-general-area-row">
+							<AreaSelectWithFilter
+								className="camera-general-area-select"
+								areas={filteredAreas}
+								value={generalForm.areaId || ""}
+								onChange={(e) =>
+									setGeneralForm({ ...generalForm, areaId: e.target.value })
+								}
+								placeholder="-- Chọn khu vực --"
+								placeholderDisabled
+								required
+								disabled={!isAdmin || saving}
+							/>
+
+							{showAreaExternalLink && (
+								<button
+									type="button"
+									onClick={() => navigate("/admin/areas")}
+									className="cam-pick-3d-btn"
+								>
+									<ExternalLink size={14} />
+									<span>Đến danh sách khu vực</span>
+								</button>
+							)}
+						</div>
+						{selectedArea && selectedLevelCfg && (
+							<div
+								className="cam-map-card__hint"
+								style={{ marginTop: "4px" }}
+							>
+								Cấp bảo mật:{" "}
+								<strong style={{ color: selectedLevelCfg.color }}>
+									{selectedLevelCfg.badgeLabel || selectedLevelCfg.name}
+								</strong>
+							</div>
+						)}
+					</div>
+				) : (
+					<div className="form-group col-span-2">
+						<label>Tòa nhà & Tầng hành lang</label>
+						<div className="cam-corridor-location-box">
+							<MapPin size={14} />
+							<span>
+								{areaLocationSubtitle ||
+									"Ghim vị trí trên sàn hành lang bản đồ 2D để xác định tòa & tầng"}
+							</span>
+						</div>
+					</div>
+				)}
 			</div>
 
 			{onPickLocationOnMap && isAdmin && (
 				<div className="cam-map-card">
-					<div className="cam-map-card__header">
-						<div className="cam-map-card__title">
-							<MapPin size={14} />
-							<span>Vị trí icon trên bản đồ 2D</span>
-						</div>
-						{mapPlacement && onRemoveMapLocation && (
-							<button
-								type="button"
-								className="cam-map-card__remove"
-								onClick={onRemoveMapLocation}
-								title="Xóa icon khỏi bản đồ"
-							>
-								<Trash2 size={13} />
-								<span>Xóa vị trí</span>
-							</button>
-						)}
-					</div>
+					<button
+						type="button"
+						className={`cam-pick-3d-btn cam-map-card__pick-btn ${isPickingLocationOnMap ? "cam-pick-3d-btn--active" : ""}`}
+						onClick={onPickLocationOnMap}
+					>
+						<MapPin size={14} />
+						<span>
+							{isPickingLocationOnMap
+								? "Đang chọn trên bản đồ..."
+								: mapPlacement
+									? "Đặt lại vị trí trên bản đồ"
+									: "Đặt vị trí trên bản đồ"}
+						</span>
+					</button>
 
 					{!mapPlacement ? (
-						<>
-							<button
-								type="button"
-								className={`cam-pick-3d-btn cam-map-card__pick-btn ${isPickingLocationOnMap ? "cam-pick-3d-btn--active" : ""}`}
-								onClick={onPickLocationOnMap}
-							>
-								<MapPin size={14} />
-								<span>
-									{isPickingLocationOnMap
-										? "Đang chọn trên bản đồ..."
-										: "Đặt vị trí trên bản đồ"}
-								</span>
-							</button>
-							{canUndoRemovedMapLocation && onUndoRemoveMapLocation && (
-								<button
-									type="button"
-									className="cam-pick-3d-btn cam-map-card__pick-btn"
-									onClick={onUndoRemoveMapLocation}
-									style={{ marginTop: "6px" }}
-								>
-									<RotateCcw size={14} />
-									<span>Hoàn tác vị trí vừa xóa</span>
-								</button>
-							)}
-							<p className="cam-map-card__empty">
-								Chưa ghim trên bản đồ. Bấm nút để chọn vị trí.
-							</p>
-						</>
+						<p className="cam-map-card__empty">
+							Chưa ghim trên bản đồ. Bấm nút hoặc chấm trên bản đồ để ghim.
+						</p>
 					) : (
-						<div className="cam-map-card__hint">
-							Đã ghim vị trí ({mapPlacement.building || "Khuôn viên"}). Kéo icon
-							trên bản đồ để dời.
+						<div
+							className="cam-map-card__hint"
+							style={{ marginTop: "6px" }}
+						>
+							Đã ghim vị trí (
+							{areaLocationSubtitle || mapPlacement.building || "Khuôn viên"}).
+							Kéo icon trên bản đồ để dời.
 						</div>
 					)}
 				</div>
@@ -338,9 +498,16 @@ export default function CameraGeneralTab({
 						<X size={15} />
 						<span>Hủy</span>
 					</button>
-					<button type="submit" className="btn-save" disabled={saving}>
+					<button
+						type="submit"
+						className="btn-save"
+						disabled={saving}
+					>
 						{saving ? (
-							<Loader2 className="animate-spin" size={16} />
+							<Loader2
+								className="animate-spin"
+								size={16}
+							/>
 						) : (
 							<Save size={16} />
 						)}

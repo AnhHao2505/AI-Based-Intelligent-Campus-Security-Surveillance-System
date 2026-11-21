@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import java.util.UUID;
 
 import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.CameraType;
 import com.fa26se040.icss.enums.OperationalStatus;
 
 @Data
@@ -17,6 +18,7 @@ public class CameraListResponse {
     private UUID id;
     private String cameraCode;
     private String name;
+    private CameraType cameraType;
     private CameraStatus status;
     private OperationalStatus operationalStatus;
     private UUID areaId;

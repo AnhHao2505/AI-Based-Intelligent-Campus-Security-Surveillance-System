@@ -62,11 +62,7 @@ public class CameraService {
     // === Camera CRUD ===
 
     public CameraDetailResponse createCamera(CreateCameraRequest request) {
-        log.info("Creating camera with name: {}", request.getName());
-
-        if (request.getAreaId() == null) {
-            throw new CameraException(CameraErrorCode.ERR_CAM_004);
-        }
+        log.info("Creating camera with name: {}, type: {}", request.getName(), request.getCameraType());
 
         String cameraCode = request.getCameraCode();
         if (cameraCode != null && !cameraCode.trim().isEmpty()) {
@@ -79,22 +75,104 @@ public class CameraService {
             log.info("Auto-generated camera code: {}", cameraCode);
         }
 
-        Area area = areaRepository.findByIdAndDeletedAtIsNull(request.getAreaId())
-                .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-        if (!Boolean.TRUE.equals(area.getIsActive())) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_017);
+        CameraType requestedType = request.getCameraType();
+        Area area = null;
+        CameraType effectiveType;
+
+        if (requestedType == CameraType.CORRIDOR) {
+            effectiveType = CameraType.CORRIDOR;
+            if (request.getMapBuilding() == null || request.getMapBuilding().isBlank()
+                    || request.getMapFloorOrder() == null) {
+                throw new CameraException(CameraErrorCode.ERR_CAM_006);
+            }
+        } else {
+            if (request.getAreaId() == null) {
+                throw new CameraException(CameraErrorCode.ERR_CAM_004);
+            }
+            area = areaRepository.findByIdAndDeletedAtIsNull(request.getAreaId())
+                    .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+            if (!Boolean.TRUE.equals(area.getIsActive())) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_017);
+            }
+            validateAreaLevelMatchesCameraType(area, requestedType);
+            effectiveType = requestedType != null ? requestedType : inferCameraTypeFromArea(area);
         }
 
         Camera camera = Camera.builder()
                 .cameraCode(cameraCode)
                 .name(request.getName().trim())
+                .cameraType(effectiveType)
                 .status(CameraStatus.ACTIVE)
                 .operationalStatus(OperationalStatus.OFFLINE)
                 .area(area)
                 .build();
 
+        applyOptionalMapCoordinates(
+                camera,
+                request.getMapLongitude(),
+                request.getMapLatitude(),
+                request.getMapBuilding(),
+                request.getMapFloorOrder()
+        );
+
         Camera saved = cameraRepository.save(camera);
         return mapToDetailResponse(saved);
+    }
+
+    private void validateAreaLevelMatchesCameraType(Area area, CameraType requestedType) {
+        if (area == null || requestedType == null || area.getAreaLevel() == null) {
+            return;
+        }
+        boolean isPublicArea = area.getAreaLevel() == AreaLevel.PUBLIC;
+        if (requestedType == CameraType.RESTRICTED_AREA && isPublicArea) {
+            throw new CameraException(CameraErrorCode.ERR_CAM_005);
+        }
+        if (requestedType == CameraType.PUBLIC_AREA && !isPublicArea) {
+            throw new CameraException(CameraErrorCode.ERR_CAM_005);
+        }
+    }
+
+    private CameraType inferCameraTypeFromArea(Area area) {
+        if (area != null && area.getAreaLevel() == AreaLevel.PUBLIC) {
+            return CameraType.PUBLIC_AREA;
+        }
+        return CameraType.RESTRICTED_AREA;
+    }
+
+    private void applyOptionalMapCoordinates(
+            Camera camera,
+            Double lng,
+            Double lat,
+            String rawBuilding,
+            Integer floorOrder
+    ) {
+        if (lng != null || lat != null) {
+            if (lng == null || lat == null || !Double.isFinite(lng) || !Double.isFinite(lat)
+                    || lng < -180.0 || lng > 180.0 || lat < -90.0 || lat > 90.0) {
+                throw new CameraException(CameraErrorCode.ERR_MAP_003);
+            }
+            camera.setMapLongitude(lng);
+            camera.setMapLatitude(lat);
+        }
+
+        Area assignedArea = camera.getArea();
+        String building = rawBuilding != null && !rawBuilding.isBlank()
+                ? rawBuilding.trim()
+                : (assignedArea != null && assignedArea.getBuilding() != null && !assignedArea.getBuilding().isBlank()
+                        ? assignedArea.getBuilding().trim()
+                        : null);
+        Integer effectiveFloorOrder = floorOrder != null
+                ? floorOrder
+                : (assignedArea != null && assignedArea.getFloorEntity() != null
+                        ? assignedArea.getFloorEntity().getFloorOrder()
+                        : null);
+
+        if (building != null) {
+            camera.setMapBuilding(building);
+        }
+        if (effectiveFloorOrder != null) {
+            camera.setMapFloorOrder(effectiveFloorOrder);
+        }
     }
 
     @Transactional
@@ -132,6 +210,7 @@ public class CameraService {
                         .id(c.getId())
                         .cameraCode(c.getCameraCode())
                         .name(c.getName())
+                        .cameraType(c.getCameraType() != null ? c.getCameraType() : CameraType.RESTRICTED_AREA)
                         .status(c.getStatus())
                         .operationalStatus(c.getOperationalStatus())
                         .mapLongitude(c.getMapLongitude())
@@ -296,14 +375,54 @@ public class CameraService {
             throw new CameraException(CameraErrorCode.ERR_STREAM_003);
         }
 
-        camera.setName(request.getName());
-        if (request.getAreaId() != null) {
-            Area area = areaRepository.findByIdAndDeletedAtIsNull(request.getAreaId())
-                    .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
-            if (!Boolean.TRUE.equals(area.getIsActive())) {
-                throw new AreaException(AreaErrorCode.ERR_AREA_017);
+        camera.setName(request.getName().trim());
+        CameraType requestedType = request.getCameraType();
+
+        if (requestedType == CameraType.CORRIDOR) {
+            camera.setCameraType(CameraType.CORRIDOR);
+            camera.setArea(null);
+            String effectiveBuilding = request.getMapBuilding() != null && !request.getMapBuilding().isBlank()
+                    ? request.getMapBuilding().trim()
+                    : camera.getMapBuilding();
+            Integer effectiveFloorOrder = request.getMapFloorOrder() != null
+                    ? request.getMapFloorOrder()
+                    : camera.getMapFloorOrder();
+            if (effectiveBuilding == null || effectiveBuilding.isBlank() || effectiveFloorOrder == null) {
+                throw new CameraException(CameraErrorCode.ERR_CAM_006);
             }
-            camera.setArea(area);
+            applyOptionalMapCoordinates(
+                    camera,
+                    request.getMapLongitude(),
+                    request.getMapLatitude(),
+                    effectiveBuilding,
+                    effectiveFloorOrder
+            );
+        } else {
+            Area targetArea = camera.getArea();
+            if (request.getAreaId() != null) {
+                targetArea = areaRepository.findByIdAndDeletedAtIsNull(request.getAreaId())
+                        .orElseThrow(() -> new AreaException(AreaErrorCode.ERR_AREA_002));
+                if (!Boolean.TRUE.equals(targetArea.getIsActive())) {
+                    throw new AreaException(AreaErrorCode.ERR_AREA_017);
+                }
+                camera.setArea(targetArea);
+            }
+            if (requestedType != null) {
+                if (targetArea == null) {
+                    throw new CameraException(CameraErrorCode.ERR_CAM_004);
+                }
+                validateAreaLevelMatchesCameraType(targetArea, requestedType);
+                camera.setCameraType(requestedType);
+            } else if (request.getAreaId() != null && targetArea != null && targetArea.getAreaLevel() != null) {
+                camera.setCameraType(inferCameraTypeFromArea(targetArea));
+            }
+            applyOptionalMapCoordinates(
+                    camera,
+                    request.getMapLongitude(),
+                    request.getMapLatitude(),
+                    request.getMapBuilding(),
+                    request.getMapFloorOrder()
+            );
         }
 
         Camera saved = cameraRepository.save(camera);
@@ -463,9 +582,11 @@ public class CameraService {
                 .filter(c -> c.getDeletedAt() == null)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
 
-        Area area = camera.getArea();
-        if (area == null || area.getDeletedAt() != null || !Boolean.TRUE.equals(area.getIsActive())) {
-            throw new AreaException(AreaErrorCode.ERR_AREA_017);
+        if (camera.getCameraType() != CameraType.CORRIDOR) {
+            Area area = camera.getArea();
+            if (area == null || area.getDeletedAt() != null || !Boolean.TRUE.equals(area.getIsActive())) {
+                throw new AreaException(AreaErrorCode.ERR_AREA_017);
+            }
         }
 
         camera.setStatus(CameraStatus.ACTIVE);
@@ -744,21 +865,44 @@ public class CameraService {
     private CameraListResponse mapToListResponse(Camera camera) {
         Area area = camera.getArea();
         boolean hasActiveArea = area != null && area.getDeletedAt() == null;
+        CameraType effectiveType = camera.getCameraType() != null ? camera.getCameraType() : CameraType.RESTRICTED_AREA;
+        String resolvedBuilding = hasActiveArea ? area.getBuilding() : camera.getMapBuilding();
+        String resolvedFloor = hasActiveArea ? area.getFloor() : resolveFloorNameFromMap(camera.getMapBuilding(), camera.getMapFloorOrder());
         return CameraListResponse.builder()
                 .id(camera.getId())
                 .cameraCode(camera.getCameraCode())
                 .name(camera.getName())
+                .cameraType(effectiveType)
                 .status(camera.getStatus())
                 .operationalStatus(camera.getOperationalStatus())
                 .areaId(hasActiveArea ? area.getId() : null)
                 .areaName(hasActiveArea ? area.getName() : null)
-                .building(hasActiveArea ? area.getBuilding() : null)
-                .floor(hasActiveArea ? area.getFloor() : null)
+                .building(resolvedBuilding)
+                .floor(resolvedFloor)
                 .mapLongitude(camera.getMapLongitude())
                 .mapLatitude(camera.getMapLatitude())
                 .mapBuilding(camera.getMapBuilding())
                 .mapFloorOrder(camera.getMapFloorOrder())
                 .build();
+    }
+
+    private String resolveFloorNameFromMap(String mapBuilding, Integer mapFloorOrder) {
+        if (mapFloorOrder == null) {
+            return null;
+        }
+        if (floorRepository != null && mapBuilding != null && !mapBuilding.isBlank()) {
+            try {
+                for (Floor f : floorRepository.findAllActiveFloors()) {
+                    if (f.getBuilding() != null
+                            && matchesBuildingName(mapBuilding, f.getBuilding().getName())
+                            && Objects.equals(f.getFloorOrder(), mapFloorOrder)) {
+                        return f.getName();
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return mapFloorOrder == 0 ? "Tầng Trệt" : "Tầng " + mapFloorOrder;
     }
 
     private CameraDetailResponse mapToDetailResponse(Camera camera) {
@@ -777,6 +921,7 @@ public class CameraService {
                 .id(camera.getId())
                 .cameraCode(camera.getCameraCode())
                 .name(camera.getName())
+                .cameraType(camera.getCameraType() != null ? camera.getCameraType() : CameraType.RESTRICTED_AREA)
                 .status(camera.getStatus())
                 .operationalStatus(camera.getOperationalStatus())
                 .createdAt(camera.getCreatedAt())

@@ -25,7 +25,6 @@ import CameraWorkspaceSidebar from "../../components/area/CameraWorkspaceSidebar
 import CampusMapView from "../../components/area/CampusMapView";
 import FloorDigitizerStudio from "../../components/area/FloorDigitizerStudio";
 import CameraInspectorDrawer from "../../components/camera/CameraInspectorDrawer";
-import CameraCreateModal from "../../components/CameraCreateModal";
 import ErrorBoundary from "../../components/common/ErrorBoundary";
 import AreaTypeChangePreviewModal from "../../components/area/AreaTypeChangePreviewModal";
 import {
@@ -52,7 +51,6 @@ import {
 	reactivateCamera,
 	deleteCamera,
 	updateCameraMapLocation,
-	clearCameraMapLocation,
 } from "../../services/cameraService";
 import {
 	buildCameraStatsByArea,
@@ -136,7 +134,6 @@ export default function AreaListPage() {
 	const [isCameraGeneralEditing, setIsCameraGeneralEditing] = useState(false);
 	const [pickedAreaOverride, setPickedAreaOverride] = useState(null);
 	const [optimisticMapPlacements, setOptimisticMapPlacements] = useState({});
-	const [removedMapPlacementUndo, setRemovedMapPlacementUndo] = useState(null);
 	const cameraMapPlacements = useMemo(
 		() => buildCameraPlacementsMap(cameras, optimisticMapPlacements),
 		[cameras, optimisticMapPlacements],
@@ -144,6 +141,7 @@ export default function AreaListPage() {
 
 	const handleStartCreateOnMap = () => {
 		setSelectedCameraId(null);
+		setIsCreateCameraOpen(false);
 		setPickingCameraArea(false);
 		setIsCreatingOnMap(true);
 	};
@@ -625,6 +623,7 @@ export default function AreaListPage() {
 				return;
 			}
 			setIsCreatingOnMap(false);
+			setIsCreateCameraOpen(false);
 			setRebindingAreaId(null);
 			setPickingCameraArea(false);
 			setPickingCameraLocation(false);
@@ -641,6 +640,9 @@ export default function AreaListPage() {
 				if (matchedArea.building) setSelectedBuilding(matchedArea.building);
 				if (matchedArea.floor) setSelectedFloor(matchedArea.floor);
 				setSelectedAreaId(matchedArea.id);
+			} else {
+				if (areaInfo.building) setSelectedBuilding(areaInfo.building);
+				if (areaInfo.floor) setSelectedFloor(areaInfo.floor);
 			}
 			syncCameraUrlParams(leftSidebarMode, camera.id, preferredTab || "general");
 		},
@@ -683,10 +685,17 @@ export default function AreaListPage() {
 		async ({ lng, lat, building, floorOrder }) => {
 			if (!selectedCameraId || !isAdmin) return;
 			const targetCam = cameras.find((c) => c.id === selectedCameraId);
+			const isCorridorCam =
+				String(targetCam?.cameraType || "").toUpperCase() === "CORRIDOR";
 			const areaInfo = targetCam ? extractCameraAreaInfo(targetCam, areaById) : null;
-			const matchedArea = areaInfo?.areaId ? areaById.get(areaInfo.areaId) : null;
-			const assignedBuilding = matchedArea?.building || areaInfo?.building || null;
-			const assignedFloor = matchedArea?.floor || areaInfo?.floor || null;
+			const matchedArea =
+				!isCorridorCam && areaInfo?.areaId ? areaById.get(areaInfo.areaId) : null;
+			const assignedBuilding = isCorridorCam
+				? null
+				: matchedArea?.building || areaInfo?.building || null;
+			const assignedFloor = isCorridorCam
+				? null
+				: matchedArea?.floor || areaInfo?.floor || null;
 			const assignedFloorOrder =
 				assignedBuilding && assignedFloor
 					? resolveFloorOrder(assignedBuilding, assignedFloor)
@@ -695,6 +704,7 @@ export default function AreaListPage() {
 			const resolvedBuilding =
 				assignedBuilding ||
 				building ||
+				targetCam?.mapBuilding ||
 				(selectedBuilding !== "ALL" ? selectedBuilding : null) ||
 				null;
 			const resolvedOrder =
@@ -702,9 +712,11 @@ export default function AreaListPage() {
 					? assignedFloorOrder
 					: floorOrder != null
 						? floorOrder
-						: selectedFloor !== "ALL"
-							? resolveFloorOrder(resolvedBuilding, selectedFloor)
-							: null;
+						: targetCam?.mapFloorOrder != null
+							? Number(targetCam.mapFloorOrder)
+							: selectedFloor !== "ALL"
+								? resolveFloorOrder(resolvedBuilding, selectedFloor)
+								: null;
 
 			if (
 				assignedBuilding &&
@@ -747,9 +759,6 @@ export default function AreaListPage() {
 					floorOrder: resolvedOrder,
 				});
 				syncCameraCoordinatesInState(selectedCameraId, updated);
-				setRemovedMapPlacementUndo((prev) =>
-					prev?.cameraId === selectedCameraId ? null : prev,
-				);
 				toast.success("Đã lưu vị trí camera trên bản đồ.");
 			} catch (err) {
 				setOptimisticMapPlacements((prev) => {
@@ -790,12 +799,17 @@ export default function AreaListPage() {
 		async (cameraId, { lng, lat, building, floorOrder }) => {
 			if (!cameraId || !isAdmin) return;
 			const targetCam = cameras.find((c) => c.id === cameraId);
+			const isCorridorCam =
+				String(targetCam?.cameraType || "").toUpperCase() === "CORRIDOR";
 			const areaInfo = targetCam ? extractCameraAreaInfo(targetCam, areaById) : null;
-			const matchedArea = areaInfo?.areaId ? areaById.get(areaInfo.areaId) : null;
-			const resolvedBuilding =
-				matchedArea?.building || areaInfo?.building || building || null;
-			const resolvedFloorOrder =
-				resolvedBuilding && (matchedArea?.floor || areaInfo?.floor)
+			const matchedArea =
+				!isCorridorCam && areaInfo?.areaId ? areaById.get(areaInfo.areaId) : null;
+			const resolvedBuilding = isCorridorCam
+				? building || targetCam?.mapBuilding || null
+				: matchedArea?.building || areaInfo?.building || building || null;
+			const resolvedFloorOrder = isCorridorCam
+				? floorOrder ?? targetCam?.mapFloorOrder ?? null
+				: resolvedBuilding && (matchedArea?.floor || areaInfo?.floor)
 					? resolveFloorOrder(
 							resolvedBuilding,
 							matchedArea?.floor || areaInfo?.floor,
@@ -822,88 +836,9 @@ export default function AreaListPage() {
 		[areaById, cameras, isAdmin, syncCameraCoordinatesInState],
 	);
 
-	const handleRestoreCameraLocation = useCallback(
-		async (cameraId, previousPlacement) => {
-			if (!cameraId || !previousPlacement || !isAdmin) return;
-			setOptimisticMapPlacements((prev) => ({
-				...prev,
-				[cameraId]: { ...previousPlacement, cameraId },
-			}));
-			try {
-				const updated = await updateCameraMapLocation(cameraId, {
-					longitude: previousPlacement.lng,
-					latitude: previousPlacement.lat,
-					building: previousPlacement.building ?? null,
-					floorOrder: previousPlacement.floorOrder ?? null,
-				});
-				syncCameraCoordinatesInState(cameraId, updated);
-				setRemovedMapPlacementUndo((prev) =>
-					prev?.cameraId === cameraId ? null : prev,
-				);
-				toast.success("Đã khôi phục vị trí icon camera.");
-			} catch (err) {
-				setOptimisticMapPlacements((prev) => {
-					const next = { ...prev };
-					delete next[cameraId];
-					return next;
-				});
-				toast.error(err?.message || "Không thể khôi phục vị trí camera.");
-			}
-		},
-		[isAdmin, syncCameraCoordinatesInState],
-	);
-
-	const handleRemoveCameraLocation = useCallback(
-		async (cameraId) => {
-			if (!cameraId || !isAdmin) return;
-			const previousPlacement = cameraMapPlacements?.[cameraId] || null;
-			setOptimisticMapPlacements((prev) => ({ ...prev, [cameraId]: null }));
-			try {
-				const updated = await clearCameraMapLocation(cameraId);
-				syncCameraCoordinatesInState(cameraId, updated);
-				setRemovedMapPlacementUndo(
-					previousPlacement ? { cameraId, placement: previousPlacement } : null,
-				);
-				toast.success(
-					"Đã xóa vị trí icon camera khỏi bản đồ.",
-					previousPlacement
-						? {
-								duration: 8000,
-								actionButtonStyle: {
-									background: "#15803d",
-									color: "#ffffff",
-									fontWeight: 600,
-									padding: "4px 10px",
-									borderRadius: "4px",
-								},
-								action: {
-									label: "Hoàn tác",
-									onClick: () =>
-										handleRestoreCameraLocation(cameraId, previousPlacement),
-								},
-							}
-						: undefined,
-				);
-			} catch (err) {
-				setOptimisticMapPlacements((prev) => {
-					const next = { ...prev };
-					delete next[cameraId];
-					return next;
-				});
-				toast.error(err?.message || "Không thể xóa vị trí camera.");
-			}
-		},
-		[
-			cameraMapPlacements,
-			handleRestoreCameraLocation,
-			isAdmin,
-			syncCameraCoordinatesInState,
-		],
-	);
-
 	const handleSelectCameraPin = useCallback(
 		(cameraId) => {
-			if (!cameraId) return;
+			if (!cameraId || cameraId === "__draft_create_pin__") return;
 			const cam = cameras.find((c) => c.id === cameraId);
 			if (cam && isAdmin) {
 				handleSelectCamera(cam, "general");
@@ -927,6 +862,11 @@ export default function AreaListPage() {
 
 	const handleOpenCreateCameraModal = useCallback(
 		(defaultAreaId = "") => {
+			setSelectedCameraId(null);
+			setIsCreatingOnMap(false);
+			setPickingCameraArea(false);
+			setPickingCameraLocation(false);
+			setIsCameraGeneralEditing(false);
 			setCreateCameraDefaultAreaId(
 				defaultAreaId
 					? String(defaultAreaId)
@@ -1535,21 +1475,6 @@ export default function AreaListPage() {
 												return next;
 											});
 										}}
-										onRemoveMapLocation={() =>
-											handleRemoveCameraLocation(selectedCameraId)
-										}
-										canUndoRemovedMapLocation={Boolean(
-											removedMapPlacementUndo &&
-												removedMapPlacementUndo.cameraId === selectedCameraId,
-										)}
-										onUndoRemoveMapLocation={() => {
-											if (removedMapPlacementUndo?.placement) {
-												handleRestoreCameraLocation(
-													removedMapPlacementUndo.cameraId,
-													removedMapPlacementUndo.placement,
-												);
-											}
-										}}
 										isGeneralEditing={isCameraGeneralEditing}
 										onGeneralEditingChange={(next) => {
 											setIsCameraGeneralEditing(next);
@@ -1571,16 +1496,35 @@ export default function AreaListPage() {
 							onSyncMapFilter={handleSyncMapFilter}
 							isCreatingArea={isAdmin ? isCreatingOnMap : false}
 							onStartCreateFromRoom={
-								isAdmin ? () => setIsCreatingOnMap(true) : undefined
+								isAdmin
+									? () => {
+											setIsCreateCameraOpen(false);
+											setSelectedCameraId(null);
+											setIsCreatingOnMap(true);
+									  }
+									: undefined
 							}
 							onCancelCreateArea={() => setIsCreatingOnMap(false)}
+							isCreatingCamera={isAdmin ? isCreateCameraOpen : false}
+							createCameraDefaultAreaId={createCameraDefaultAreaId}
+							onCancelCreateCamera={() => setIsCreateCameraOpen(false)}
+							onCameraCreated={async (created) => {
+								setIsCreateCameraOpen(false);
+								toast.success(
+									`Đã tạo camera "${created?.name || created?.cameraCode}" thành công.`,
+								);
+								await fetchAllCameras();
+								if (created?.id) {
+									handleSelectCamera(created, "general");
+								}
+							}}
 							rebindAreaRequestId={rebindingAreaId}
 							onRebindAreaDone={() => setRebindingAreaId(null)}
 							onAreaCreated={async (newArea) => {
 								setIsCreatingOnMap(false);
 								await fetchData(newArea.id);
 							}}
-							hideRail={!isAdmin || !selectedCameraId}
+							hideRail={!isAdmin || (!selectedCameraId && !isCreateCameraOpen)}
 							isLeftSidebarCollapsed={isLeftSidebarCollapsed}
 							onToggleLeftSidebar={() =>
 								setIsLeftSidebarCollapsed((prev) => !prev)
@@ -2045,26 +1989,6 @@ export default function AreaListPage() {
 				area={assignedPersonnelModalArea}
 				isFacilityManager={isFacilityManager}
 			/>
-
-			{/* Create Camera Modal in-workspace (ADMIN ONLY) */}
-			{isAdmin && (
-				<CameraCreateModal
-					isOpen={isCreateCameraOpen}
-					onClose={() => setIsCreateCameraOpen(false)}
-					onSuccess={async (created, opts) => {
-						await fetchAllCameras();
-						if (created?.id) {
-							handleSelectCamera(created, "general");
-							if (opts?.placeOnMap) {
-								setPickingCameraLocation(true);
-							}
-						}
-					}}
-					defaultAreaId={createCameraDefaultAreaId}
-					defaultBuilding={selectedBuilding}
-					defaultFloor={selectedFloor}
-				/>
-			)}
 
 			{/* Sidebar quick-action confirm modal: Decommission Camera */}
 			{sidebarDecommissionTarget && (
