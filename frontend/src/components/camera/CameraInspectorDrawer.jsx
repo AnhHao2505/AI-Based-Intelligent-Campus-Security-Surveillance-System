@@ -3,12 +3,10 @@ import {
 	X,
 	Video,
 	Info,
-	MapPin,
 	Layers,
 	Power,
 	PowerOff,
 	Trash2,
-	Focus,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -23,11 +21,11 @@ import {
 	testConnection,
 	updateRoiGeometry,
 } from "../../services/cameraService";
-import { formatLocation } from "../../utils/formatLocation";
 import {
 	applyLiveCameraStatus,
 	extractCameraAreaInfo,
 	isStreamConfigDirty,
+	normalizeCorridorCameraName,
 } from "../../utils/campusCameraHelpers";
 import RoiEditorModal from "./RoiEditorModal";
 import CameraGeneralTab from "./CameraGeneralTab";
@@ -65,6 +63,12 @@ export default function CameraInspectorDrawer({
 	onRemoveMapLocation,
 	canUndoRemovedMapLocation = false,
 	onUndoRemoveMapLocation = null,
+	isGeneralEditing,
+	onGeneralEditingChange = null,
+	pendingEditLocation = null,
+	hasUpdatedPinInEdit = false,
+	onEditScopeChange = null,
+	onCancelGeneralEdit = null,
 }) {
 	const liveOperationalStatusRef = useRef(liveOperationalStatus);
 	liveOperationalStatusRef.current = liveOperationalStatus;
@@ -97,7 +101,13 @@ export default function CameraInspectorDrawer({
 	const [confirmDecommissionOpen, setConfirmDecommissionOpen] = useState(false);
 	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
-	const [generalForm, setGeneralForm] = useState({ name: "", areaId: "" });
+	const [generalForm, setGeneralForm] = useState({
+		name: "",
+		cameraType: "RESTRICTED_AREA",
+		areaId: "",
+		mapBuilding: "",
+		mapFloorOrder: 0,
+	});
 	const [streamForm, setStreamForm] = useState({
 		host: "",
 		port: "",
@@ -129,7 +139,11 @@ export default function CameraInspectorDrawer({
 			const info = extractCameraAreaInfo(reconciled);
 			setGeneralForm({
 				name: reconciled.name || "",
+				cameraType:
+					reconciled.cameraType || info.cameraType || "RESTRICTED_AREA",
 				areaId: info.areaId || "",
+				mapBuilding: reconciled.mapBuilding || info.building || "",
+				mapFloorOrder: reconciled.mapFloorOrder ?? 0,
 			});
 			if (reconciled.streamConfig) {
 				setStreamForm({
@@ -316,15 +330,41 @@ export default function CameraInspectorDrawer({
 		e.preventDefault();
 		setSaving(true);
 		try {
+			const effectiveType = generalForm.cameraType || "RESTRICTED_AREA";
+			const effectiveName =
+				effectiveType === "CORRIDOR"
+					? normalizeCorridorCameraName(generalForm.name)
+					: (generalForm.name || "").trim();
 			const updated = await updateCamera(cameraId, {
-				name: generalForm.name,
-				areaId: generalForm.areaId,
+				name: effectiveName,
+				cameraType: effectiveType,
+				areaId: effectiveType === "CORRIDOR" ? null : generalForm.areaId || null,
+				...(pendingEditLocation
+					? {
+							mapLongitude: pendingEditLocation.lng,
+							mapLatitude: pendingEditLocation.lat,
+						}
+					: {}),
+				mapBuilding:
+					pendingEditLocation?.building ||
+					mapPlacement?.building ||
+					generalForm.mapBuilding ||
+					camera?.mapBuilding ||
+					null,
+				mapFloorOrder:
+					pendingEditLocation?.floorOrder ??
+					mapPlacement?.floorOrder ??
+					generalForm.mapFloorOrder ??
+					camera?.mapFloorOrder ??
+					null,
 			});
 			setCamera(updated);
 			toast.success("Cập nhật thông tin camera thành công!");
 			onCameraMutated?.(updated);
+			return true;
 		} catch (err) {
 			toast.error(err?.message || "Cập nhật thông tin thất bại.");
+			return false;
 		} finally {
 			setSaving(false);
 		}
@@ -393,7 +433,6 @@ export default function CameraInspectorDrawer({
 		}
 	};
 
-	const camAreaInfo = extractCameraAreaInfo(camera);
 	const isDecommissioned = camera?.status === "DECOMMISSIONED";
 
 	return (
@@ -404,16 +443,6 @@ export default function CameraInspectorDrawer({
 						<Video size={18} />
 					</div>
 					<div style={{ minWidth: 0 }}>
-						<div className="cam-inspector-drawer__title-row">
-							<h3 title={camera?.name || "Chi tiết Camera"}>
-								{camera?.name || "Đang tải..."}
-							</h3>
-							{camera?.cameraCode && (
-								<span className="cam-inspector-drawer__code">
-									{camera.cameraCode}
-								</span>
-							)}
-						</div>
 						{camera && (
 							<div className="cam-inspector-drawer__badges">
 								<span
@@ -426,26 +455,6 @@ export default function CameraInspectorDrawer({
 								>
 									● {camera.operationalStatus || "OFFLINE"}
 								</span>
-								{camAreaInfo.areaName && (
-									<button
-										type="button"
-										className="cam-inspector-drawer__area-chip"
-										onClick={() =>
-											camAreaInfo.areaId &&
-											onFocusAreaOnMap?.(camAreaInfo.areaId)
-										}
-										title="Định vị khu vực trên bản đồ 3D"
-									>
-										<MapPin size={11} />
-										<span>
-											{camAreaInfo.areaName}
-											{formatLocation(camAreaInfo.building, camAreaInfo.floor)
-												? ` (${formatLocation(camAreaInfo.building, camAreaInfo.floor)})`
-												: ""}
-										</span>
-										<Focus size={11} />
-									</button>
-								)}
 							</div>
 						)}
 					</div>
@@ -557,6 +566,11 @@ export default function CameraInspectorDrawer({
 								onRemoveMapLocation={onRemoveMapLocation}
 								canUndoRemovedMapLocation={canUndoRemovedMapLocation}
 								onUndoRemoveMapLocation={onUndoRemoveMapLocation}
+								isEditing={isGeneralEditing}
+								onEditingChange={onGeneralEditingChange}
+								hasUpdatedPinInEdit={hasUpdatedPinInEdit}
+								onEditScopeChange={onEditScopeChange}
+								onCancelEdit={onCancelGeneralEdit}
 							/>
 						)}
 

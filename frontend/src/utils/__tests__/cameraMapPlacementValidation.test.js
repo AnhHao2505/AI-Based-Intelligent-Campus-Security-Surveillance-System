@@ -4,6 +4,10 @@ import {
 	CAMERA_PIN_DRAG_THRESHOLD_PX,
 	validateCameraPinPlacement,
 } from "../cameraMapGeometry.js";
+import {
+	filterAreasForCameraType,
+	normalizeCorridorCameraName,
+} from "../campusCameraHelpers.js";
 
 const ROOM_A = {
 	type: "Feature",
@@ -178,5 +182,78 @@ describe("validateCameraPinPlacement (2-tier F-05 UI validation)", () => {
 		assert.equal(insideRoom.ok, true);
 		assert.equal(insideRoom.zone, "target-room");
 		assert.ok(CAMERA_PIN_DRAG_THRESHOLD_PX >= 4);
+	});
+
+	it("Phase 2 (CORRIDOR): chỉ cho phép đặt trên sàn hành lang (ngoài mọi ROOM), chặn đặt vào trong phòng hoặc ngoài tòa", () => {
+		const corridorCam = {
+			cameraType: "CORRIDOR",
+			mapBuilding: "Tòa Epsilon",
+			mapFloorOrder: 2,
+		};
+
+		// Đặt vào trong ROOM_A -> bị chặn
+		const inRoom = validateCameraPinPlacement({
+			lng: 106.8101,
+			lat: 10.8401,
+			targetCam: corridorCam,
+			activeBuilding: "Tòa Epsilon",
+			activeFloorOrder: 2,
+			roomFeatures: [ROOM_A, ROOM_B],
+			store: STORE,
+		});
+		assert.equal(inRoom.ok, false);
+		assert.equal(inRoom.reason, "inside-room-for-corridor");
+
+		// Đặt ngoài tòa -> bị chặn
+		const outOfSlab = validateCameraPinPlacement({
+			lng: 106.8120,
+			lat: 10.8420,
+			targetCam: corridorCam,
+			activeBuilding: "Tòa Epsilon",
+			activeFloorOrder: 2,
+			roomFeatures: [ROOM_A, ROOM_B],
+			store: STORE,
+		});
+		assert.equal(outOfSlab.ok, false);
+		assert.equal(outOfSlab.reason, "outside-corridor-slab");
+
+		// Đặt trên sàn hành lang (trong buildingBoundary nhưng ngoài ROOM_A & ROOM_B) -> cho phép
+		const onCorridor = validateCameraPinPlacement({
+			lng: 106.81025,
+			lat: 10.8403,
+			targetCam: corridorCam,
+			activeBuilding: "Tòa Epsilon",
+			activeFloorOrder: 2,
+			roomFeatures: [ROOM_A, ROOM_B],
+			store: STORE,
+		});
+		assert.equal(onCorridor.ok, true);
+		assert.equal(onCorridor.zone, "corridor");
+	});
+
+	it("Phase 2: filterAreasForCameraType lọc đúng khu vực Cấp 2 & 3 cho RESTRICTED_AREA, Cấp 1 cho PUBLIC_AREA, rỗng cho CORRIDOR và tự chuẩn hóa prefix 'Hành lang '", () => {
+		const areas = [
+			{ id: "a1", name: "Sảnh", areaLevel: "PUBLIC" },
+			{ id: "a2", name: "Phòng Lab", areaLevel: "CONFIDENTIAL" },
+			{ id: "a3", name: "Server", areaLevel: "HIGHLY_CONFIDENTIAL" },
+		];
+		assert.deepEqual(
+			filterAreasForCameraType(areas, "RESTRICTED_AREA").map((a) => a.id),
+			["a2", "a3"],
+		);
+		assert.deepEqual(
+			filterAreasForCameraType(areas, "PUBLIC_AREA").map((a) => a.id),
+			["a1"],
+		);
+		assert.deepEqual(filterAreasForCameraType(areas, "CORRIDOR"), []);
+
+		assert.equal(
+			normalizeCorridorCameraName("Cánh Đông Tầng 1"),
+			"Hành lang Cánh Đông Tầng 1",
+		);
+		assert.equal(
+			normalizeCorridorCameraName("Hành lang   Cánh Tây"),
+			"Hành lang Cánh Tây",
+		);
 	});
 });

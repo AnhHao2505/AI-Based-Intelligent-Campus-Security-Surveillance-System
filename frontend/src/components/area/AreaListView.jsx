@@ -1,8 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-	Cctv,
-	VideoOff,
 	Users,
 	Pencil,
 	Ban,
@@ -38,19 +36,20 @@ const formatEventUntil = (openUntil) => {
 };
 
 const TYPE_PRIORITY = {
-	PUBLIC: 1,
+	HIGHLY_CONFIDENTIAL: 1,
 	CONFIDENTIAL: 2,
-	HIGHLY_CONFIDENTIAL: 3,
+	PUBLIC: 3,
 };
 
 const LEVEL_SECTIONS = [
 	{
-		key: "LEVEL_1",
-		levelNumber: 1,
-		title: "CẤP 1 · CÔNG KHAI",
-		badgeLabel: "Cấp 1",
-		dotColor: "#10b981",
-		filter: (a) => a.areaAccessLevel === 1 || a.areaLevel === "PUBLIC",
+		key: "LEVEL_3",
+		levelNumber: 3,
+		title: "CẤP 3 · BẢO MẬT CAO",
+		badgeLabel: "Cấp 3",
+		dotColor: "#e11d48",
+		filter: (a) =>
+			a.areaAccessLevel === 3 || a.areaLevel === "HIGHLY_CONFIDENTIAL",
 	},
 	{
 		key: "LEVEL_2",
@@ -61,26 +60,22 @@ const LEVEL_SECTIONS = [
 		filter: (a) => a.areaAccessLevel === 2 || a.areaLevel === "CONFIDENTIAL",
 	},
 	{
-		key: "LEVEL_3",
-		levelNumber: 3,
-		title: "CẤP 3 · BẢO MẬT CAO",
-		badgeLabel: "Cấp 3",
-		dotColor: "#e11d48",
-		filter: (a) =>
-			a.areaAccessLevel === 3 || a.areaLevel === "HIGHLY_CONFIDENTIAL",
+		key: "LEVEL_1",
+		levelNumber: 1,
+		title: "CẤP 1 · CÔNG KHAI",
+		badgeLabel: "Cấp 1",
+		dotColor: "#10b981",
+		filter: (a) => a.areaAccessLevel === 1 || a.areaLevel === "PUBLIC",
 	},
 ];
 
 export default function AreaListView({
 	floorAreas = [],
 	selectedAreaId,
-	cameraCounts = {},
-	cameraStatsByArea = {},
 	isAdmin = false,
 	isFacilityManager = false,
 	onSelectArea,
 	onOpenCreateModal,
-	onOpenCamerasModal,
 	onOpenAssignedPersonnelModal,
 	onOpenEditModal,
 	onOpenDeactivateModal,
@@ -138,13 +133,12 @@ export default function AreaListView({
 		);
 	}, [deactivatedAreas, searchFilter]);
 
-	// Render một hàng khu vực theo chuẩn High-Density (tối giản, thanh thoát như Ảnh 1, không dùng card chiếm diện tích)
+	// Render một hàng khu vực theo chuẩn High-Density (tối giản, thanh thoát, không dùng card chiếm diện tích)
 	const renderAreaRow = (area) => {
 		const isSelected = selectedAreaId === area.id;
 		const levelKey =
 			area.areaLevel || area.level?.code || area.level || "PUBLIC";
 		const levelConfig = getLevelConfig(levelKey);
-		const camCount = cameraCounts[area.id] ?? area.cameraCount ?? 0;
 		const locationStr = formatLocation(area.building, area.floor);
 		const isUnpositioned =
 			area.centerLatitude == null || area.centerLongitude == null;
@@ -215,9 +209,8 @@ export default function AreaListView({
 					</div>
 				</div>
 
-				{/* Bên phải: Nút thao tác nhanh (hover) & Badge Camera nhỏ gọn */}
+				{/* Bên phải: Nút thao tác nhanh */}
 				<div className="zone-item-row__meta">
-					{/* Quick Actions (hiện khi hover hoặc khi đang được chọn) */}
 					<div
 						className="zone-item-row__actions"
 						onClick={(e) => e.stopPropagation()}
@@ -270,37 +263,6 @@ export default function AreaListView({
 							</>
 						)}
 					</div>
-
-					{/* Badge số camera */}
-					{(() => {
-						const areaCamStats = cameraStatsByArea[area.id];
-						const hasOffline = Boolean(areaCamStats?.offlineCount > 0);
-						const camTooltip =
-							camCount > 0
-								? `${camCount} camera (${areaCamStats?.onlineCount ?? 0} Online · ${areaCamStats?.offlineCount ?? 0} Offline) — bấm để xem`
-								: "Chưa có camera — bấm để thêm hoặc xem";
-						return (
-							<button
-								type="button"
-								className={`zone-item-row__cam-pill ${
-									camCount > 0
-										? hasOffline
-											? "zone-item-row__cam-pill--warn"
-											: "zone-item-row__cam-pill--has-cams"
-										: "zone-item-row__cam-pill--no-cams"
-								}`}
-								onClick={(e) => {
-									e.stopPropagation();
-									onOpenCamerasModal(area);
-								}}
-								title={camTooltip}
-								aria-label={`${camCount} camera trong khu vực ${area.name}`}
-							>
-								{camCount > 0 ? <Cctv size={13} /> : <VideoOff size={13} />}
-								<span>{camCount}</span>
-							</button>
-						);
-					})()}
 				</div>
 			</div>
 		);
@@ -385,7 +347,7 @@ export default function AreaListView({
 				)}
 			</div>
 
-			{/* 3. Dãy filter cấp độ (Level Filter Pills chính xác như Ảnh 1) */}
+			{/* 3. Dãy filter cấp độ (Cấp 3 -> Cấp 2 -> Cấp 1) */}
 			{!showDeactivated && (
 				<div
 					className="zone-level-filter-bar"
@@ -405,18 +367,18 @@ export default function AreaListView({
 					<button
 						type="button"
 						className={`zone-level-pill ${
-							selectedLevelFilter === 1 ? "zone-level-pill--active" : ""
+							selectedLevelFilter === 3 ? "zone-level-pill--active" : ""
 						}`}
 						onClick={() =>
-							setSelectedLevelFilter(selectedLevelFilter === 1 ? "ALL" : 1)
+							setSelectedLevelFilter(selectedLevelFilter === 3 ? "ALL" : 3)
 						}
 					>
 						<span
 							className="zone-level-pill__dot"
-							style={{ backgroundColor: "#10b981" }}
+							style={{ backgroundColor: "#e11d48" }}
 						/>
-						<span className="zone-level-pill__label">Cấp 1</span>
-						<span className="zone-level-pill__count">{levelCounts[1]}</span>
+						<span className="zone-level-pill__label">Cấp 3</span>
+						<span className="zone-level-pill__count">{levelCounts[3]}</span>
 					</button>
 					<button
 						type="button"
@@ -437,18 +399,18 @@ export default function AreaListView({
 					<button
 						type="button"
 						className={`zone-level-pill ${
-							selectedLevelFilter === 3 ? "zone-level-pill--active" : ""
+							selectedLevelFilter === 1 ? "zone-level-pill--active" : ""
 						}`}
 						onClick={() =>
-							setSelectedLevelFilter(selectedLevelFilter === 3 ? "ALL" : 3)
+							setSelectedLevelFilter(selectedLevelFilter === 1 ? "ALL" : 1)
 						}
 					>
 						<span
 							className="zone-level-pill__dot"
-							style={{ backgroundColor: "#e11d48" }}
+							style={{ backgroundColor: "#10b981" }}
 						/>
-						<span className="zone-level-pill__label">Cấp 3</span>
-						<span className="zone-level-pill__count">{levelCounts[3]}</span>
+						<span className="zone-level-pill__label">Cấp 1</span>
+						<span className="zone-level-pill__count">{levelCounts[1]}</span>
 					</button>
 				</div>
 			)}

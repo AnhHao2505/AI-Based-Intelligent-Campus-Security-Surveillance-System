@@ -10,12 +10,102 @@ import {
 
 const CAMERA_BADGE_SPRITE_PREFIX = "cam-badge::";
 
+export const CAMERA_TYPE_OPTIONS = [
+	{
+		value: "RESTRICTED_AREA",
+		label: "Phòng hạn chế",
+		aiModeLabel: "AI 24/7",
+		badgeLabel: "Phòng hạn chế · AI 24/7",
+		description: "Giám sát khu vực Cấp 2 (Bảo mật) & Cấp 3 (Bảo mật cao) 24/7",
+		requiresArea: true,
+	},
+	{
+		value: "PUBLIC_AREA",
+		label: "Phòng công cộng",
+		aiModeLabel: "AI giờ giới nghiêm",
+		badgeLabel: "Khu vực công cộng · AI giờ giới nghiêm",
+		description:
+			"Giám sát khu vực Cấp 1 (Công khai), chỉ bật AI sau giờ làm việc",
+		requiresArea: true,
+	},
+	{
+		value: "CORRIDOR",
+		label: "Hành lang",
+		aiModeLabel: "AI giờ giới nghiêm",
+		badgeLabel: "Hành lang · AI giờ giới nghiêm",
+		description:
+			"Đặt trên hành lang tòa nhà (không gán phòng), chỉ bật AI sau giờ làm việc",
+		requiresArea: false,
+	},
+];
+
+export function resolveCameraTypeConfig(cameraType) {
+	const code = String(cameraType || "RESTRICTED_AREA").toUpperCase();
+	return (
+		CAMERA_TYPE_OPTIONS.find((opt) => opt.value === code) ||
+		CAMERA_TYPE_OPTIONS[0]
+	);
+}
+
+/**
+ * Filters available areas according to the selected cameraType:
+ * - RESTRICTED_AREA -> CONFIDENTIAL, HIGHLY_CONFIDENTIAL (Level 2 & 3)
+ * - PUBLIC_AREA -> PUBLIC (Level 1)
+ * - CORRIDOR -> [] (does not assign an Area)
+ */
+export function filterAreasForCameraType(
+	areas = [],
+	cameraType = "RESTRICTED_AREA",
+) {
+	if (!Array.isArray(areas)) return [];
+	const type = String(cameraType || "RESTRICTED_AREA").toUpperCase();
+	if (type === "CORRIDOR") return [];
+	return areas.filter((a) => {
+		if (!a) return false;
+		const rawLevel =
+			typeof a.areaLevel === "string"
+				? a.areaLevel
+				: a.areaLevel?.code || a.level?.code || a.level || "";
+		const code = String(rawLevel).toUpperCase();
+		const accessLvl = Number(a.areaAccessLevel ?? a.accessLevel ?? 0);
+		const isPublic = code === "PUBLIC" || (!code && accessLvl === 1);
+		if (type === "PUBLIC_AREA") {
+			return isPublic;
+		}
+		return !isPublic;
+	});
+}
+
+/**
+ * Frontend helper ensuring CORRIDOR camera names created on UI always have the "Hành lang " prefix.
+ */
+export function normalizeCorridorCameraName(rawName = "") {
+	const trimmed = String(rawName || "").trim();
+	if (!trimmed) return "";
+	if (/^hành\s+lang\b/i.test(trimmed)) {
+		const suffix = trimmed.replace(/^hành\s+lang\s*/i, "").trim();
+		return suffix ? `Hành lang ${suffix}` : "Hành lang";
+	}
+	return `Hành lang ${trimmed}`;
+}
+
+export function stripCorridorPrefix(rawName = "") {
+	return String(rawName || "")
+		.replace(/^hành\s+lang\s*/i, "")
+		.trim();
+}
+
 /**
  * Extracts normalized area assignment metadata from heterogeneous backend camera DTOs.
  */
 export function extractCameraAreaInfo(cam) {
 	if (!cam || typeof cam !== "object") {
-		return { areaId: null, areaName: null, building: null, floor: null };
+		return {
+			areaId: null,
+			areaName: null,
+			building: null,
+			floor: null,
+		};
 	}
 	const primaryArea =
 		cam.assignedArea ||
@@ -23,11 +113,20 @@ export function extractCameraAreaInfo(cam) {
 			? cam.assignedAreas[0]
 			: null);
 
+	const fallbackFloor =
+		cam.floor ||
+		primaryArea?.floor ||
+		(cam.mapFloorOrder != null && Number.isFinite(Number(cam.mapFloorOrder))
+			? Number(cam.mapFloorOrder) === 0
+				? "Tầng Trệt"
+				: `Tầng ${Number(cam.mapFloorOrder)}`
+			: null);
+
 	return {
 		areaId: cam.areaId || primaryArea?.id || null,
 		areaName: cam.areaName || primaryArea?.name || null,
-		building: cam.building || primaryArea?.building || null,
-		floor: cam.floor || primaryArea?.floor || null,
+		building: cam.building || primaryArea?.building || cam.mapBuilding || null,
+		floor: fallbackFloor,
 	};
 }
 
@@ -214,7 +313,11 @@ export function buildCameraMapMarkersGeoJSON({
 	floorElevationStep = FLOOR_ELEVATION_STEP,
 } = {}) {
 	const empty = { type: "FeatureCollection", features: [] };
-	if (!Array.isArray(areas) || !Array.isArray(cameras) || cameras.length === 0) {
+	if (
+		!Array.isArray(areas) ||
+		!Array.isArray(cameras) ||
+		cameras.length === 0
+	) {
 		return empty;
 	}
 
@@ -286,7 +389,7 @@ export function buildCameraMapMarkersGeoJSON({
 		const badgeLat = staysInsideRoom ? candidateLat : anchorLat;
 		const containsSelectedCamera = Boolean(
 			selectedCameraId &&
-				stats.cameras.some((cam) => cam.id === selectedCameraId),
+			stats.cameras.some((cam) => cam.id === selectedCameraId),
 		);
 		const isSelected = selectedAreaId === area.id || containsSelectedCamera;
 		const hasOffline = stats.offlineCount > 0;
@@ -438,7 +541,10 @@ export function mergeCameraStatusUpdate(cameras, updatedCamera) {
  * Đồng bộ operationalStatus / status mới nhất từ component cha xuống state chi tiết của Drawer.
  * Trả về chính reference `camera` nếu không có thay đổi để tránh re-render thừa.
  */
-export function applyLiveCameraStatus(camera, { operationalStatus, status } = {}) {
+export function applyLiveCameraStatus(
+	camera,
+	{ operationalStatus, status } = {},
+) {
 	if (!camera) return camera;
 	const nextOp = operationalStatus || camera.operationalStatus;
 	const nextStatus = status || camera.status;
@@ -471,10 +577,10 @@ export function isStreamConfigDirty(currentForm, savedConfig) {
 	if (!savedConfig) {
 		return Boolean(
 			curHost ||
-				(currentForm.port && String(currentForm.port).trim() !== "554") ||
-				curUsername ||
-				hasNewPassword ||
-				curPath,
+			(currentForm.port && String(currentForm.port).trim() !== "554") ||
+			curUsername ||
+			hasNewPassword ||
+			curPath,
 		);
 	}
 
@@ -494,4 +600,3 @@ export function isStreamConfigDirty(currentForm, savedConfig) {
 		hasNewPassword
 	);
 }
-

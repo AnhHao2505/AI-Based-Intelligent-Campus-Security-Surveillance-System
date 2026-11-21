@@ -1980,3 +1980,9 @@
   border-color: rgba(251, 191, 36, 0.35);
   color: #fde68a;
 }
+
+/* Right-rail Camera Creation wider panel for 3 camera type cards */
+.campus-map-layout--create {
+  grid-template-columns: minmax(0, 1fr) 330px;
+}
+

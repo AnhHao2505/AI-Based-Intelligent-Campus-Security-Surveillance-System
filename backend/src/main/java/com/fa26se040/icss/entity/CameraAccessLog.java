@@ -41,7 +41,7 @@ public class CameraAccessLog {
     private String cameraCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "area_id", nullable = false)
+    @JoinColumn(name = "area_id", nullable = true)
     private Area area;
 
     @ManyToOne(fetch = FetchType.LAZY)

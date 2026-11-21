@@ -1,47 +1,16 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart' as ll;
 
 import '../models/area_pin_model.dart';
 
-/// Dòng ghi công bắt buộc của OpenStreetMap (giống `attribution` của nguồn tile web, CampusMapView.jsx:104).
+/// Dòng ghi công bắt buộc của OpenStreetMap / OpenFreeMap (giống `attribution` trên web).
 const String osmAttributionText = '© OpenStreetMap contributors';
 
-/// Nền bản đồ giống web: raster OpenStreetMap, không cần key (frontend/src/components/area/CampusMapView.jsx:91-125).
-/// Chế độ tối: giảm độ sáng ô bản đồ (thay cho ColorFilter của flutter_map trước đây).
+/// URL style OpenFreeMap giống bản đồ Web (`OPENFREEMAP_STYLE_URL`), tránh bị rate-limit từ raster `tile.openstreetmap.org`.
+const String openFreeMapBrightStyleUrl = 'https://tiles.openfreemap.org/styles/bright';
+
 String campusMapStyleJson({required bool dark}) {
-  return jsonEncode({
-    'version': 8,
-    'sources': {
-      'osm-tiles': {
-        'type': 'raster',
-        'tiles': [
-          'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        ],
-        'tileSize': 256,
-        'attribution': osmAttributionText,
-        'maxzoom': 19,
-      },
-    },
-    'layers': [
-      {
-        'id': 'osm-background',
-        'type': 'background',
-        'paint': {'background-color': dark ? '#0f172a' : '#f1f5f9'},
-      },
-      {
-        'id': 'osm-tiles-layer',
-        'type': 'raster',
-        'source': 'osm-tiles',
-        'minzoom': 0,
-        'maxzoom': 24,
-        if (dark) 'paint': {'raster-brightness-max': 0.3, 'raster-saturation': -0.3},
-      },
-    ],
-  });
+  return openFreeMapBrightStyleUrl;
 }
 
 /// Góc nhìn 2D phẳng từ trên xuống (khóa Bắc) cho màn hình dẫn đường bảo vệ — mọi tầng nằm cùng mặt phẳng z = 0

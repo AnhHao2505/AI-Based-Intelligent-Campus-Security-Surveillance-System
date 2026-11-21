@@ -223,10 +223,18 @@ export default function CameraWorkspaceSidebar({
 								? areaById.get(info.areaId)
 								: null;
 							const areaName = resolvedArea?.name || info.areaName;
+							const isCorridorCam =
+								String(cam.cameraType || info.cameraType || "").toUpperCase() ===
+								"CORRIDOR";
 							const locStr = formatLocation(
 								resolvedArea?.building || info.building,
 								resolvedArea?.floor || info.floor,
 							);
+							const displayLocationText = areaName
+								? `${areaName}${locStr ? ` · ${locStr}` : ""}`
+								: isCorridorCam
+									? `Hành lang${locStr ? ` · ${locStr}` : ""}`
+									: locStr || "Chưa gán khu vực";
 
 							return (
 								<div
@@ -270,19 +278,13 @@ export default function CameraWorkspaceSidebar({
 										</div>
 										<div
 											className="zone-item-row__location"
-											title={
-												areaName
-													? `${areaName}${locStr ? ` · ${locStr}` : ""}`
-													: "Chưa gán khu vực"
-											}
+											title={displayLocationText}
 										>
 											<MapPin
 												size={10}
 												style={{ display: "inline", marginRight: 3 }}
 											/>
-											{areaName
-												? `${areaName}${locStr ? ` · ${locStr}` : ""}`
-												: "Chưa gán khu vực"}
+											{displayLocationText}
 										</div>
 									</div>
 

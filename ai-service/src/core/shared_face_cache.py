@@ -344,9 +344,9 @@ class SharedFaceCache:
             new_camera_area_map = {}
             try:
                 cur.execute("""
-                    SELECT UPPER(c.camera_code), a.name
+                    SELECT UPPER(c.camera_code), COALESCE(a.name, c.name)
                     FROM cameras c
-                    JOIN areas a ON c.area_id = a.id
+                    LEFT JOIN areas a ON c.area_id = a.id
                     WHERE c.deleted_at IS NULL;
                 """)
                 area_rows = cur.fetchall()
@@ -359,9 +359,12 @@ class SharedFaceCache:
                 cur.execute("""
                     SELECT UPPER(c.camera_code)
                     FROM cameras c
-                    JOIN areas a ON c.area_id = a.id
+                    LEFT JOIN areas a ON c.area_id = a.id
                     WHERE c.deleted_at IS NULL
-                      AND (a.area_level = 'PUBLIC' OR a.area_access_level <= 1);
+                      AND (
+                          c.camera_type IN ('PUBLIC_AREA', 'CORRIDOR')
+                          OR (a.id IS NOT NULL AND (a.area_level = 'PUBLIC' OR a.area_access_level <= 1))
+                      );
                 """)
                 new_public_camera_codes = {r[0] for r in cur.fetchall()}
             except Exception as e_cam:
