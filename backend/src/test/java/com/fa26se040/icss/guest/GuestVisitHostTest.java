@@ -23,8 +23,10 @@ public class GuestVisitHostTest extends GuestTestSupport {
 
     private static final String BASE = "/api/guest-visits";
 
+    /** Tạo lượt qua multipart, mỗi khách kèm 1 ảnh + tick đồng ý (GuestTestSupport#createVisit). */
+    @SuppressWarnings("unchecked")
     private MvcResult create(User actor, Object body) throws Exception {
-        return send(post(BASE), actor, body).andReturn();
+        return createVisit(actor, (Map<String, Object>) body).andReturn();
     }
 
     private void assertRejected(MvcResult r, int http, String code) throws Exception {
@@ -54,7 +56,7 @@ public class GuestVisitHostTest extends GuestTestSupport {
         assertEquals("Nguyễn Văn Khách", d.path("guests").get(0).path("fullName").asText(), "họ tên được trim");
         assertEquals("Công ty ABC", d.path("guests").get(0).path("organization").asText());
         assertTrue(d.path("guests").get(1).path("organization").isNull(), "đơn vị rỗng -> NULL");
-        assertEquals("NO_PHOTO", d.path("guests").get(0).path("biometricStatus").asText());
+        assertEquals("PHOTO_READY", d.path("guests").get(0).path("biometricStatus").asText(), "ảnh gắn ngay khi tạo lượt");
         String raw = r.getResponse().getContentAsString();
         assertFalse(raw.contains("photoObjectKey") || raw.contains("objectKey") || raw.contains("url"), "response không chứa key / URL ảnh");
 

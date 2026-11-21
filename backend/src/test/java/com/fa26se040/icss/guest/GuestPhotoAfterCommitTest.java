@@ -1,5 +1,6 @@
 package com.fa26se040.icss.guest;
 
+import com.fa26se040.icss.TestFaces;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.service.GuestBiometricService;
@@ -14,7 +15,6 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -30,10 +30,9 @@ public class GuestPhotoAfterCommitTest extends GuestTestSupport {
     @Autowired private GuestPhotoService photoService;
     @Autowired private GuestBiometricService biometricService;
 
-    private static List<Float> vec(float v) {
-        List<Float> l = new ArrayList<>();
-        for (int i = 0; i < 512; i++) l.add(v);
-        return l;
+    /** Mỗi lời gọi là một khuôn mặt khác (đăng ký có kiểm trùng khuôn mặt). */
+    private static List<Float> vec() {
+        return TestFaces.random();
     }
 
     private MockMultipartFile jpeg(int bytes) {
@@ -47,15 +46,15 @@ public class GuestPhotoAfterCommitTest extends GuestTestSupport {
     private MvcResult attachHttp(GuestVisit v, Guest g, MockMultipartFile f) throws Exception {
         return mockMvc.perform(multipart("/api/guest-visits/" + v.getId() + "/guests/" + g.getId() + "/photo").file(f)
                 .param("consentConfirmed", "true").param("consentNoticeVersion", "v1")
-                .header("Authorization", bearer(admin))).andReturn();
+                .header("Authorization", bearer(hostL2))).andReturn();
     }
 
     @Test
     @DisplayName("A9: transaction rollback sau khi gắn lại ảnh -> object cũ KHÔNG bị xoá, DB vẫn trỏ ảnh + embedding cũ, object mới bị gỡ")
     void reattach_rollback_keepsOldObject() throws Exception {
         when(faceClient.extract(any(), any(), any()))
-                .thenReturn(new GuestFaceEmbeddingClient.Result(1, vec(0.02f)))
-                .thenReturn(new GuestFaceEmbeddingClient.Result(1, vec(0.05f)));
+                .thenReturn(new GuestFaceEmbeddingClient.Result(1, vec()))
+                .thenReturn(new GuestFaceEmbeddingClient.Result(1, vec()));
         GuestVisit v = approved();
         Guest g = guestsOf(v.getId()).get(0);
         assertEquals(200, status(attachHttp(v, g, jpeg(1000))));
@@ -64,7 +63,7 @@ public class GuestPhotoAfterCommitTest extends GuestTestSupport {
         clearInvocations(photoStorage);
 
         assertThrows(IllegalStateException.class, () -> transactionTemplate.executeWithoutResult(tx -> {
-            photoService.attach(v.getId(), g.getId(), jpeg(1000), true, "v1", admin.getEmail());
+            photoService.attach(v.getId(), g.getId(), jpeg(1000), true, "v1", hostL2.getEmail());
             throw new IllegalStateException("rollback giả lập sau khi gắn lại ảnh");
         }));
 
@@ -82,7 +81,7 @@ public class GuestPhotoAfterCommitTest extends GuestTestSupport {
     @Test
     @DisplayName("A9: gắn lại commit xong -> xoá object cũ sau commit, bỏ đánh dấu; xoá lỗi -> giữ đánh dấu cần xoá cho job")
     void reattach_commit_deletesAfterCommit() throws Exception {
-        when(faceClient.extract(any(), any(), any())).thenReturn(new GuestFaceEmbeddingClient.Result(1, vec(0.02f)));
+        when(faceClient.extract(any(), any(), any())).thenReturn(new GuestFaceEmbeddingClient.Result(1, vec()));
         GuestVisit v = approved();
         Guest g = guestsOf(v.getId()).get(0);
         assertEquals(200, status(attachHttp(v, g, jpeg(1000))));
@@ -116,7 +115,7 @@ public class GuestPhotoAfterCommitTest extends GuestTestSupport {
     @Test
     @DisplayName("Giới hạn ảnh icss.guest.photo-max-kb = 2048: đúng 2048 KB nhận, 2049 KB từ chối ERR_GUEST_033 (câu nêu 2048)")
     void photoSizeLimit() throws Exception {
-        when(faceClient.extract(any(), any(), any())).thenReturn(new GuestFaceEmbeddingClient.Result(1, vec(0.02f)));
+        when(faceClient.extract(any(), any(), any())).thenReturn(new GuestFaceEmbeddingClient.Result(1, vec()));
         GuestVisit v = approved();
         Guest g = guestsOf(v.getId()).get(0);
         assertEquals(200, status(attachHttp(v, g, jpeg(2048 * 1024))));

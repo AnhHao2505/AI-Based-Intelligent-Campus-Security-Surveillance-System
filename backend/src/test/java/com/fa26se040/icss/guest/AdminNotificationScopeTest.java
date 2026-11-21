@@ -53,9 +53,9 @@ class AdminNotificationScopeTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("NT-26: host tạo lượt khách -> FM nhận GUEST_VISIT_PENDING, ADMIN không; FM duyệt -> ADMIN nhận GUEST_PHOTO_REQUIRED, không nhận GUEST_VISIT_APPROVED")
+    @DisplayName("NT-26: host tạo lượt khách (kèm ảnh) -> FM nhận GUEST_VISIT_PENDING, ADMIN không; FM duyệt -> ADMIN không nhận GUEST_PHOTO_REQUIRED (khách đã có ảnh) cũng không nhận GUEST_VISIT_APPROVED")
     void guestVisitFlow_adminOnlyPhotoRequired() throws Exception {
-        MvcResult created = send(post("/api/guest-visits"), hostL2, validBody()).andReturn();
+        MvcResult created = createVisit(hostL2, validBody()).andReturn();
         assertEquals(201, status(created), created.getResponse().getContentAsString());
         UUID visitId = UUID.fromString(json(created).path("data").path("id").asText());
         assertEquals(1, of(fm, NotificationType.GUEST_VISIT_PENDING, visitId).size(), "FM nhận chờ duyệt");
@@ -67,7 +67,8 @@ class AdminNotificationScopeTest extends GuestTestSupport {
         MvcResult approved = send(patch("/api/guest-visits/" + visitId + "/review"), fm, review).andReturn();
         assertEquals(200, status(approved), approved.getResponse().getContentAsString());
 
-        assertEquals(1, of(admin, NotificationType.GUEST_PHOTO_REQUIRED, visitId).size(), "ADMIN vẫn nhận GUEST_PHOTO_REQUIRED");
+        // host gắn ảnh khi tạo lượt -> không còn việc gắn ảnh cho ADMIN (lượt cũ chưa có ảnh vẫn nhắc, xem GuestVisitReviewTest)
+        assertEquals(0, of(admin, NotificationType.GUEST_PHOTO_REQUIRED, visitId).size(), "khách đã có ảnh -> ADMIN không nhận GUEST_PHOTO_REQUIRED");
         assertEquals(1, of(hostL2, NotificationType.GUEST_VISIT_APPROVED, visitId).size(), "host nhận kết quả duyệt");
         assertEquals(0, of(admin, NotificationType.GUEST_VISIT_APPROVED, visitId).size(), "ADMIN không nhận kết quả duyệt");
     }

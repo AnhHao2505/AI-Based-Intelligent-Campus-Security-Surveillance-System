@@ -1,6 +1,7 @@
 package com.fa26se040.icss.guest;
 
 import com.fa26se040.icss.AbstractIntegrationTest;
+import com.fa26se040.icss.TestFaces;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.repository.*;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -42,6 +44,8 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
     protected static final String REASON = "Lý do hợp lệ đủ mười ký tự";
     protected static final double LAT = 10.8418;
     protected static final double LNG = 106.8100;
+    /** Ảnh JPG giả: dịch vụ trích khuôn mặt được mock nên backend không giải mã ảnh. */
+    protected static final byte[] JPEG = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x10, 0x20, 0x30};
 
     @Autowired protected MockMvc mockMvc;
     @Autowired protected ObjectMapper objectMapper;
@@ -93,6 +97,9 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
             refreshCallsInTransaction.add(TransactionSynchronizationManager.isActualTransactionActive());
             return null;
         }).when(aiFaceCacheRefreshNotifier).notifyAfterCommit();
+        // Mặc định mỗi ảnh là một người khác (1 khuôn mặt, vector ngẫu nhiên) để không vướng kiểm trùng khuôn mặt
+        Mockito.when(faceClient.extract(Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenAnswer(inv -> new GuestFaceEmbeddingClient.Result(1, TestFaces.random()));
         suffix = UUID.randomUUID().toString().substring(0, 8);
         building = buildingRepository.findByNameIgnoreCase("Tòa nhà Test khách")
                 .orElseGet(() -> buildingRepository.save(Building.builder()
@@ -346,6 +353,60 @@ public abstract class GuestTestSupport extends AbstractIntegrationTest {
     protected Map<String, Object> validBody() {
         return createBody(future(0), future(120), List.of(internalArea),
                 List.of(guestInput("Nguyễn Văn Khách", "Công ty ABC"), guestInput("Trần Thị Mời", null)));
+    }
+
+    /** Ảnh khách gửi kèm khi tạo lượt (phần "photos" của multipart). */
+    protected static MockMultipartFile photo(String filename, String contentType, byte[] bytes) {
+        return new MockMultipartFile("photos", filename, contentType, bytes);
+    }
+
+    protected static MockMultipartFile photo() {
+        return photo("khach.jpg", "image/jpeg", JPEG);
+    }
+
+    /**
+     * Tạo lượt qua API (multipart "data" + "photos"): body chưa có thì tự thêm phiên bản thông báo đồng ý hiện hành
+     * và tick đồng ý cho từng khách; mỗi khách một ảnh JPG.
+     */
+    protected ResultActions createVisit(User actor, Map<String, Object> body) throws Exception {
+        Map<String, Object> data = withConsent(body);
+        Object guests = data.get("guests");
+        int count = guests instanceof List<?> l ? l.size() : 0;
+        List<MockMultipartFile> photos = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            photos.add(photo());
+        }
+        return createVisitRaw(actor, data, photos);
+    }
+
+    /** Tạo lượt với đúng body và danh sách ảnh truyền vào (không tự thêm gì). */
+    protected ResultActions createVisitRaw(User actor, Map<String, Object> body, List<MockMultipartFile> photos) throws Exception {
+        var b = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/guest-visits")
+                .file(new MockMultipartFile("data", "", MediaType.APPLICATION_JSON_VALUE, objectMapper.writeValueAsBytes(body)));
+        photos.forEach(b::file);
+        b.header("Authorization", bearer(actor));
+        return mockMvc.perform(b);
+    }
+
+    /** Bản sao body có consentNoticeVersion (hiện hành) và consentConfirmed = true cho từng khách nếu còn thiếu. */
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> withConsent(Map<String, Object> body) {
+        Map<String, Object> data = new LinkedHashMap<>(body);
+        data.putIfAbsent("consentNoticeVersion", systemConfigService.getString(ConfigKey.GUEST_CONSENT_NOTICE_VERSION));
+        if (data.get("guests") instanceof List<?> guests) {
+            List<Object> copy = new ArrayList<>();
+            for (Object g : guests) {
+                if (g instanceof Map<?, ?> m) {
+                    Map<String, Object> gm = new LinkedHashMap<>((Map<String, Object>) m);
+                    gm.putIfAbsent("consentConfirmed", true);
+                    copy.add(gm);
+                } else {
+                    copy.add(g);
+                }
+            }
+            data.put("guests", copy);
+        }
+        return data;
     }
 
     // ------------------------------------------------------------------ HTTP

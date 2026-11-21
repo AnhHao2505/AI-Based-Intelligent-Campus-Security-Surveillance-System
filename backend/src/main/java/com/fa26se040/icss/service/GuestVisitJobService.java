@@ -46,7 +46,6 @@ public class GuestVisitJobService {
     private final PlatformTransactionManager transactionManager;
     // BR-GV-39: nhắc gắn ảnh khách (ObjectProvider như GuestVisitService để không tạo vòng phụ thuộc bean)
     private final com.fa26se040.icss.repository.NotificationRepository notificationRepository;
-    private final com.fa26se040.icss.repository.UserRepository userRepository;
     private final org.springframework.beans.factory.ObjectProvider<InAppNotificationService> notificationServiceProvider;
     // L3: lượt hết giờ chuyển COMPLETED -> báo AI nạp lại kho khuôn mặt (mỗi lần chạy job tối đa một lần)
     private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
@@ -63,9 +62,9 @@ public class GuestVisitJobService {
 
     /**
      * BR-GV-39: lượt APPROVED còn khách chưa PHOTO_READY, now trong [start − GUEST_PHOTO_REMINDER_MINUTES_BEFORE, start)
-     * -> nhắc ADMIN 1 lần (GUEST_PHOTO_REQUIRED, dùng lại loại có sẵn). Chống trùng không thêm cột: bỏ qua nếu đã có
+     * -> nhắc host của lượt 1 lần (GUEST_PHOTO_REQUIRED, dùng lại loại có sẵn). Chống trùng không thêm cột: bỏ qua nếu đã có
      * GUEST_PHOTO_REQUIRED cho lượt tạo từ đầu cửa sổ trở đi (kể cả thông báo lúc duyệt nếu duyệt trong cửa sổ).
-     * Host không có loại thông báo phù hợp (GUEST_PHOTO_REQUIRED dẫn tới trang ADMIN) -> chỉ gửi ADMIN.
+     * Host là người gắn / thay ảnh (ADMIN không gắn ảnh nữa); FE mở Chi tiết lượt của host khi bấm thông báo.
      * Không ghi tên khách vào nội dung (tối thiểu dữ liệu cá nhân); theo mẫu thông báo lúc duyệt: người mời, khu vực, khung giờ.
      */
     public int remindMissingPhotos(OffsetDateTime now) {
@@ -99,12 +98,12 @@ public class GuestVisitJobService {
                 if (purpose.length() > 120) {
                     purpose = purpose.substring(0, 117) + "...";
                 }
-                service.createForUsers(userRepository.findActiveUsersByRole(com.fa26se040.icss.enums.Role.ADMIN),
+                service.createForUsers(List.of(v.getHost()),
                         NotificationType.GUEST_PHOTO_REQUIRED, "Nhắc gắn ảnh khách",
-                        "Lượt khách của " + v.getHost().getFullName() + " vào " + GuestVisitService.areaNames(v) + " ("
+                        "Lượt khách vào " + GuestVisitService.areaNames(v) + " ("
                                 + InAppNotificationService.formatTimeRange(v.getStartTime(), v.getEndTime())
                                 + ") sắp bắt đầu, còn " + missing + "/" + v.getGuests().size()
-                                + " khách chưa có ảnh nhận diện. Mục đích: " + purpose + ".",
+                                + " khách chưa có ảnh nhận diện. Gắn ảnh trong Chi tiết lượt. Mục đích: " + purpose + ".",
                         v.getId(), GuestVisitService.REF_TYPE_GUEST_VISIT);
                 return true;
             }) ? 1 : 0;

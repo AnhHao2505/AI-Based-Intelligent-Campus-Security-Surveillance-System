@@ -18,7 +18,9 @@ public class GuestExceptionHandler {
     @ExceptionHandler(GuestException.class)
     public ResponseEntity<ApiResponse<Object>> handleGuestException(GuestException ex) {
         HttpStatus status = ex.getErrorCode().getHttpStatus();
-        ApiResponse<Object> body = ApiResponse.error(status.value(), ex.getErrorCode().getCode(), ex.getMessage());
+        ApiResponse<Object> body = ex.getData() == null
+                ? ApiResponse.error(status.value(), ex.getErrorCode().getCode(), ex.getMessage())
+                : ApiResponse.error(status.value(), ex.getErrorCode().getCode(), ex.getMessage(), ex.getData());
         return new ResponseEntity<>(body, status);
     }
 }

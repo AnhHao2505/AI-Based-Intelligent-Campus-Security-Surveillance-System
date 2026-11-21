@@ -57,8 +57,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -242,7 +240,8 @@ class WorkflowWf01FaceUserEnrollmentE2ETest extends AbstractIntegrationTest {
     // ------------------------------------------------------------------ helpers
 
     private static String vector512() {
-        return IntStream.range(0, 512).mapToObj(i -> String.valueOf((i % 7) / 100.0)).collect(Collectors.joining(","));
+        // mỗi dòng đăng ký là một khuôn mặt khác (đăng ký có kiểm trùng khuôn mặt)
+        return com.fa26se040.icss.TestFaces.csv(com.fa26se040.icss.TestFaces.random());
     }
 
     /** Phản hồi AI thật khi đăng ký thành công (ai-service/src/main.py, process_face_registration). */

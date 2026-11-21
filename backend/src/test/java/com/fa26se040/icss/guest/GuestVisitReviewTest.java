@@ -29,7 +29,8 @@ public class GuestVisitReviewTest extends GuestTestSupport {
     private GuestAccessDecisionService decisionService;
 
     private UUID createVisit(User host, List<Area> areas, OffsetDateTime s, OffsetDateTime e) throws Exception {
-        MvcResult r = send(post(BASE), host, createBody(s, e, areas, List.of(guestInput("Nguyễn Văn Khách", null)))).andReturn();
+        // tạo qua API multipart: khách kèm ảnh + đồng ý (GuestTestSupport#createVisit)
+        MvcResult r = createVisit(host, createBody(s, e, areas, List.of(guestInput("Nguyễn Văn Khách", null)))).andReturn();
         assertEquals(201, status(r), r.getResponse().getContentAsString());
         return UUID.fromString(json(r).path("data").path("id").asText());
     }
@@ -65,7 +66,7 @@ public class GuestVisitReviewTest extends GuestTestSupport {
     // ================================================================== duyệt / từ chối
 
     @Test
-    @DisplayName("GV-10/33: FM duyệt -> APPROVED, version 1, audit APPROVE; host nhận APPROVED; mọi ADMIN nhận GUEST_PHOTO_REQUIRED")
+    @DisplayName("GV-10/33: FM duyệt -> APPROVED, version 1, audit APPROVE; host nhận APPROVED; khách đã có ảnh từ lúc tạo -> không ai nhận GUEST_PHOTO_REQUIRED")
     void approve_ok() throws Exception {
         UUID id = createVisit(hostL2);
         MvcResult r = review(fm, id, 0L, "APPROVED", null);
@@ -76,8 +77,24 @@ public class GuestVisitReviewTest extends GuestTestSupport {
         assertNotNull(v.getReviewedAt());
         assertEquals(1, audits(id.toString(), AuditTargetType.GUEST_VISIT, AuditAction.APPROVE).size());
         assertEquals(1, notif(hostL2, NotificationType.GUEST_VISIT_APPROVED, id));
-        assertEquals(1, notif(admin, NotificationType.GUEST_PHOTO_REQUIRED, id));
-        assertEquals(0, notif(fm, NotificationType.GUEST_PHOTO_REQUIRED, id), "FM không nhận yêu cầu gắn ảnh");
+        for (User u : List.of(hostL2, admin, fm)) {
+            assertEquals(0, notif(u, NotificationType.GUEST_PHOTO_REQUIRED, id), "khách đã có ảnh -> không nhắc gắn ảnh");
+        }
+    }
+
+    @Test
+    @DisplayName("GV-33: duyệt lượt tạo trước thay đổi (khách chưa có ảnh) -> host nhận GUEST_PHOTO_REQUIRED nêu số khách thiếu ảnh; ADMIN, FM không")
+    void approve_legacyVisitWithoutPhotos_hostReminded() throws Exception {
+        GuestVisit legacy = newVisit(hostL2, GuestVisitStatus.PENDING, future(0), future(120), List.of(internalArea), "Khách chưa có ảnh");
+        MvcResult r = review(fm, legacy.getId(), 0L, "APPROVED", null);
+        assertEquals(200, status(r), r.getResponse().getContentAsString());
+        // host gắn / thay ảnh (ADMIN không gắn ảnh nữa)
+        List<Notification> sent = notificationsOf(hostL2, NotificationType.GUEST_PHOTO_REQUIRED).stream()
+                .filter(n -> legacy.getId().equals(n.getReferenceId())).toList();
+        assertEquals(1, sent.size(), "host nhận nhắc gắn ảnh");
+        assertTrue(sent.get(0).getMessage().contains("còn 1/1 khách chưa có ảnh"), sent.get(0).getMessage());
+        assertEquals(0, notif(admin, NotificationType.GUEST_PHOTO_REQUIRED, legacy.getId()), "ADMIN không nhận yêu cầu gắn ảnh");
+        assertEquals(0, notif(fm, NotificationType.GUEST_PHOTO_REQUIRED, legacy.getId()), "FM không nhận yêu cầu gắn ảnh");
     }
 
     @Test
