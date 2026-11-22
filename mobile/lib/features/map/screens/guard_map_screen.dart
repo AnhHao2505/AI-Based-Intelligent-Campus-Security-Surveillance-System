@@ -837,7 +837,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
             '${(labels['features'] as List).length} nhãn, dựng $built ms, tổng ${sw.elapsedMilliseconds} ms');
       }
 
-      // Chỉ giữ ghim tròn cho khu vực ngoài trời / chưa khớp polygon phòng và ghim sự cố (có quầng đỏ)
+      // Chỉ giữ ghim tròn cho khu vực ngoài trời / chưa khớp polygon phòng và ghim sự cố (chỉ vẽ trên đúng tầng của sự cố)
       final selected = p.selectedArea;
       final split = splitIncidentPin(
         p.filteredPins,
@@ -846,8 +846,14 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
         incidentArea: p.incidentPin,
       );
       final unmatchedAreas = filterUnmatchedAreaPins(split.areas, _matchedRoomAreaIds);
-      final incident = split.incident;
-      final pinsKey = '${unmatchedAreas.map((x) => x.id).join(',')}|${selected?.id}|${incident?.id}';
+      final rawIncident = split.incident;
+      final isIncidentOnCurrentFloor = rawIncident != null &&
+          (p.incidentFloorOrder == null || p.incidentFloorOrder == p.selectedFloorOrder) &&
+          (effectiveBldg == null ||
+              (rawIncident.building ?? '').trim().isEmpty ||
+              campus?.sameBuilding(rawIncident.building, effectiveBldg) == true);
+      final incident = isIncidentOnCurrentFloor ? rawIncident : null;
+      final pinsKey = '$campusKey|${unmatchedAreas.map((x) => x.id).join(',')}|${selected?.id}|${incident?.id}';
       if (pinsKey != _pinsKey) {
         _pinsKey = pinsKey;
         await map.setGeoJsonSource(_pinsSource, pinsGeoJson(unmatchedAreas, selectedId: selected?.id));
@@ -1247,6 +1253,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                             selected: mapState.selectedFloor == f,
                             hasTargetBadge: (destFloorOrder == f || mapState.incidentFloorOrder == f) &&
                                 mapState.selectedFloor != f,
+                            isIncidentFloor: mapState.incidentFloorOrder == f && mapState.selectedFloor != f,
                             onTap: () => mapProvider.selectFloor(f),
                           ),
                       ],
@@ -1389,6 +1396,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     required String label,
     required bool selected,
     required bool hasTargetBadge,
+    bool isIncidentFloor = false,
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -1420,8 +1428,8 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                 child: Container(
                   width: 6,
                   height: 6,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF0EA5E9),
+                  decoration: BoxDecoration(
+                    color: isIncidentFloor ? const Color(0xFFEF4444) : const Color(0xFF0EA5E9),
                     shape: BoxShape.circle,
                   ),
                 ),
