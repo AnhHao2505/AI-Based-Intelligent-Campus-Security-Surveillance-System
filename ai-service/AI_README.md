@@ -5,7 +5,7 @@ Microservice xử lý AI thời gian thực cho hệ thống giám sát an ninh:
 - **Chống đột nhập ngụy trang:** Máy trạng thái ZoneStateMachine + Cross-validation bắt kẻ trùm mền/cosplay (`SUSPICIOUS_MOTION`).
 - **Phát hiện người (Human Detection):** YOLO26 (Class 0: `person`).
 - **Theo dõi đối tượng (Human Tracking):** ByteTrack (Gán và duy trì `track_id` liên tục).
-- **Phát hiện khuôn mặt (Face Detection):** OpenCV YuNet ONNX (kèm 5 điểm Landmarks căn chỉnh).
+- **Phát hiện khuôn mặt (Face Detection):** InsightFace SCRFD-2.5G ONNX (kèm 5 điểm Landmarks căn chỉnh).
 - **Trích xuất đặc trưng khuôn mặt (Face Recognition):** Deep Learning ArcFace ResNet-50 ONNX (vector 512D chuẩn hóa L2).
 - **Phân tích khung hình & Xâm nhập vùng cấm (Frame Analysis Engine):** Kiểm tra đối tượng trong vùng ROI, đối soát danh tính khuôn mặt và cảnh báo ngoài giờ hoạt động.
 - **Tích hợp cảnh báo:** Eclipse Mosquitto MQTT (Real-time Event Stream) & MinIO (Lưu trữ ảnh bằng chứng vi phạm).
@@ -17,7 +17,7 @@ Microservice xử lý AI thời gian thực cho hệ thống giám sát an ninh:
 ```text
 ai-service/
 ├── models/
-│   ├── face_detection_yunet.onnx   # Model YuNet phát hiện khuôn mặt
+│   ├── scrfd_2.5g_bnkps.onnx       # Model InsightFace SCRFD-2.5G phát hiện khuôn mặt
 │   ├── w600k_r50.onnx              # Model ArcFace ResNet-50 trích xuất vector 512D
 │   └── yolo26n.pt                  # Model YOLO26 phát hiện người (NMS-Free, Edge-First)
 ├── src/
@@ -28,7 +28,7 @@ ai-service/
 │   │   ├── motion_detector.py      # Tiền xử lý chuyển động MOG2
 │   │   ├── zone_state_machine.py   # Máy trạng thái chốt giữ (State Latch)
 │   │   ├── human_detector.py       # Module YOLO26 Person Detection + ByteTrack
-│   │   ├── face_detector.py        # Module YuNet Face Detection
+│   │   ├── face_detector.py        # Module SCRFD Face Detection
 │   │   ├── face_embedder.py        # Trích xuất đặc trưng khuôn mặt ArcFace 512D
 │   │   ├── face_matcher.py         # So khớp khuôn mặt Cosine Similarity In-Memory RAM
 │   │   └── frame_analysis_engine.py# Logic phân tích vi phạm an ninh ROI & Time Rules

@@ -8,7 +8,7 @@ không bao giờ khớp -> người đã đăng ký luôn bị báo UNKNOWN_PERS
 Script:
   1. Phát hiện vector hỏng: cos trung bình với mọi người khác > --broken-threshold (mặc định 0.5).
   2. Tải ảnh gốc (image_front_url) từ MinIO, chạy ĐÚNG quy trình đăng ký hiện tại
-     (YuNet detect_in_image -> crop + 5 điểm mốc -> ArcFace extract_embedding), giống /api/v1/faces/process-registration.
+     (SCRFD detect_in_image -> crop + 5 điểm mốc -> ArcFace extract_embedding), giống /api/v1/faces/process-registration.
   3. Mặc định CHỈ IN KẾT QUẢ (chạy thử). Thêm --apply mới ghi DB: sao lưu bảng trước, cập nhật trong 1 transaction.
 
 Chạy từ thư mục ai-service:

@@ -70,10 +70,6 @@ class Settings(BaseSettings):
         default=os.path.join(AI_SERVICE_DIR, "models", "scrfd_2.5g_bnkps.onnx"),
         validation_alias="MODEL_SCRFD_PATH"
     )
-    MODEL_YUNET_PATH: str = Field(
-        default=os.path.join(AI_SERVICE_DIR, "models", "face_detection_yunet.onnx"),
-        validation_alias="MODEL_YUNET_PATH"
-    )
     MODEL_FACE_DETECTOR_PATH: str = Field(
         default=os.path.join(AI_SERVICE_DIR, "models", "scrfd_2.5g_bnkps.onnx"),
         validation_alias="MODEL_FACE_DETECTOR_PATH"

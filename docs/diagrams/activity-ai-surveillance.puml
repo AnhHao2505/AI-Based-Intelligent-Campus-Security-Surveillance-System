@@ -52,7 +52,7 @@ if (Person's bottom-center inside ROI Polygon?\n(Ray-Casting Algorithm)) then (y
   if (Track ID already verified in cache?) then (yes)
     :Reuse cached authorization status;
   else (no: New subject / Uncached)
-    :Crop upper-body & detect face/landmarks\nvia OpenCV YuNet ONNX;
+    :Crop upper-body & detect face/landmarks\nvia InsightFace SCRFD ONNX;
     if (Face detected and quality sufficient?) then (yes)
       :Extract 512-D L2-Normalized Embedding\nvia ArcFace ResNet-50 ONNX;
       :Cosine Similarity Search against\nIn-Memory Vector RAM Cache;

@@ -46,7 +46,7 @@ class VideoPipeline:
         conf_threshold: Optional[float] = None,
         model_yolo_path: Optional[str] = None,
         model_face_detector_path: Optional[str] = None,
-        model_yunet_path: Optional[str] = None,
+        model_scrfd_path: Optional[str] = None,
         roi_polygons: Optional[List[Any]] = None,
         after_hour_start: Optional[str] = None,
         after_hour_end: Optional[str] = None,
@@ -66,7 +66,7 @@ class VideoPipeline:
 
         # Khởi tạo các module core
         yolo_path = model_yolo_path or settings.MODEL_YOLO_PATH
-        face_path = model_face_detector_path or model_yunet_path or getattr(settings, "MODEL_FACE_DETECTOR_PATH", settings.MODEL_YUNET_PATH)
+        face_path = model_face_detector_path or model_scrfd_path or settings.MODEL_FACE_DETECTOR_PATH
         detector_conf = conf_threshold if conf_threshold is not None else settings.DEFAULT_DETECTION_CONFIDENCE
         ah_start = after_hour_start or settings.DEFAULT_AFTER_HOUR_START
         ah_end = after_hour_end or settings.DEFAULT_AFTER_HOUR_END
@@ -655,6 +655,7 @@ class VideoPipeline:
         existing.face_detected = True
         existing.is_inherited_identity = False
         existing.inherited_mismatch_count = 0
+        existing.identity_verified_at = None
         existing.alert_unknown_sent = False
         existing.alert_unauthorized_sent = False
         existing.unknown_verdict_time = None
@@ -1304,6 +1305,7 @@ class VideoPipeline:
                                         existing.face_info.score = score
                                         face_result.score = score
                                     if not is_parent_inherited:
+                                        existing.identity_verified_at = current_time
                                         continue
                                 else:
                                     # Mã mới KHÁC danh tính hiện tại:

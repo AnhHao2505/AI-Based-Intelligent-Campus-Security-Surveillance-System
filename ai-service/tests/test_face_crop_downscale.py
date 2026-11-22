@@ -1,4 +1,4 @@
-"""Crop rất lớn (camera 2688x1664) được thu nhỏ trước YuNet; toạ độ mặt quy đổi đúng về khung hình gốc."""
+"""Crop rất lớn (camera 2688x1664) được thu nhỏ trước Face Detector; toạ độ mặt quy đổi đúng về khung hình gốc."""
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -9,11 +9,8 @@ from src.core.face_detector import FaceDetector
 
 
 class TestFaceCropDownscale(unittest.TestCase):
-    @patch("os.path.exists", return_value=True)
-    @patch("cv2.FaceDetectorYN.create")
-    def setUp(self, mock_yn_create, mock_exists):
+    def setUp(self):
         self.detector = FaceDetector(upscale_threshold=160, max_dim=480)
-        self.detector.detector = MagicMock()
 
     def test_large_crop_downscaled_and_coordinates_mapped_back(self):
         crop = np.zeros((960, 720, 3), dtype=np.uint8)  # cạnh dài 960 > 480 -> scale 0.5 -> 360x480
