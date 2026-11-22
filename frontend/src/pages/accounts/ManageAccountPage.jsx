@@ -43,6 +43,11 @@ import "../../styles/ManageAccountPage.css";
 import PageHeader from "../../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
 import { formatDateTime, formatTime } from "../../utils/formatDateTime";
+import {
+	readFaceImageMaxKb,
+	validateFaceImageSize,
+	faceImageLimitText,
+} from "../../utils/accountFaceImage";
 import useDialogA11y from "../../hooks/useDialogA11y";
 import AccountAuditLogTab from "./AccountAuditLogTab";
 import {
@@ -145,6 +150,9 @@ export default function ManageAccountPage() {
 	const [showBulkConfirmModal, setShowBulkConfirmModal] = useState(false);
 	// UI-19: số dòng tối đa đọc từ cấu hình USER_BULK_IMPORT_MAX_ROWS mỗi lần mở modal (null = chưa đọc được)
 	const [bulkMaxRows, setBulkMaxRows] = useState(null);
+	// V140: dung lượng tối đa ảnh khuôn mặt (USER_FACE_IMAGE_MAX_KB), đọc cùng lần với cấu hình khác khi mở popup tạo /
+	// nạp theo lô. null = chưa đọc được -> không chặn ở trình duyệt, backend tự kiểm
+	const [faceImageMaxKb, setFaceImageMaxKb] = useState(null);
 
 	// Batch Management State
 	const [showBatchListModal, setShowBatchListModal] = useState(false);
@@ -273,9 +281,11 @@ export default function ManageAccountPage() {
 		setShowBulkConfirmModal(false);
 		setModalType("bulkImport");
 		setBulkMaxRows(null);
+		setFaceImageMaxKb(null);
 		loadBulkMaxRows();
 	};
 
+	// USER_BULK_IMPORT_MAX_ROWS và USER_FACE_IMAGE_MAX_KB (V140) cho hướng dẫn nạp theo lô
 	const loadBulkMaxRows = async () => {
 		try {
 			const list = await getSystemConfigs();
@@ -284,12 +294,14 @@ export default function ManageAccountPage() {
 			);
 			const n = cfg ? parseInt(cfg.configValue, 10) : NaN;
 			setBulkMaxRows(Number.isFinite(n) && n > 0 ? n : null);
+			setFaceImageMaxKb(readFaceImageMaxKb(list));
 		} catch (err) {
 			console.error(
 				"Không đọc được cấu hình số dòng tối đa khi nạp theo lô:",
 				err,
 			);
 			setBulkMaxRows(null);
+			setFaceImageMaxKb(null);
 		}
 	};
 
@@ -497,12 +509,15 @@ export default function ManageAccountPage() {
 		dialogFocus,
 	);
 
-	// BR-AL-33: cấp mặc định theo role (ACCESS_LEVEL_DEFAULT_*) và ngưỡng mời khách (GUEST_HOST_MIN_LEVEL)
+	// BR-AL-33: cấp mặc định theo role (ACCESS_LEVEL_DEFAULT_*) và ngưỡng mời khách (GUEST_HOST_MIN_LEVEL);
+	// V140: cùng lần đọc lấy luôn USER_FACE_IMAGE_MAX_KB cho ô ảnh khuôn mặt
 	const loadLevelConfig = async () => {
 		setLevelConfig(null);
 		setLevelConfigError(false);
+		setFaceImageMaxKb(null);
 		try {
 			const list = await getSystemConfigs();
+			setFaceImageMaxKb(readFaceImageMaxKb(list));
 			const valueOf = (key) =>
 				parseLevel((list || []).find((c) => c.configKey === key)?.configValue);
 			const defaults = {};
@@ -530,6 +545,7 @@ export default function ManageAccountPage() {
 		} catch (err) {
 			console.error("Không đọc được cấu hình cấp truy cập mặc định:", err);
 			setLevelConfigError(true);
+			setFaceImageMaxKb(null);
 		}
 	};
 
@@ -562,10 +578,12 @@ export default function ManageAccountPage() {
 			return;
 		}
 
-		if (file.size > 350 * 1024) {
+		// V140: giới hạn theo USER_FACE_IMAGE_MAX_KB; chưa đọc được cấu hình thì không chặn (backend kiểm)
+		const sizeError = validateFaceImageSize(file, faceImageMaxKb);
+		if (sizeError) {
 			setFormErrors((prev) => ({
 				...prev,
-				faceImage: `Dung lượng ảnh (${(file.size / 1024).toFixed(1)} KB) vượt quá giới hạn tối đa 350 KB. Vui lòng chọn hoặc nén ảnh nhỏ hơn.`,
+				faceImage: sizeError,
 			}));
 			return;
 		}
@@ -605,8 +623,10 @@ export default function ManageAccountPage() {
 		if (!frontFile) {
 			errors.faceImage =
 				"Vui lòng tải lên ảnh chân dung chính diện để đăng ký khuôn mặt";
-		} else if (frontFile.size > 350 * 1024) {
-			errors.faceImage = `Dung lượng ảnh (${(frontFile.size / 1024).toFixed(1)} KB) vượt quá giới hạn tối đa 350 KB. Vui lòng chọn hoặc nén ảnh nhỏ hơn.`;
+		} else {
+			// V140: kiểm lại lúc gửi (cấu hình có thể đọc xong sau khi đã chọn ảnh)
+			const sizeError = validateFaceImageSize(frontFile, faceImageMaxKb);
+			if (sizeError) errors.faceImage = sizeError;
 		}
 
 		if (Object.keys(errors).length > 0) {
@@ -1614,7 +1634,8 @@ export default function ManageAccountPage() {
 													marginTop: "2px",
 												}}
 											>
-												Hỗ trợ định dạng JPG, PNG...
+												Hỗ trợ định dạng JPG, PNG
+												{faceImageMaxKb ? `, ${faceImageLimitText(faceImageMaxKb)}` : "..."}
 											</span>
 										</label>
 									)}
@@ -2065,8 +2086,9 @@ export default function ManageAccountPage() {
 															<br />• Nén file <code>
 																metadata.xlsx
 															</code> (hoặc <code>metadata.csv</code>) cùng thư
-															mục <code>images/</code> chứa ảnh chân dung (tối
-															đa 350KB/ảnh, tên ảnh khớp với{" "}
+															mục <code>images/</code> chứa ảnh chân dung (
+															{faceImageLimitText(faceImageMaxKb)}, tên ảnh khớp
+															với{" "}
 															<code>user_code</code>) vào file <code>.zip</code>{" "}
 															để nạp.
 														</>
@@ -2088,8 +2110,9 @@ export default function ManageAccountPage() {
 															<br />• Nén file <code>
 																metadata.xlsx
 															</code> (hoặc <code>metadata.csv</code>) cùng thư
-															mục <code>images/</code> chứa ảnh chân dung (tối
-															đa 350KB/ảnh, tên ảnh khớp với{" "}
+															mục <code>images/</code> chứa ảnh chân dung (
+															{faceImageLimitText(faceImageMaxKb)}, tên ảnh khớp
+															với{" "}
 															<code>user_code</code>) vào file <code>.zip</code>{" "}
 															để nạp.
 														</>
