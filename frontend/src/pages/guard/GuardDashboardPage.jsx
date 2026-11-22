@@ -41,6 +41,11 @@ import {
 import "../../styles/GuardDashboardPage.css";
 import { LoadingState, ErrorState } from "../../components/ui";
 import { minimizeReason } from "../../utils/accessHistoryHelpers";
+import {
+	installAlertSoundUnlock,
+	playIncidentAlert,
+	unlockAlertSound,
+} from "../../utils/alertSound";
 
 // Chuẩn hóa 5 nhóm/nhãn sự kiện an ninh theo độ ưu tiên (Priority). Nhãn đầy đủ = AccessResult của backend;
 // badge trên màn hình dùng nhãn ngắn (trong ngoặc):
@@ -501,6 +506,9 @@ export function SecuritySurveillancePage() {
 		soundEnabledRef.current = soundEnabled;
 	}, [soundEnabled]);
 
+	// Trình duyệt chỉ cho phát âm thanh sau thao tác đầu tiên của người dùng (autoplay policy)
+	useEffect(() => installAlertSoundUnlock(), []);
+
 	// Đóng menu dropdown lọc khi click ra ngoài
 	useEffect(() => {
 		const handleClickOutside = (e) => {
@@ -723,28 +731,10 @@ export function SecuritySurveillancePage() {
 	const totalCameraCount = cameraList.length || 4;
 	const recordingCameraCount = onlineCameraCount > 0 ? onlineCameraCount : 3;
 
-	// Âm thanh cảnh báo
-	const playAlertSound = () => {
+	// Âm thanh cảnh báo: mỗi sự cố kêu 1 lần (khử trùng theo id/eventId, gộp cảnh báo dồn dập, 1 tab kêu)
+	const playAlertSound = (incidentKeys, group) => {
 		if (!soundEnabledRef.current) return;
-		try {
-			const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-			const osc = audioCtx.createOscillator();
-			const gain = audioCtx.createGain();
-			osc.type = "sawtooth";
-			osc.frequency.setValueAtTime(850, audioCtx.currentTime);
-			osc.frequency.exponentialRampToValueAtTime(
-				380,
-				audioCtx.currentTime + 0.35,
-			);
-			gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-			gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
-			osc.connect(gain);
-			gain.connect(audioCtx.destination);
-			osc.start();
-			osc.stop(audioCtx.currentTime + 0.35);
-		} catch (e) {
-			console.warn("Audio Context không được phép tự động phát:", e);
-		}
+		playIncidentAlert({ keys: incidentKeys, group }).catch(() => {});
 	};
 
 	// Kích hoạt nhấp nháy nổi bật camera khi có sự cố
@@ -849,7 +839,12 @@ export function SecuritySurveillancePage() {
 			}
 			return [newAlert, ...prev];
 		});
-		playAlertSound();
+		if (!isAck) {
+			playAlertSound(
+				[incidentId, eventId],
+				`${camCodeClean}|${newAlert.eventType}`,
+			);
+		}
 		flashCameraAlert(camCodeClean);
 
 		// Tự động chuyển camera đang chọn (cho Layout 1)
@@ -1298,6 +1293,7 @@ export function SecuritySurveillancePage() {
 							className={`btn-sound-toggle ${soundEnabled ? "active" : "muted"}`}
 							onClick={() => {
 								const next = !soundEnabled;
+								if (next) unlockAlertSound();
 								setSoundEnabled(next);
 							}}
 							title={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
@@ -1389,6 +1385,7 @@ export function SecuritySurveillancePage() {
 									className={`btn-theater-test ${soundEnabled ? "" : "muted"}`}
 									onClick={() => {
 										const next = !soundEnabled;
+										if (next) unlockAlertSound();
 										setSoundEnabled(next);
 									}}
 									title={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
