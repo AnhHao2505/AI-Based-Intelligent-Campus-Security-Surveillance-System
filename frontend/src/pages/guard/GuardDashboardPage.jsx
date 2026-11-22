@@ -501,10 +501,19 @@ export function SecuritySurveillancePage() {
 
 	const flashTimeoutRef = useRef(null);
 	const soundEnabledRef = useRef(soundEnabled);
+	const activeAlertsRef = useRef(activeAlerts);
+	// Hàm tải lại danh sách sự cố, giữ trong ref để callback STOMP (tạo một lần) luôn gọi bản mới nhất
+	const reloadActiveIncidentsRef = useRef(null);
+	// Đã kết nối STOMP ít nhất một lần chưa: lần onConnect sau đó là kết nối lại
+	const hasConnectedRef = useRef(false);
 
 	useEffect(() => {
 		soundEnabledRef.current = soundEnabled;
 	}, [soundEnabled]);
+
+	useEffect(() => {
+		activeAlertsRef.current = activeAlerts;
+	}, [activeAlerts]);
 
 	// Trình duyệt chỉ cho phát âm thanh sau thao tác đầu tiên của người dùng (autoplay policy)
 	useEffect(() => installAlertSoundUnlock(), []);
@@ -857,12 +866,17 @@ export function SecuritySurveillancePage() {
 			import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 		const brokerURL = API_BASE_URL.replace(/^http/, "ws") + "/ws-security";
 
+		hasConnectedRef.current = false;
 		const stompClient = new Client({
 			brokerURL,
-			connectHeaders: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
 			reconnectDelay: 4000,
 			heartbeatIncoming: 4000,
 			heartbeatOutgoing: 4000,
+			// Đọc token mỗi lần (kết nối lại) để không dùng token cũ
+			beforeConnect: () => {
+				const token = localStorage.getItem("accessToken");
+				stompClient.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+			},
 			onConnect: () => {
 				setWsConnected(true);
 
@@ -947,6 +961,13 @@ export function SecuritySurveillancePage() {
 						}
 					}
 				});
+
+				// Kết nối lại: tin phát trong lúc mất kết nối đã mất -> tải lại từ API để bù
+				if (hasConnectedRef.current) {
+					reloadActiveIncidentsRef.current?.({ silent: true });
+					window.dispatchEvent(new CustomEvent("notification-updated"));
+				}
+				hasConnectedRef.current = true;
 			},
 			onDisconnect: () => setWsConnected(false),
 			onWebSocketClose: () => setWsConnected(false),
@@ -960,80 +981,142 @@ export function SecuritySurveillancePage() {
 		};
 	}, []);
 
-	// Nạp danh sách sự cố chưa xử lý ban đầu từ Backend REST API khi tải trang
-	useEffect(() => {
-		async function loadInitialActiveIncidents() {
-			setIncidentsLoading(true);
-			try {
-				const active = await getActiveIncidents();
-				setIncidentsError(null);
-				if (Array.isArray(active) && active.length > 0) {
-					const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
-					const clearedSet = getStoredSet(SOC_CLEARED_STORAGE_KEY);
+	// Gộp danh sách tải lại sau khi kết nối lại: cập nhật sự cố đã có, thêm sự cố mới lên đầu.
+	// Sự cố mới hiển thị như nhận qua WebSocket nhưng chỉ phát âm thanh một lần cho cả đợt.
+	const mergeReloadedIncidents = (mapped) => {
+		const collectIds = (alerts) => {
+			const ids = new Set();
+			alerts.forEach((a) => {
+				if (a.id) ids.add(String(a.id));
+				if (a.eventId) ids.add(String(a.eventId));
+			});
+			return ids;
+		};
+		const newestFirst = (a, b) => (b.rawTime || 0) - (a.rawTime || 0);
+		const knownIds = collectIds(activeAlertsRef.current);
 
-					const mapped = active
-						.filter((incident) => {
-							const idStr = String(incident.id || incident.eventId);
-							return !clearedSet.has(idStr);
-						})
-						.map((incident) => {
-							const incId = incident.id || incident.eventId;
-							const camCodeClean = (
+		setActiveAlerts((prev) => {
+			const prevIds = collectIds(prev);
+			const reloadedById = new Map(mapped.map((a) => [String(a.id), a]));
+			const updated = prev.map((a) => {
+				const reloaded =
+					reloadedById.get(String(a.id)) ||
+					(a.eventId ? reloadedById.get(String(a.eventId)) : undefined);
+				return reloaded ? { ...a, ...reloaded, eventId: a.eventId } : a;
+			});
+			const added = mapped
+				.filter((a) => !prevIds.has(String(a.id)))
+				.sort(newestFirst);
+			return added.length > 0 ? [...added, ...updated] : updated;
+		});
+
+		const fresh = mapped
+			.filter((a) => !knownIds.has(String(a.id)))
+			.sort(newestFirst);
+		if (fresh.length > 0) {
+			const unacked = fresh.filter((a) => !a.socAcknowledged);
+			if (unacked.length > 0) {
+				playAlertSound(
+					unacked.map((a) => a.id),
+					`${unacked[0].camCodeClean}|${unacked[0].eventType}`,
+				);
+			}
+			flashCameraAlert(fresh[0].camCodeClean);
+			setSelectedCamera(fresh[0].camCodeClean);
+		}
+	};
+
+	// Nạp danh sách sự cố chưa xử lý từ Backend REST API: khi tải trang và khi STOMP kết nối lại.
+	// silent: không bật trạng thái loading toàn trang, gộp vào danh sách đang có thay vì thay thế.
+	const reloadActiveIncidents = async ({ silent = false } = {}) => {
+		if (!silent) {
+			setIncidentsLoading(true);
+		}
+		try {
+			const active = await getActiveIncidents();
+			setIncidentsError(null);
+			if (Array.isArray(active) && active.length > 0) {
+				const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
+				const clearedSet = getStoredSet(SOC_CLEARED_STORAGE_KEY);
+
+				const mapped = active
+					.filter((incident) => {
+						const idStr = String(incident.id || incident.eventId);
+						return !clearedSet.has(idStr);
+					})
+					.map((incident) => {
+						const incId = incident.id || incident.eventId;
+						const camCodeClean = (
+							incident.camera_code ||
+							incident.cameraCode ||
+							"CAM-001"
+						)
+							.toLowerCase()
+							.replace(/[^a-z0-9_-]/g, "")
+							.trim();
+
+						const rawTime = parseIncidentTimestamp(incident);
+						const isoDate = getIncidentIsoString(incident);
+
+						return {
+							id: incId,
+							cameraCode: (
 								incident.camera_code ||
 								incident.cameraCode ||
 								"CAM-001"
-							)
-								.toLowerCase()
-								.replace(/[^a-z0-9_-]/g, "")
-								.trim();
-
-							const rawTime = parseIncidentTimestamp(incident);
-							const isoDate = getIncidentIsoString(incident);
-
-							return {
-								id: incId,
-								cameraCode: (
-									incident.camera_code ||
-									incident.cameraCode ||
-									"CAM-001"
-								).toUpperCase(),
-								camCodeClean,
-								cameraName:
-									incident.areaName || incident.cameraName || "Khu vực camera",
-								eventType: incident.eventType || "UNAUTHORIZED_PERSON",
-								message: cleanIncidentMessage(
-									incident.details ||
-									incident.resolutionNotes ||
-									incident.message,
-									incident.eventType,
-									incident.areaName,
-									incident.cameraCode
-								),
-								duration: incident.duration_seconds
-									? `${incident.duration_seconds}s`
-									: "Vừa phát hiện",
-								timeParts: getIncidentTimeParts(isoDate || rawTime),
-								timestamp: formatIncidentTimestamp(isoDate || rawTime),
-								detectedAt: isoDate || incident.detectedAt || null,
-								rawTime,
-								status: incident.status || "NEW",
-								socAcknowledged: ackSet.has(String(incId)),
-								claimedByName: incident.claimedByName || incident.claimed_by_name,
-								imageUrl: incident.imageUrl || incident.image_url || null,
-								severity: incident.severity || null,
-								dispatchStage: incident.dispatchStage || null,
-							};
-						});
+							).toUpperCase(),
+							camCodeClean,
+							cameraName:
+								incident.areaName || incident.cameraName || "Khu vực camera",
+							eventType: incident.eventType || "UNAUTHORIZED_PERSON",
+							message: cleanIncidentMessage(
+								incident.details ||
+								incident.resolutionNotes ||
+								incident.message,
+								incident.eventType,
+								incident.areaName,
+								incident.cameraCode
+							),
+							duration: incident.duration_seconds
+								? `${incident.duration_seconds}s`
+								: "Vừa phát hiện",
+							timeParts: getIncidentTimeParts(isoDate || rawTime),
+							timestamp: formatIncidentTimestamp(isoDate || rawTime),
+							detectedAt: isoDate || incident.detectedAt || null,
+							rawTime,
+							status: incident.status || "NEW",
+							socAcknowledged: ackSet.has(String(incId)),
+							claimedByName: incident.claimedByName || incident.claimed_by_name,
+							imageUrl: incident.imageUrl || incident.image_url || null,
+							severity: incident.severity || null,
+							dispatchStage: incident.dispatchStage || null,
+						};
+					});
+				if (silent) {
+					mergeReloadedIncidents(mapped);
+				} else {
 					setActiveAlerts(mapped);
 				}
-			} catch (e) {
-				console.warn("Không thể tải danh sách sự cố ban đầu:", e);
+			}
+		} catch (e) {
+			console.warn("Không thể tải danh sách sự cố:", e);
+			// Tải lại im lặng mà lỗi thì giữ danh sách đang có, không thay bằng màn lỗi
+			if (!silent) {
 				setIncidentsError(e?.message || "Không tải được danh sách sự cố.");
-			} finally {
+			}
+		} finally {
+			if (!silent) {
 				setIncidentsLoading(false);
 			}
 		}
-		loadInitialActiveIncidents();
+	};
+
+	useEffect(() => {
+		reloadActiveIncidentsRef.current = reloadActiveIncidents;
+	});
+
+	useEffect(() => {
+		reloadActiveIncidentsRef.current?.();
 	}, [incidentsReloadKey]);
 
 	// Nghiệp vụ SOC: Xác nhận đã xem & tắt còi báo động tại phòng trực điều hành

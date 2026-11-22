@@ -18,17 +18,29 @@ export const guestVisitService = {
     return await apiGet("/api/guest-visits/selectable-areas");
   },
 
-  /** Host tạo lượt: { purpose, startTime, endTime, areaIds[], guests[{ fullName, organization }] } */
   /**
-   * Điều kiện mời khách của người đang đăng nhập (B-04): { canHost, myLevel, minLevel }
+   * Điều kiện mời khách của người đang đăng nhập (B-04):
+   * { canHost, myLevel, minLevel, consentNoticeVersion, photoMaxKb }
    * GET /api/guest-visits/eligibility
    */
   async getEligibility() {
     return await apiGet("/api/guest-visits/eligibility");
   },
 
-  async createVisit(data) {
-    return await apiPost("/api/guest-visits", data);
+  /**
+   * Host tạo lượt kèm ảnh khách (multipart): phần "data" (JSON)
+   * { purpose, startTime, endTime, areaIds[], consentNoticeVersion, guests[{ fullName, organization, consentConfirmed }] }
+   * và phần "photos" là ảnh của từng khách theo đúng thứ tự guests.
+   * Lỗi gắn với một khách có err.data.data.guestIndex (xem getErrorGuestIndex).
+   */
+  async createVisit(data, photos = []) {
+    const formData = new FormData();
+    formData.append("data", new Blob([JSON.stringify(data)], { type: "application/json" }));
+    photos.forEach((file) => formData.append("photos", file));
+    return await apiFetch("/api/guest-visits", {
+      method: "POST",
+      body: formData,
+    });
   },
 
   /** Lượt của chính người đăng nhập (Page) */
@@ -77,7 +89,7 @@ export const guestVisitService = {
     return await apiPatch(`/api/guest-visits/${id}/revoke`, body);
   },
 
-  /** ADMIN: Gắn ảnh cho khách (Multipart FormData kèm xác nhận đồng ý) */
+  /** Host thay ảnh khách của lượt mình (lượt Chờ duyệt / Đã duyệt chưa tới giờ bắt đầu), kèm xác nhận đồng ý */
   async uploadGuestPhoto(visitId, guestId, { file, consentConfirmed, consentNoticeVersion }) {
     const formData = new FormData();
     if (file) formData.append("file", file);
@@ -93,7 +105,7 @@ export const guestVisitService = {
     });
   },
 
-  /** ADMIN: Lấy URL xem ảnh khách có hạn (presigned) */
+  /** URL xem ảnh khách có hạn (presigned): host xem khách của lượt mình, FM / ADMIN xem mọi lượt. Mỗi lần xem ghi audit. */
   async getGuestPhotoUrl(visitId, guestId) {
     return await apiPost(`/api/guest-visits/${visitId}/guests/${guestId}/photo-url`);
   },

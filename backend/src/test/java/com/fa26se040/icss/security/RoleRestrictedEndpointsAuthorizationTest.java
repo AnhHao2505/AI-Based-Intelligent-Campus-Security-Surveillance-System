@@ -64,12 +64,13 @@ class RoleRestrictedEndpointsAuthorizationTest extends AbstractIntegrationTest {
             "PATCH /api/users/{id}/access-level"
     );
 
-    /** 4 endpoint multipart của BE-02 (JSON {} -> 500 cho mọi vai trò). */
+    /** Endpoint multipart của BE-02 (JSON {} -> 500 cho mọi vai trò); tạo lượt khách kèm ảnh cũng là multipart. */
     private static final Set<String> BE02_MULTIPART_ENDPOINTS = Set.of(
             "POST /api/users/normal/bulk-import",
             "POST /api/users/staff/bulk-import",
             "POST /api/users/staff-accounts",
-            "POST /api/guest-visits/{visitId}/guests/{guestId}/photo"
+            "POST /api/guest-visits/{visitId}/guests/{guestId}/photo",
+            "POST /api/guest-visits"
     );
 
     private static final Set<String> BE03_ENDPOINTS = Set.of("POST /api/cameras/recordings/stream-token");

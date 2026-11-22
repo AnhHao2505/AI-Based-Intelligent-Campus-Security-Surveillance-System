@@ -41,8 +41,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -152,7 +150,8 @@ class AccountAuditIntegrationTest extends AbstractIntegrationTest {
     }
 
     private void expectAi(String code, int faceCount) {
-        String vector = IntStream.range(0, 512).mapToObj(i -> "0.02").collect(Collectors.joining(","));
+        // mỗi lần đăng ký là một khuôn mặt khác (đăng ký có kiểm trùng khuôn mặt)
+        String vector = com.fa26se040.icss.TestFaces.csv(com.fa26se040.icss.TestFaces.random());
         aiServer.expect(requestTo(endsWith("/api/v1/faces/process-registration")))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().string(containsString(code)))

@@ -1859,6 +1859,187 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 /* ==========================================================================
+   Camera General Tab — Read Mode & Edit Mode (CameraGeneralTab.jsx)
+   ========================================================================== */
+.cam-general-read {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.cam-general-read__top,
+.cam-general-edit__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cam-general-read__section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--theme-text-muted);
+}
+
+.cam-general-read__edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.cam-general-read__edit-btn:hover {
+  border-color: var(--brand-blue);
+  color: var(--brand-text);
+  background: var(--theme-bg-surface);
+}
+
+.cam-general-read__list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-bg-surface-elevated);
+  overflow: hidden;
+}
+
+.cam-general-read__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.75rem 0.95rem;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.cam-general-read__item:last-child {
+  border-bottom: none;
+}
+
+.cam-general-read__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--theme-text-muted);
+}
+
+.cam-general-read__value-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cam-general-read__value-primary {
+  font-size: 0.925rem;
+  font-weight: 700;
+  color: var(--theme-text-primary);
+}
+
+.cam-general-read__code-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  background: var(--theme-bg-page);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+
+.cam-general-read__area-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cam-general-read__area-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cam-general-read__subtext {
+  font-size: 0.8rem;
+  color: var(--theme-text-secondary);
+}
+
+.cam-general-read__link-btn {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface);
+  color: var(--brand-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cam-general-read__link-btn:hover {
+  border-color: var(--brand-blue);
+}
+
+.cam-general-read__pin-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.cam-general-read__pin-status--ok {
+  color: var(--theme-success-text, #16a34a);
+}
+
+.cam-general-read__pin-status--warn {
+  color: var(--theme-warning-text, #d97706);
+}
+
+.cam-general-edit__actions {
+  gap: 0.625rem;
+}
+
+.btn-cancel-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.65rem 1.15rem;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.btn-cancel-edit:hover:not(:disabled) {
+  border-color: var(--theme-border-hover);
+  color: var(--theme-text-primary);
+  background: var(--theme-bg-surface);
+}
+
+.btn-cancel-edit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
    RTSP Stream Preview Field (CameraStreamTab)
    ========================================================================== */
 .stream-preview-container {
@@ -1991,3 +2172,135 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--theme-text-muted);
   line-height: 1.4;
 }
+
+/* ==========================================================================
+   Phase 2: 3 Camera Types Selector, Badges & Corridor Prefix Input
+   ========================================================================== */
+.cam-type-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.cam-type-option-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.cam-type-option-btn:hover:not(:disabled) {
+  border-color: var(--brand-orange, #f97316);
+}
+
+.cam-type-option-btn--active {
+  border-color: var(--brand-orange, #f97316);
+  background: rgba(249, 115, 22, 0.1);
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.25);
+}
+
+.cam-type-option-btn__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--theme-text-primary);
+  line-height: 1.25;
+}
+
+.cam-type-option-btn__sub {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--theme-text-muted);
+}
+
+.cam-type-option-btn--active .cam-type-option-btn__sub {
+  color: var(--brand-orange, #f97316);
+}
+
+.cam-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.cam-type-badge--restricted_area {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.cam-type-badge--public_area {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.cam-type-badge--corridor {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.28);
+}
+
+.cam-corridor-prefix-input {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--theme-input-border, var(--theme-border));
+  background: var(--theme-input-bg, var(--theme-bg-surface));
+}
+
+.cam-corridor-prefix-input__addon {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--brand-orange, #f97316);
+  background: rgba(249, 115, 22, 0.1);
+  border-right: 1px solid var(--theme-border);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.cam-corridor-prefix-input input {
+  border: none !important;
+  border-radius: 0 !important;
+  flex: 1;
+  min-width: 0;
+  box-shadow: none !important;
+}
+
+.cam-corridor-floor-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.cam-corridor-location-box {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 6px;
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+

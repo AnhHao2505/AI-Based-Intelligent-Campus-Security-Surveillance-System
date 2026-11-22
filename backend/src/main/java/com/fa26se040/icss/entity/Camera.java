@@ -2,6 +2,7 @@ package com.fa26se040.icss.entity;
 
 import com.fa26se040.icss.dto.camera.RoiGeometry;
 import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.CameraType;
 import com.fa26se040.icss.enums.OperationalStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -40,6 +41,11 @@ public class Camera {
     private String name;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "camera_type", nullable = false, length = 30)
+    @Builder.Default
+    private CameraType cameraType = CameraType.RESTRICTED_AREA;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
     private CameraStatus status;
 
@@ -75,8 +81,8 @@ public class Camera {
     @OneToOne(mappedBy = "camera", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private CameraStreamConfiguration streamConfiguration;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "area_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "area_id", nullable = true)
     private Area area;
 
     @PrePersist

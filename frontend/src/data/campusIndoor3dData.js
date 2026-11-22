@@ -2821,7 +2821,11 @@ export function buildVector3dLayers({
 				return isPointInPolygonWithHoles(pt, face.ring, face.holes || []);
 			});
 
-			const isSelected = matchedArea && matchedArea.id === selectedAreaId;
+			const isSelected = Boolean(
+				matchedArea &&
+					selectedAreaId != null &&
+					String(matchedArea.id) === String(selectedAreaId),
+			);
 			if (!isGhost && matchedArea?.id != null) {
 				matchedAreaIdsOnActiveFloor.add(String(matchedArea.id));
 			}
@@ -2840,8 +2844,6 @@ export function buildVector3dLayers({
 				fillColor = "#cbd5e1";
 			} else if (isStudio) {
 				fillColor = "#38bdf8";
-			} else if (isSelected) {
-				fillColor = "#2563eb";
 			} else if (isPreviewRoom) {
 				fillColor = levelColors[previewLevelCode] || "#10b981";
 			} else if (areaLevelCode && levelColors[areaLevelCode]) {
@@ -2870,6 +2872,7 @@ export function buildVector3dLayers({
 						? previewLevelCode
 						: areaLevelCode || "",
 					isCreatingPreview: isPreviewRoom,
+					isSelected: Boolean(isSelected),
 					isGhost,
 					isContextBuilding,
 					color: fillColor,

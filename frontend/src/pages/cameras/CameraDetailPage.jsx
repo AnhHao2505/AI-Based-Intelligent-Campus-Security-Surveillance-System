@@ -22,7 +22,11 @@ import {
 } from "../../services/cameraService";
 import { getAreas } from "../../services/areaService";
 import { toast } from "sonner";
-import { isStreamConfigDirty } from "../../utils/campusCameraHelpers";
+import {
+	extractCameraAreaInfo,
+	isStreamConfigDirty,
+	normalizeCorridorCameraName,
+} from "../../utils/campusCameraHelpers";
 import RoiEditorModal from "../../components/camera/RoiEditorModal";
 import CameraGeneralTab from "../../components/camera/CameraGeneralTab";
 import CameraStreamTab from "../../components/camera/CameraStreamTab";
@@ -93,7 +97,10 @@ export default function CameraDetailPage() {
 	const [availableAreas, setAvailableAreas] = useState([]);
 	const [generalForm, setGeneralForm] = useState({
 		name: "",
+		cameraType: "RESTRICTED_AREA",
 		areaId: "",
+		mapBuilding: "",
+		mapFloorOrder: 0,
 	});
 
 	const [streamForm, setStreamForm] = useState({
@@ -127,9 +134,13 @@ export default function CameraDetailPage() {
 			const data = await fetchCameraDetail(id);
 			setCamera(data);
 
+			const info = extractCameraAreaInfo(data);
 			setGeneralForm({
 				name: data.name || "",
+				cameraType: data.cameraType || info.cameraType || "RESTRICTED_AREA",
 				areaId: data.assignedArea?.id || data.assignedAreas?.[0]?.id || "",
+				mapBuilding: data.mapBuilding || info.building || "",
+				mapFloorOrder: data.mapFloorOrder ?? 0,
 			});
 
 			if (data.streamConfig) {
@@ -328,15 +339,26 @@ export default function CameraDetailPage() {
 		e.preventDefault();
 		setSaving(true);
 		try {
+			const effectiveType = generalForm.cameraType || "RESTRICTED_AREA";
+			const effectiveName =
+				effectiveType === "CORRIDOR"
+					? normalizeCorridorCameraName(generalForm.name)
+					: (generalForm.name || "").trim();
 			const payload = {
-				name: generalForm.name,
-				areaId: generalForm.areaId,
+				name: effectiveName,
+				cameraType: effectiveType,
+				areaId: effectiveType === "CORRIDOR" ? null : generalForm.areaId || null,
+				mapBuilding: generalForm.mapBuilding || camera?.mapBuilding || null,
+				mapFloorOrder:
+					generalForm.mapFloorOrder ?? camera?.mapFloorOrder ?? null,
 			};
 			const updated = await updateCamera(id, payload);
 			setCamera(updated);
 			showNotification("Cập nhật thông tin camera thành công!");
+			return true;
 		} catch (err) {
 			showError(err.message || "Cập nhật thông tin thất bại.");
+			return false;
 		} finally {
 			setSaving(false);
 		}

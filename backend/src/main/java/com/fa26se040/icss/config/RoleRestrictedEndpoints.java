@@ -64,7 +64,9 @@ public final class RoleRestrictedEndpoints {
             rule(HttpMethod.POST, "/api/users/normal/bulk-import", ADMIN),
             rule(HttpMethod.POST, "/api/users/staff/bulk-import", ADMIN),
             rule(HttpMethod.POST, "/api/users/staff-accounts", ADMIN),
-            rule(HttpMethod.POST, "/api/guest-visits/{visitId}/guests/{guestId}/photo", ADMIN),
+            rule(HttpMethod.POST, "/api/guest-visits/{visitId}/guests/{guestId}/photo", NORMAL_USER, FM),
+            // GuestVisitController: tạo lượt khách kèm ảnh (multipart)
+            rule(HttpMethod.POST, "/api/guest-visits", NORMAL_USER, FM),
             // BE-03: xin token xem video ghi hình (body JSON có @Valid)
             rule(HttpMethod.POST, "/api/cameras/recordings/stream-token", ADMIN, GUARD),
             // CameraController mutations

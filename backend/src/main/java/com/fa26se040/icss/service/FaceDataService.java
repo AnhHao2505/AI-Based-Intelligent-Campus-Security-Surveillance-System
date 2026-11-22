@@ -11,6 +11,8 @@ import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.exception.AiServiceUnavailableException;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.FaceDetectionException;
+import com.fa26se040.icss.exception.GuestErrorCode;
+import com.fa26se040.icss.exception.GuestException;
 import com.fa26se040.icss.repository.FaceDataRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +55,10 @@ public class FaceDataService {
     /** PR-AUDIT: field injection để giữ constructor (test dựng service bằng tay); null thì không ghi audit. */
     @Autowired(required = false)
     private AuditService auditService;
+
+    /** Kiểm trùng khuôn mặt (field injection như auditService để giữ constructor cho test dựng tay; null thì bỏ qua). */
+    @Autowired(required = false)
+    private FaceDuplicateCheckService faceDuplicateCheckService;
 
     /** PR-AUDIT: mã đã có khuôn mặt chưa (dùng cho snapshot hasFaceData của audit tài khoản). */
     @Transactional(readOnly = true)
@@ -140,6 +146,14 @@ public class FaceDataService {
                 if (aiResult.getFaceCount() == 0) {
                     throw new FaceDetectionException("Không phát hiện thấy khuôn mặt trong ảnh.");
                 }
+            }
+
+            // Không đăng ký khuôn mặt đã thuộc về người khác: người dùng đang hoạt động (trừ chính mã này khi thay ảnh)
+            // hoặc khách của lượt còn hiệu lực / chưa bắt đầu. Kiểm trước khi tải ảnh lên kho.
+            if (faceDuplicateCheckService != null) {
+                faceDuplicateCheckService.findDuplicateForUser(aiResult.getEmbeddingFront(), code).ifPresent(match -> {
+                    throw new FaceDetectionException(GuestException.render(GuestErrorCode.ERR_GUEST_038, match.describe()));
+                });
             }
 
             String imageUrl = minioStorageService.uploadFaceImage(imageBytes, code);

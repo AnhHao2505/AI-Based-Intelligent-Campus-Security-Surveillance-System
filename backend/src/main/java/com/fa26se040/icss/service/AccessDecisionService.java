@@ -7,36 +7,43 @@ import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.AreaAssignedPersonnel;
 import com.fa26se040.icss.entity.AreaEventSchedule;
 import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.CameraType;
 import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.GuestEntryDenyReason;
 import com.fa26se040.icss.enums.GuestVisitStatus;
 import com.fa26se040.icss.enums.IncidentStatus;
-import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.RequestStatus;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.repository.AccessRequestRepository;
 import com.fa26se040.icss.repository.AreaAssignedPersonnelRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraRepository;
 import com.fa26se040.icss.repository.GuardIncidentAccessRepository;
+import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import com.fa26se040.icss.dto.guest.GuestAccessDecision;
 import com.fa26se040.icss.entity.Guest;
 import com.fa26se040.icss.repository.GuestRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -68,6 +75,9 @@ public class AccessDecisionService {
     private final CameraAccessLogService cameraAccessLogService;
     private final GuardIncidentAccessRepository guardIncidentAccessRepository;
     private final SystemConfigService systemConfigService;
+
+    @Autowired(required = false)
+    private GuardShiftRepository guardShiftRepository;
 
     /**
      * Xét user có được vào area tại thời điểm at hay không. Thứ tự kiểm:
@@ -427,6 +437,9 @@ public class AccessDecisionService {
         }
         Area area = camera.getArea();
         if (area == null) {
+            if (camera.getCameraType() == CameraType.CORRIDOR) {
+                return checkCorridorCameraEntry(camera, userCode, at, roiLabel, eventDirection);
+            }
             return CheckCameraEntryResponse.denied(cameraCode, userCode, "Camera chưa được gán vào khu vực hoạt động nào");
         }
 
@@ -590,6 +603,170 @@ public class AccessDecisionService {
                 // Chỉ người chưa nhận diện mới mang tên chuẩn hoá; user có thật để null để nhật ký lấy tên từ tài khoản
                 .fullName("UNKNOWN".equals(effectiveUserCode) ? "Người lạ / Chưa rõ mặt" : null)
                 .build();
+    }
+
+    private CheckCameraEntryResponse checkCorridorCameraEntry(
+            Camera camera,
+            String userCode,
+            OffsetDateTime at,
+            String roiLabel,
+            String eventDirection
+    ) {
+        String corridorName = (camera.getName() != null && !camera.getName().isBlank())
+                ? camera.getName().trim()
+                : "Hành lang";
+        boolean isExit = eventDirection != null && eventDirection.equalsIgnoreCase("EXIT");
+        if (isExit) {
+            return CheckCameraEntryResponse.builder()
+                    .allowed(true)
+                    .source(AccessSource.NONE)
+                    .reason("Rời khu vực")
+                    .cameraCode(camera.getCameraCode())
+                    .areaId(null)
+                    .areaName(corridorName)
+                    .userCode(userCode != null && !userCode.isBlank() ? userCode : "UNKNOWN")
+                    .fullName(userCode != null && !userCode.isBlank() ? userCode : "Người lạ / Chưa rõ mặt")
+                    .build();
+        }
+
+        String cleanRoi = (roiLabel != null && !roiLabel.isBlank()) ? roiLabel.trim() : null;
+        Optional<User> userOpt = userRepository.findByUserCodeAndDeletedAtIsNull(userCode);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            if (!Boolean.TRUE.equals(user.getIsActive())) {
+                String msg = cleanRoi != null ? "[VÀO ROI: " + cleanRoi + "] Tài khoản đã bị vô hiệu hoá" : "Tài khoản đã bị vô hiệu hoá";
+                CheckCameraEntryResponse denied = CheckCameraEntryResponse.builder()
+                        .allowed(false)
+                        .source(AccessSource.NONE)
+                        .reason(msg)
+                        .cameraCode(camera.getCameraCode())
+                        .areaName(corridorName)
+                        .userId(user.getId())
+                        .userCode(user.getUserCode())
+                        .build();
+                recordAccessLogSafely(denied, at);
+                return denied;
+            }
+
+            if (user.getRole() == Role.GUARD) {
+                boolean onShift = guardShiftRepository == null || isGuardOnShift(user.getId(), at);
+                String guardReason = onShift
+                        ? "Bảo vệ đang trong ca trực tuần tra hành lang"
+                        : "Bảo vệ không có ca trực trong khung giờ này";
+                if (cleanRoi != null) {
+                    guardReason = "[VÀO ROI: " + cleanRoi + "] " + guardReason;
+                }
+                CheckCameraEntryResponse resp = CheckCameraEntryResponse.builder()
+                        .allowed(onShift)
+                        .source(onShift ? AccessSource.ACCESS_LEVEL : AccessSource.NONE)
+                        .reason(guardReason)
+                        .cameraCode(camera.getCameraCode())
+                        .areaName(corridorName)
+                        .userId(user.getId())
+                        .userCode(user.getUserCode())
+                        .fullName(user.getFullName())
+                        .build();
+                recordAccessLogSafely(resp, at);
+                return resp;
+            }
+
+            boolean afterHours = isAfterHoursForCorridor(at);
+            String msg = afterHours
+                    ? "Hành lang ngoài giờ hoạt động, không có quyền lưu thông"
+                    : "Hành lang công cộng trong giờ hoạt động";
+            if (cleanRoi != null) {
+                msg = "[VÀO ROI: " + cleanRoi + "] " + msg;
+            }
+            CheckCameraEntryResponse resp = CheckCameraEntryResponse.builder()
+                    .allowed(!afterHours)
+                    .source(!afterHours ? AccessSource.ACCESS_LEVEL : AccessSource.NONE)
+                    .reason(msg)
+                    .cameraCode(camera.getCameraCode())
+                    .areaName(corridorName)
+                    .userId(user.getId())
+                    .userCode(user.getUserCode())
+                    .fullName(user.getFullName())
+                    .build();
+            recordAccessLogSafely(resp, at);
+            return resp;
+        }
+
+        String deniedReason = cleanRoi != null ? "[VÀO ROI: " + cleanRoi + "] Người dùng không tồn tại" : "Người dùng không tồn tại";
+        String effectiveUserCode = (userCode != null && !userCode.isBlank()) ? userCode : "UNKNOWN";
+        CheckCameraEntryResponse denied = CheckCameraEntryResponse.builder()
+                .allowed(false)
+                .source(AccessSource.NONE)
+                .reason(deniedReason)
+                .cameraCode(camera.getCameraCode())
+                .areaName(corridorName)
+                .userCode(effectiveUserCode)
+                .fullName("UNKNOWN".equals(effectiveUserCode) ? "Người lạ / Chưa rõ mặt" : null)
+                .build();
+        recordAccessLogSafely(denied, at);
+        return denied;
+    }
+
+    private boolean isGuardOnShift(UUID guardId, OffsetDateTime at) {
+        if (guardShiftRepository == null || guardId == null || at == null) {
+            return false;
+        }
+        LocalDate date = at.atZoneSameInstant(VN_ZONE).toLocalDate();
+        LocalTime time = at.atZoneSameInstant(VN_ZONE).toLocalTime();
+        List<GuardShift> shifts = guardShiftRepository
+                .findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(guardId, date.minusDays(1), date);
+        if (shifts == null) {
+            return false;
+        }
+        for (GuardShift shift : shifts) {
+            if (shift.getStatus() != ShiftStatus.SCHEDULED && shift.getStatus() != ShiftStatus.CHECKED_IN) {
+                continue;
+            }
+            LocalTime start = shift.getStartTime();
+            LocalTime end = shift.getEndTime();
+            LocalDate shiftDate = shift.getShiftDate();
+            if (start != null && end != null && shiftDate != null) {
+                if (!start.isAfter(end)) {
+                    if (shiftDate.equals(date) && !time.isBefore(start) && !time.isAfter(end)) {
+                        return true;
+                    }
+                } else {
+                    if (shiftDate.equals(date) && !time.isBefore(start)) {
+                        return true;
+                    } else if (shiftDate.equals(date.minusDays(1)) && !time.isAfter(end)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isAfterHoursForCorridor(OffsetDateTime at) {
+        if (systemConfigService == null || at == null) {
+            return false;
+        }
+        try {
+            LocalTime start = parseAfterHourTime(systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_START), ConfigKey.AI_AFTER_HOUR_START.getDefaultValue());
+            LocalTime end = parseAfterHourTime(systemConfigService.getString(ConfigKey.AI_AFTER_HOUR_END), ConfigKey.AI_AFTER_HOUR_END.getDefaultValue());
+            LocalTime now = at.atZoneSameInstant(VN_ZONE).toLocalTime();
+            if (start.isBefore(end)) {
+                return !now.isBefore(start) && now.isBefore(end);
+            }
+            if (start.isAfter(end)) {
+                return !now.isBefore(start) || now.isBefore(end);
+            }
+            return false;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static LocalTime parseAfterHourTime(String raw, String fallback) {
+        try {
+            return LocalTime.parse(raw != null && !raw.isBlank() ? raw.trim() : fallback);
+        } catch (DateTimeParseException e) {
+            return LocalTime.parse(fallback);
+        }
     }
 
     /**

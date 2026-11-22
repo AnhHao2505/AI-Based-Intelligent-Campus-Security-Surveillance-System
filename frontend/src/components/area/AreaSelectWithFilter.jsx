@@ -48,6 +48,7 @@ export default function AreaSelectWithFilter({
 	hint,
 	defaultBuilding = "ALL",
 	defaultFloor = "ALL",
+	onFilterChange = null,
 }) {
 	const [buildingFilter, setBuildingFilter] = useState(() => {
 		if (!defaultBuilding || defaultBuilding === "ALL") return "ALL";
@@ -222,11 +223,15 @@ export default function AreaSelectWithFilter({
 				(item) => String(item.area.id) === String(value),
 			);
 			if (currentItem) {
-				const loc = formatLocation(
-					currentItem.area.building,
-					currentItem.area.floor,
-					" · ",
-				);
+				const bothFiltered =
+					buildingFilter !== "ALL" && floorFilter !== "ALL";
+				const loc = bothFiltered
+					? ""
+					: formatLocation(
+							currentItem.area.building,
+							currentItem.area.floor,
+							" · ",
+						);
 				opts.push({
 					value: currentItem.area.id,
 					label: `Đang chọn: ${loc ? `${loc} — ` : ""}${currentItem.area.name}`,
@@ -249,22 +254,29 @@ export default function AreaSelectWithFilter({
 		placeholderDisabled,
 		value,
 		formatOptionLabel,
+		buildingFilter,
+		floorFilter,
 	]);
 
 	const hasActiveFilter =
 		buildingFilter !== "ALL" || floorFilter !== "ALL";
 
 	const handleBuildingChange = (e) => {
-		setBuildingFilter(e.target.value);
+		const nextBuilding = e.target.value;
+		setBuildingFilter(nextBuilding);
+		onFilterChange?.({ building: nextBuilding, floor: floorFilter });
 	};
 
 	const handleFloorChange = (e) => {
-		setFloorFilter(e.target.value);
+		const nextFloor = e.target.value;
+		setFloorFilter(nextFloor);
+		onFilterChange?.({ building: buildingFilter, floor: nextFloor });
 	};
 
 	const handleResetFilters = () => {
 		setBuildingFilter("ALL");
 		setFloorFilter("ALL");
+		onFilterChange?.({ building: "ALL", floor: "ALL" });
 	};
 
 	return (

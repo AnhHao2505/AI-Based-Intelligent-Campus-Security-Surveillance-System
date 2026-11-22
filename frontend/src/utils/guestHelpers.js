@@ -56,3 +56,47 @@ export function getMissingPhotoInfo(visit) {
   const missing = guests.filter((g) => g.biometricStatus !== 'PHOTO_READY').length;
   return missing > 0 ? { missing, total: guests.length } : null;
 }
+
+/** Khách còn ảnh (xem được qua URL có hạn). */
+export function guestHasPhoto(guest) {
+  return guest?.biometricStatus === 'PHOTO_READY' || guest?.biometricStatus === 'PHOTO_ONLY';
+}
+
+/** Giới hạn ảnh khách mặc định khi chưa tải được /eligibility (trùng icss.guest.photo-max-kb ở backend). */
+export const GUEST_PHOTO_FALLBACK_MAX_KB = 2048;
+
+/**
+ * A1: kiểm ảnh khách phía trình duyệt trước khi gửi (backend vẫn kiểm lại): JPG / PNG, không quá maxKb.
+ * @returns {string|null} câu lỗi, hoặc null nếu hợp lệ
+ */
+export function validateGuestPhotoFile(file, maxKb = GUEST_PHOTO_FALLBACK_MAX_KB) {
+  if (!file) return 'Chưa chọn ảnh khuôn mặt';
+  if (!['image/jpeg', 'image/png'].includes(file.type)) return 'Ảnh phải là JPG hoặc PNG';
+  if (file.size > maxKb * 1024) return `Ảnh tối đa ${maxKb} KB (ảnh đang chọn ${Math.ceil(file.size / 1024)} KB)`;
+  return null;
+}
+
+/**
+ * C2: FM thấy nút Duyệt / Từ chối trên dòng lượt khách khi lượt còn Chờ duyệt, chưa tới giờ bắt đầu
+ * và người mời không phải chính FM đang đăng nhập (không tự duyệt, BR-GV-10).
+ */
+export function canReviewGuestVisit(visit, viewerCode, now = new Date()) {
+  if (!visit || visit.status !== 'PENDING') return false;
+  if (!(new Date(visit.startTime) > now)) return false;
+  if (viewerCode && visit.hostCode === viewerCode) return false;
+  return true;
+}
+
+/** A5: host thay được ảnh khách khi lượt Chờ duyệt hoặc Đã duyệt mà chưa tới giờ bắt đầu, khách chưa bị xoá dữ liệu. */
+export function canHostReplacePhoto(visit, guest, now = new Date()) {
+  if (!visit || !guest) return false;
+  if (visit.status !== 'PENDING' && visit.status !== 'APPROVED') return false;
+  if (!(new Date(visit.startTime) > now)) return false;
+  return guest.biometricStatus !== 'DELETED';
+}
+
+/** Lỗi backend gắn với một khách (data.guestIndex khi tạo lượt kèm ảnh): trả chỉ số khách, hoặc null. */
+export function getErrorGuestIndex(err) {
+  const index = err?.data?.data?.guestIndex;
+  return Number.isInteger(index) ? index : null;
+}
