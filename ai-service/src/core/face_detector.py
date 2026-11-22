@@ -24,6 +24,55 @@ from .entity import BoundingBox, FaceDetectionResult
 logger = logging.getLogger(__name__)
 
 
+def _center_inside(face: FaceDetectionResult, other: FaceDetectionResult) -> bool:
+    """Tâm bbox của face nằm trong bbox của other."""
+    cx = (face.bbox.x1 + face.bbox.x2) / 2.0
+    cy = (face.bbox.y1 + face.bbox.y2) / 2.0
+    return other.bbox.x1 <= cx <= other.bbox.x2 and other.bbox.y1 <= cy <= other.bbox.y2
+
+
+def detect_registration_faces(
+    detector,
+    image: np.ndarray,
+    registration_max_dim: Optional[int],
+    count_max_dim: Optional[int],
+) -> Tuple[List[FaceDetectionResult], int]:
+    """
+    Phát hiện mặt cho luồng đăng ký / gắn ảnh (POST /api/v1/faces/process-registration và RPC EXTRACT_FACE_EMBEDDING).
+    KHÔNG dùng cho khung hình camera trực tiếp (luồng đó đi detect_best_face_in_crop).
+
+    1) Mặt chính: phát hiện trên ảnh thu về cạnh dài registration_max_dim (như trước, tránh bẫy mặt to của SCRFD).
+    2) Đếm mặt: nếu bước 1 đã thu nhỏ ảnh và count_max_dim > registration_max_dim, chạy thêm 1 lượt ở cạnh dài
+       min(cạnh ảnh gốc, count_max_dim) để bắt mặt phụ nhỏ bị mất khi thu nhỏ (mặt còn dưới ~14 px sau khi thu về 640).
+       Mặt của lượt này chỉ được cộng thêm khi không trùng mặt nào của bước 1 (tâm mặt này không nằm trong mặt kia và
+       ngược lại). Lượt này chỉ dùng để đếm: không bao giờ biến ảnh "không có mặt" thành có mặt, không đổi mặt chính.
+
+    Trả (mặt của bước 1 sắp theo điểm giảm dần, tổng số mặt). count_max_dim <= 0 / None -> chỉ bước 1 (hành vi cũ).
+    """
+    faces = detector.detect_in_image(image, max_dim=registration_max_dim)
+    faces = sorted(faces, key=lambda f: f.score, reverse=True)
+    if not faces or image is None or image.size == 0:
+        return faces, len(faces)
+
+    long_side = max(image.shape[:2])
+    reg = int(registration_max_dim or 0)
+    count_dim = int(count_max_dim or 0)
+    if reg <= 0 or long_side <= reg or count_dim <= reg:
+        return faces, len(faces)
+
+    count_faces = detector.detect_in_image(image, max_dim=min(long_side, count_dim))
+    extra = [
+        f for f in count_faces
+        if not any(_center_inside(f, p) or _center_inside(p, f) for p in faces)
+    ]
+    if extra:
+        logger.info(
+            "Đăng ký khuôn mặt: lượt đếm ở %dpx thấy thêm %d mặt nhỏ ngoài %d mặt ở %dpx",
+            min(long_side, count_dim), len(extra), len(faces), reg,
+        )
+    return faces, len(faces) + len(extra)
+
+
 class FaceDetector:
     """
     Module phát hiện khuôn mặt sử dụng mô hình InsightFace SCRFD-2.5G.

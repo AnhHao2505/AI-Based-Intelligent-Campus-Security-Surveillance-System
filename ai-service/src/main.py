@@ -565,7 +565,7 @@ async def analyze_frame(file: UploadFile = File(...)):
     }
 
 from fastapi import Form
-from .core.face_detector import FaceDetector
+from .core.face_detector import FaceDetector, detect_registration_faces
 from .core.face_embedder import get_shared_face_embedder
 
 face_detector = FaceDetector()
@@ -599,8 +599,10 @@ async def process_face_registration(
     try:
         detector = default_pipeline.face_detector if default_pipeline else face_detector
         reg_max_dim = getattr(detector, "registration_max_dim", getattr(settings, "FACE_REGISTRATION_MAX_DIM", 640))
-        faces = detector.detect_in_image(img, max_dim=reg_max_dim)
-        face_count = len(faces)
+        # Mặt chính ở reg_max_dim như trước; thêm lượt đếm mặt phụ nhỏ ở FACE_REGISTRATION_COUNT_MAX_DIM (chỉ luồng này)
+        faces, face_count = detect_registration_faces(
+            detector, img, reg_max_dim, getattr(settings, "FACE_REGISTRATION_COUNT_MAX_DIM", 0)
+        )
 
         if not faces:
             raise HTTPException(

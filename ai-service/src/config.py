@@ -104,6 +104,9 @@ class Settings(BaseSettings):
     FACE_DETECT_FIXED_INPUT: int = Field(default=480, validation_alias="FACE_DETECT_FIXED_INPUT")
     # Ảnh đăng ký khuôn mặt có cạnh dài > giá trị này thì tự động thu nhỏ về ngưỡng này trước khi đưa vào SCRFD. 0 = tắt
     FACE_REGISTRATION_MAX_DIM: int = Field(default=640, validation_alias="FACE_REGISTRATION_MAX_DIM")
+    # Chỉ luồng đăng ký / gắn ảnh: ảnh đã bị thu về FACE_REGISTRATION_MAX_DIM thì chạy thêm 1 lượt SCRFD ở cạnh dài này
+    # để đếm mặt phụ nhỏ (bị mất khi thu nhỏ). Không ảnh hưởng camera trực tiếp. 0 hoặc <= FACE_REGISTRATION_MAX_DIM = tắt
+    FACE_REGISTRATION_COUNT_MAX_DIM: int = Field(default=1280, validation_alias="FACE_REGISTRATION_COUNT_MAX_DIM")
     FACE_MIN_LAPLACIAN_VARIANCE: float = Field(default=15.0, validation_alias="FACE_MIN_LAPLACIAN_VARIANCE")
     ANALYSIS_MAX_FPS: float = Field(default=30.0, validation_alias="ANALYSIS_MAX_FPS")
     UPPER_BODY_CROP_RATIO: float = 0.60
