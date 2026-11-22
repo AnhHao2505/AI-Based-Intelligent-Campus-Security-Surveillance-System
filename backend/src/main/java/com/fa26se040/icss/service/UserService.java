@@ -20,6 +20,7 @@ import com.fa26se040.icss.dto.user.UserSearchResponse;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.exception.DuplicateResourceException;
+import com.fa26se040.icss.exception.FaceDuplicateException;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.exception.UnauthorizedException;
 import com.fa26se040.icss.repository.UserRepository;
@@ -99,6 +100,8 @@ public class UserService {
     // Lọc theo lô ở màn Cấp truy cập: tên file và luồng của lô đọc từ audit IMPORT / USER_IMPORT_BATCH
     private final com.fa26se040.icss.repository.AuditLogRepository auditLogRepository;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    // face-gate 3: kích hoạt lại / khôi phục tài khoản phải kiểm lại trùng khuôn mặt
+    private final FaceDuplicateCheckService faceDuplicateCheckService;
 
     @Transactional
     public StaffAccountCreateResponse createStaffAccount(StaffAccountCreateRequest request) {
@@ -255,6 +258,14 @@ public class UserService {
         }
 
         boolean deactivating = Boolean.TRUE.equals(user.getIsActive());
+        // face-gate 3: kích hoạt lại mà khuôn mặt trùng tài khoản đang hoạt động khác (hoặc khách lượt còn hiệu lực) -> 409,
+        // không đổi gì. Khoá advisory giữ tới hết transaction, chung với đăng ký khuôn mặt.
+        if (!deactivating) {
+            faceDuplicateCheckService.findDuplicateForReactivation(user.getUserCode()).ifPresent(match -> {
+                throw new FaceDuplicateException("Không thể kích hoạt lại tài khoản " + user.getUserCode() + ". "
+                        + match.adminMessage());
+            });
+        }
         User actor = deactivating ? resolveAdminActor(currentAdminEmail) : null;
         UserAccountAuditSnapshot before = accountSnapshot(user);
         OffsetDateTime now = OffsetDateTime.now();
@@ -559,10 +570,24 @@ public class UserService {
                 continue;
             }
 
+            // face-gate 3: khuôn mặt trùng tài khoản chưa xoá mềm (kể cả đang khoá, kể cả tài khoản vừa khôi phục ở vòng
+            // trước) hoặc khách lượt còn hiệu lực -> bỏ qua dòng này kèm lý do, các dòng khác vẫn khôi phục
+            Optional<FaceDuplicateCheckService.Match> faceDuplicate = faceDuplicateCheckService.findDuplicateForRestore(u.getUserCode());
+            if (faceDuplicate.isPresent()) {
+                skippedUsers.add(new BatchRestoreSkippedUser(
+                        u.getUserCode(),
+                        u.getEmail(),
+                        faceDuplicate.get().adminMessage() + "."
+                ));
+                continue;
+            }
+
             u.setDeletedAt(null);
             u.setIsActive(true);
             u.setUpdatedAt(OffsetDateTime.now());
             userRepository.save(u);
+            // kiểm trùng đọc bằng JDBC: đẩy thay đổi xuống DB để vòng sau thấy tài khoản vừa khôi phục
+            userRepository.flush();
 
             restoredCodes.add(normCode);
             restoredUserCodes.add(u.getUserCode());

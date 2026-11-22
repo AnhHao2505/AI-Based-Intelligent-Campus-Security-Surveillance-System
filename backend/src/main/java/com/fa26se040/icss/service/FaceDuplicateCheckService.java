@@ -23,12 +23,22 @@ import java.util.UUID;
  * <p>
  * Kho so sánh:
  * <ul>
- *   <li>Đăng ký người dùng ({@link #findDuplicateForUser}): người dùng đang hoạt động (chưa xoá mềm, is_active) và khách
- *   thuộc lượt còn hiệu lực hoặc chưa bắt đầu (APPROVED chưa hết giờ, PENDING chưa tới giờ bắt đầu).</li>
- *   <li>Ảnh khách ({@link #findDuplicateForGuest}): người dùng đang hoạt động, các khách khác trong cùng lượt, và khách
- *   của lượt khác chỉ khi lượt đó đang PENDING / APPROVED và khung giờ giao nhau (start_A &lt; end_B và start_B &lt; end_A;
- *   kết thúc đúng lúc bắt đầu không tính là giao). Cùng một khách được mời nhiều lượt không chồng giờ vẫn hợp lệ.</li>
+ *   <li>Đăng ký người dùng ({@link #findDuplicateForUser}): mọi người dùng chưa xoá mềm, kể cả đang bị vô hiệu hoá
+ *   (face-gate 1A), và khách thuộc lượt còn hiệu lực hoặc chưa bắt đầu (APPROVED chưa hết giờ, PENDING chưa tới giờ
+ *   bắt đầu).</li>
+ *   <li>Ảnh khách ({@link #findDuplicateForGuest}): mọi người dùng chưa xoá mềm (kể cả đang bị vô hiệu hoá, face-gate 2),
+ *   các khách khác trong cùng lượt, và khách của lượt khác chỉ khi lượt đó đang PENDING / APPROVED và khung giờ giao
+ *   nhau (start_A &lt; end_B và start_B &lt; end_A; kết thúc đúng lúc bắt đầu không tính là giao). Cùng một khách được
+ *   mời nhiều lượt không chồng giờ vẫn hợp lệ.</li>
+ *   <li>Kích hoạt lại tài khoản ({@link #findDuplicateForReactivation}): người dùng đang hoạt động khác và khách của lượt
+ *   còn hiệu lực.</li>
+ *   <li>Khôi phục tài khoản đã xoá mềm ({@link #findDuplicateForRestore}): như đăng ký người dùng.</li>
  * </ul>
+ * Chống hai yêu cầu cùng lúc (face-gate 4): mọi lần kiểm gọi {@code pg_advisory_xact_lock} với một khoá cố định trước
+ * khi đọc, khoá giữ tới khi transaction của người gọi kết thúc (người gọi ghi embedding / đổi trạng thái trong cùng
+ * transaction đó). Các lượt đăng ký khuôn mặt vì vậy chạy nối tiếp nhau; không khoá dòng nào.
+ * Người gọi phải đang ở trong transaction ghi, nếu không khoá nhả ngay khi hàm trả về.
+ * <p>
  * Kết quả chỉ có mã / tên / lượt, không có ảnh hay vector của người kia.
  */
 @Service
@@ -37,6 +47,8 @@ public class FaceDuplicateCheckService {
 
     public static final int EMBEDDING_DIM = 512;
     private static final int PURPOSE_PREVIEW_LENGTH = 60;
+    /** Khoá advisory dùng chung cho mọi lần kiểm trùng + ghi khuôn mặt (người dùng và khách). Hằng tuỳ ý, chỉ cần cố định. */
+    static final long FACE_REGISTRATION_LOCK_KEY = 0x1C55_FACE_0001L;
 
     private final JdbcTemplate jdbcTemplate;
     private final SystemConfigService systemConfigService;
@@ -44,20 +56,28 @@ public class FaceDuplicateCheckService {
     /** USER: người dùng; GUEST: khách của lượt khác; GUEST_SAME_VISIT: khách khác trong cùng lượt. */
     public enum Kind { USER, GUEST, GUEST_SAME_VISIT }
 
-    /** Người đã đăng ký khuôn mặt giống ảnh mới. */
-    public record Match(Kind kind, String userCode, String guestName, String visitPurpose,
+    /** Người đã đăng ký khuôn mặt giống ảnh mới. {@code userActive}: chỉ có nghĩa khi kind = USER. */
+    public record Match(Kind kind, String userCode, boolean userActive, String guestName, String visitPurpose,
                         OffsetDateTime visitStart, OffsetDateTime visitEnd, double score) {
 
-        /** "tài khoản SV-001" hoặc "khách Nguyễn Văn A của lượt "…" (05/12/2026, 09:00-11:00)". */
+        /**
+         * "tài khoản SV-001", "tài khoản SV-001 (đang bị vô hiệu hoá)" hoặc "khách Nguyễn Văn A của lượt "…"
+         * (05/12/2026, 09:00-11:00)". Câu chi tiết, chỉ dùng cho luồng ADMIN (tạo / import / mở khoá / khôi phục).
+         */
         public String describe() {
             if (kind == Kind.USER) {
-                return "tài khoản " + userCode;
+                return "tài khoản " + userCode + (userActive ? "" : " (đang bị vô hiệu hoá)");
             }
             if (kind == Kind.GUEST_SAME_VISIT) {
                 return "khách " + guestName + " trong cùng lượt này";
             }
             return "khách " + guestName + " của lượt \"" + shorten(visitPurpose) + "\" ("
                     + InAppNotificationService.formatTimeRange(visitStart, visitEnd) + ")";
+        }
+
+        /** Câu lỗi chi tiết cho luồng ADMIN: "Khuôn mặt này đã được đăng ký cho " + {@link #describe()}. */
+        public String adminMessage() {
+            return "Khuôn mặt này đã được đăng ký cho " + describe();
         }
     }
 
@@ -67,23 +87,44 @@ public class FaceDuplicateCheckService {
     }
 
     /**
-     * Đăng ký khuôn mặt người dùng (tạo tài khoản, import ZIP): tìm người dùng đang hoạt động hoặc khách của lượt còn
-     * hiệu lực / chưa bắt đầu có cosine ≥ ngưỡng, giống nhất trước.
+     * Đăng ký khuôn mặt người dùng (tạo tài khoản, import ZIP): tìm người dùng chưa xoá mềm (kể cả đang bị vô hiệu hoá)
+     * hoặc khách của lượt còn hiệu lực / chưa bắt đầu có cosine ≥ ngưỡng, giống nhất trước. Giữ khoá advisory tới hết
+     * transaction của người gọi.
      *
      * @param excludeUserCode mã đang được đăng ký / thay ảnh (không so với chính mình), có thể null
-     * @return rỗng nếu không trùng, hoặc vector không đủ 512 chiều (không so được)
+     * @return rỗng nếu không trùng
+     * @throws IllegalArgumentException vector không đủ 512 chiều (không so được thì không cho qua)
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public Optional<Match> findDuplicateForUser(List<Float> embedding, String excludeUserCode) {
-        if (embedding == null || embedding.size() != EMBEDDING_DIM) {
-            return Optional.empty();
-        }
-        String vector = toVector(embedding);
-        OffsetDateTime now = OffsetDateTime.now();
-        Match liveGuest = bestGuest(vector, Kind.GUEST,
-                " AND ((gv.status = 'APPROVED' AND gv.end_time > ?) OR (gv.status = 'PENDING' AND gv.start_time > ?))",
-                List.of(now, now));
-        return pick(bestUser(vector, excludeUserCode), liveGuest);
+        String vector = toVector(requireEmbedding(embedding));
+        lockRegistrations();
+        return pick(bestUser(vector, excludeUserCode, true), liveGuest(vector));
+    }
+
+    /**
+     * Kích hoạt lại tài khoản đang bị vô hiệu hoá (face-gate 3): khuôn mặt đã lưu của mã này có trùng người dùng đang
+     * hoạt động khác, hay khách của lượt còn hiệu lực không. Mã chưa có khuôn mặt -> rỗng.
+     */
+    @Transactional
+    public Optional<Match> findDuplicateForReactivation(String userCode) {
+        return storedVector(userCode).flatMap(vector -> {
+            lockRegistrations();
+            return pick(bestUser(vector, userCode, false), liveGuest(vector));
+        });
+    }
+
+    /**
+     * Khôi phục tài khoản đã xoá mềm (face-gate 3): khuôn mặt đã lưu của mã này có trùng người dùng chưa xoá mềm khác
+     * (kể cả đang bị vô hiệu hoá và các tài khoản vừa khôi phục trong cùng transaction, người gọi phải flush trước),
+     * hay khách của lượt còn hiệu lực không. Mã chưa có khuôn mặt -> rỗng.
+     */
+    @Transactional
+    public Optional<Match> findDuplicateForRestore(String userCode) {
+        return storedVector(userCode).flatMap(vector -> {
+            lockRegistrations();
+            return pick(bestUser(vector, userCode, true), liveGuest(vector));
+        });
     }
 
     /**
@@ -96,13 +137,11 @@ public class FaceDuplicateCheckService {
      * @param end            giờ kết thúc của lượt này
      * @param excludeGuestId khách đang được thay ảnh (không so với chính mình), có thể null
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public Optional<Match> findDuplicateForGuest(List<Float> embedding, UUID visitId, OffsetDateTime start,
                                                  OffsetDateTime end, UUID excludeGuestId) {
-        if (embedding == null || embedding.size() != EMBEDDING_DIM) {
-            return Optional.empty();
-        }
-        String vector = toVector(embedding);
+        String vector = toVector(requireEmbedding(embedding));
+        lockRegistrations();
         Match sameVisit = null;
         if (visitId != null) {
             List<Object> args = new ArrayList<>(List.of(visitId));
@@ -121,7 +160,38 @@ public class FaceDuplicateCheckService {
             args.add(visitId);
         }
         Match overlapping = bestGuest(vector, Kind.GUEST, where, args);
-        return pick(bestUser(vector, null), sameVisit, overlapping);
+        return pick(bestUser(vector, null, true), sameVisit, overlapping);
+    }
+
+    /** Vector đủ 512 chiều, nếu không thì chặn (thiếu dữ liệu không được coi là "không trùng"). */
+    private static List<Float> requireEmbedding(List<Float> embedding) {
+        if (embedding == null || embedding.size() != EMBEDDING_DIM) {
+            throw new IllegalArgumentException("Vector khuôn mặt không hợp lệ, không kiểm trùng được.");
+        }
+        return embedding;
+    }
+
+    /** Khoá advisory theo transaction: các lần kiểm trùng + ghi khuôn mặt chạy nối tiếp (face-gate 4). */
+    private void lockRegistrations() {
+        jdbcTemplate.query("SELECT pg_advisory_xact_lock(?)", rs -> null, FACE_REGISTRATION_LOCK_KEY);
+    }
+
+    /** Vector khuôn mặt đã lưu của mã (dạng chuỗi pgvector), rỗng nếu mã chưa đăng ký khuôn mặt. */
+    private Optional<String> storedVector(String userCode) {
+        if (userCode == null || userCode.isBlank()) {
+            return Optional.empty();
+        }
+        List<String> rows = jdbcTemplate.queryForList(
+                "SELECT embedding_front::text FROM face_data WHERE UPPER(code) = UPPER(?) LIMIT 1", String.class, userCode);
+        return rows.isEmpty() || rows.get(0) == null ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    /** Khách của lượt còn hiệu lực hoặc chưa bắt đầu (APPROVED chưa hết giờ, PENDING chưa tới giờ bắt đầu). */
+    private Match liveGuest(String vector) {
+        OffsetDateTime now = OffsetDateTime.now();
+        return bestGuest(vector, Kind.GUEST,
+                " AND ((gv.status = 'APPROVED' AND gv.end_time > ?) OR (gv.status = 'PENDING' AND gv.start_time > ?))",
+                List.of(now, now));
     }
 
     /** Người giống nhất trong các ứng viên đạt ngưỡng. */
@@ -137,14 +207,18 @@ public class FaceDuplicateCheckService {
     }
 
     // Sắp theo khoảng cách cosine tăng dần: vector lỗi (NaN) xếp cuối, không che người trùng thật.
-    private Match bestUser(String vector, String excludeUserCode) {
+    // includeInactive: true = mọi tài khoản chưa xoá mềm (đăng ký, ảnh khách, khôi phục); false = chỉ đang hoạt động (mở khoá)
+    private Match bestUser(String vector, String excludeUserCode, boolean includeInactive) {
         // Cùng cách nối face_data -> users với AiSyncService (kho khuôn mặt gửi cho bên nhận diện)
         StringBuilder sql = new StringBuilder("""
-                SELECT u.user_code, (fd.embedding_front <=> CAST(? AS vector)) AS distance
+                SELECT u.user_code, u.is_active, (fd.embedding_front <=> CAST(? AS vector)) AS distance
                 FROM face_data fd
                 JOIN users u ON (fd.user_id = u.id OR fd.code = u.user_code)
-                WHERE u.deleted_at IS NULL AND u.is_active = true
+                WHERE u.deleted_at IS NULL
                 """);
+        if (!includeInactive) {
+            sql.append(" AND u.is_active = true");
+        }
         List<Object> args = new ArrayList<>();
         args.add(vector);
         if (excludeUserCode != null && !excludeUserCode.isBlank()) {
@@ -154,7 +228,7 @@ public class FaceDuplicateCheckService {
         }
         sql.append(" ORDER BY distance ASC LIMIT 1");
         List<Match> rows = jdbcTemplate.query(sql.toString(), (rs, i) -> new Match(Kind.USER, rs.getString("user_code"),
-                null, null, null, null, 1 - rs.getDouble("distance")), args.toArray());
+                rs.getBoolean("is_active"), null, null, null, null, 1 - rs.getDouble("distance")), args.toArray());
         return rows.isEmpty() ? null : rows.get(0);
     }
 
@@ -173,7 +247,7 @@ public class FaceDuplicateCheckService {
         sql.append(where);
         args.addAll(whereArgs);
         sql.append(" ORDER BY distance ASC LIMIT 1");
-        List<Match> rows = jdbcTemplate.query(sql.toString(), (rs, i) -> new Match(kind, null,
+        List<Match> rows = jdbcTemplate.query(sql.toString(), (rs, i) -> new Match(kind, null, false,
                 rs.getString("full_name"), rs.getString("purpose"),
                 rs.getObject("start_time", OffsetDateTime.class), rs.getObject("end_time", OffsetDateTime.class),
                 1 - rs.getDouble("distance")), args.toArray());

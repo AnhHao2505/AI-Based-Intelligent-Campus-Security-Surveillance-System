@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpStatusCodeException;
 import com.fa26se040.icss.config.AiServiceRestTemplate;
 
 import java.util.ArrayList;
@@ -66,6 +67,10 @@ public class GuestFaceEmbeddingClient {
                         8000L
                 );
                 if (!reply.isSuccess() || reply.getData() == null) {
+                    // Edge báo không thấy khuôn mặt (edge_agent.py) -> 0 khuôn mặt, như nhánh HTTP 400 bên dưới
+                    if (AiFaceRegistrationErrors.EDGE_NO_FACE_ERROR_CODE.equals(reply.getErrorCode())) {
+                        return new Result(0, List.of());
+                    }
                     throw new IllegalStateException(reply.getErrorMessage() != null
                             ? reply.getErrorMessage()
                             : "ai-service không trả kết quả thành công qua Edge MQTT");
@@ -96,9 +101,20 @@ public class GuestFaceEmbeddingClient {
                 return filename != null ? filename : "guest.jpg";
             }
         });
-        @SuppressWarnings("unchecked")
-        Map<String, Object> res = restTemplate.postForObject(aiServiceUrl + "/api/v1/faces/process-registration",
-                new HttpEntity<>(body, headers), Map.class);
+        Map<String, Object> res;
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> ok = restTemplate.postForObject(aiServiceUrl + "/api/v1/faces/process-registration",
+                    new HttpEntity<>(body, headers), Map.class);
+            res = ok;
+        } catch (HttpStatusCodeException ex) {
+            // ai-service báo 400 khi ảnh không có khuôn mặt: đó là lỗi của ảnh (0 khuôn mặt), không phải dịch vụ hỏng.
+            // Lỗi kết nối / timeout / 5xx / 400 khác vẫn ném ra để GuestPhotoService báo ERR_GUEST_035.
+            if (AiFaceRegistrationErrors.isNoFaceDetected(ex)) {
+                return new Result(0, List.of());
+            }
+            throw ex;
+        }
         if (res == null || !Boolean.TRUE.equals(res.get("success"))) {
             throw new IllegalStateException("ai-service không trả kết quả thành công");
         }

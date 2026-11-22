@@ -32,8 +32,9 @@ import java.util.UUID;
  * Ảnh khách (BR-GV-14..18): host gắn ảnh khi tạo lượt ({@link GuestVisitService#create}) và thay ảnh khi lượt còn chờ
  * duyệt hoặc đã duyệt nhưng chưa tới giờ bắt đầu; host / FM / ADMIN xin URL xem ảnh có hạn.
  * Mỗi ảnh: JPG / PNG ≤ icss.guest.photo-max-kb, trích embedding 512d đúng 1 khuôn mặt, không trùng khuôn mặt người dùng
- * đang hoạt động, khách khác trong cùng lượt, hay khách của lượt chờ duyệt / đã duyệt chồng giờ
- * ({@link FaceDuplicateCheckService#findDuplicateForGuest}).
+ * chưa xoá mềm (kể cả đang bị vô hiệu hoá), khách khác trong cùng lượt, hay khách của lượt chờ duyệt / đã duyệt chồng giờ
+ * ({@link FaceDuplicateCheckService#findDuplicateForGuest}). Trùng tài khoản hoặc khách lượt khác: host chỉ nhận câu chung
+ * ERR_GUEST_041, không lộ mã / tên / lượt (face-gate 2); trùng khách cùng lượt: ERR_GUEST_038 nêu tên khách đó.
  */
 @Slf4j
 @Service
@@ -102,8 +103,8 @@ public class GuestPhotoService {
 
     /**
      * BR-GV-17: embedding 512d từ dịch vụ trích khuôn mặt (endpoint không ghi face_data), đúng 1 khuôn mặt;
-     * rồi kiểm trùng với người dùng đang hoạt động, khách khác trong cùng lượt và khách của lượt PENDING / APPROVED khác
-     * có khung giờ giao với lượt này.
+     * rồi kiểm trùng với người dùng chưa xoá mềm (kể cả đang bị vô hiệu hoá), khách khác trong cùng lượt và khách của lượt
+     * PENDING / APPROVED khác có khung giờ giao với lượt này.
      *
      * @param logCode        mã gửi kèm để bên kia ghi log (id khách, không gửi họ tên)
      * @param visit          lượt của khách (lấy id + khung giờ; khi tạo lượt, khách cùng đơn so bằng requireDistinctWithinVisit)
@@ -128,7 +129,11 @@ public class GuestPhotoService {
         }
         duplicateCheck.findDuplicateForGuest(result.embedding(), visit.getId(), visit.getStartTime(), visit.getEndTime(),
                 excludeGuestId).ifPresent(match -> {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_038, match.describe());
+            // face-gate 2: host không được biết khuôn mặt thuộc tài khoản nào hay khách lượt nào
+            if (match.kind() == FaceDuplicateCheckService.Kind.GUEST_SAME_VISIT) {
+                throw new GuestException(GuestErrorCode.ERR_GUEST_038, match.describe());
+            }
+            throw new GuestException(GuestErrorCode.ERR_GUEST_041);
         });
         return new CheckedPhoto(image, result.embedding());
     }

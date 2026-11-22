@@ -107,7 +107,7 @@ public class GuestVisitService {
         }
         GuestVisit saved = guestVisitRepository.save(visit);
 
-        // BR-GV-17 + kiểm trùng: trích khuôn mặt từng khách (đã có id để ghi log), so với người dùng đang hoạt động,
+        // BR-GV-17 + kiểm trùng: trích khuôn mặt từng khách (đã có id để ghi log), so với người dùng chưa xoá mềm,
         // khách của lượt chờ duyệt / đã duyệt chồng giờ, và các khách trước đó trong cùng lượt
         List<GuestPhotoService.CheckedPhoto> checked = new ArrayList<>();
         for (int i = 0; i < guests.size(); i++) {
