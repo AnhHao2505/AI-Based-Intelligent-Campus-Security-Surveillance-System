@@ -117,12 +117,18 @@ void main() {
       expect(at('campus-room-labels-layer'), lessThan(at('campus-guard-dot')));
     });
 
-    test('sàn → phòng → tường → cầu thang → tuyến đường → ghim khu; không trùng id', () {
-      expect(campusLayerOrder.take(5), [
+    test('sàn → phòng → tường → cửa → viền halo → cầu thang → tuyến đường → ghim khu; không trùng id', () {
+      expect(campusLayerOrder.take(11), [
         'campus-slab-layer',
         'campus-room-layer',
         'campus-wall-layer',
         'campus-room-border-layer',
+        'campus-doors-fill',
+        'campus-doors-outline',
+        'campus-selected-room-halo',
+        'campus-selected-room-outline',
+        'campus-incident-room-halo',
+        'campus-incident-room-outline',
         'campus-portals-layer',
       ]);
       for (final route in ['campus-route-outline', 'campus-route-line', 'campus-route-direct']) {
@@ -245,9 +251,12 @@ void main() {
       provider.selectArea(temp);
       expect(provider.incidentAreaId, 'incident_target', reason: 'bấm lại chính ghim sự cố vẫn là sự cố');
       provider.selectArea(pins[0]);
-      expect(provider.incidentAreaId, isNull);
-      provider.focusIncident(temp);
+      expect(provider.incidentAreaId, 'incident_target',
+          reason: 'chọn xem phòng khác vẫn phải giữ ghim sự cố cố định cho bảo vệ');
       provider.selectArea(null);
+      expect(provider.incidentAreaId, 'incident_target',
+          reason: 'đóng thẻ khu khác không tự xóa sự cố đang mở');
+      provider.clearIncidentFocus();
       expect(provider.incidentAreaId, isNull);
     });
   });

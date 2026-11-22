@@ -750,8 +750,64 @@ export default function CampusMapView({
 	]);
 
 	const hasRightDrawer = Boolean(rightDrawerContent);
+	const layoutRef = useRef(null);
+	const mapCardRef = useRef(null);
+	const [inspectorWidth, setInspectorWidth] = useState(() => {
+		try {
+			const saved = Number(localStorage.getItem("campus_inspector_width"));
+			if (Number.isFinite(saved) && saved >= 320 && saved <= 760) return saved;
+		} catch {
+			// ignore storage error
+		}
+		return 410;
+	});
+	const [isResizingInspector, setIsResizingInspector] = useState(false);
 
-	// Tự động resize map khi sidebar trái hoặc drawer phải thu gọn / mở rộng
+	const handleInspectorResizeStart = useCallback((e) => {
+		e.preventDefault();
+		const layoutEl = layoutRef.current;
+		if (!layoutEl) return;
+		setIsResizingInspector(true);
+
+		const onMouseMove = (moveEvent) => {
+			const rect = layoutEl.getBoundingClientRect();
+			const maxAllowed = Math.min(760, Math.max(360, Math.floor(rect.width * 0.62)));
+			const rawWidth = rect.right - moveEvent.clientX;
+			const next = Math.max(320, Math.min(maxAllowed, Math.round(rawWidth)));
+			setInspectorWidth(next);
+		};
+
+		const onMouseUp = (upEvent) => {
+			window.removeEventListener("mousemove", onMouseMove);
+			window.removeEventListener("mouseup", onMouseUp);
+			setIsResizingInspector(false);
+			const rect = layoutEl.getBoundingClientRect();
+			const maxAllowed = Math.min(760, Math.max(360, Math.floor(rect.width * 0.62)));
+			const rawWidth = rect.right - upEvent.clientX;
+			const finalWidth = Math.max(320, Math.min(maxAllowed, Math.round(rawWidth)));
+			try {
+				localStorage.setItem("campus_inspector_width", String(finalWidth));
+			} catch {
+				// ignore storage error
+			}
+			mapRef.current?.resize?.();
+		};
+
+		window.addEventListener("mousemove", onMouseMove);
+		window.addEventListener("mouseup", onMouseUp);
+	}, []);
+
+	const handleInspectorResizeReset = useCallback(() => {
+		setInspectorWidth(410);
+		try {
+			localStorage.setItem("campus_inspector_width", "410");
+		} catch {
+			// ignore storage error
+		}
+		requestAnimationFrame(() => mapRef.current?.resize?.());
+	}, []);
+
+	// Tự động resize map khi sidebar trái, drawer phải hoặc kích thước card thay đổi
 	useEffect(() => {
 		const timer = setTimeout(() => {
 			if (mapRef.current) {
@@ -760,6 +816,23 @@ export default function CampusMapView({
 		}, 250);
 		return () => clearTimeout(timer);
 	}, [isLeftSidebarCollapsed, hasRightDrawer]);
+
+	useEffect(() => {
+		const cardEl = mapCardRef.current;
+		if (!cardEl || typeof ResizeObserver === "undefined") return;
+		let rafId = null;
+		const observer = new ResizeObserver(() => {
+			if (rafId) cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(() => {
+				mapRef.current?.resize?.();
+			});
+		});
+		observer.observe(cardEl);
+		return () => {
+			if (rafId) cancelAnimationFrame(rafId);
+			observer.disconnect();
+		};
+	}, []);
 
 	// Tự động điền dữ liệu tòa nhà / tầng ban đầu khi mở chế độ tạo (chỉ chạy khi chuyển false -> true, tránh ghi đè khi đổi tầng/phòng)
 	const prevIsCreatingRef = useRef(false);
@@ -2072,10 +2145,16 @@ export default function CampusMapView({
 
 	return (
 		<div
-			className={`campus-map-layout ${railCollapsed || (hideRail && !isCreatingArea && !isCreatingCamera && !hasRightDrawer) ? "campus-map-layout--expanded" : ""} ${isCreatingArea || isCreatingCamera ? "campus-map-layout--create" : ""} ${hasRightDrawer && !isCreatingArea && !isCreatingCamera ? "campus-map-layout--camera-inspector" : ""}`}
+			ref={layoutRef}
+			className={`campus-map-layout ${railCollapsed || (hideRail && !isCreatingArea && !isCreatingCamera && !hasRightDrawer) ? "campus-map-layout--expanded" : ""} ${isCreatingArea || isCreatingCamera ? "campus-map-layout--create" : ""} ${hasRightDrawer && !isCreatingArea && !isCreatingCamera ? "campus-map-layout--camera-inspector" : ""} ${isResizingInspector ? "campus-map-layout--resizing" : ""}`}
+			style={
+				hasRightDrawer && !isCreatingArea && !isCreatingCamera && !railCollapsed
+					? { "--campus-inspector-width": `${inspectorWidth}px` }
+					: undefined
+			}
 		>
 			{/* LEFT: MAIN MAPLIBRE CANVAS */}
-			<div className="campus-map-card">
+			<div ref={mapCardRef} className="campus-map-card">
 				{/* Floating Top Controls (Sidebar Toggle + 2D Building/Floor Select-Options + Compass) */}
 				<div className="campus-map-floating-bar">
 					{onToggleLeftSidebar && (
@@ -2830,6 +2909,17 @@ export default function CampusMapView({
 			{/* RIGHT RAIL: AREAS LIST & DETAILS, CREATE PANEL OR CAMERA INSPECTOR */}
 			{(!hideRail || isCreatingArea || isCreatingCamera || hasRightDrawer) && (
 				<div className="campus-rail">
+					{!isCreatingArea && !isCreatingCamera && hasRightDrawer && (
+						<div
+							role="separator"
+							aria-orientation="vertical"
+							aria-label="Kéo để thay đổi chiều rộng bảng thông tin camera"
+							title="Kéo sang trái/phải để đổi kích thước (nhấp đúp để đặt lại mặc định)"
+							className={`campus-rail-resizer ${isResizingInspector ? "campus-rail-resizer--active" : ""}`}
+							onMouseDown={handleInspectorResizeStart}
+							onDoubleClick={handleInspectorResizeReset}
+						/>
+					)}
 					{!isCreatingArea && !isCreatingCamera && hasRightDrawer ? (
 						rightDrawerContent
 					) : isCreatingCamera ? (

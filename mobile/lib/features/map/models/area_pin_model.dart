@@ -75,7 +75,7 @@ class AreaPinModel {
       case 'CONFIDENTIAL':
       case 'INTERNAL_CONFIDENTIAL':
       case 'CONFIDENTIAL_CONTACT_REQUIRED':
-        return const Color(0xFF3B82F6); // Blue (trùng màu Bảo mật trên web)
+        return const Color(0xFFF59E0B); // Amber (đồng bộ màu Bảo mật trên web)
       case 'HIGHLY_CONFIDENTIAL':
         return const Color(0xFFEF4444); // Red
       default:

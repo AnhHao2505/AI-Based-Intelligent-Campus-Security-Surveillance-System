@@ -13,20 +13,24 @@ String campusMapStyleJson({required bool dark}) {
   return openFreeMapBrightStyleUrl;
 }
 
-/// Góc nhìn 2D phẳng từ trên xuống (khóa Bắc) cho màn hình dẫn đường bảo vệ — mọi tầng nằm cùng mặt phẳng z = 0
-/// để ghim khu, nhãn tên phòng, cầu thang và tuyến đường khớp khít chính xác tuyệt đối, không lệch thị sai.
+/// Góc nhìn 2D phẳng từ trên xuống — mọi tầng nằm cùng mặt phẳng z = 0 để ghim khu, nhãn tên phòng,
+/// cầu thang và tuyến đường khớp khít chính xác tuyệt đối, không lệch thị sai.
+/// Đặt bearing -12° để căn thẳng trục Tòa Epsilon trên màn hình dọc điện thoại (giống Web).
 const double campusDefaultTilt = 0;
-const double campusDefaultBearing = 0;
+const double campusDefaultBearing = -12;
 
-/// Màu phòng đang chọn ở chế độ quản lý của web (campusIndoor3dData.js:2838-2843).
+/// Màu phòng đang chọn / đường viền nổi 2 lớp.
 const String selectedRoomColor = '#f97316';
+const String selectedRoomOutlineColor = '#1d4ed8';
+const String incidentRoomOutlineColor = '#dc2626';
 
 String colorHex(Color c) {
   final argb = c.toARGB32();
   return '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
 }
 
-/// Lớp ghim khu, lớp tên phòng, lớp ghim sự cố — ba lớp nhận chạm để mở thẻ khu (guard_map_screen.dart).
+/// Lớp mặt phòng, ghim khu, lớp tên phòng, lớp ghim sự cố — nhận chạm để mở thẻ khu (guard_map_screen.dart).
+const String campusRoomLayerId = 'campus-room-layer';
 const String campusPinsLayerId = 'campus-pins-layer';
 const String campusRoomLabelsLayerId = 'campus-room-labels-layer';
 const String campusIncidentPinLayerId = 'campus-incident-pin-layer';
@@ -35,14 +39,19 @@ const String campusIncidentPinLayerId = 'campus-incident-pin-layer';
 const String campusIncidentHaloLayerId = 'campus-incident-halo-layer';
 
 /// Thứ tự các lớp bản đồ do app thêm, từ dưới lên (guard_map_screen.dart _onStyleLoaded thêm đúng thứ tự này và ghi
-/// log đối chiếu): khối 3D → cầu thang → tuyến đường → ghim khu → QUẦNG SỰ CỐ → TÊN PHÒNG → GHIM SỰ CỐ → vị trí bảo
-/// vệ. Quầng nằm dưới tên phòng để vòng quầng không cắt chữ của nhãn; tên phòng trên ghim khu để ghim không che chữ;
-/// ghim sự cố trên tên phòng để nhãn không che ghim; vị trí bảo vệ trên cùng.
+/// log đối chiếu): khối 2D → cửa → viền phòng đang chọn / sự cố → cầu thang → tuyến đường → ghim ngoài trời →
+/// QUẦNG SỰ CỐ → TÊN PHÒNG → GHIM SỰ CỐ → vị trí bảo vệ.
 const List<String> campusLayerOrder = [
   'campus-slab-layer',
-  'campus-room-layer',
+  campusRoomLayerId,
   'campus-wall-layer',
   'campus-room-border-layer',
+  'campus-doors-fill',
+  'campus-doors-outline',
+  'campus-selected-room-halo',
+  'campus-selected-room-outline',
+  'campus-incident-room-halo',
+  'campus-incident-room-outline',
   'campus-portals-layer',
   'campus-route-outline',
   'campus-route-line',
@@ -55,21 +64,39 @@ const List<String> campusLayerOrder = [
   'campus-guard-dot',
 ];
 
-/// Chia ghim cần vẽ: [incident] = khu đang chọn nếu nó là khu của sự cố đang mở ([incidentAreaId], kể cả ghim tạm
-/// chưa có trong danh sách khu) → vẽ ở lớp ghim sự cố; [areas] = ghim khu theo toà / tầng ([filtered]), bỏ ghim sự cố
-/// (không vẽ 2 lần), thêm khu đang chọn khác nếu nó không nằm trong [filtered] (như trước). Khu không có toạ độ bị bỏ.
+/// Chia ghim cần vẽ: [incident] = khu sự cố đang mở ([incidentAreaId], ưu tiên [incidentArea], sau đó trong [filtered]
+/// hoặc [selected]) → luôn giữ cố định ở lớp ghim sự cố ngay cả khi người dùng bấm xem phòng khác;
+/// [areas] = ghim khu ngoài trời / chưa khớp phòng theo toà / tầng ([filtered]), bỏ ghim sự cố (không vẽ 2 lần).
 ({List<AreaPinModel> areas, AreaPinModel? incident}) splitIncidentPin(
   List<AreaPinModel> filtered, {
   AreaPinModel? selected,
   String? incidentAreaId,
+  AreaPinModel? incidentArea,
 }) {
-  final hasCoords = selected != null && selected.centerLatitude != 0.0;
-  final incident = hasCoords && incidentAreaId != null && selected.id == incidentAreaId ? selected : null;
+  AreaPinModel? incident;
+  if (incidentAreaId != null) {
+    if (incidentArea != null && incidentArea.id == incidentAreaId && incidentArea.centerLatitude != 0.0) {
+      incident = incidentArea;
+    } else {
+      for (final p in filtered) {
+        if (p.id == incidentAreaId && p.centerLatitude != 0.0) {
+          incident = p;
+          break;
+        }
+      }
+      if (incident == null && selected != null && selected.id == incidentAreaId && selected.centerLatitude != 0.0) {
+        incident = selected;
+      }
+    }
+  }
   final areas = [
     for (final p in filtered)
       if (p.id != incident?.id) p,
   ];
-  if (incident == null && hasCoords && !areas.any((x) => x.id == selected.id)) areas.add(selected);
+  final hasSelectedCoords = selected != null && selected.centerLatitude != 0.0;
+  if (hasSelectedCoords && selected.id != incident?.id && !areas.any((x) => x.id == selected.id)) {
+    areas.add(selected);
+  }
   return (areas: areas, incident: incident);
 }
 

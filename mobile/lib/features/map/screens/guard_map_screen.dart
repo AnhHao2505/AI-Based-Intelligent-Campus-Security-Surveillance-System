@@ -22,13 +22,15 @@ import '../../chat/widgets/floating_guard_chat_button.dart';
 import '../../incident/widgets/peer_claim_notice.dart';
 
 /// Các lớp mặt bằng 2D trong asset (thuộc tính `layer`), vẽ theo thứ tự này trên mặt phẳng z = 0.
-/// Lớp `door` (mặt bằng cửa) không vẽ riêng vì khung cửa đã nằm trong lớp `wall`.
 const List<({String layer, double opacity})> _campusLayers = [
   (layer: 'slab', opacity: 0.96),
-  (layer: 'room', opacity: 0.9),
+  (layer: 'room', opacity: 0.92),
   (layer: 'wall', opacity: 1.0),
 ];
 
+const String _doorsSource = 'campus-doors';
+const String _selectedRoomSource = 'campus-selected-room';
+const String _incidentRoomSource = 'campus-incident-room';
 const String _pinsSource = 'campus-pins';
 const String _pinsLayer = campusPinsLayerId;
 const String _roomLabelsLayer = campusRoomLabelsLayerId;
@@ -78,10 +80,11 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
 
   // Chữ ký dữ liệu đã đẩy lên bản đồ (tránh gửi lại GeoJSON lớn khi không đổi)
   String? _campusKey;
-  String? _highlightKey;
+  String? _roomsKey;
   String? _pinsKey;
   String? _portalsKey;
   String? _labelsKey;
+  Set<String> _matchedRoomAreaIds = const {};
   bool _syncing = false;
 
   /// Ảnh đã addImage vào style hiện tại (maplibre_gl không có hasImage); style nạp lại thì xoá.
@@ -472,10 +475,11 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
     final map = _map;
     if (map == null) return;
     _campusKey = null;
-    _highlightKey = null;
+    _roomsKey = null;
     _pinsKey = null;
     _portalsKey = null;
     _labelsKey = null;
+    _matchedRoomAreaIds = const {};
     _styleImages.clear();
     const empty = {'type': 'FeatureCollection', 'features': <dynamic>[]};
     try {
@@ -492,17 +496,92 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
             fillColor: const ['get', 'color'],
             fillOpacity: l.opacity,
           ),
-          enableInteraction: false,
+          enableInteraction: l.layer == 'room',
         );
       }
-      // Viền ranh giới phòng 2D sắc nét để các phòng liền kề tách bạch rõ ràng
+      // Viền ranh giới phòng 2D màu trắng mảnh để các phòng có màu tách bạch khỏi hành lang và tường đậm
       await map.addLineLayer(
         'campus-room',
         'campus-room-border-layer',
         const ml.LineLayerProperties(
-          lineColor: '#334155',
-          lineWidth: 1.6,
-          lineOpacity: 0.9,
+          lineColor: '#ffffff',
+          lineWidth: 1.2,
+          lineOpacity: 0.92,
+        ),
+        enableInteraction: false,
+      );
+      // Cửa 2D: ngưỡng cửa màu kem + viền cam đậm giống Web để bảo vệ nhận biết lối vào phòng
+      await map.addGeoJsonSource(_doorsSource, empty);
+      await map.addFillLayer(
+        _doorsSource,
+        'campus-doors-fill',
+        const ml.FillLayerProperties(
+          fillColor: '#fef3c7',
+          fillOpacity: 0.98,
+        ),
+        minzoom: 16.0,
+        enableInteraction: false,
+      );
+      await map.addLineLayer(
+        _doorsSource,
+        'campus-doors-outline',
+        const ml.LineLayerProperties(
+          lineColor: '#d97706',
+          lineWidth: 1.5,
+          lineOpacity: 0.95,
+        ),
+        minzoom: 16.0,
+        enableInteraction: false,
+      );
+      // Viền halo 2 lớp cho phòng đang chọn (giữ nguyên màu cấp độ bên trong)
+      await map.addGeoJsonSource(_selectedRoomSource, empty);
+      await map.addLineLayer(
+        _selectedRoomSource,
+        'campus-selected-room-halo',
+        const ml.LineLayerProperties(
+          lineColor: '#ffffff',
+          lineWidth: 6.0,
+          lineOpacity: 0.96,
+          lineCap: 'round',
+          lineJoin: 'round',
+        ),
+        enableInteraction: false,
+      );
+      await map.addLineLayer(
+        _selectedRoomSource,
+        'campus-selected-room-outline',
+        const ml.LineLayerProperties(
+          lineColor: selectedRoomOutlineColor,
+          lineWidth: 3.2,
+          lineOpacity: 1.0,
+          lineCap: 'round',
+          lineJoin: 'round',
+        ),
+        enableInteraction: false,
+      );
+      // Viền halo 2 lớp báo động cho phòng đang có sự cố (phân biệt rõ với phòng Bảo mật cao bình thường)
+      await map.addGeoJsonSource(_incidentRoomSource, empty);
+      await map.addLineLayer(
+        _incidentRoomSource,
+        'campus-incident-room-halo',
+        const ml.LineLayerProperties(
+          lineColor: '#ffffff',
+          lineWidth: 6.8,
+          lineOpacity: 0.98,
+          lineCap: 'round',
+          lineJoin: 'round',
+        ),
+        enableInteraction: false,
+      );
+      await map.addLineLayer(
+        _incidentRoomSource,
+        'campus-incident-room-outline',
+        const ml.LineLayerProperties(
+          lineColor: incidentRoomOutlineColor,
+          lineWidth: 3.6,
+          lineOpacity: 1.0,
+          lineCap: 'round',
+          lineJoin: 'round',
         ),
         enableInteraction: false,
       );
@@ -691,6 +770,7 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       if (campusKey != _campusKey) {
         _campusKey = campusKey;
         for (final l in _campusLayers) {
+          if (l.layer == 'room') continue;
           await map.setGeoJsonSource(
             'campus-${l.layer}',
             campus?.featureCollectionFor(
@@ -701,6 +781,28 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                 const {'type': 'FeatureCollection', 'features': <dynamic>[]},
           );
         }
+        await map.setGeoJsonSource(
+          _doorsSource,
+          doorsGeoJson(campus, building: effectiveBldg, floorOrder: p.selectedFloorOrder),
+        );
+      }
+
+      // Phòng 2D tô màu động theo cấp độ khu + viền halo chọn phòng / phòng sự cố
+      final roomsKey = '$campusKey|${p.selectedArea?.id}|${p.incidentAreaId}|${identityHashCode(p.areaPins)}';
+      if (roomsKey != _roomsKey) {
+        _roomsKey = roomsKey;
+        final coloredRooms = coloredRoomsGeoJson(
+          campus,
+          p.areaPins,
+          building: effectiveBldg,
+          floorOrder: p.selectedFloorOrder,
+          selectedAreaId: p.selectedArea?.id,
+          incidentAreaId: p.incidentAreaId,
+        );
+        _matchedRoomAreaIds = coloredRooms.matchedAreaIds;
+        await map.setGeoJsonSource('campus-room', coloredRooms.rooms);
+        await map.setGeoJsonSource(_selectedRoomSource, coloredRooms.selectedRoom);
+        await map.setGeoJsonSource(_incidentRoomSource, coloredRooms.incidentRoom);
       }
 
       // Cầu thang / thang máy: dựng lại khi đổi toà / tầng
@@ -735,32 +837,20 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
             '${(labels['features'] as List).length} nhãn, dựng $built ms, tổng ${sw.elapsedMilliseconds} ms');
       }
 
-      final highlight = p.highlightRoomId;
-      if (highlight != _highlightKey) {
-        _highlightKey = highlight;
-        await map.setLayerProperties(
-          'campus-room-layer',
-          ml.FillLayerProperties(
-            fillColor: highlight == null
-                ? const ['get', 'color']
-                : [
-                    'case',
-                    ['==', ['get', 'id'], highlight],
-                    selectedRoomColor,
-                    ['get', 'color'],
-                  ],
-          ),
-        );
-      }
-
-      // Ghim sự cố đang mở tách sang lớp riêng; lớp ghim khu không vẽ lại nó
+      // Chỉ giữ ghim tròn cho khu vực ngoài trời / chưa khớp polygon phòng và ghim sự cố (có quầng đỏ)
       final selected = p.selectedArea;
-      final split = splitIncidentPin(p.filteredPins, selected: selected, incidentAreaId: p.incidentAreaId);
+      final split = splitIncidentPin(
+        p.filteredPins,
+        selected: selected,
+        incidentAreaId: p.incidentAreaId,
+        incidentArea: p.incidentPin,
+      );
+      final unmatchedAreas = filterUnmatchedAreaPins(split.areas, _matchedRoomAreaIds);
       final incident = split.incident;
-      final pinsKey = '${split.areas.map((x) => x.id).join(',')}|${selected?.id}|${incident?.id}';
+      final pinsKey = '${unmatchedAreas.map((x) => x.id).join(',')}|${selected?.id}|${incident?.id}';
       if (pinsKey != _pinsKey) {
         _pinsKey = pinsKey;
-        await map.setGeoJsonSource(_pinsSource, pinsGeoJson(split.areas, selectedId: selected?.id));
+        await map.setGeoJsonSource(_pinsSource, pinsGeoJson(unmatchedAreas, selectedId: selected?.id));
         await map.setGeoJsonSource(
             _incidentPinSource, pinsGeoJson([?incident], selectedId: incident?.id));
       }
@@ -788,8 +878,13 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
       _provider.setDebugGpsPin(LatLng(coordinates.latitude, coordinates.longitude));
       return;
     }
-    // Ghim khu, nhãn tên phòng và ghim sự cố đều mang id khu ở feature id
-    if (layerId != _pinsLayer && layerId != _roomLabelsLayer && layerId != _incidentPinLayer) return;
+    // Mặt phòng, ghim ngoài trời, nhãn tên phòng và ghim sự cố đều mang id khu ở feature id
+    if (layerId != campusRoomLayerId &&
+        layerId != _pinsLayer &&
+        layerId != _roomLabelsLayer &&
+        layerId != _incidentPinLayer) {
+      return;
+    }
     _selectTappedArea(point, id, layerId);
   }
 
@@ -829,6 +924,8 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
           selectedFloor: provider.selectedFloorOrder,
           floors: provider.availableFloorOrders,
           selectedArea: provider.selectedArea,
+          incidentPin: provider.incidentPin,
+          incidentFloorOrder: provider.incidentFloorOrder,
           currentRoute: provider.currentRoute,
           isLoadingPins: provider.isLoadingPins,
           isLoadingRoute: provider.isLoadingRoute,
@@ -1148,12 +1245,31 @@ class _GuardMapScreenState extends State<GuardMapScreen> with PeerClaimNoticeMix
                             context,
                             label: _shortFloorLabel(f),
                             selected: mapState.selectedFloor == f,
-                            hasTargetBadge: destFloorOrder == f && mapState.selectedFloor != f,
+                            hasTargetBadge: (destFloorOrder == f || mapState.incidentFloorOrder == f) &&
+                                mapState.selectedFloor != f,
                             onTap: () => mapProvider.selectFloor(f),
                           ),
                       ],
                     ),
                   ),
+                if (mapState.incidentPin != null) ...[
+                  const SizedBox(height: 8),
+                  FloatingActionButton.small(
+                    heroTag: 'fab_focus_incident',
+                    backgroundColor: const Color(0xFFDC2626),
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                    onPressed: () {
+                      final inc = mapState.incidentPin!;
+                      mapProvider.focusIncident(inc);
+                      if (inc.centerLatitude != 0.0) {
+                        _focusOn(inc.latLng, 18.2);
+                      }
+                    },
+                    tooltip: 'Về sự cố',
+                    child: const Icon(Icons.warning_amber_rounded, size: 20),
+                  ),
+                ],
                 if (mapState.currentRoute != null) ...[
                   const SizedBox(height: 8),
                   FloatingActionButton.small(

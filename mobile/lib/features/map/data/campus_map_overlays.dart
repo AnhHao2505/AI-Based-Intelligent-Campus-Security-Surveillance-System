@@ -156,6 +156,111 @@ Map<String, dynamic> roomLabelsGeoJson(
   return {'type': 'FeatureCollection', 'features': features};
 }
 
+/// Dựng GeoJSON cho lớp phòng (`layer == 'room'`) có tô màu theo cấp độ khu từ [pins], tách riêng polygon của
+/// phòng đang chọn ([selectedAreaId]) và phòng đang có sự cố ([incidentAreaId]) để vẽ viền halo 2 lớp, đồng thời
+/// trả về tập [matchedAreaIds] để ẩn chấm tròn ghim thừa bên trong các phòng đã tô màu.
+({
+  Map<String, dynamic> rooms,
+  Map<String, dynamic> selectedRoom,
+  Map<String, dynamic> incidentRoom,
+  Set<String> matchedAreaIds,
+}) coloredRoomsGeoJson(
+  CampusMapData? campus,
+  List<AreaPinModel> pins, {
+  String? building,
+  required int floorOrder,
+  String? selectedAreaId,
+  String? incidentAreaId,
+}) {
+  if (campus == null) {
+    return (
+      rooms: _emptyCollection,
+      selectedRoom: _emptyCollection,
+      incidentRoom: _emptyCollection,
+      matchedAreaIds: const <String>{},
+    );
+  }
+  final roomFeatures = <Map<String, dynamic>>[];
+  final selectedFeatures = <Map<String, dynamic>>[];
+  final incidentFeatures = <Map<String, dynamic>>[];
+  final matchedAreaIds = <String>{};
+
+  for (final b in campus.buildings) {
+    if (building != null && !b.matches(building)) continue;
+    final floor = campus.floors[CampusMapData.floorKey(b.name, floorOrder)];
+    if (floor == null) continue;
+    final candidates = [
+      for (final p in pins)
+        if (pinHasCoordinates(p) &&
+            ((p.building ?? '').trim().isEmpty || campus.sameBuilding(p.building, b.name)) &&
+            (floorOrderOfPin(p, campus) ?? 0) == floorOrder)
+          p,
+    ];
+    for (final f in floor.features) {
+      final props = f['properties'] as Map?;
+      if (props?['layer'] != 'room') continue;
+      final geom = f['geometry'] as Map?;
+      AreaPinModel? matched;
+      if (geom?['type'] == 'Polygon' && candidates.isNotEmpty) {
+        final rings = [for (final r in (geom!['coordinates'] as List)) _toRing(r as List)];
+        if (rings.isNotEmpty && rings.first.length >= 3) {
+          final outer = rings.first;
+          final holes = rings.skip(1).toList();
+          for (final p in candidates) {
+            if (pointInPolygonWithHoles([p.centerLongitude, p.centerLatitude], outer, holes)) {
+              matched = p;
+              break;
+            }
+          }
+        }
+      }
+      if (matched != null) matchedAreaIds.add(matched.id);
+      final isIncident = matched != null && incidentAreaId != null && matched.id == incidentAreaId;
+      final isSelected = matched != null && selectedAreaId != null && matched.id == selectedAreaId;
+      final fillColor = matched != null ? colorHex(matched.levelColor) : (props?['color']?.toString() ?? '#94a3b8');
+      final feature = <String, dynamic>{
+        'type': 'Feature',
+        if (matched != null) 'id': matched.id,
+        'properties': {
+          ...?props?.cast<String, dynamic>(),
+          'color': fillColor,
+          if (matched != null) 'areaId': matched.id,
+          'isSelected': isSelected,
+          'isIncident': isIncident,
+        },
+        'geometry': geom,
+      };
+      roomFeatures.add(feature);
+      if (isIncident) {
+        incidentFeatures.add(feature);
+      } else if (isSelected) {
+        selectedFeatures.add(feature);
+      }
+    }
+  }
+  return (
+    rooms: {'type': 'FeatureCollection', 'features': roomFeatures},
+    selectedRoom: {'type': 'FeatureCollection', 'features': selectedFeatures},
+    incidentRoom: {'type': 'FeatureCollection', 'features': incidentFeatures},
+    matchedAreaIds: matchedAreaIds,
+  );
+}
+
+/// Chỉ giữ lại các ghim khu chưa khớp vào polygon phòng nào (khu vực ngoài trời / sân / cổng).
+List<AreaPinModel> filterUnmatchedAreaPins(List<AreaPinModel> pins, Set<String> matchedAreaIds) {
+  if (matchedAreaIds.isEmpty) return pins;
+  return [
+    for (final p in pins)
+      if (!matchedAreaIds.contains(p.id)) p,
+  ];
+}
+
+/// GeoJSON lớp cửa (`layer == 'door'`) trên tầng đang xem.
+Map<String, dynamic> doorsGeoJson(CampusMapData? campus, {String? building, required int floorOrder}) {
+  if (campus == null) return _emptyCollection;
+  return campus.featureCollectionFor(building: building, floorOrder: floorOrder, layers: const {'door'});
+}
+
 /// Id khu cần mở cho một lần chạm: [featureId] là feature MapLibre trả về ở lớp [layerId]; [labelIdsAtPoint] là id các
 /// nhãn tên phòng nằm ngay tại điểm chạm. Chỉ khi chạm rơi vào lớp GHIM KHU ([campusPinsLayerId]) mà có nhãn tại đó
 /// → khu của nhãn (nhãn nằm trên ghim khu). Lớp ghim sự cố nằm trên nhãn nên chạm vào nó luôn là sự cố.
