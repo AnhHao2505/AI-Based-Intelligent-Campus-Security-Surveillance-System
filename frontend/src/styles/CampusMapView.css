@@ -368,11 +368,13 @@
    RIGHT RAIL (AREAS LIST & DETAILS)
    -------------------------------------------------------------------------- */
 .campus-rail {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   width: 100%;
   box-sizing: border-box;
 }
@@ -1141,14 +1143,55 @@
 
 /* Camera Inspector Drawer right rail inside Campus 3D Workspace */
 .campus-map-layout--camera-inspector:not(.campus-map-layout--expanded) {
-  grid-template-columns: minmax(0, 1fr) 410px;
+  grid-template-columns: minmax(0, 1fr) var(--campus-inspector-width, 410px);
   gap: 12px;
   width: 100%;
 }
 
-@media (max-width: 1280px) {
+.campus-map-layout--resizing {
+  transition: none !important;
+  user-select: none;
+  cursor: col-resize;
+}
+
+.campus-rail-resizer {
+  position: absolute;
+  left: -10px;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.campus-rail-resizer::after {
+  content: "";
+  width: 3px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--theme-border);
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background-color 0.15s ease, height 0.15s ease;
+}
+
+.campus-rail-resizer:hover::after,
+.campus-rail-resizer--active::after {
+  opacity: 1;
+  height: 64px;
+  background: #ea580c;
+}
+
+@media (max-width: 860px) {
   .campus-map-layout--camera-inspector:not(.campus-map-layout--expanded) {
-    grid-template-columns: minmax(0, 1fr) 380px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .campus-rail-resizer {
+    display: none;
   }
 }
 

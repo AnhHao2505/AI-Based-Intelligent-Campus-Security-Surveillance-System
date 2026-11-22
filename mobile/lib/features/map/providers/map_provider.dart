@@ -384,12 +384,27 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Id khu của sự cố đang mở trên bản đồ (focusIncident); khu này vẽ ở lớp ghim sự cố. Chọn khu khác / đóng thẻ → hết.
+  /// Id & ghim khu của sự cố đang mở trên bản đồ (focusIncident); luôn giữ ghim + quầng đỏ cố định trên tầng
+  /// sự cố ngay cả khi bảo vệ bấm xem phòng khác để tìm đường.
   String? _incidentAreaId;
+  AreaPinModel? _incidentPin;
   String? get incidentAreaId => _incidentAreaId;
+  AreaPinModel? get incidentPin => _incidentPin;
+
+  int? get incidentFloorOrder {
+    final pin = _incidentPin;
+    if (pin == null) return null;
+    final targetCampus = _visibleCampus ?? _campus;
+    return resolveIncidentFocus(pin, targetCampus).floorOrder;
+  }
+
+  void clearIncidentFocus() {
+    _incidentAreaId = null;
+    _incidentPin = null;
+    notifyListeners();
+  }
 
   void selectArea(AreaPinModel? area) {
-    if (area?.id != _incidentAreaId) _incidentAreaId = null;
     _selectedArea = area;
     final targetCampus = _visibleCampus ?? _campus;
     _highlightRoomId = area == null ? null : resolveIncidentFocus(area, targetCampus).roomId;
@@ -412,6 +427,7 @@ class MapProvider extends ChangeNotifier {
     final focus = resolveIncidentFocus(resolved, targetCampus);
     _selectedArea = resolved;
     _incidentAreaId = resolved.id;
+    _incidentPin = resolved;
     _highlightRoomId = focus.roomId;
     if (focus.building != null && !_isAlpha(focus.building)) {
       _selectedBuilding = focus.building;

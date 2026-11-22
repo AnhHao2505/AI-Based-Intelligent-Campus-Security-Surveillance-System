@@ -1177,7 +1177,7 @@
 }
 
 .area-level-btn--internal .area-level-btn__dot {
-  background-color: #3b82f6;
+  background-color: #f59e0b;
 }
 
 .area-level-btn--contact .area-level-btn__dot,
@@ -2134,7 +2134,7 @@
 }
 
 .zone-canvas-legend__dot--internal {
-  background: #3b82f6;
+  background: #f59e0b;
 }
 
 .zone-canvas-legend__dot--contact {
@@ -2254,7 +2254,7 @@
 
 .zone-level-dot--internal,
 .zone-level-dot--internal_confidential {
-  background: #3b82f6;
+  background: #f59e0b;
 }
 
 .zone-level-dot--contact,
@@ -4267,10 +4267,13 @@
 
 /* Camera Inspector Drawer inside CampusMapView right rail */
 .cam-inspector-drawer {
+  container-type: inline-size;
+  container-name: cam-inspector;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   border-radius: 10px;

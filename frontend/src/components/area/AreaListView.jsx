@@ -391,7 +391,7 @@ export default function AreaListView({
 					>
 						<span
 							className="zone-level-pill__dot"
-							style={{ backgroundColor: "#0284c7" }}
+							style={{ backgroundColor: "#f59e0b" }}
 						/>
 						<span className="zone-level-pill__label">Cấp 2</span>
 						<span className="zone-level-pill__count">{levelCounts[2]}</span>

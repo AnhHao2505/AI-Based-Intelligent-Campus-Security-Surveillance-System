@@ -593,6 +593,62 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   max-width: 100%;
 }
 
+.cam-inspector-drawer .roi-preview-wrapper {
+  padding: 0.375rem;
+}
+
+.cam-inspector-drawer .roi-preview-stage {
+  display: block;
+  width: 100%;
+}
+
+.cam-inspector-drawer .roi-preview-stage video,
+.cam-inspector-drawer .roi-preview-stage .roi-grid-canvas,
+.cam-inspector-drawer .roi-preview-img {
+  width: 100%;
+  height: auto;
+  max-height: 60vh;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+}
+
+.cam-inspector-drawer .tab-form .form-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cam-inspector-drawer .tab-form .form-group.col-span-2 {
+  grid-column: span 1;
+}
+
+@container cam-inspector (min-width: 480px) {
+  .cam-inspector-drawer .cam-general-read__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cam-inspector-drawer .cam-general-read__item {
+    border-right: 1px solid var(--theme-border);
+  }
+
+  .cam-inspector-drawer .cam-general-read__item:nth-child(2n) {
+    border-right: none;
+  }
+
+  .cam-inspector-drawer .tab-form .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cam-inspector-drawer .tab-form .form-group.col-span-2 {
+    grid-column: span 2;
+  }
+
+  .cam-inspector-drawer .roi-action-bar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
 .roi-preview-img {
   max-width: 100%;
   max-height: 440px;

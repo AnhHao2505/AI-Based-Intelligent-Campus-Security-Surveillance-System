@@ -70,7 +70,7 @@ void main() {
         expect(_dotColor(tester, level), _area(level).levelColor, reason: level);
       }
       expect(_dotColor(tester, 'PUBLIC'), const Color(0xFF10B981));
-      expect(_dotColor(tester, 'CONFIDENTIAL'), const Color(0xFF3B82F6));
+      expect(_dotColor(tester, 'CONFIDENTIAL'), const Color(0xFFF59E0B));
       expect(_dotColor(tester, 'HIGHLY_CONFIDENTIAL'), const Color(0xFFEF4444));
 
       final dotSize = tester.getSize(find.byKey(const ValueKey('campus-map-legend-dot-PUBLIC')));
