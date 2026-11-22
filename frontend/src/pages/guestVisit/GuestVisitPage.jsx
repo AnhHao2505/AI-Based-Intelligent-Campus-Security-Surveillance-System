@@ -705,7 +705,8 @@ export default function GuestVisitPage() {
 					<div className="guest-visit__detail">
 						<div className="guest-visit__detail-row">
 							<span className="guest-visit__label">Trạng thái</span>
-							{renderStatus(detail.status)}
+							{/* Bọc div như GuestVisitReviewPage: Badge làm ô grid trực tiếp sẽ bị kéo giãn hết cột 1fr */}
+							<div>{renderStatus(detail.status)}</div>
 						</div>
 						<div className="guest-visit__detail-row">
 							<span className="guest-visit__label">Khung giờ</span>

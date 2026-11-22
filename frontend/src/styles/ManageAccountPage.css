@@ -1118,6 +1118,36 @@
   margin-top: 2px;
 }
 
+/* BR-AL-33: cấp truy cập khi tạo tài khoản (dòng chỉ đọc của tài khoản hệ thống, mô tả cấp của người dùng thường) */
+.account-form-readonly {
+  margin: 2px 0 0;
+  font-size: 0.8125rem;
+  color: var(--theme-text-secondary);
+}
+
+.account-form-readonly strong {
+  color: var(--theme-text-primary);
+}
+
+.account-level-desc {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.775rem;
+  color: var(--theme-text-muted);
+}
+
+.account-level-desc strong {
+  color: var(--theme-text-secondary);
+}
+
+.account-cell--level {
+  white-space: nowrap;
+  color: var(--theme-text-secondary);
+}
+
 .account-confirm-text {
   font-size: 0.875rem;
   color: var(--theme-text-secondary);

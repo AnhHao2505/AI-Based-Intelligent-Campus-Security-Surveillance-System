@@ -386,11 +386,12 @@ class WorkflowWf01FaceUserEnrollmentE2ETest extends AbstractIntegrationTest {
         assertThat(passwordEncoder.matches(enrolledTempPassword, (String) user.get("password"))).isTrue();
 
         // PR-AUDIT (V112): tạo tài khoản lẻ ghi đúng CREATE / USER_ACCOUNT + REGISTER_FACE / FACE_REGISTRATION,
-        // người thực hiện là ADMIN, chung correlation (cùng request)
+        // người thực hiện là ADMIN, chung correlation (cùng request); BR-AL-33 (V135): thêm USER_ACCESS_LEVEL / CREATE
         List<Map<String, Object>> audits = auditRowsAbout(enrolledId, enrolledCode);
-        assertThat(actionsOf(audits)).containsExactlyInAnyOrder("FACE_REGISTRATION/REGISTER_FACE", "USER_ACCOUNT/CREATE");
+        assertThat(actionsOf(audits)).containsExactlyInAnyOrder("FACE_REGISTRATION/REGISTER_FACE", "USER_ACCOUNT/CREATE",
+                "USER_ACCESS_LEVEL/CREATE");
         assertThat(audits).allSatisfy(a -> assertThat(a.get("changed_by")).isEqualTo(admin.getId()));
-        assertThat(audits.get(0).get("correlation_id")).isEqualTo(audits.get(1).get("correlation_id"));
+        assertThat(audits).allSatisfy(a -> assertThat(a.get("correlation_id")).isEqualTo(audits.get(0).get("correlation_id")));
         // audit-login-privacy (phương án b): chỉ module AUTH lưu IP, tạo tài khoản để NULL
         assertThat(audits).allSatisfy(a -> assertThat(a.get("ip_address")).isNull());
         completedStep = 1;

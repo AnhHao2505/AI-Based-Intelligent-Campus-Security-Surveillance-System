@@ -25,6 +25,10 @@ public record GuestVisitResponse(
         String revokeReason,
         OffsetDateTime cancelledAt,
         String cancelReason,
+        // V137: người huỷ; cancelledBySystem = true khi hệ thống huỷ (vô hiệu hoá / đổi loại khu), false khi host tự huỷ,
+        // null khi chưa huỷ hoặc lượt huỷ trước V137
+        String cancelledByName,
+        Boolean cancelledBySystem,
         OffsetDateTime closedAt,
         OffsetDateTime createdAt
 ) {

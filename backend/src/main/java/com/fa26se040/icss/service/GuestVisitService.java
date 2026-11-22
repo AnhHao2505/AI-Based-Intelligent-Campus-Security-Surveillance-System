@@ -327,6 +327,7 @@ public class GuestVisitService {
         GuestVisitAuditSnapshot before = snapshot(visit);
         visit.setStatus(GuestVisitStatus.CANCELLED);
         visit.setCancelledAt(now);
+        visit.setCancelledBy(host);
         visit.setCancelReason(reason);
         bumpVersion(visit);
         guestVisitRepository.save(visit);
@@ -509,6 +510,8 @@ public class GuestVisitService {
                 GuestVisitAuditSnapshot before = snapshot(visit);
                 visit.setStatus(GuestVisitStatus.CANCELLED);
                 visit.setCancelledAt(now);
+                // V137: hệ thống huỷ do thao tác của ADMIN -> cancelled_by = ADMIN (khác host => cancelledBySystem)
+                visit.setCancelledBy(admin);
                 visit.setCancelReason(reason);
                 bumpVersion(visit);
                 guestVisitRepository.save(visit);
@@ -673,6 +676,20 @@ public class GuestVisitService {
                 areas, guests,
                 v.getReviewedBy() != null ? v.getReviewedBy().getFullName() : null, v.getReviewedAt(), v.getReviewReason(),
                 v.getRevokedBy() != null ? v.getRevokedBy().getFullName() : null, v.getRevokedAt(), v.getRevokeReason(),
-                v.getCancelledAt(), v.getCancelReason(), v.getClosedAt(), v.getCreatedAt());
+                v.getCancelledAt(), v.getCancelReason(),
+                v.getCancelledBy() != null ? v.getCancelledBy().getFullName() : null,
+                cancelledBySystem(v),
+                v.getClosedAt(), v.getCreatedAt());
+    }
+
+    /**
+     * V137: huỷ do hệ thống khi người huỷ khác host (chỉ xảy ra ở closeForAreaDeactivation, người huỷ là ADMIN;
+     * ADMIN không làm host — GuestRules.HOST_ROLES). Lượt chưa huỷ hoặc huỷ trước V137 (cancelled_by NULL) -> null.
+     */
+    private static Boolean cancelledBySystem(GuestVisit v) {
+        if (v.getCancelledBy() == null) {
+            return null;
+        }
+        return !v.getCancelledBy().getId().equals(v.getHost().getId());
     }
 }

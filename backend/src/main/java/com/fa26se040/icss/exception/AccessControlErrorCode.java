@@ -24,7 +24,9 @@ public enum AccessControlErrorCode {
     // D-1: tới giờ bắt đầu (now >= startTime) thì không duyệt / từ chối đơn PENDING nữa; job chuyển sang EXPIRED
     ERR_AC_012("ERR_AC_012", HttpStatus.CONFLICT, "Đã tới giờ bắt đầu, không thể duyệt hoặc từ chối yêu cầu. Hệ thống sẽ chuyển yêu cầu sang Hết hạn."),
     // BR-AL-32: FM chỉ đổi cấp truy cập của NORMAL_USER và GUARD (đổi lẻ và đổi nhiều người)
-    ERR_AC_013("ERR_AC_013", HttpStatus.FORBIDDEN, "Chỉ được đổi cấp truy cập của người dùng thường và bảo vệ; không đổi cấp của quản trị viên hoặc quản lý cơ sở vật chất ({userCode})");
+    ERR_AC_013("ERR_AC_013", HttpStatus.FORBIDDEN, "Chỉ được đổi cấp truy cập của người dùng thường và bảo vệ; không đổi cấp của quản trị viên hoặc quản lý cơ sở vật chất ({userCode})"),
+    // BR-AL-33: Admin tạo tay người dùng thường chỉ đặt cấp ban đầu trong tập UserAccessLevelHelper.NORMAL_USER_INITIAL_LEVELS
+    ERR_AC_014("ERR_AC_014", HttpStatus.BAD_REQUEST, "Cấp truy cập ban đầu của người dùng thường chỉ được là {allowed} (giá trị gửi lên: {value})");
 
     private final String code;
     private final HttpStatus httpStatus;
