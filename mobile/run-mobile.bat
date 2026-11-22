@@ -15,4 +15,4 @@ if %ERRORLEVEL% NEQ 0 (
 :: 2. Chay ung dung Flutter
 echo [2/2] Dang khoi chay ung dung len dien thoai...
 echo.
-flutter run
+flutter run --android-skip-build-dependency-validation %*
