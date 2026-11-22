@@ -1,5 +1,6 @@
 package com.fa26se040.icss.dto.camera;
 
+import com.fa26se040.icss.enums.CameraType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -18,5 +19,12 @@ public class UpdateCameraRequest {
     @Size(max = 100, message = "Tên camera không được vượt quá 100 ký tự")
     private String name;
 
+    private CameraType cameraType;
+
     private UUID areaId;
+
+    private Double mapLongitude;
+    private Double mapLatitude;
+    private String mapBuilding;
+    private Integer mapFloorOrder;
 }

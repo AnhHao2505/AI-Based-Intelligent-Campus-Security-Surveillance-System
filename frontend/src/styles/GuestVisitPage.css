@@ -363,3 +363,93 @@
   line-height: 1.4;
   color: var(--theme-warning-text);
 }
+
+/* A1: mỗi khách một khung — họ tên, đơn vị, ảnh khuôn mặt + xác nhận đồng ý */
+.guest-visit__guest-row--card {
+  padding: 10px 12px;
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  background: var(--theme-bg-desc);
+}
+
+/* A2: backend báo lỗi ảnh của đúng khách này */
+.guest-visit__guest-row--error {
+  border-color: var(--theme-danger-border);
+  background: var(--theme-danger-bg);
+}
+
+.guest-visit__photo-picker {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.guest-visit__file-input {
+  background: var(--theme-bg-input);
+  border: 1px solid var(--theme-input-border);
+  border-radius: 4px;
+  padding: 6px;
+  color: var(--theme-text-primary);
+  font-size: 13px;
+}
+
+.guest-visit__consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--theme-text-primary);
+  cursor: pointer;
+}
+
+.guest-visit__consent input {
+  margin-top: 2px;
+}
+
+.guest-visit__photo-preview {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.guest-visit__photo-preview img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--theme-border);
+}
+
+/* B1, B3: xem ảnh khách ngay trong bảng chi tiết */
+.guest-visit__photo-view {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.guest-visit__photo-img {
+  max-width: 180px;
+  max-height: 180px;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-desc);
+}
+
+@media (max-width: 640px) {
+  .guest-visit__photo-picker {
+    flex-direction: column;
+  }
+}
+
+/* C1: Chi tiết – Từ chối – Duyệt trên cùng một dòng, có khoảng cách giữa các nút */
+.guest-visit__actions > * + * {
+  margin-left: 6px;
+}

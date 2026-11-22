@@ -23,13 +23,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
 
 /**
- * Lượt khách: host tạo / xem / huỷ (BR-GV-01..06, 09); FM duyệt / từ chối / thu hồi (BR-GV-10..13).
+ * Lượt khách: host tạo kèm ảnh khách / xem / huỷ (BR-GV-01..06, 09, 14..17); FM duyệt / từ chối / thu hồi (BR-GV-10..13).
  * Mọi chuyển trạng thái khoá dòng lượt (PESSIMISTIC_WRITE) và so version client gửi (BR-GV-32).
  */
 @Slf4j
@@ -51,11 +52,17 @@ public class GuestVisitService {
     private final ObjectProvider<InAppNotificationService> notificationServiceProvider;
     // L3: huỷ lượt đã duyệt / thu hồi -> báo AI nạp lại kho khuôn mặt sau commit
     private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
+    private final GuestPhotoService photoService;
 
-    // ================================================================== tạo (BR-GV-01..06)
+    // ================================================================== tạo (BR-GV-01..06, 14..17)
 
+    /**
+     * Host tạo lượt kèm ảnh của mọi khách (photos[i] ứng với guests[i]) và xác nhận từng khách đã đồng ý.
+     * Một transaction: ảnh của một khách lỗi (thiếu, sai định dạng, quá dung lượng, không / nhiều khuôn mặt, trùng khuôn mặt,
+     * dịch vụ trích khuôn mặt lỗi) -> báo đúng khách đó, không tạo gì (ảnh đã tải lên kho bị gỡ khi rollback).
+     */
     @Transactional
-    public GuestVisitResponse create(GuestVisitCreateRequest req, String actorEmail) {
+    public GuestVisitResponse create(GuestVisitCreateRequest req, List<MultipartFile> photos, String actorEmail) {
         User host = currentUser(actorEmail);
         OffsetDateTime now = OffsetDateTime.now();
 
@@ -82,6 +89,10 @@ public class GuestVisitService {
             }
         }
 
+        // BR-GV-14, 15: mọi khách có ảnh + host xác nhận đồng ý; kiểm phần không tốn kém cho mọi khách trước khi trích khuôn mặt
+        String consentVersion = photoService.currentConsentVersion();
+        List<GuestPhotoService.ImageFile> images = readGuestImages(req, guests, photos);
+
         GuestVisit visit = GuestVisit.builder()
                 .host(host)
                 .purpose(purpose)
@@ -96,8 +107,30 @@ public class GuestVisitService {
         }
         GuestVisit saved = guestVisitRepository.save(visit);
 
+        // BR-GV-17 + kiểm trùng: trích khuôn mặt từng khách (đã có id để ghi log), so với người dùng đang hoạt động,
+        // khách của lượt chờ duyệt / đã duyệt chồng giờ, và các khách trước đó trong cùng lượt
+        List<GuestPhotoService.CheckedPhoto> checked = new ArrayList<>();
+        for (int i = 0; i < guests.size(); i++) {
+            Guest g = guests.get(i);
+            try {
+                GuestPhotoService.CheckedPhoto photo = photoService.extractAndCheck(images.get(i), g.getId().toString(), saved, null);
+                photoService.requireDistinctWithinVisit(photo, checked, guests.subList(0, i));
+                checked.add(photo);
+            } catch (GuestException ex) {
+                throw GuestException.forGuest(i, g.getFullName(), ex);
+            }
+        }
+
         auditService.record(AuditTargetType.GUEST_VISIT, AuditAction.CREATE, saved.getId().toString(), null, null,
                 null, snapshot(saved), null, AuditActor.user(host));
+        // người xác nhận đồng ý = host; mỗi khách một audit ATTACH_PHOTO (actor host)
+        for (int i = 0; i < guests.size(); i++) {
+            try {
+                photoService.store(saved, guests.get(i), checked.get(i), host, consentVersion, now);
+            } catch (GuestException ex) {
+                throw GuestException.forGuest(i, guests.get(i).getFullName(), ex);
+            }
+        }
 
         // BR-GV-33: mọi FM đang hoạt động
         String message = host.getFullName() + " (" + host.getUserCode() + ") mời " + guests.size() + " khách vào "
@@ -105,6 +138,28 @@ public class GuestVisitService {
         notifyAfterCommit(saved.getId(), NotificationType.GUEST_VISIT_PENDING, "Lượt khách mới chờ duyệt", message,
                 () -> userRepository.findActiveUsersByRole(Role.FACILITY_MANAGER));
         return toResponse(saved);
+    }
+
+    /**
+     * A1, A2: ảnh thứ i thuộc khách thứ i. Mỗi khách phải tick đồng ý theo phiên bản thông báo hiện hành (BR-GV-15) và có
+     * ảnh JPG / PNG trong giới hạn dung lượng. Lỗi -> nêu đúng khách (data.guestIndex).
+     */
+    private List<GuestPhotoService.ImageFile> readGuestImages(GuestVisitCreateRequest req, List<Guest> guests,
+                                                              List<MultipartFile> photos) {
+        int count = photos == null ? 0 : photos.size();
+        if (count > guests.size()) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_040, count, guests.size());
+        }
+        List<GuestPhotoService.ImageFile> images = new ArrayList<>();
+        for (int i = 0; i < guests.size(); i++) {
+            try {
+                photoService.requireConsent(req.guests().get(i).consentConfirmed(), req.consentNoticeVersion());
+                images.add(photoService.readImage(i < count ? photos.get(i) : null));
+            } catch (GuestException ex) {
+                throw GuestException.forGuest(i, guests.get(i).getFullName(), ex);
+            }
+        }
+        return images;
     }
 
     private List<Guest> buildGuests(List<GuestInput> inputs) {
@@ -220,7 +275,8 @@ public class GuestVisitService {
     public com.fa26se040.icss.dto.guest.GuestHostEligibilityResponse eligibility(String actorEmail) {
         User me = currentUser(actorEmail);
         return new com.fa26se040.icss.dto.guest.GuestHostEligibilityResponse(
-                rules.hostEligible(me), me.getAccessLevel(), rules.hostMinLevel());
+                rules.hostEligible(me), me.getAccessLevel(), rules.hostMinLevel(),
+                photoService.currentConsentVersion(), photoService.getPhotoMaxKb());
     }
 
     // ================================================================== xem
@@ -231,7 +287,7 @@ public class GuestVisitService {
         return guestVisitRepository.findByHostIdOrderByCreatedAtDesc(host.getId(), pageable).map(this::toResponse);
     }
 
-    /** Host xem lượt của mình; FM và ADMIN xem mọi lượt (duyệt / gắn ảnh). Người khác -> 404 (không lộ lượt tồn tại). */
+    /** Host xem lượt của mình; FM và ADMIN xem mọi lượt (duyệt / xem ảnh). Người khác -> 404 (không lộ lượt tồn tại). */
     @Transactional(readOnly = true)
     public GuestVisitResponse get(UUID id, String actorEmail) {
         User viewer = currentUser(actorEmail);
@@ -277,6 +333,10 @@ public class GuestVisitService {
         AuditActor actor = AuditActor.user(host);
         auditService.record(AuditTargetType.GUEST_VISIT, AuditAction.CANCEL, visit.getId().toString(), null, null,
                 before, snapshot(visit), reason, actor);
+        // A6: host gắn ảnh ngay khi tạo lượt -> huỷ lượt chờ duyệt (khách chưa bao giờ có quyền) cũng xoá sinh trắc ngay
+        if (from == GuestVisitStatus.PENDING) {
+            deleteAllBiometrics(visit, now, actor, "Lượt khách bị huỷ");
+        }
         // BR-GV-09, BR-194 (BR-GV-27): huỷ lượt đã duyệt trước giờ bắt đầu -> khách chưa từng có quyền, xoá sinh trắc ngay;
         // huỷ khi lượt đã bắt đầu -> hết quyền như thu hồi: giữ GUEST_FACE_RETENTION_HOURS kể từ cancelledAt rồi job mới xoá
         if (from == GuestVisitStatus.APPROVED) {
@@ -344,17 +404,34 @@ public class GuestVisitService {
         guestVisitRepository.save(visit);
         auditService.record(AuditTargetType.GUEST_VISIT, decision == GuestVisitStatus.APPROVED ? AuditAction.APPROVE : AuditAction.REJECT,
                 visit.getId().toString(), null, null, before, snapshot(visit), reason, AuditActor.user(reviewer));
+        // A6, BR-194 (BR-GV-27): từ chối -> khách chưa từng có quyền, xoá ảnh + embedding ngay (audit DELETE_BIOMETRIC)
+        if (decision == GuestVisitStatus.REJECTED) {
+            deleteAllBiometrics(visit, now, AuditActor.user(reviewer), "Lượt khách bị từ chối");
+        }
 
         User host = visit.getHost();
         String range = InAppNotificationService.formatTimeRange(visit.getStartTime(), visit.getEndTime());
         if (decision == GuestVisitStatus.APPROVED) {
             notifyAfterCommit(visit.getId(), NotificationType.GUEST_VISIT_APPROVED, "Lượt khách đã được duyệt",
                     "Lượt khách vào " + areaNames(visit) + " (" + range + ") đã được duyệt.", () -> List.of(host));
+        }
+        // L3: ảnh khách gắn lúc tạo (lượt còn PENDING, kho khuôn mặt chưa lấy) -> duyệt xong báo bên nhận diện nạp lại ngay,
+        // không chờ chu kỳ nạp định kỳ
+        if (decision == GuestVisitStatus.APPROVED && visit.getGuests().stream()
+                .anyMatch(g -> g.getBiometricStatus() == GuestBiometricStatus.PHOTO_READY)) {
+            aiFaceCacheRefreshNotifier.notifyAfterCommit();
+        }
+        // Host gắn ảnh ngay khi tạo lượt: chỉ lượt tạo trước thay đổi này (còn khách chưa có ảnh) mới cần nhắc.
+        // Người gắn / thay ảnh là host (ADMIN không gắn ảnh nữa) -> nhắc host, mở Chi tiết lượt để gắn trước giờ bắt đầu
+        long missingPhotos = visit.getGuests().stream()
+                .filter(g -> g.getBiometricStatus() != GuestBiometricStatus.PHOTO_READY).count();
+        if (decision == GuestVisitStatus.APPROVED && missingPhotos > 0) {
             notifyAfterCommit(visit.getId(), NotificationType.GUEST_PHOTO_REQUIRED, "Cần gắn ảnh khách",
-                    "Lượt khách của " + host.getFullName() + " vào " + areaNames(visit) + " (" + range + ") đã được duyệt, "
-                            + visit.getGuests().size() + " khách cần gắn ảnh sau khi đồng ý tại quầy.",
-                    () -> userRepository.findActiveUsersByRole(Role.ADMIN));
-        } else {
+                    "Lượt khách vào " + areaNames(visit) + " (" + range + ") đã được duyệt, còn " + missingPhotos + "/"
+                            + visit.getGuests().size() + " khách chưa có ảnh. Gắn ảnh trong Chi tiết lượt trước giờ bắt đầu.",
+                    () -> List.of(host));
+        }
+        if (decision == GuestVisitStatus.REJECTED) {
             notifyAfterCommit(visit.getId(), NotificationType.GUEST_VISIT_REJECTED, "Lượt khách bị từ chối",
                     "Lượt khách vào " + areaNames(visit) + " (" + range + ") bị từ chối. Lý do: " + reason + ".", () -> List.of(host));
         }

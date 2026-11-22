@@ -19,7 +19,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
  * BR-GV-04 (V83): nguồn khu vực cho form lượt khách (GET /api/guest-visits/selectable-areas) — khu vực Bảo mật
@@ -75,7 +74,7 @@ class GuestSelectableAreasTest extends GuestTestSupport {
     void internalAreaFromList_canCreateVisit_guardForbidden() throws Exception {
         assertTrue(ids(send(get(URL), hostL2, null).andReturn()).contains(internalArea.getId().toString()));
 
-        MvcResult created = send(post("/api/guest-visits"), hostL2, createBody(future(0), future(120), List.of(internalArea),
+        MvcResult created = createVisit(hostL2, createBody(future(0), future(120), List.of(internalArea),
                 List.of(guestInput("Khách form", null)))).andReturn();
         assertEquals(201, status(created), created.getResponse().getContentAsString());
 

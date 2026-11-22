@@ -22,6 +22,7 @@ function subscribeListener(listener) {
 
 function ensureClient() {
   if (sharedClient) return sharedClient;
+  let hasConnected = false;
   const client = new Client({
     brokerURL: BROKER_URL,
     reconnectDelay: 5000,
@@ -35,6 +36,12 @@ function ensureClient() {
     // Kết nối lại thì subscription cũ đã mất -> subscribe lại toàn bộ
     onConnect: () => {
       listeners.forEach(subscribeListener);
+      // Kết nối lại: tin phát trong lúc mất kết nối đã mất -> báo các màn hình tải lại (chuông thông báo...)
+      if (hasConnected) {
+        window.dispatchEvent(new CustomEvent('icss-ws-reconnected'));
+        window.dispatchEvent(new CustomEvent('notification-updated'));
+      }
+      hasConnected = true;
     },
   });
   sharedClient = client;

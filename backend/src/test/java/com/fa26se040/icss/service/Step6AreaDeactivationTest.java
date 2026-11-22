@@ -723,7 +723,7 @@ class Step6AreaDeactivationTest extends GuestTestSupport {
         request.put("endTime", now.plusHours(3).toString());
         assertBlocked(send(post("/api/access-requests/individual"), hostL2, request).andReturn(), "tạo đơn", 404, null);
 
-        assertBlocked(send(post("/api/guest-visits"), hostL2,
+        assertBlocked(createVisit(hostL2,
                 createBody(future(0), future(60), List.of(area), List.of(guestInput("Khách thử", null)))).andReturn(), "tạo lượt khách", 400, "ERR_GUEST_008");
 
         assertEquals(v1, dbVersion(area), "không đường ghi nào được đổi khu vực");

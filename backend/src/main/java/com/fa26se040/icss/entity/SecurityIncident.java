@@ -49,7 +49,7 @@ public class SecurityIncident {
     private String cameraCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "area_id", nullable = false)
+    @JoinColumn(name = "area_id", nullable = true)
     private Area area;
 
     @Column(name = "building", nullable = false, length = 50)

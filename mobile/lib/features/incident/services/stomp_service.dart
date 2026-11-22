@@ -41,6 +41,10 @@ class StompService {
   VoidCallback? onConnectionChange;
   void Function(Map<String, dynamic>)? onChatMessage;
 
+  /// Gọi sau khi kết nối lại (không gọi ở lần kết nối đầu) và đã subscribe lại: tin backend phát trong lúc
+  /// mất kết nối không tới được app, nơi nhận cần tải lại dữ liệu từ API (DEF-21).
+  VoidCallback? onReconnected;
+
   /// Header gửi kèm STOMP CONNECT để backend phân biệt app mobile với web.
   static const Map<String, String> clientHeaders = {'client-type': 'mobile'};
 
@@ -67,6 +71,22 @@ class StompService {
       return;
     }
     _connecting = false;
+
+    // Header nằm trong map dùng chung cho mọi lần (kết nối lại) của client này; beforeConnect đọc lại token
+    // trước mỗi lần kết nối để không gửi token cũ.
+    final stompHeaders = <String, String>{...clientHeaders};
+    final webSocketHeaders = <String, dynamic>{};
+    void applyToken(String? value) {
+      stompHeaders.remove('Authorization');
+      webSocketHeaders.remove('Authorization');
+      if (value != null) {
+        stompHeaders['Authorization'] = 'Bearer $value';
+        webSocketHeaders['Authorization'] = 'Bearer $value';
+      }
+    }
+
+    applyToken(token);
+    var hasConnected = false;
 
     final wsUrl = ApiEndpoints.wsSecurity;
     debugPrint('[STOMP] Connecting to: $wsUrl (guardId: $guardId)');
@@ -183,6 +203,13 @@ class StompService {
               }
             },
           );
+
+          // Kết nối lại: báo nơi nhận tải lại danh sách sự cố đang mở
+          if (hasConnected) {
+            debugPrint('[STOMP] Reconnected, reloading active incidents');
+            onReconnected?.call();
+          }
+          hasConnected = true;
         },
         onWebSocketError: (dynamic error) {
           if (generation != _generation) return;
@@ -196,11 +223,18 @@ class StompService {
           _isConnected = false;
           onConnectionChange?.call();
         },
-        stompConnectHeaders: {
-          ...clientHeaders,
-          if (token != null) 'Authorization': 'Bearer $token',
+        beforeConnect: () async {
+          try {
+            final freshToken = await _tokenReader();
+            if (generation != _generation) return;
+            applyToken(freshToken);
+          } catch (e) {
+            // Đọc token lỗi thì giữ header cũ, không để vòng kết nối lại dừng hẳn
+            debugPrint('[STOMP] Error reading token before connect: $e');
+          }
         },
-        webSocketConnectHeaders: token != null ? {'Authorization': 'Bearer $token'} : null,
+        stompConnectHeaders: stompHeaders,
+        webSocketConnectHeaders: webSocketHeaders,
         reconnectDelay: const Duration(seconds: 4),
       ),
     );

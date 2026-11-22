@@ -18,11 +18,14 @@ import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -41,11 +44,17 @@ public class GuestVisitController {
         this.strictMapper = objectMapper.copy().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     }
 
-    @PostMapping
+    /**
+     * Multipart: phần "data" (application/json) là GuestVisitCreateRequest, phần "photos" là ảnh khách theo đúng thứ tự
+     * guests. Đơn tạo đủ (lượt + ảnh + embedding) hoặc không tạo gì.
+     */
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('NORMAL_USER', 'FACILITY_MANAGER')")
-    public ResponseEntity<ApiResponse<GuestVisitResponse>> create(@RequestBody JsonNode body, Authentication authentication) {
+    public ResponseEntity<ApiResponse<GuestVisitResponse>> create(@RequestPart("data") JsonNode body,
+                                                                  @RequestPart(value = "photos", required = false) List<MultipartFile> photos,
+                                                                  Authentication authentication) {
         GuestVisitCreateRequest req = readStrict(body, GuestVisitCreateRequest.class);
-        GuestVisitResponse data = guestVisitService.create(req, authentication.getName());
+        GuestVisitResponse data = guestVisitService.create(req, photos, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(data, "Đã tạo lượt khách, chờ duyệt"));
     }
 

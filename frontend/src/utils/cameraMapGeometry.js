@@ -165,6 +165,7 @@ export function buildCameraMapPinGeoJson({
 	selectedCameraId = null,
 	floorElevationStep = 3.5,
 	floorSlabHeight = 0.16,
+	draftPin = null,
 }) {
 	const pinFeatures = [];
 	const step = Number.isFinite(Number(floorElevationStep))
@@ -220,19 +221,49 @@ export function buildCameraMapPinGeoJson({
 		});
 	}
 
+	if (
+		draftPin &&
+		Number.isFinite(Number(draftPin.lng)) &&
+		Number.isFinite(Number(draftPin.lat)) &&
+		normalizeBuildingMatch(draftPin.building, building) &&
+		normalizeFloorMatch(draftPin.floorOrder, floorOrder)
+	) {
+		const resolvedOrder = Number.isFinite(Number(draftPin.floorOrder))
+			? Number(draftPin.floorOrder)
+			: 0;
+		const elevationBase = Number(
+			(resolvedOrder * step + slab + 0.04).toFixed(2),
+		);
+		const pinElevation = Number((elevationBase + 0.28).toFixed(2));
+		pinFeatures.push({
+			type: "Feature",
+			geometry: {
+				type: "Point",
+				coordinates: [Number(draftPin.lng), Number(draftPin.lat)],
+			},
+			properties: {
+				cameraId: "__draft_create_pin__",
+				cameraCode: "MỚI",
+				cameraName: draftPin.name || "Camera mới",
+				statusKey: "ok",
+				isSelected: 1,
+				pinElevation,
+				spriteId: "cam-pin::ok:1",
+			},
+		});
+	}
+
 	return {
 		pinFeatures,
 	};
 }
 
 /**
- * 2-tier validation for placing or dragging a camera pin on the 3D campus map:
- * - Tier 1 (Strict): building & floorOrder must match the camera's assigned Area.
- * - Tier 2 (Smart 3D boundary):
- *   - Blocks dropping inside a room belonging to a different Area.
- *   - Blocks dropping outside the assigned building/floor footprint.
- *   - Allows dropping inside the assigned room (`target-room`) or in the same floor's
- *     corridor/door buffer (`corridor-buffer`) with a soft advisory warning.
+ * 2-tier validation for placing or dragging a camera pin on the campus map:
+ * - Tier 1 (Strict): building & floorOrder must match the camera's assigned Area (or selected Building/Floor for CORRIDOR).
+ * - Tier 2 (Boundary by cameraType):
+ *   - RESTRICTED_AREA / PUBLIC_AREA: must be inside the assigned room (`target-room`).
+ *   - CORRIDOR: must be inside the floor slab / building footprint and OUTSIDE all `ROOM` polygons.
  */
 export function validateCameraPinPlacement({
 	lng,
@@ -243,6 +274,7 @@ export function validateCameraPinPlacement({
 	activeFloorOrder = "ALL",
 	clickedRoomProps = null,
 	roomFeatures = null,
+	slabFeatures = null,
 	store = null,
 } = {}) {
 	if (!Number.isFinite(Number(lng)) || !Number.isFinite(Number(lat))) {
@@ -261,29 +293,46 @@ export function validateCameraPinPlacement({
 		};
 	}
 
-	const expectedBuilding =
-		targetArea?.building ||
-		targetCam?.building ||
-		targetCam?.assignedArea?.building ||
-		targetCam?.mapBuilding ||
-		null;
-	const expectedFloorName =
-		targetArea?.floor ||
-		targetCam?.floor ||
-		targetCam?.assignedArea?.floor ||
-		null;
+	const cameraType = String(targetCam?.cameraType || "").toUpperCase();
+	const isCorridorCamera = cameraType === "CORRIDOR";
+
+	const expectedBuilding = isCorridorCamera
+		? targetCam?.mapBuilding ||
+		  targetCam?.building ||
+		  (activeBuilding && activeBuilding !== "ALL" ? activeBuilding : null)
+		: targetArea?.building ||
+		  targetCam?.building ||
+		  targetCam?.assignedArea?.building ||
+		  targetCam?.mapBuilding ||
+		  null;
+	const expectedFloorName = isCorridorCamera
+		? targetCam?.floor || null
+		: targetArea?.floor ||
+		  targetCam?.floor ||
+		  targetCam?.assignedArea?.floor ||
+		  null;
 	const expectedFloorOrder =
-		expectedBuilding && expectedFloorName
-			? resolveFloorOrder(expectedBuilding, expectedFloorName)
-			: targetCam?.mapFloorOrder != null &&
-				  Number.isFinite(Number(targetCam.mapFloorOrder))
-				? Number(targetCam.mapFloorOrder)
-				: null;
-	const targetAreaId =
-		targetArea?.id ||
-		targetCam?.areaId ||
-		targetCam?.assignedArea?.id ||
-		null;
+		targetCam?.mapFloorOrder != null &&
+		Number.isFinite(Number(targetCam.mapFloorOrder)) &&
+		isCorridorCamera
+			? Number(targetCam.mapFloorOrder)
+			: expectedBuilding && expectedFloorName
+				? resolveFloorOrder(expectedBuilding, expectedFloorName)
+				: targetCam?.mapFloorOrder != null &&
+					  Number.isFinite(Number(targetCam.mapFloorOrder))
+					? Number(targetCam.mapFloorOrder)
+					: isCorridorCamera &&
+						  activeFloorOrder !== "ALL" &&
+						  activeFloorOrder != null &&
+						  Number.isFinite(Number(activeFloorOrder))
+						? Number(activeFloorOrder)
+						: null;
+	const targetAreaId = isCorridorCamera
+		? null
+		: targetArea?.id ||
+		  targetCam?.areaId ||
+		  targetCam?.assignedArea?.id ||
+		  null;
 
 	// Tier 1: Strict building & floor alignment
 	if (expectedBuilding) {
@@ -314,12 +363,17 @@ export function validateCameraPinPlacement({
 	}
 
 	// Tier 2: Check room ownership & indoor building footprint
-	let effectiveRoomProps = clickedRoomProps;
+	let effectiveRoomProps =
+		clickedRoomProps &&
+		String(clickedRoomProps.role || "ROOM").toUpperCase() === "ROOM"
+			? clickedRoomProps
+			: null;
 	if (!effectiveRoomProps && Array.isArray(roomFeatures) && roomFeatures.length > 0) {
 		const pt = [Number(lng), Number(lat)];
 		for (const feat of roomFeatures) {
 			const props = feat?.properties;
 			if (!props || props.isGhost) continue;
+			if (String(props.role || "ROOM").toUpperCase() !== "ROOM") continue;
 			if (
 				expectedBuilding &&
 				props.building &&
@@ -341,6 +395,93 @@ export function validateCameraPinPlacement({
 				break;
 			}
 		}
+	}
+
+	if (isCorridorCamera) {
+		if (effectiveRoomProps) {
+			return {
+				ok: false,
+				reason: "inside-room-for-corridor",
+				message:
+					"Camera hành lang chỉ được đặt trên sàn hành lang, không được đặt bên trong phòng.",
+			};
+		}
+		const pt = [Number(lng), Number(lat)];
+		if (Array.isArray(slabFeatures) && slabFeatures.length > 0) {
+			let inSlab = false;
+			for (const slab of slabFeatures) {
+				const sp = slab?.properties;
+				if (!sp || sp.isGhost) continue;
+				if (
+					expectedBuilding &&
+					sp.building &&
+					!matchesBuilding(sp.building, expectedBuilding)
+				) {
+					continue;
+				}
+				if (
+					expectedFloorOrder !== null &&
+					sp.floorOrder != null &&
+					Number(sp.floorOrder) !== Number(expectedFloorOrder)
+				) {
+					continue;
+				}
+				const coords = slab?.geometry?.coordinates;
+				if (!Array.isArray(coords) || coords.length === 0) continue;
+				if (isPointInPolygonWithHoles(pt, coords[0], coords.slice(1))) {
+					inSlab = true;
+					break;
+				}
+			}
+			if (!inSlab) {
+				return {
+					ok: false,
+					reason: "outside-corridor-slab",
+					message:
+						"Chỉ được đặt camera hành lang trong phạm vi sàn hành lang của tòa nhà.",
+				};
+			}
+		} else if (
+			Array.isArray(store?.buildingBoundaries) &&
+			store.buildingBoundaries.length > 0
+		) {
+			let inBoundary = false;
+			for (const bnd of store.buildingBoundaries) {
+				if (
+					expectedBuilding &&
+					bnd.building &&
+					!matchesBuilding(bnd.building, expectedBuilding)
+				) {
+					continue;
+				}
+				if (
+					expectedFloorOrder !== null &&
+					bnd.floorOrder != null &&
+					Number(bnd.floorOrder) !== Number(expectedFloorOrder)
+				) {
+					continue;
+				}
+				if (Array.isArray(bnd.ring) && isPointInPolygonWithHoles(pt, bnd.ring, [])) {
+					inBoundary = true;
+					break;
+				}
+			}
+			if (!inBoundary) {
+				return {
+					ok: false,
+					reason: "outside-corridor-slab",
+					message:
+						"Chỉ được đặt camera hành lang trong phạm vi sàn hành lang của tòa nhà.",
+				};
+			}
+		}
+
+		return {
+			ok: true,
+			zone: "corridor",
+			building: expectedBuilding,
+			floorOrder: expectedFloorOrder,
+		};
 	}
 
 	if (effectiveRoomProps?.matchedAreaId) {

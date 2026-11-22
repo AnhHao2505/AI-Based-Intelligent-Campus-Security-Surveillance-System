@@ -69,10 +69,13 @@ public class AiSyncService {
 
         String cameraQuery = """
             SELECT UPPER(c.camera_code) AS camera_code,
-                   a.name AS area_name,
-                   (a.area_level = 'PUBLIC' OR a.area_access_level <= 1) AS is_public
+                   COALESCE(a.name, c.name) AS area_name,
+                   (
+                       c.camera_type IN ('PUBLIC_AREA', 'CORRIDOR')
+                       OR (a.id IS NOT NULL AND (a.area_level = 'PUBLIC' OR a.area_access_level <= 1))
+                   ) AS is_public
             FROM cameras c
-            JOIN areas a ON c.area_id = a.id
+            LEFT JOIN areas a ON c.area_id = a.id
             WHERE c.deleted_at IS NULL
         """;
 

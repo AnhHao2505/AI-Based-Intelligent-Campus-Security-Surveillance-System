@@ -26,18 +26,19 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.StringJoiner;
 import java.util.UUID;
 
 /**
- * ADMIN gắn ảnh khách đã đồng ý tại quầy (BR-GV-14..17) và xin URL xem ảnh (BR-GV-18).
+ * Ảnh khách (BR-GV-14..18): host gắn ảnh khi tạo lượt ({@link GuestVisitService#create}) và thay ảnh khi lượt còn chờ
+ * duyệt hoặc đã duyệt nhưng chưa tới giờ bắt đầu; host / FM / ADMIN xin URL xem ảnh có hạn.
+ * Mỗi ảnh: JPG / PNG ≤ icss.guest.photo-max-kb, trích embedding 512d đúng 1 khuôn mặt, không trùng khuôn mặt người dùng
+ * đang hoạt động, khách khác trong cùng lượt, hay khách của lượt chờ duyệt / đã duyệt chồng giờ
+ * ({@link FaceDuplicateCheckService#findDuplicateForGuest}).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class GuestPhotoService {
-
-    private static final int EMBEDDING_DIM = 512;
 
     private final GuestVisitRepository guestVisitRepository;
     private final GuestRepository guestRepository;
@@ -49,72 +50,124 @@ public class GuestPhotoService {
     private final GuestBiometricService biometricService;
     private final GuestPhotoDeletionService photoDeletion;
     private final AuditService auditService;
-    // L3: gắn / gắn lại ảnh -> báo AI nạp lại kho khuôn mặt sau commit
+    // L3: gắn / thay ảnh -> báo bên nhận diện nạp lại kho khuôn mặt sau commit
     private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
+    private final FaceDuplicateCheckService duplicateCheck;
 
     /** Giới hạn kỹ thuật của ảnh đầu vào (property vận hành icss.guest.photo-max-kb), không phải tham số nghiệp vụ. */
     @Value("${icss.guest.photo-max-kb:2048}")
     private int photoMaxKb;
 
-    @Transactional
-    public GuestResponse attach(UUID visitId, UUID guestId, MultipartFile file, Boolean consentConfirmed,
-                                String consentNoticeVersion, String adminEmail) {
-        User admin = userRepository.findByEmail(adminEmail).orElseThrow(() -> new GuestException(GuestErrorCode.ERR_GUEST_032));
-        // BR-GV-15
-        String currentVersion = systemConfigService.getString(ConfigKey.GUEST_CONSENT_NOTICE_VERSION);
+    /** Ảnh đã đọc, đúng định dạng và dung lượng, chưa trích khuôn mặt. */
+    public record ImageFile(byte[] bytes, String contentType, String filename) {
+    }
+
+    /** Ảnh đã kiểm xong (đúng 1 khuôn mặt, không trùng ai), kèm embedding; chưa lưu. */
+    public record CheckedPhoto(ImageFile image, List<Float> embedding) {
+    }
+
+    public int getPhotoMaxKb() {
+        return photoMaxKb;
+    }
+
+    public String currentConsentVersion() {
+        return systemConfigService.getString(ConfigKey.GUEST_CONSENT_NOTICE_VERSION);
+    }
+
+    /** BR-GV-15: người gửi xác nhận khách đã đồng ý theo thông báo phiên bản hiện hành. Trả phiên bản hiện hành. */
+    public String requireConsent(Boolean consentConfirmed, String consentNoticeVersion) {
+        String currentVersion = currentConsentVersion();
         if (!Boolean.TRUE.equals(consentConfirmed) || consentNoticeVersion == null
                 || !currentVersion.equals(consentNoticeVersion.trim())) {
             throw new GuestException(GuestErrorCode.ERR_GUEST_031, currentVersion);
         }
-        byte[] bytes = readImage(file);
-        String contentType = isPng(file) ? "image/png" : "image/jpeg";
+        return currentVersion;
+    }
 
-        // BR-GV-14 (khoá dòng lượt: không để gắn ảnh chen giữa lúc thu hồi / huỷ)
-        GuestVisit visit = guestVisitRepository.findByIdForUpdate(visitId).orElseThrow(() -> new GuestException(GuestErrorCode.ERR_GUEST_032));
-        Guest guest = guestRepository.findByIdAndVisitId(guestId, visitId).orElseThrow(() -> new GuestException(GuestErrorCode.ERR_GUEST_032));
-        OffsetDateTime now = OffsetDateTime.now();
-        if (visit.getStatus() != GuestVisitStatus.APPROVED || !now.isBefore(visit.getEndTime())
-                || guest.getBiometricStatus() == GuestBiometricStatus.DELETED) {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_030);
+    /** BR-GV-14: có ảnh, JPG / PNG, không quá photoMaxKb. Chưa gọi trích khuôn mặt. */
+    public ImageFile readImage(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_020, "ảnh khuôn mặt");
         }
-
-        // BR-GV-17: embedding 512d từ ai-service (endpoint không ghi face_data)
-        GuestFaceEmbeddingClient.Result ai;
+        boolean png = isPng(file);
+        if (!(png || isJpeg(file)) || file.getSize() > (long) photoMaxKb * 1024) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_033, photoMaxKb);
+        }
         try {
-            ai = faceClient.extract(bytes, file.getOriginalFilename(), guest.getId().toString());
+            return new ImageFile(file.getBytes(), png ? "image/png" : "image/jpeg", file.getOriginalFilename());
         } catch (Exception ex) {
-            log.warn("[GUEST-PHOTO] ai-service failed: {}", ex.getMessage());
-            throw new GuestException(GuestErrorCode.ERR_GUEST_035);
+            throw new GuestException(GuestErrorCode.ERR_GUEST_033, photoMaxKb);
         }
-        if (ai == null) {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_035);
-        }
-        if (ai.faceCount() != 1) {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_034, ai.faceCount());
-        }
-        if (ai.embedding() == null || ai.embedding().size() != EMBEDDING_DIM) {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_035);
-        }
+    }
 
-        // Ảnh cũ còn treo trên kho từ lần xoá lỗi trước: phải xoá được rồi mới gắn ảnh mới
-        // (xoá trước commit ở đây vẫn an toàn: object đó đã được DB đánh dấu là phải xoá)
-        if (guest.getPendingDeleteObjectKey() != null && !biometricService.retryPendingPhotoDeletion(guest)) {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_036);
-        }
-
-        String key = "visits/" + visitId + "/" + guestId + "/" + UUID.randomUUID() + ("image/png".equals(contentType) ? ".png" : ".jpg");
+    /**
+     * BR-GV-17: embedding 512d từ dịch vụ trích khuôn mặt (endpoint không ghi face_data), đúng 1 khuôn mặt;
+     * rồi kiểm trùng với người dùng đang hoạt động, khách khác trong cùng lượt và khách của lượt PENDING / APPROVED khác
+     * có khung giờ giao với lượt này.
+     *
+     * @param logCode        mã gửi kèm để bên kia ghi log (id khách, không gửi họ tên)
+     * @param visit          lượt của khách (lấy id + khung giờ; khi tạo lượt, khách cùng đơn so bằng requireDistinctWithinVisit)
+     * @param excludeGuestId khách đang thay ảnh (không so với chính mình), null khi tạo mới
+     */
+    public CheckedPhoto extractAndCheck(ImageFile image, String logCode, GuestVisit visit, UUID excludeGuestId) {
+        GuestFaceEmbeddingClient.Result result;
         try {
-            photoStorage.upload(key, bytes, contentType);
+            result = faceClient.extract(image.bytes(), image.filename(), logCode);
+        } catch (Exception ex) {
+            log.warn("[GUEST-PHOTO] face extraction failed: {}", ex.getMessage());
+            throw new GuestException(GuestErrorCode.ERR_GUEST_035);
+        }
+        if (result == null) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_035);
+        }
+        if (result.faceCount() != 1) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_034, result.faceCount());
+        }
+        if (result.embedding() == null || result.embedding().size() != FaceDuplicateCheckService.EMBEDDING_DIM) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_035);
+        }
+        duplicateCheck.findDuplicateForGuest(result.embedding(), visit.getId(), visit.getStartTime(), visit.getEndTime(),
+                excludeGuestId).ifPresent(match -> {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_038, match.describe());
+        });
+        return new CheckedPhoto(image, result.embedding());
+    }
+
+    /**
+     * Các khách trong cùng một lượt chưa có trong DB lúc kiểm: so ảnh mới với ảnh của các khách trước đó trong lượt
+     * bằng cùng cosine + ngưỡng. Trùng -> ERR_GUEST_038 nêu tên khách kia.
+     */
+    public void requireDistinctWithinVisit(CheckedPhoto photo, List<CheckedPhoto> earlier, List<Guest> earlierGuests) {
+        double threshold = duplicateCheck.threshold();
+        for (int j = 0; j < earlier.size(); j++) {
+            if (FaceDuplicateCheckService.cosine(photo.embedding(), earlier.get(j).embedding()) >= threshold) {
+                throw new GuestException(GuestErrorCode.ERR_GUEST_038,
+                        "khách " + earlierGuests.get(j).getFullName() + " trong cùng lượt này");
+            }
+        }
+    }
+
+    /**
+     * Lưu ảnh vào kho riêng + embedding (expires = end + GUEST_FACE_RETENTION_HOURS), ghi người xác nhận đồng ý và
+     * audit ATTACH_PHOTO. Khách đã có ảnh (thay ảnh, BR-GV-16): audit DELETE_BIOMETRIC cho ảnh cũ, object cũ xoá sau commit.
+     * Chạy trong transaction của người gọi; rollback thì object mới bị gỡ khỏi kho.
+     */
+    void store(GuestVisit visit, Guest guest, CheckedPhoto photo, User actor, String consentVersion, OffsetDateTime now) {
+        ImageFile image = photo.image();
+        String key = "visits/" + visit.getId() + "/" + guest.getId() + "/" + UUID.randomUUID()
+                + ("image/png".equals(image.contentType()) ? ".png" : ".jpg");
+        try {
+            photoStorage.upload(key, image.bytes(), image.contentType());
         } catch (Exception ex) {
             log.warn("[GUEST-PHOTO] upload failed: {}", ex.getMessage());
             throw new GuestException(GuestErrorCode.ERR_GUEST_036);
         }
         removeOnRollback(key);
 
-        AuditActor actor = AuditActor.user(admin);
+        AuditActor auditActor = AuditActor.user(actor);
         GuestAuditSnapshot before = GuestBiometricService.snapshot(guest, null);
-        GuestFaceEmbedding embedding = embeddingRepository.findById(guestId).orElse(null);
-        // BR-GV-16: gắn lại -> xoá ảnh + embedding cũ (audit)
+        GuestFaceEmbedding embedding = embeddingRepository.findById(guest.getId()).orElse(null);
+        // BR-GV-16: thay ảnh -> xoá ảnh + embedding cũ (audit)
         if (GuestBiometricService.WITH_PHOTO.contains(guest.getBiometricStatus())) {
             String oldKey = guest.getPhotoObjectKey();
             if (oldKey != null) {
@@ -123,22 +176,22 @@ public class GuestPhotoService {
                 photoDeletion.deleteAfterCommit(guest.getId(), oldKey);
             }
             auditService.record(AuditTargetType.GUEST, AuditAction.DELETE_BIOMETRIC, guest.getId().toString(), null, null,
-                    before, new GuestAuditSnapshot(guest.getId(), visitId, GuestBiometricStatus.DELETED,
+                    before, new GuestAuditSnapshot(guest.getId(), visit.getId(), GuestBiometricStatus.DELETED,
                             guest.getConsentNoticeVersion(), oldKey != null, false),
-                    "Gắn lại ảnh khách, xoá ảnh và embedding cũ", actor);
+                    "Thay ảnh khách, xoá ảnh và embedding cũ", auditActor);
         }
 
         guest.setBiometricStatus(GuestBiometricStatus.PHOTO_READY);
         guest.setPhotoObjectKey(key);
-        guest.setConsentConfirmedBy(admin);
+        guest.setConsentConfirmedBy(actor);
         guest.setConsentConfirmedAt(now);
-        guest.setConsentNoticeVersion(currentVersion);
+        guest.setConsentNoticeVersion(consentVersion);
         guest.setPhotoAttachedAt(now);
         guest.setBiometricDeletedAt(null);
         guestRepository.save(guest);
 
         OffsetDateTime expiresAt = visit.getEndTime().plusHours(systemConfigService.getInt(ConfigKey.GUEST_FACE_RETENTION_HOURS));
-        String vector = toVector(ai.embedding());
+        String vector = FaceDuplicateCheckService.toVector(photo.embedding());
         if (embedding != null) {
             // cùng khoá chính: thay tại chỗ, không xoá rồi chèn trong cùng persistence context
             embedding.setEmbedding(vector);
@@ -146,21 +199,66 @@ public class GuestPhotoService {
             embedding.setCreatedAt(now);
             embeddingRepository.save(embedding);
         } else {
-            embeddingRepository.save(GuestFaceEmbedding.builder().guestId(guestId).embedding(vector).expiresAt(expiresAt).createdAt(now).build());
+            embeddingRepository.save(GuestFaceEmbedding.builder().guestId(guest.getId()).embedding(vector)
+                    .expiresAt(expiresAt).createdAt(now).build());
         }
 
         auditService.record(AuditTargetType.GUEST, AuditAction.ATTACH_PHOTO, guest.getId().toString(), null, null,
-                before, GuestBiometricService.snapshot(guest, null), null, actor);
+                before, GuestBiometricService.snapshot(guest, null), null, auditActor);
+    }
+
+    /**
+     * Host thay ảnh khách của chính lượt mình (A5): lượt PENDING, hoặc APPROVED mà chưa tới giờ bắt đầu.
+     * Người khác (kể cả FM) -> 404 như xem lượt. Thay ảnh tăng version lượt để FM đang xem bản cũ phải tải lại
+     * trước khi duyệt / từ chối / thu hồi (ERR_GUEST_016).
+     */
+    @Transactional
+    public GuestResponse attach(UUID visitId, UUID guestId, MultipartFile file, Boolean consentConfirmed,
+                                String consentNoticeVersion, String actorEmail) {
+        User actor = userRepository.findByEmail(actorEmail).orElseThrow(() -> new GuestException(GuestErrorCode.ERR_GUEST_001));
+        String consentVersion = requireConsent(consentConfirmed, consentNoticeVersion);
+        ImageFile image = readImage(file);
+
+        // khoá dòng lượt: không để thay ảnh chen giữa lúc duyệt / từ chối / huỷ / thu hồi
+        GuestVisit visit = guestVisitRepository.findByIdForUpdate(visitId).orElseThrow(() -> new GuestException(GuestErrorCode.ERR_GUEST_001));
+        if (!visit.getHost().getId().equals(actor.getId())) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_001);
+        }
+        Guest guest = guestRepository.findByIdAndVisitId(guestId, visitId).orElseThrow(() -> new GuestException(GuestErrorCode.ERR_GUEST_032));
+        OffsetDateTime now = OffsetDateTime.now();
+        boolean editable = visit.getStatus() == GuestVisitStatus.PENDING || visit.getStatus() == GuestVisitStatus.APPROVED;
+        if (!editable || !now.isBefore(visit.getStartTime()) || guest.getBiometricStatus() == GuestBiometricStatus.DELETED) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_039);
+        }
+
+        CheckedPhoto photo = extractAndCheck(image, guest.getId().toString(), visit, guest.getId());
+
+        // Ảnh cũ còn treo trên kho từ lần xoá lỗi trước: phải xoá được rồi mới gắn ảnh mới
+        // (xoá trước commit ở đây vẫn an toàn: object đó đã được DB đánh dấu là phải xoá)
+        if (guest.getPendingDeleteObjectKey() != null && !biometricService.retryPendingPhotoDeletion(guest)) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_036);
+        }
+
+        store(visit, guest, photo, actor, consentVersion, now);
+        GuestVisitService.bumpVersion(visit);
+        guestVisitRepository.save(visit);
         aiFaceCacheRefreshNotifier.notifyAfterCommit();
         return new GuestResponse(guest.getId(), guest.getFullName(), guest.getOrganization(), guest.getBiometricStatus(),
                 guest.getPhotoAttachedAt(), guest.getConsentNoticeVersion(), guest.getAnonymizedAt() != null);
     }
 
-    /** BR-GV-18: URL xem ảnh có hạn; mỗi lần cấp ghi audit (snapshot không chứa URL). */
+    /**
+     * BR-GV-18: URL xem ảnh có hạn; mỗi lần cấp ghi audit VIEW_PHOTO (snapshot không chứa URL).
+     * FM và ADMIN xem mọi lượt; host chỉ xem khách của lượt mình (người khác -> 404 như xem lượt).
+     */
     @Transactional
-    public GuestPhotoUrlResponse issueViewUrl(UUID visitId, UUID guestId, String adminEmail) {
-        User admin = userRepository.findByEmail(adminEmail).orElseThrow(() -> new GuestException(GuestErrorCode.ERR_GUEST_032));
+    public GuestPhotoUrlResponse issueViewUrl(UUID visitId, UUID guestId, String viewerEmail) {
+        User viewer = userRepository.findByEmail(viewerEmail).orElseThrow(() -> new GuestException(GuestErrorCode.ERR_GUEST_001));
         Guest guest = guestRepository.findByIdAndVisitId(guestId, visitId).orElseThrow(() -> new GuestException(GuestErrorCode.ERR_GUEST_032));
+        boolean staff = viewer.getRole() == Role.FACILITY_MANAGER || viewer.getRole() == Role.ADMIN;
+        if (!staff && !guest.getVisit().getHost().getId().equals(viewer.getId())) {
+            throw new GuestException(GuestErrorCode.ERR_GUEST_001);
+        }
         if (!GuestBiometricService.WITH_PHOTO.contains(guest.getBiometricStatus()) || guest.getPhotoObjectKey() == null) {
             throw new GuestException(GuestErrorCode.ERR_GUEST_037);
         }
@@ -174,20 +272,8 @@ public class GuestPhotoService {
         }
         GuestAuditSnapshot snap = GuestBiometricService.snapshot(guest, null);
         auditService.record(AuditTargetType.GUEST, AuditAction.VIEW_PHOTO, guest.getId().toString(), null, null,
-                snap, snap, null, AuditActor.user(admin));
+                snap, snap, null, AuditActor.user(viewer));
         return new GuestPhotoUrlResponse(url, ttl);
-    }
-
-    private byte[] readImage(MultipartFile file) {
-        boolean okType = file != null && !file.isEmpty() && (isPng(file) || isJpeg(file));
-        if (!okType || file.getSize() > (long) photoMaxKb * 1024) {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_033, photoMaxKb);
-        }
-        try {
-            return file.getBytes();
-        } catch (Exception ex) {
-            throw new GuestException(GuestErrorCode.ERR_GUEST_033, photoMaxKb);
-        }
     }
 
     private static boolean isPng(MultipartFile f) {
@@ -200,14 +286,6 @@ public class GuestPhotoService {
         String ct = f.getContentType() != null ? f.getContentType().toLowerCase() : "";
         String name = f.getOriginalFilename() != null ? f.getOriginalFilename().toLowerCase() : "";
         return ct.equals("image/jpeg") || ct.equals("image/jpg") || (ct.isEmpty() && (name.endsWith(".jpg") || name.endsWith(".jpeg")));
-    }
-
-    private static String toVector(List<Float> values) {
-        StringJoiner sj = new StringJoiner(",", "[", "]");
-        for (Float v : values) {
-            sj.add(Float.toString(v));
-        }
-        return sj.toString();
     }
 
     /** Transaction rollback sau khi đã tải ảnh lên -> xoá object mới để không để lại ảnh mồ côi. */
