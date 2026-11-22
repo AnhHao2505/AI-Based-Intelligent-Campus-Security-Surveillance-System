@@ -6,10 +6,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class UserAccessLevelHelper {
+
+    /**
+     * BR-AL-33: cấp ban đầu Admin được chọn khi tạo tay người dùng thường (không cấp 3 lúc tạo; đổi về sau do FM).
+     * Quy tắc nghiệp vụ cố định, không phải tham số vận hành; tài khoản hệ thống không chọn cấp.
+     */
+    public static final List<Integer> NORMAL_USER_INITIAL_LEVELS = List.of(1, 2);
 
     private final SystemConfigService systemConfigService;
 

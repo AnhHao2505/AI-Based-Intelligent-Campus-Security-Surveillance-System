@@ -70,6 +70,9 @@ public class UserService {
             Role.NORMAL_USER
     );
 
+    /** BR-AL-33: lý do của audit USER_ACCESS_LEVEL / CREATE khi Admin tạo tay tài khoản. */
+    static final String INITIAL_ACCESS_LEVEL_AUDIT_REASON = "Đặt cấp truy cập ban đầu khi tạo tài khoản";
+
     private static final String CHAR_LOWER = "abcdefghijklmnopqrstuvwxyz";
     private static final String CHAR_UPPER = CHAR_LOWER.toUpperCase();
     private static final String NUMBER = "0123456789";
@@ -116,6 +119,19 @@ public class UserService {
             throw new IllegalArgumentException("Vai trò không hợp lệ. Chỉ chấp nhận: FACILITY_MANAGER, GUARD, NORMAL_USER");
         }
 
+        // BR-AL-33: cấp ban đầu. Người dùng thường: Admin chọn trong NORMAL_USER_INITIAL_LEVELS, không gửi -> mặc định.
+        // Tài khoản hệ thống: bỏ qua giá trị client gửi, luôn lấy ACCESS_LEVEL_DEFAULT_<ROLE>. Kiểm trước khi đăng ký khuôn mặt.
+        Integer requestedAccessLevel = role == Role.NORMAL_USER ? request.getAccessLevel() : null;
+        if (requestedAccessLevel != null
+                && !UserAccessLevelHelper.NORMAL_USER_INITIAL_LEVELS.contains(requestedAccessLevel)) {
+            throw new com.fa26se040.icss.exception.AccessControlException(
+                    com.fa26se040.icss.exception.AccessControlErrorCode.ERR_AC_014,
+                    joinLevels(UserAccessLevelHelper.NORMAL_USER_INITIAL_LEVELS), requestedAccessLevel);
+        }
+        if (role != Role.NORMAL_USER && request.getAccessLevel() != null) {
+            log.info("Ignoring client access level {} for system account role {}", request.getAccessLevel(), role);
+        }
+
         // Apply shared normalization
         String normUserCode = StringNormalizer.normCode(request.getUserCode());
         String normEmail = StringNormalizer.normEmail(request.getEmail());
@@ -145,14 +161,14 @@ public class UserService {
 
         // 2. Begin DB Transaction for User, FaceData
         try {
-            int defaultAccessLevel = resolveDefaultAccessLevel(role);
+            int initialAccessLevel = requestedAccessLevel != null ? requestedAccessLevel : resolveDefaultAccessLevel(role);
             User user = User.builder()
                     .fullName(normFullName)
                     .userCode(normUserCode)
                     .email(normEmail)
                     .password(encodedPassword)
                     .role(role)
-                    .accessLevel(defaultAccessLevel)
+                    .accessLevel(initialAccessLevel)
                     .isActive(true) // BR-07: is_active = true by default
                     .createdAt(OffsetDateTime.now())
                     .updatedAt(OffsetDateTime.now())
@@ -163,8 +179,14 @@ public class UserService {
             faceDataService.linkToUser(normUserCode, savedUser);
 
             // PR-AUDIT (B3): CREATE / USER_ACCOUNT cùng transaction — lỗi ghi audit -> tài khoản không được tạo
+            AuditActor creator = currentActor();
             recordAccountAudit(com.fa26se040.icss.enums.AuditAction.CREATE, savedUser, null, accountSnapshot(savedUser),
-                    currentActor());
+                    creator);
+            // BR-AL-33: cấp ban đầu ghi thêm USER_ACCESS_LEVEL / CREATE (module ACCESS_CONTROL, V135) để cả FM tra được
+            auditService.record(com.fa26se040.icss.enums.AuditTargetType.USER_ACCESS_LEVEL,
+                    com.fa26se040.icss.enums.AuditAction.CREATE, savedUser.getId().toString(), null, savedUser, null,
+                    new com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccessLevelAuditSnapshot(savedUser.getAccessLevel()),
+                    INITIAL_ACCESS_LEVEL_AUDIT_REASON, creator);
 
             // 6b. Gửi email thông tin tài khoản và mật khẩu khởi tạo — M-04a: chỉ sau khi transaction commit
             sendAccountSetupEmailAfterCommit(savedUser.getEmail(), savedUser.getFullName(), savedUser.getUserCode(), tempPassword);
@@ -891,6 +913,16 @@ public class UserService {
 
     public int resolveDefaultAccessLevel(Role role) {
         return userAccessLevelHelper.resolveDefaultAccessLevel(role);
+    }
+
+    /** ERR_AC_014: [1, 2] -> "1 hoặc 2" (nội suy từ hằng, không viết cứng con số vào câu). */
+    private static String joinLevels(List<Integer> levels) {
+        if (levels.size() <= 1) {
+            return levels.isEmpty() ? "" : String.valueOf(levels.get(0));
+        }
+        String head = levels.subList(0, levels.size() - 1).stream().map(String::valueOf)
+                .collect(java.util.stream.Collectors.joining(", "));
+        return head + " hoặc " + levels.get(levels.size() - 1);
     }
 
     @Transactional

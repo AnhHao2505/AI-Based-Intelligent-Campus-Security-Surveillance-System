@@ -45,11 +45,22 @@ import { LoadingState, EmptyState, ErrorState, Select } from "../../components/u
 import { formatDateTime, formatTime } from "../../utils/formatDateTime";
 import useDialogA11y from "../../hooks/useDialogA11y";
 import AccountAuditLogTab from "./AccountAuditLogTab";
+import {
+	NORMAL_USER_INITIAL_LEVELS,
+	describeInitialLevel,
+} from "../../constants/accessLevels";
 
 const DEFAULT_PAGE_SIZE = 10;
 
 // System account roles eligible for creation
 const SYSTEM_STAFF_ROLES = [ROLES.FACILITY_MANAGER, ROLES.GUARD];
+
+// BR-AL-33: cấp mặc định theo role đọc từ cấu hình ACCESS_LEVEL_DEFAULT_<ROLE>, không viết cứng số
+const CREATABLE_ROLES = [ROLES.NORMAL_USER, ...SYSTEM_STAFF_ROLES];
+const parseLevel = (raw) => {
+	const n = parseInt(raw, 10);
+	return Number.isFinite(n) ? n : null;
+};
 
 // UI-11: cùng quy tắc backend StaffAccountCreateRequest (fullName 3–100, userCode 1–50 ^[a-zA-Z0-9_-]+$, email ≤ 255)
 const USER_CODE_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -122,6 +133,9 @@ export default function ManageAccountPage() {
 	});
 	const [frontFile, setFrontFile] = useState(null);
 	const [frontPreview, setFrontPreview] = useState(null);
+	// BR-AL-33: { defaults: { ROLE: cấp }, guestHostMinLevel } đọc mỗi lần mở form tạo; null = chưa đọc / lỗi
+	const [levelConfig, setLevelConfig] = useState(null);
+	const [levelConfigError, setLevelConfigError] = useState(false);
 
 	// Bulk Import Normal User Form State
 	const [bulkZipFile, setBulkZipFile] = useState(null);
@@ -482,6 +496,37 @@ export default function ManageAccountPage() {
 		dialogFocus,
 	);
 
+	// BR-AL-33: cấp mặc định theo role (ACCESS_LEVEL_DEFAULT_*) và ngưỡng mời khách (GUEST_HOST_MIN_LEVEL)
+	const loadLevelConfig = async () => {
+		setLevelConfig(null);
+		setLevelConfigError(false);
+		try {
+			const list = await getSystemConfigs();
+			const valueOf = (key) =>
+				parseLevel((list || []).find((c) => c.configKey === key)?.configValue);
+			const defaults = {};
+			for (const role of CREATABLE_ROLES) {
+				defaults[role] = valueOf(`ACCESS_LEVEL_DEFAULT_${role}`);
+			}
+			setLevelConfig({
+				defaults,
+				guestHostMinLevel: valueOf("GUEST_HOST_MIN_LEVEL"),
+			});
+			// Chọn sẵn cấp mặc định của người dùng thường nếu nằm trong các cấp được chọn khi tạo
+			const normalDefault = defaults[ROLES.NORMAL_USER];
+			if (NORMAL_USER_INITIAL_LEVELS.includes(normalDefault)) {
+				setCreateForm((prev) =>
+					prev.accessLevel === ""
+						? { ...prev, accessLevel: String(normalDefault) }
+						: prev,
+				);
+			}
+		} catch (err) {
+			console.error("Không đọc được cấu hình cấp truy cập mặc định:", err);
+			setLevelConfigError(true);
+		}
+	};
+
 	// Open Create Modal
 	const handleOpenCreate = () => {
 		setCreateForm({
@@ -489,11 +534,13 @@ export default function ManageAccountPage() {
 			userCode: "",
 			email: "",
 			role: activeTab === "NORMAL" ? "NORMAL_USER" : ROLES.GUARD,
+			accessLevel: "",
 		});
 		setFrontFile(null);
 		setFrontPreview(null);
 		setFormErrors({});
 		setModalType("create");
+		loadLevelConfig();
 	};
 
 	// Handle Image File Input Change
@@ -570,6 +617,11 @@ export default function ManageAccountPage() {
 				userCode: createForm.userCode.trim(),
 				email: createForm.email.trim(),
 				role: isNormal ? "NORMAL_USER" : createForm.role,
+				// BR-AL-33: chỉ người dùng thường gửi cấp; để trống thì backend dùng ACCESS_LEVEL_DEFAULT_NORMAL_USER
+				accessLevel:
+					isNormal && createForm.accessLevel !== ""
+						? Number(createForm.accessLevel)
+						: undefined,
 				faceImage: frontFile,
 			});
 			showToast(
@@ -587,7 +639,9 @@ export default function ManageAccountPage() {
 				(isNormal
 					? "Không thể tạo tài khoản người dùng"
 					: "Không thể tạo tài khoản cán bộ");
-			if (msg.toLowerCase().includes("email")) {
+			if (err.code === "ERR_AC_014") {
+				setFormErrors({ accessLevel: msg });
+			} else if (msg.toLowerCase().includes("email")) {
 				setFormErrors({ email: msg });
 			} else if (
 				msg.toLowerCase().includes("mã") ||
@@ -867,6 +921,7 @@ export default function ManageAccountPage() {
 								<th>Họ và tên</th>
 								<th>Email</th>
 								{activeTab === "SYSTEM" && <th>Quyền</th>}
+								<th>Cấp truy cập</th>
 								<th>Trạng thái</th>
 								<th className="account-col-actions" style={{ textAlign: "center" }}>Thao tác</th>
 							</tr>
@@ -907,6 +962,12 @@ export default function ManageAccountPage() {
 										<td>
 											<div
 												className="account-skeleton-block"
+												style={{ width: "50px" }}
+											/>
+										</td>
+										<td>
+											<div
+												className="account-skeleton-block"
 												style={{ width: "90px", borderRadius: "9999px" }}
 											/>
 										</td>
@@ -920,7 +981,7 @@ export default function ManageAccountPage() {
 								))
 							) : error ? (
 								<tr>
-									<td colSpan={activeTab === "NORMAL" ? 5 : 6}>
+									<td colSpan={activeTab === "NORMAL" ? 6 : 7}>
 										<div className="account-empty-state">
 											<div className="account-empty-state__icon">
 												<AlertCircle size={28} />
@@ -942,7 +1003,7 @@ export default function ManageAccountPage() {
 								</tr>
 							) : users.length === 0 ? (
 								<tr>
-									<td colSpan={activeTab === "NORMAL" ? 5 : 6}>
+									<td colSpan={activeTab === "NORMAL" ? 6 : 7}>
 										<div className="account-empty-state">
 											<div className="account-empty-state__icon">
 												<Users size={28} />
@@ -1021,6 +1082,11 @@ export default function ManageAccountPage() {
 													</span>
 												</td>
 											)}
+
+											{/* BR-AL-33: chỉ đọc; đổi cấp sau khi tạo do FM ở trang Cấp truy cập */}
+											<td className="account-cell--level">
+												{item.accessLevel != null ? `Cấp ${item.accessLevel}` : "—"}
+											</td>
 
 											<td>
 												<span
@@ -1391,6 +1457,64 @@ export default function ManageAccountPage() {
 											disabled={isSubmitting}
 											options={SYSTEM_STAFF_ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] || r }))}
 										/>
+										{/* BR-AL-33: tài khoản hệ thống không chọn cấp; hiện cấp theo ACCESS_LEVEL_DEFAULT_<ROLE> */}
+										<p className="account-form-readonly" aria-live="polite">
+											Cấp truy cập:{" "}
+											<strong>
+												{levelConfig?.defaults?.[createForm.role] ?? "—"}
+											</strong>
+											<span className="account-form-note">
+												{levelConfigError
+													? " (không đọc được cấu hình, hệ thống vẫn gán theo cấu hình mặc định)"
+													: " (theo cấu hình mặc định của vai trò)"}
+											</span>
+										</p>
+									</div>
+								)}
+
+								{activeTab === "NORMAL" && (
+									<div className="account-form-group">
+										<label
+											className="account-form-label"
+											htmlFor="account-create-access-level"
+										>
+											<span>
+												Cấp truy cập ban đầu
+												<span className="account-form-label__required">*</span>
+											</span>
+										</label>
+										<Select
+											id="account-create-access-level"
+											value={createForm.accessLevel}
+											onChange={(e) => {
+												setCreateForm({ ...createForm, accessLevel: e.target.value });
+												if (formErrors.accessLevel) {
+													setFormErrors((prev) => ({ ...prev, accessLevel: null }));
+												}
+											}}
+											disabled={isSubmitting}
+											placeholder={
+												levelConfigError
+													? "Theo cấu hình mặc định"
+													: "Đang tải cấp mặc định..."
+											}
+											options={NORMAL_USER_INITIAL_LEVELS.map((lv) => ({
+												value: String(lv),
+												label: `Cấp ${lv}`,
+											}))}
+											error={formErrors.accessLevel || undefined}
+										/>
+										<ul className="account-level-desc">
+											{NORMAL_USER_INITIAL_LEVELS.map((lv) => (
+												<li key={lv}>
+													<strong>Cấp {lv}:</strong>{" "}
+													{describeInitialLevel(lv, levelConfig?.guestHostMinLevel ?? null)}
+												</li>
+											))}
+										</ul>
+										<span className="account-form-note">
+											Sau khi tạo, chỉ Quản lý cơ sở vật chất đổi được cấp (trang Cấp truy cập).
+										</span>
 									</div>
 								)}
 
