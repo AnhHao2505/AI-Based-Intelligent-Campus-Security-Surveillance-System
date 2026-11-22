@@ -43,6 +43,9 @@ import java.util.UUID;
 @Slf4j
 public class FaceDataService {
 
+    /** Ảnh không có khuôn mặt: face_count = 0, hoặc ai-service trả 400 "không phát hiện khuôn mặt". */
+    static final String NO_FACE_MESSAGE = "Không phát hiện thấy khuôn mặt trong ảnh.";
+
     private final FaceDataRepository faceDataRepository;
     private final UserRepository userRepository;
     private final MinioStorageService minioStorageService;
@@ -148,7 +151,7 @@ public class FaceDataService {
                 throw new FaceDetectionException("Ảnh chứa nhiều hơn 1 khuôn mặt");
             }
             if (aiResult.getFaceCount() == 0) {
-                throw new FaceDetectionException("Không phát hiện thấy khuôn mặt trong ảnh.");
+                throw new FaceDetectionException(NO_FACE_MESSAGE);
             }
 
             // Không đăng ký khuôn mặt đã thuộc về người khác: người dùng chưa xoá mềm, kể cả đang bị vô hiệu hoá (trừ chính
@@ -203,6 +206,10 @@ public class FaceDataService {
             throw new AiServiceUnavailableException("Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.");
         } catch (HttpStatusCodeException e) {
             log.error("AI Service trả về lỗi [{}] cho [{}]: {}", e.getStatusCode(), code, e.getResponseBodyAsString());
+            // ai-service báo 400 khi ảnh không có khuôn mặt -> cùng câu với nhánh face_count = 0 ở trên
+            if (AiFaceRegistrationErrors.isNoFaceDetected(e)) {
+                throw new FaceDetectionException(NO_FACE_MESSAGE);
+            }
             if (e.getStatusCode().value() == 422 || e.getStatusCode().value() == 400) {
                 throw new FaceDetectionException("Không thể xử lý khuôn mặt trong ảnh: " + e.getResponseBodyAsString());
             }

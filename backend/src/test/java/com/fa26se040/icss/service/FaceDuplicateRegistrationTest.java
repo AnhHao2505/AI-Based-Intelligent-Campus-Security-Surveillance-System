@@ -12,6 +12,8 @@ import com.fa26se040.icss.enums.GuestVisitStatus;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.config.AiServiceRestTemplate;
 import com.fa26se040.icss.exception.FaceDuplicateException;
+import com.fa26se040.icss.exception.GuestErrorCode;
+import com.fa26se040.icss.exception.GuestException;
 import com.fa26se040.icss.repository.FaceDataRepository;
 import com.fa26se040.icss.repository.GuestFaceEmbeddingRepository;
 import com.fa26se040.icss.repository.GuestVisitRepository;
@@ -26,6 +28,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -38,6 +41,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.ByteArrayOutputStream;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -58,6 +62,8 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -499,5 +505,114 @@ class FaceDuplicateRegistrationTest extends AbstractIntegrationTest {
         return userRepository.save(User.builder().userCode(code).fullName("Face dup " + tag)
                 .email(code.toLowerCase(Locale.ROOT) + "@fpt.edu.vn").role(Role.NORMAL_USER).accessLevel(1)
                 .isActive(true).build());
+    }
+
+    // ------------------------------------------------------------------ ai-service trả 400 "không phát hiện khuôn mặt"
+
+    /** Nguyên văn ai-service/src/main.py khi ảnh không có khuôn mặt (HTTP 400). */
+    private static final String AI_NO_FACE_BODY = "{\"detail\":\"Không phát hiện thấy khuôn mặt rõ nét trong ảnh chính diện. "
+            + "Vui lòng chụp lại ảnh chính diện rõ mặt.\"}";
+    /** 400 khác của cùng endpoint (ảnh hỏng): không phải "0 khuôn mặt". */
+    private static final String AI_BAD_IMAGE_BODY = "{\"detail\":\"Không thể đọc file ảnh chính diện: cannot identify image file\"}";
+
+    @Autowired private GuestPhotoService guestPhotoService;
+    @Autowired private GuestFaceEmbeddingClient guestFaceEmbeddingClient;
+
+    private void expectAiError(HttpStatus status, String body) {
+        aiServer.expect(requestTo(endsWith(AI_PATH)))
+                .andRespond(withStatus(status).contentType(MediaType.APPLICATION_JSON).body(body));
+    }
+
+    private void expectAiTimeout() {
+        aiServer.expect(requestTo(endsWith(AI_PATH))).andRespond(withException(new SocketTimeoutException("Read timed out")));
+    }
+
+    private GuestErrorCode guestPhotoError() {
+        assertThat(ReflectionTestUtils.getField(guestFaceEmbeddingClient, "restTemplate"))
+                .as("client khách phải gọi qua cùng AiServiceRestTemplate đã gắn mock server").isSameAs(aiRestTemplate);
+        GuestPhotoService.ImageFile image = new GuestPhotoService.ImageFile(
+                new byte[]{(byte) 0xFF, (byte) 0xD8, 1}, "image/jpeg", "guest.jpg");
+        try {
+            guestPhotoService.extractAndCheck(image, "guest-log", new GuestVisit(), null);
+        } catch (GuestException ex) {
+            lastGuestMessage = ex.getMessage();
+            return ex.getErrorCode();
+        }
+        throw new AssertionError("extractAndCheck phải ném GuestException");
+    }
+
+    private String lastGuestMessage;
+
+    @Test
+    @DisplayName("face-gate 6: ai-service trả 400 không phát hiện khuôn mặt -> tạo tài khoản báo 422 \"Không phát hiện thấy khuôn mặt trong ảnh.\", không tạo tài khoản, ảnh không lên kho")
+    void createStaff_aiNoFace400_noFaceError() throws Exception {
+        String code = newCode("NOFACE");
+        expectAiError(HttpStatus.BAD_REQUEST, AI_NO_FACE_BODY);
+
+        MvcResult r = createStaff(code);
+
+        aiServer.verify();
+        assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(422);
+        assertThat(message(r)).isEqualTo("Không phát hiện thấy khuôn mặt trong ảnh.");
+        assertThat(userCount(code)).isZero();
+        assertThat(faceDataRepository.findByCode(code)).isEmpty();
+        verify(minioStorageService, never()).uploadFaceImage(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("face-gate 6: ai-service 500 / 503 / timeout -> tạo tài khoản vẫn 503; 400 ảnh hỏng vẫn 422 câu cũ (không bị coi là 0 khuôn mặt)")
+    void createStaff_aiDownOrOther400_unchanged() throws Exception {
+        List<Runnable> failures = List.of(
+                () -> expectAiError(HttpStatus.INTERNAL_SERVER_ERROR, "{\"detail\":\"Registration error: RuntimeError\"}"),
+                () -> expectAiError(HttpStatus.SERVICE_UNAVAILABLE, "{\"detail\":\"ArcFace chưa được nạp\"}"),
+                this::expectAiTimeout);
+        for (Runnable failure : failures) {
+            aiServer.reset();
+            String code = newCode("AIDOWN");
+            failure.run();
+            MvcResult r = createStaff(code);
+            aiServer.verify();
+            assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(503);
+            assertThat(userCount(code)).isZero();
+        }
+
+        aiServer.reset();
+        String code = newCode("BADIMG");
+        expectAiError(HttpStatus.BAD_REQUEST, AI_BAD_IMAGE_BODY);
+        MvcResult r = createStaff(code);
+        aiServer.verify();
+        assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(422);
+        assertThat(message(r)).startsWith("Không thể xử lý khuôn mặt trong ảnh: ").doesNotContain("Không phát hiện thấy khuôn mặt trong ảnh.");
+        assertThat(userCount(code)).isZero();
+        verify(minioStorageService, never()).uploadFaceImage(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("face-gate 6: ai-service trả 400 không phát hiện khuôn mặt -> ảnh khách báo ERR_GUEST_034 \"(phát hiện 0)\", không phải ERR_GUEST_035")
+    void guestPhoto_aiNoFace400_err034ZeroFaces() {
+        expectAiError(HttpStatus.BAD_REQUEST, AI_NO_FACE_BODY);
+
+        GuestErrorCode code = guestPhotoError();
+
+        aiServer.verify();
+        assertThat(code).isEqualTo(GuestErrorCode.ERR_GUEST_034);
+        assertThat(lastGuestMessage).isEqualTo("Ảnh phải có đúng 1 khuôn mặt (phát hiện 0)");
+    }
+
+    @Test
+    @DisplayName("face-gate 6: ai-service 500 / 503 / timeout / 400 ảnh hỏng -> ảnh khách vẫn ERR_GUEST_035")
+    void guestPhoto_aiDownOrOther400_err035() {
+        List<Runnable> failures = List.of(
+                () -> expectAiError(HttpStatus.INTERNAL_SERVER_ERROR, "{\"detail\":\"Registration error: RuntimeError\"}"),
+                () -> expectAiError(HttpStatus.SERVICE_UNAVAILABLE, "{\"detail\":\"ArcFace chưa được nạp\"}"),
+                this::expectAiTimeout,
+                () -> expectAiError(HttpStatus.BAD_REQUEST, AI_BAD_IMAGE_BODY));
+        for (Runnable failure : failures) {
+            aiServer.reset();
+            failure.run();
+            GuestErrorCode code = guestPhotoError();
+            aiServer.verify();
+            assertThat(code).as(lastGuestMessage).isEqualTo(GuestErrorCode.ERR_GUEST_035);
+        }
     }
 }
