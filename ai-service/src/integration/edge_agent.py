@@ -116,6 +116,16 @@ class EdgeMqttAgent:
             self._relay_processes.clear()
         self._executor.shutdown(wait=False)
 
+    @staticmethod
+    def _is_worker_connected(worker: Any, now_ts: float) -> bool:
+        """Kiểm tra worker có đang thực sự nhận frame RTSP mới hay không (an toàn với MagicMock)."""
+        is_running = bool(getattr(worker, "is_running", False))
+        stream_flag = getattr(worker, "is_stream_connected", None)
+        last_ts = getattr(worker, "last_frame_ts", None)
+        if isinstance(stream_flag, bool) and isinstance(last_ts, (int, float)):
+            return bool(is_running and stream_flag and last_ts > 0.0 and (now_ts - float(last_ts)) <= 15.0)
+        return is_running
+
     def collect_edge_status(self, status: str = "ONLINE") -> Dict[str, Any]:
         """Thu thập trạng thái sức khỏe và danh sách camera của thiết bị biên."""
         edge_id = getattr(settings, "MQTT_CLIENT_ID", "campus-security-ai-service")
@@ -124,17 +134,7 @@ class EdgeMqttAgent:
             now_ts = time.time()
             for cam_code, worker in self.active_workers.items():
                 fps = round(float(getattr(worker, "processed_fps", 0.0)), 1)
-                is_running = bool(getattr(worker, "is_running", False))
-                if hasattr(worker, "is_stream_connected"):
-                    last_ts = float(getattr(worker, "last_frame_ts", 0.0))
-                    connected = bool(
-                        is_running
-                        and getattr(worker, "is_stream_connected", False)
-                        and last_ts > 0.0
-                        and (now_ts - last_ts) <= 15.0
-                    )
-                else:
-                    connected = is_running
+                connected = self._is_worker_connected(worker, now_ts)
                 cameras.append({
                     "camera_code": cam_code,
                     "fps": fps,
@@ -173,18 +173,7 @@ class EdgeMqttAgent:
         snapshot: Dict[str, bool] = {}
         with self._lock:
             for cam_code, worker in self.active_workers.items():
-                is_running = bool(getattr(worker, "is_running", False))
-                if hasattr(worker, "is_stream_connected"):
-                    last_ts = float(getattr(worker, "last_frame_ts", 0.0))
-                    connected = bool(
-                        is_running
-                        and getattr(worker, "is_stream_connected", False)
-                        and last_ts > 0.0
-                        and (now_ts - last_ts) <= 15.0
-                    )
-                else:
-                    connected = is_running
-                snapshot[cam_code] = connected
+                snapshot[cam_code] = self._is_worker_connected(worker, now_ts)
         return snapshot
 
     def _heartbeat_loop(self):
