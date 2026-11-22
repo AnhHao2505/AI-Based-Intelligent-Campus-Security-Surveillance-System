@@ -2,6 +2,25 @@
 // Khớp UserAccessLevelHelper.NORMAL_USER_INITIAL_LEVELS ở backend (backend vẫn tự kiểm, trả ERR_AC_014 nếu sai).
 export const NORMAL_USER_INITIAL_LEVELS = [1, 2];
 
+/**
+ * Cấp chọn sẵn trong form từ giá trị cấu hình ACCESS_LEVEL_DEFAULT_NORMAL_USER (chuỗi hoặc số).
+ * Ngoài NORMAL_USER_INITIAL_LEVELS (vd dữ liệu cũ = 3) hoặc không đọc được -> cấp thấp nhất, giống backend
+ * (V136: getIntWithinBounds trả mặc định của ConfigKey = 1 và ghi WARN). `invalid` để form báo cho Admin biết.
+ * @param {string|number|null|undefined} configuredDefault
+ * @returns {{ level: number, invalid: boolean, configured: number|null }}
+ */
+export const pickInitialLevel = (configuredDefault) => {
+	const n =
+		typeof configuredDefault === "number"
+			? configuredDefault
+			: Number.parseInt(configuredDefault, 10);
+	const configured = Number.isInteger(n) ? n : null;
+	if (configured !== null && NORMAL_USER_INITIAL_LEVELS.includes(configured)) {
+		return { level: configured, invalid: false, configured };
+	}
+	return { level: NORMAL_USER_INITIAL_LEVELS[0], invalid: true, configured };
+};
+
 // Mô tả chỉ để hiển thị cạnh ô chọn cấp, không lưu DB. Quy tắc vào khu: cấp người dùng ≥ cấp khu
 // (Công khai cấp 1, Bảo mật cấp 2, Bảo mật cao cấp 3).
 const LEVEL_AUDIENCE = {

@@ -33,7 +33,9 @@ public class UserAccessLevelHelper {
             return 1;
         }
 
-        return systemConfigService.getInt(key);
+        // BR-AL-33 (V136): giá trị nằm ngoài min_value / max_value ở DB (vd ACCESS_LEVEL_DEFAULT_NORMAL_USER = 3 còn từ
+        // dữ liệu cũ) -> WARN + mặc định của ConfigKey (NORMAL_USER: 1), không gán cấp ngoài khoảng cho tài khoản mới
+        return systemConfigService.getIntWithinBounds(key);
     }
 
     public ConfigKey resolveConfigKey(Role role) {

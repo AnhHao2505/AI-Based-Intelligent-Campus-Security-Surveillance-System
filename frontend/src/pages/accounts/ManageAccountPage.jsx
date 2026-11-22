@@ -48,6 +48,7 @@ import AccountAuditLogTab from "./AccountAuditLogTab";
 import {
 	NORMAL_USER_INITIAL_LEVELS,
 	describeInitialLevel,
+	pickInitialLevel,
 } from "../../constants/accessLevels";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -508,19 +509,24 @@ export default function ManageAccountPage() {
 			for (const role of CREATABLE_ROLES) {
 				defaults[role] = valueOf(`ACCESS_LEVEL_DEFAULT_${role}`);
 			}
+			// V136: cấu hình ngoài 1–2 (dữ liệu cũ) -> chọn sẵn cấp thấp nhất như backend, không để ô kẹt ở placeholder
+			const normalPick = pickInitialLevel(defaults[ROLES.NORMAL_USER]);
+			if (normalPick.invalid) {
+				console.warn(
+					"ACCESS_LEVEL_DEFAULT_NORMAL_USER ngoài khoảng cho phép, chọn sẵn cấp",
+					normalPick.level,
+				);
+			}
 			setLevelConfig({
 				defaults,
 				guestHostMinLevel: valueOf("GUEST_HOST_MIN_LEVEL"),
+				normalPick,
 			});
-			// Chọn sẵn cấp mặc định của người dùng thường nếu nằm trong các cấp được chọn khi tạo
-			const normalDefault = defaults[ROLES.NORMAL_USER];
-			if (NORMAL_USER_INITIAL_LEVELS.includes(normalDefault)) {
-				setCreateForm((prev) =>
-					prev.accessLevel === ""
-						? { ...prev, accessLevel: String(normalDefault) }
-						: prev,
-				);
-			}
+			setCreateForm((prev) =>
+				prev.accessLevel === ""
+					? { ...prev, accessLevel: String(normalPick.level) }
+					: prev,
+			);
 		} catch (err) {
 			console.error("Không đọc được cấu hình cấp truy cập mặc định:", err);
 			setLevelConfigError(true);
@@ -1496,7 +1502,9 @@ export default function ManageAccountPage() {
 											placeholder={
 												levelConfigError
 													? "Theo cấu hình mặc định"
-													: "Đang tải cấp mặc định..."
+													: levelConfig
+														? "Chọn cấp"
+														: "Đang tải cấp mặc định..."
 											}
 											options={NORMAL_USER_INITIAL_LEVELS.map((lv) => ({
 												value: String(lv),
@@ -1504,6 +1512,16 @@ export default function ManageAccountPage() {
 											}))}
 											error={formErrors.accessLevel || undefined}
 										/>
+										{levelConfig?.normalPick?.invalid && (
+											<span className="account-form-note" role="status">
+												Cấu hình cấp mặc định
+												{levelConfig.normalPick.configured !== null
+													? ` hiện là ${levelConfig.normalPick.configured}`
+													: ""}{" "}
+												không hợp lệ (chỉ được {NORMAL_USER_INITIAL_LEVELS.join(" hoặc ")}); đã chọn sẵn
+												cấp {levelConfig.normalPick.level}. Hãy sửa lại ở Cấu hình hệ thống.
+											</span>
+										)}
 										<ul className="account-level-desc">
 											{NORMAL_USER_INITIAL_LEVELS.map((lv) => (
 												<li key={lv}>

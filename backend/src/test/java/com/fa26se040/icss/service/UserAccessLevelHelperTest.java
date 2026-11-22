@@ -45,20 +45,20 @@ class UserAccessLevelHelperTest {
         assertNotNull(key, "Role " + role + " chưa có key cấp truy cập mặc định");
         assertEquals("ACCESS_LEVEL_DEFAULT_" + role.name(), key.name());
 
-        when(systemConfigService.getInt(key)).thenReturn(3);
+        when(systemConfigService.getIntWithinBounds(key)).thenReturn(3);
 
         assertEquals(3, userAccessLevelHelper.resolveDefaultAccessLevel(role));
-        verify(systemConfigService).getInt(key);
+        verify(systemConfigService).getIntWithinBounds(key);
         verifyNoMoreInteractions(systemConfigService);
     }
 
     @Test
     @DisplayName("Mỗi role trả đúng giá trị cấu hình của mình (giá trị khác nhau, không viết cứng)")
     void distinctConfiguredValues_returnedPerRole() {
-        when(systemConfigService.getInt(ConfigKey.ACCESS_LEVEL_DEFAULT_NORMAL_USER)).thenReturn(1);
-        when(systemConfigService.getInt(ConfigKey.ACCESS_LEVEL_DEFAULT_GUARD)).thenReturn(2);
-        when(systemConfigService.getInt(ConfigKey.ACCESS_LEVEL_DEFAULT_FACILITY_MANAGER)).thenReturn(3);
-        when(systemConfigService.getInt(ConfigKey.ACCESS_LEVEL_DEFAULT_ADMIN)).thenReturn(2);
+        when(systemConfigService.getIntWithinBounds(ConfigKey.ACCESS_LEVEL_DEFAULT_NORMAL_USER)).thenReturn(1);
+        when(systemConfigService.getIntWithinBounds(ConfigKey.ACCESS_LEVEL_DEFAULT_GUARD)).thenReturn(2);
+        when(systemConfigService.getIntWithinBounds(ConfigKey.ACCESS_LEVEL_DEFAULT_FACILITY_MANAGER)).thenReturn(3);
+        when(systemConfigService.getIntWithinBounds(ConfigKey.ACCESS_LEVEL_DEFAULT_ADMIN)).thenReturn(2);
 
         assertEquals(1, userAccessLevelHelper.resolveDefaultAccessLevel(Role.NORMAL_USER));
         assertEquals(2, userAccessLevelHelper.resolveDefaultAccessLevel(Role.GUARD));

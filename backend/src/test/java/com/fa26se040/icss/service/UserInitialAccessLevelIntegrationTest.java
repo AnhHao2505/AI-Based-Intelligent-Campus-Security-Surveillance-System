@@ -16,10 +16,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -57,8 +60,13 @@ import static org.hamcrest.Matchers.endsWith;
  * Tài khoản hệ thống: giá trị client gửi bị bỏ qua, luôn ACCESS_LEVEL_DEFAULT_<ROLE>.
  * Audit USER_ACCESS_LEVEL / CREATE (V135) FM đọc được; Admin không đổi cấp sau khi tạo (403);
  * cấp 1 không mời khách, cấp 2 mời được (GUEST_HOST_MIN_LEVEL). AI Service giả bằng MockRestServiceServer, MinIO và mail mock.
+ * V136: ACCESS_LEVEL_DEFAULT_NORMAL_USER chỉ nhận 1–2 ở màn Cấu hình hệ thống; giá trị cũ ngoài khoảng còn trong DB
+ * -> tạo tài khoản dùng mặc định của ConfigKey (1) và ghi WARN.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class UserInitialAccessLevelIntegrationTest extends AbstractIntegrationTest {
+
+    private static final String NORMAL_DEFAULT_KEY = "ACCESS_LEVEL_DEFAULT_NORMAL_USER";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -326,5 +334,85 @@ class UserInitialAccessLevelIntegrationTest extends AbstractIntegrationTest {
             assertThat(d.path("myLevel").asInt()).isEqualTo(c[2]);
             assertThat(d.path("minLevel").asInt()).isEqualTo(hostMin);
         }
+    }
+
+    // ------------------------------------------------------------------ V136: khoảng 1–2 của cấp mặc định người dùng thường
+
+    private String configValue(String key) {
+        return jdbc.queryForObject("SELECT config_value FROM system_configurations WHERE config_key = ?", String.class, key);
+    }
+
+    private MvcResult patchConfig(String key, String value) throws Exception {
+        return mockMvc.perform(as(admin, patch("/api/system-configurations/" + key)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("configValue", value,
+                        "reason", "Kiểm thử khoảng cấp mặc định người dùng thường"))))).andReturn();
+    }
+
+    @Test
+    @DisplayName("V136: metadata ACCESS_LEVEL_DEFAULT_NORMAL_USER là min 1, max 2")
+    void normalDefault_boundsAreOneToTwo() {
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT min_value, max_value FROM system_configurations WHERE config_key = ?", NORMAL_DEFAULT_KEY);
+        assertThat(((Number) row.get("min_value")).intValue()).isEqualTo(1);
+        assertThat(((Number) row.get("max_value")).intValue()).isEqualTo(2);
+    }
+
+    @ParameterizedTest(name = "PATCH {0} = {1} -> 400, giá trị không đổi")
+    @org.junit.jupiter.params.provider.CsvSource({"3,không được lớn hơn 2", "0,không được nhỏ hơn 1", "-1,không được nhỏ hơn 1"})
+    @DisplayName("V136: màn Cấu hình hệ thống từ chối ACCESS_LEVEL_DEFAULT_NORMAL_USER ngoài 1–2")
+    void patchNormalDefault_outOfRange_rejected(String value, String expectedMessage) throws Exception {
+        String before = configValue(NORMAL_DEFAULT_KEY);
+        Integer logsBefore = jdbc.queryForObject(
+                "SELECT count(*) FROM system_configuration_change_logs WHERE config_key = ?", Integer.class, NORMAL_DEFAULT_KEY);
+
+        MvcResult r = patchConfig(NORMAL_DEFAULT_KEY, value);
+        JsonNode b = body(r);
+        assertThat(r.getResponse().getStatus()).as(b.toString()).isEqualTo(400);
+        assertThat(b.path("message").asText()).contains(expectedMessage);
+
+        assertThat(configValue(NORMAL_DEFAULT_KEY)).isEqualTo(before);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM system_configuration_change_logs WHERE config_key = ?",
+                Integer.class, NORMAL_DEFAULT_KEY)).isEqualTo(logsBefore);
+    }
+
+    @Test
+    @DisplayName("V136: PATCH ACCESS_LEVEL_DEFAULT_NORMAL_USER = 2 hợp lệ, tạo tài khoản không gửi cấp nhận 2; trả lại giá trị cũ")
+    void patchNormalDefault_inRange_accepted() throws Exception {
+        String before = configValue(NORMAL_DEFAULT_KEY);
+        String target = "2".equals(before) ? "1" : "2";
+        try {
+            MvcResult r = patchConfig(NORMAL_DEFAULT_KEY, target);
+            assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(200);
+            UUID id = createOk(newCode("PD"), Role.NORMAL_USER, null);
+            assertThat(levelOf(id)).isEqualTo(Integer.parseInt(target));
+        } finally {
+            patchConfig(NORMAL_DEFAULT_KEY, before);
+        }
+        assertThat(configValue(NORMAL_DEFAULT_KEY)).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("V136: DB còn ACCESS_LEVEL_DEFAULT_NORMAL_USER = 3 (dữ liệu cũ) -> tạo tài khoản không gửi cấp nhận 1, có log WARN")
+    void legacyOutOfRangeDefault_fallsBackToOneWithWarning(CapturedOutput output) throws Exception {
+        String before = configValue(NORMAL_DEFAULT_KEY);
+        try {
+            // Giả lập dữ liệu cũ sửa thẳng trong DB test (PATCH đã chặn), rồi nạp lại cache như POST /reload
+            jdbc.update("UPDATE system_configurations SET config_value = '3' WHERE config_key = ?", NORMAL_DEFAULT_KEY);
+            systemConfigService.reloadCache();
+
+            UUID id = createOk(newCode("LG"), Role.NORMAL_USER, null);
+            assertThat(levelOf(id)).isEqualTo(Integer.parseInt(ConfigKey.ACCESS_LEVEL_DEFAULT_NORMAL_USER.getDefaultValue()))
+                    .isEqualTo(1);
+            assertThat(output.getOut()).contains("Config key [" + NORMAL_DEFAULT_KEY + "] value [3] out of range");
+
+            // Admin chọn cấp tường minh vẫn được tôn trọng
+            UUID chosen = createOk(newCode("LC"), Role.NORMAL_USER, "2");
+            assertThat(levelOf(chosen)).isEqualTo(2);
+        } finally {
+            jdbc.update("UPDATE system_configurations SET config_value = ? WHERE config_key = ?", before, NORMAL_DEFAULT_KEY);
+            systemConfigService.reloadCache();
+        }
+        assertThat(systemConfigService.getInt(ConfigKey.ACCESS_LEVEL_DEFAULT_NORMAL_USER)).isEqualTo(Integer.parseInt(before));
     }
 }
