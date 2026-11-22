@@ -565,7 +565,8 @@ async def analyze_frame(file: UploadFile = File(...)):
     }
 
 from fastapi import Form
-from .core.face_detector import FaceDetector, detect_registration_faces
+from fastapi.responses import JSONResponse
+from .core.face_detector import FaceDetector, detect_registration_faces, ERR_NO_FACE_DETECTED
 from .core.face_embedder import get_shared_face_embedder
 
 face_detector = FaceDetector()
@@ -605,9 +606,14 @@ async def process_face_registration(
         )
 
         if not faces:
-            raise HTTPException(
+            # Mã cố định errorCode (cùng mã với RPC EXTRACT_FACE_EMBEDDING ở edge_agent.py) để Backend không phải so câu chữ;
+            # giữ nguyên detail để Backend bản cũ (so khớp tiền tố câu) vẫn nhận ra "0 khuôn mặt".
+            return JSONResponse(
                 status_code=400,
-                detail="Không phát hiện thấy khuôn mặt rõ nét trong ảnh chính diện. Vui lòng chụp lại ảnh chính diện rõ mặt."
+                content={
+                    "detail": "Không phát hiện thấy khuôn mặt rõ nét trong ảnh chính diện. Vui lòng chụp lại ảnh chính diện rõ mặt.",
+                    "errorCode": ERR_NO_FACE_DETECTED,
+                },
             )
 
         landmarks = None

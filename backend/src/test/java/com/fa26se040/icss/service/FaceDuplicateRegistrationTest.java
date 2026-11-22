@@ -615,4 +615,71 @@ class FaceDuplicateRegistrationTest extends AbstractIntegrationTest {
             assertThat(code).as(lastGuestMessage).isEqualTo(GuestErrorCode.ERR_GUEST_035);
         }
     }
+
+    // ------------------------------------------------------------------ ai-service bản mới: errorCode ERR_NO_FACE_DETECTED
+
+    /** ai-service bản mới: HTTP 400 kèm errorCode. detail cố tình khác câu cũ để chứng minh Backend đọc mã, không đọc câu. */
+    private static final String AI_NO_FACE_CODE_BODY = "{\"detail\":\"No face detected\",\"errorCode\":\"ERR_NO_FACE_DETECTED\"}";
+    /** Có errorCode khác: mã được ưu tiên, câu chữ "Không phát hiện thấy khuôn mặt" trong detail bị bỏ qua. */
+    private static final String AI_OTHER_CODE_NO_FACE_TEXT_BODY = "{\"detail\":\"Không phát hiện thấy khuôn mặt (ảnh hỏng)\","
+            + "\"errorCode\":\"ERR_IMAGE_DECODE\"}";
+
+    @Test
+    @DisplayName("Mã lỗi cố định: ai-service trả 400 errorCode ERR_NO_FACE_DETECTED -> tạo tài khoản 422 \"Không phát hiện thấy khuôn mặt trong ảnh.\"")
+    void createStaff_aiNoFaceErrorCode_noFaceError() throws Exception {
+        String code = newCode("NOFACECODE");
+        expectAiError(HttpStatus.BAD_REQUEST, AI_NO_FACE_CODE_BODY);
+
+        MvcResult r = createStaff(code);
+
+        aiServer.verify();
+        assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(422);
+        assertThat(message(r)).isEqualTo("Không phát hiện thấy khuôn mặt trong ảnh.");
+        assertThat(userCount(code)).isZero();
+        verify(minioStorageService, never()).uploadFaceImage(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("Mã lỗi cố định: ai-service trả 400 errorCode ERR_NO_FACE_DETECTED -> ảnh khách ERR_GUEST_034 \"(phát hiện 0)\"")
+    void guestPhoto_aiNoFaceErrorCode_err034ZeroFaces() {
+        expectAiError(HttpStatus.BAD_REQUEST, AI_NO_FACE_CODE_BODY);
+
+        GuestErrorCode code = guestPhotoError();
+
+        aiServer.verify();
+        assertThat(code).isEqualTo(GuestErrorCode.ERR_GUEST_034);
+        assertThat(lastGuestMessage).isEqualTo("Ảnh phải có đúng 1 khuôn mặt (phát hiện 0)");
+    }
+
+    @Test
+    @DisplayName("Mã lỗi cố định: errorCode khác được ưu tiên hơn câu chữ; 5xx kèm ERR_NO_FACE_DETECTED vẫn là lỗi dịch vụ")
+    void aiErrorCode_takesPriority_andServerErrorStaysUnavailable() throws Exception {
+        // errorCode khác + detail giống câu cũ -> không phải "0 khuôn mặt"
+        String code = newCode("OTHERCODE");
+        expectAiError(HttpStatus.BAD_REQUEST, AI_OTHER_CODE_NO_FACE_TEXT_BODY);
+        MvcResult r = createStaff(code);
+        aiServer.verify();
+        assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(422);
+        assertThat(message(r)).startsWith("Không thể xử lý khuôn mặt trong ảnh: ").doesNotContain("Không phát hiện thấy khuôn mặt trong ảnh.");
+        assertThat(userCount(code)).isZero();
+
+        aiServer.reset();
+        expectAiError(HttpStatus.BAD_REQUEST, AI_OTHER_CODE_NO_FACE_TEXT_BODY);
+        assertThat(guestPhotoError()).as(lastGuestMessage).isEqualTo(GuestErrorCode.ERR_GUEST_035);
+        aiServer.verify();
+
+        // 5xx kèm mã "không thấy mặt" -> vẫn 503 / ERR_GUEST_035 như mọi lỗi dịch vụ
+        aiServer.reset();
+        String code5xx = newCode("CODE5XX");
+        expectAiError(HttpStatus.INTERNAL_SERVER_ERROR, AI_NO_FACE_CODE_BODY);
+        MvcResult r5xx = createStaff(code5xx);
+        aiServer.verify();
+        assertThat(r5xx.getResponse().getStatus()).as(r5xx.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(503);
+        assertThat(userCount(code5xx)).isZero();
+
+        aiServer.reset();
+        expectAiError(HttpStatus.INTERNAL_SERVER_ERROR, AI_NO_FACE_CODE_BODY);
+        assertThat(guestPhotoError()).as(lastGuestMessage).isEqualTo(GuestErrorCode.ERR_GUEST_035);
+        aiServer.verify();
+    }
 }

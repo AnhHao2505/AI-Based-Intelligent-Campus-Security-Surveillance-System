@@ -23,6 +23,10 @@ from .entity import BoundingBox, FaceDetectionResult
 
 logger = logging.getLogger(__name__)
 
+# Mã lỗi cố định khi ảnh đăng ký không có khuôn mặt: HTTP 400 process-registration (khoá errorCode trong body) và
+# RPC EXTRACT_FACE_EMBEDDING (errorCode trong reply). Backend đọc mã này trước, câu chữ chỉ là dự phòng.
+ERR_NO_FACE_DETECTED = "ERR_NO_FACE_DETECTED"
+
 
 def _center_inside(face: FaceDetectionResult, other: FaceDetectionResult) -> bool:
     """Tâm bbox của face nằm trong bbox của other."""

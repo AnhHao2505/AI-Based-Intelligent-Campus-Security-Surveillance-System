@@ -634,7 +634,7 @@ class EdgeMqttAgent:
 
         reg_max_dim = getattr(detector, "registration_max_dim", getattr(settings, "FACE_REGISTRATION_MAX_DIM", 640))
         # Cùng cách đếm với POST /api/v1/faces/process-registration (mặt chính ở reg_max_dim + lượt đếm mặt phụ nhỏ)
-        from ..core.face_detector import detect_registration_faces
+        from ..core.face_detector import detect_registration_faces, ERR_NO_FACE_DETECTED
         faces, face_count = detect_registration_faces(
             detector, img, reg_max_dim, getattr(settings, "FACE_REGISTRATION_COUNT_MAX_DIM", 0)
         )
@@ -642,7 +642,7 @@ class EdgeMqttAgent:
             return {
                 "correlationId": corr_id,
                 "success": False,
-                "errorCode": "ERR_NO_FACE_DETECTED",
+                "errorCode": ERR_NO_FACE_DETECTED,
                 "errorMessage": "Không phát hiện thấy khuôn mặt rõ nét trong ảnh",
                 "latencyMs": int((time.time() - t0) * 1000),
             }
