@@ -259,6 +259,11 @@ public class FaceDataService {
                     8000L
             );
             if (!reply.isSuccess() || reply.getData() == null) {
+                // Edge báo không thấy khuôn mặt (edge_agent.py, cùng mã với HTTP 400 của ai-service) -> cùng câu với nhánh
+                // HTTP (AiFaceRegistrationErrors.isNoFaceDetected), không trả nguyên câu của thiết bị biên
+                if (AiFaceRegistrationErrors.EDGE_NO_FACE_ERROR_CODE.equals(reply.getErrorCode())) {
+                    throw new FaceDetectionException(NO_FACE_MESSAGE);
+                }
                 String errMsg = reply.getErrorMessage() != null ? reply.getErrorMessage() : "Không thể xử lý khuôn mặt trong ảnh";
                 throw new FaceDetectionException(errMsg);
             }
