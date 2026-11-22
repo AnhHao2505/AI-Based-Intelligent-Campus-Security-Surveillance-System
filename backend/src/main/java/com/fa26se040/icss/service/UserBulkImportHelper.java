@@ -4,6 +4,7 @@ import com.fa26se040.icss.dto.BulkImportRowResult;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.UserAccountAuditSnapshot;
 import com.fa26se040.icss.enums.AuditAction;
 import com.fa26se040.icss.enums.AuditTargetType;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.UserRepository;
@@ -45,6 +46,8 @@ public class UserBulkImportHelper {
     private final MinioStorageService minioStorageService;
     private final NotificationService notificationService;
     private final UserAccessLevelHelper userAccessLevelHelper;
+    /** V135: USER_FACE_IMAGE_MAX_KB đọc mỗi dòng. */
+    private final SystemConfigService systemConfigService;
 
     /** PR-AUDIT: field injection để giữ constructor; null thì không ghi audit. */
     @Autowired(required = false)
@@ -101,9 +104,10 @@ public class UserBulkImportHelper {
         if (imageBytes == null || imageBytes.length == 0) {
             return buildError(rowIndex, userCode, fullName, email, roleStr, "Không tìm thấy file ảnh tương ứng trong thư mục images/ (yêu cầu images/" + userCode + ".jpg hoặc .png)");
         }
-        long maxSizeBytes = 350 * 1024; // 350KB
-        if (imageBytes.length > maxSizeBytes) {
-            return buildError(rowIndex, userCode, fullName, email, roleStr, String.format("Kích thước ảnh vượt quá giới hạn tối đa 350KB (dung lượng file: %.1f KB)", imageBytes.length / 1024.0));
+        // V135: cùng giới hạn USER_FACE_IMAGE_MAX_KB với đăng ký đơn lẻ (FaceDataService.registerFace)
+        int maxKb = systemConfigService.getIntWithinBounds(ConfigKey.USER_FACE_IMAGE_MAX_KB);
+        if (imageBytes.length > (long) maxKb * 1024) {
+            return buildError(rowIndex, userCode, fullName, email, roleStr, FaceDataService.faceImageTooLargeMessage(maxKb, imageBytes.length));
         }
 
         String lowerImgName = imageFileName != null ? imageFileName.toLowerCase() : "";

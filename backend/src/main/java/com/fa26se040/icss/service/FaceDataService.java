@@ -4,6 +4,7 @@ import com.fa26se040.icss.dto.AiFaceRegistrationResponseDto;
 import com.fa26se040.icss.dto.FaceDataResponseDto;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.FaceRegistrationAuditSnapshot;
 import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.dto.edge.EdgeRpcReplyDto;
 import com.fa26se040.icss.entity.FaceData;
@@ -52,6 +53,18 @@ public class FaceDataService {
     private final AiServiceRestTemplate restTemplate;
     /** Kiểm trùng khuôn mặt: bắt buộc (face-gate 1), thiếu bean thì ứng dụng không khởi động thay vì bỏ qua im lặng. */
     private final FaceDuplicateCheckService faceDuplicateCheckService;
+    /** V135: USER_FACE_IMAGE_MAX_KB đọc mỗi lần đăng ký (sửa trên màn System Configuration có hiệu lực ngay). */
+    private final SystemConfigService systemConfigService;
+
+    /** V135: dung lượng tối đa ảnh khuôn mặt tài khoản (KB), kẹp theo min_value / max_value ở DB. */
+    public int getFaceImageMaxKb() {
+        return systemConfigService.getIntWithinBounds(ConfigKey.USER_FACE_IMAGE_MAX_KB);
+    }
+
+    /** Câu báo ảnh quá dung lượng, dùng chung cho đăng ký đơn lẻ và nạp theo lô (nội suy giá trị cấu hình). */
+    static String faceImageTooLargeMessage(int maxKb, long sizeBytes) {
+        return String.format("Kích thước ảnh vượt quá giới hạn tối đa %dKB (dung lượng file: %.1f KB)", maxKb, sizeBytes / 1024.0);
+    }
 
     @Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;
@@ -95,9 +108,9 @@ public class FaceDataService {
                 throw new IllegalArgumentException("Ảnh khuôn mặt không được để trống.");
             }
 
-            long maxSizeBytes = 350 * 1024; // 350 KB
-            if (frontImage.getSize() > maxSizeBytes) {
-                throw new IllegalArgumentException(String.format("Kích thước ảnh vượt quá giới hạn tối đa 350KB (dung lượng file: %.1f KB)", frontImage.getSize() / 1024.0));
+            int maxKb = getFaceImageMaxKb();
+            if (frontImage.getSize() > (long) maxKb * 1024) {
+                throw new IllegalArgumentException(faceImageTooLargeMessage(maxKb, frontImage.getSize()));
             }
 
             String contentType = frontImage.getContentType();
