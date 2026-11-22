@@ -72,6 +72,12 @@ public class GuestVisit {
     @Column(name = "cancelled_at")
     private OffsetDateTime cancelledAt;
 
+    // V137: người huỷ lượt — host tự huỷ, hoặc ADMIN khi hệ thống huỷ do vô hiệu hoá / đổi loại khu vực.
+    // Lượt huỷ trước V137 để NULL.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cancelled_by")
+    private User cancelledBy;
+
     @Column(name = "cancel_reason", length = 500)
     private String cancelReason;
 
