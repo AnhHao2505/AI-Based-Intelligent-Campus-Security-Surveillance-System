@@ -46,6 +46,10 @@ public class FaceDataService {
 
     /** Ảnh không có khuôn mặt: face_count = 0, hoặc ai-service trả 400 "không phát hiện khuôn mặt". */
     static final String NO_FACE_MESSAGE = "Không phát hiện thấy khuôn mặt trong ảnh.";
+    /** ai-service trả lỗi không do ảnh (5xx...); chế độ Cloud-Edge dùng chung cho mọi mã lỗi edge không phải lỗi ảnh. */
+    static final String AI_SERVICE_ERROR_MESSAGE = "Dịch vụ AI gặp lỗi khi xử lý ảnh. Vui lòng thử lại sau.";
+    /** Không kết nối được ai-service (HTTP), hoặc RPC tới edge quá hạn / mất kết nối (CameraException). */
+    static final String AI_SERVICE_UNAVAILABLE_MESSAGE = "Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.";
 
     private final FaceDataRepository faceDataRepository;
     private final UserRepository userRepository;
@@ -216,7 +220,7 @@ public class FaceDataService {
 
         } catch (ResourceAccessException | CameraException e) {
             log.error("Không thể kết nối đến AI Service cho [{}]: {}", code, e.getMessage());
-            throw new AiServiceUnavailableException("Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.");
+            throw new AiServiceUnavailableException(AI_SERVICE_UNAVAILABLE_MESSAGE);
         } catch (HttpStatusCodeException e) {
             log.error("AI Service trả về lỗi [{}] cho [{}]: {}", e.getStatusCode(), code, e.getResponseBodyAsString());
             // ai-service báo 400 khi ảnh không có khuôn mặt -> cùng câu với nhánh face_count = 0 ở trên
@@ -226,7 +230,7 @@ public class FaceDataService {
             if (e.getStatusCode().value() == 422 || e.getStatusCode().value() == 400) {
                 throw new FaceDetectionException("Không thể xử lý khuôn mặt trong ảnh: " + e.getResponseBodyAsString());
             }
-            throw new AiServiceUnavailableException("Dịch vụ AI gặp lỗi khi xử lý ảnh. Vui lòng thử lại sau.");
+            throw new AiServiceUnavailableException(AI_SERVICE_ERROR_MESSAGE);
         } catch (FaceDetectionException | FaceDuplicateException | AiServiceUnavailableException
                  | com.fa26se040.icss.exception.AuditWriteException e) {
             throw e;
@@ -258,14 +262,13 @@ public class FaceDataService {
                     ),
                     8000L
             );
-            if (!reply.isSuccess() || reply.getData() == null) {
-                // Edge báo không thấy khuôn mặt (edge_agent.py, cùng mã với HTTP 400 của ai-service) -> cùng câu với nhánh
-                // HTTP (AiFaceRegistrationErrors.isNoFaceDetected), không trả nguyên câu của thiết bị biên
-                if (AiFaceRegistrationErrors.EDGE_NO_FACE_ERROR_CODE.equals(reply.getErrorCode())) {
-                    throw new FaceDetectionException(NO_FACE_MESSAGE);
-                }
-                String errMsg = reply.getErrorMessage() != null ? reply.getErrorMessage() : "Không thể xử lý khuôn mặt trong ảnh";
-                throw new FaceDetectionException(errMsg);
+            if (reply == null || !reply.isSuccess() || reply.getData() == null) {
+                String errorCode = reply != null ? reply.getErrorCode() : null;
+                // Câu của thiết bị biên chỉ ghi log (WARN, không có ảnh / embedding), không bao giờ trả cho người dùng
+                log.warn("Edge RPC EXTRACT_FACE_EMBEDDING thất bại cho [{}]: errorCode={}, errorMessage={}, correlationId={}",
+                        code, errorCode, reply != null ? reply.getErrorMessage() : null,
+                        reply != null ? reply.getCorrelationId() : null);
+                throw edgeExtractionFailure(errorCode);
             }
 
             Map<String, Object> data = reply.getData();
@@ -288,6 +291,26 @@ public class FaceDataService {
         } finally {
             minioStorageService.removeObjectSafely(bucket, stagingKey);
         }
+    }
+
+    /**
+     * Lỗi RPC EXTRACT_FACE_EMBEDDING của thiết bị biên (ai-service/src/integration/edge_agent.py) -> cùng kết quả với nhánh HTTP:
+     * <ul>
+     *   <li>lỗi do ảnh: ERR_NO_FACE_DETECTED -> 422 {@link #NO_FACE_MESSAGE} (như HTTP 400 errorCode ERR_NO_FACE_DETECTED).
+     *       Đây là mã lỗi ảnh duy nhất edge đang dùng: nhiều hơn 1 mặt không phải lỗi RPC (edge trả success, face_count &gt; 1,
+     *       registerFace kiểm chung như nhánh HTTP); ảnh hỏng / không giải mã được không có mã riêng (ValueError rơi vào
+     *       ERR_EDGE_INTERNAL) nên không tách được khỏi lỗi nội bộ;</li>
+     *   <li>mọi mã khác (ERR_MODEL_NOT_READY, ERR_FACE_STAGING_NOT_FOUND, ERR_EDGE_INTERNAL, ERR_RPC_UNKNOWN_ACTION), mã lạ,
+     *       thiếu mã -> 503 {@link #AI_SERVICE_ERROR_MESSAGE} (như ai-service trả 5xx).</li>
+     * </ul>
+     * Quá hạn RPC / mất kết nối là CameraException, registerFace trả 503 {@link #AI_SERVICE_UNAVAILABLE_MESSAGE} như lỗi
+     * kết nối HTTP.
+     */
+    static RuntimeException edgeExtractionFailure(String errorCode) {
+        if (AiFaceRegistrationErrors.EDGE_NO_FACE_ERROR_CODE.equals(errorCode)) {
+            return new FaceDetectionException(NO_FACE_MESSAGE);
+        }
+        return new AiServiceUnavailableException(AI_SERVICE_ERROR_MESSAGE);
     }
 
     private String formatVectorString(List<Float> vector) {

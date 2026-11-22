@@ -1,11 +1,14 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.AbstractIntegrationTest;
+import com.fa26se040.icss.TestFaces;
 import com.fa26se040.icss.config.AiServiceRestTemplate;
 import com.fa26se040.icss.dto.edge.EdgeRpcReplyDto;
 import com.fa26se040.icss.entity.GuestVisit;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
+import com.fa26se040.icss.exception.CameraErrorCode;
+import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.GuestErrorCode;
 import com.fa26se040.icss.exception.GuestException;
 import com.fa26se040.icss.repository.UserRepository;
@@ -17,8 +20,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,11 +39,14 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.endsWith;
@@ -54,17 +66,23 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 
 /**
- * Câu báo "không có mặt" thống nhất giữa nhánh HTTP và chế độ Cloud-Edge (ai.service.url trống, MQTT đã kết nối: ảnh đi qua
- * RPC EXTRACT_FACE_EMBEDDING, thiết bị biên trả errorCode ERR_NO_FACE_DETECTED kèm câu riêng của nó).
- * - Tài khoản (FaceDataService): cả hai nhánh -> 422 FaceDataService.NO_FACE_MESSAGE, không tạo tài khoản, ảnh không lên kho.
- * - Khách (GuestFaceEmbeddingClient -> GuestPhotoService): cả hai nhánh -> ERR_GUEST_034 "(phát hiện 0)".
- * Mỗi test chạy nhánh HTTP (MockRestServiceServer trả 400 errorCode) rồi nhánh edge (MQTT giả) và so kết quả.
+ * Kết quả đăng ký khuôn mặt thống nhất giữa nhánh HTTP và chế độ Cloud-Edge (ai.service.url trống, MQTT đã kết nối: ảnh đi
+ * qua RPC EXTRACT_FACE_EMBEDDING, thiết bị biên trả errorCode kèm câu riêng của nó). Mỗi test chạy nhánh HTTP
+ * (MockRestServiceServer) rồi chế độ edge (MQTT giả) với cùng tình huống và so kết quả.
+ * - Tài khoản (FaceDataService.edgeExtractionFailure): ERR_NO_FACE_DETECTED -> 422 NO_FACE_MESSAGE; nhiều hơn 1 mặt -> 422 như
+ *   HTTP; mọi mã khác, mã lạ, thiếu mã -> 503 AI_SERVICE_ERROR_MESSAGE (như ai-service 5xx); quá hạn RPC -> 503
+ *   AI_SERVICE_UNAVAILABLE_MESSAGE (như lỗi kết nối HTTP). Câu của thiết bị biên không bao giờ ra response, chỉ ở log WARN.
+ * - Khách (GuestFaceEmbeddingClient -> GuestPhotoService): ERR_NO_FACE_DETECTED -> ERR_GUEST_034 "(phát hiện 0)"; mã lạ / thiếu
+ *   mã -> ERR_GUEST_035 như ai-service 5xx.
  * Trường edgeMqttControlService / aiServiceUrl của bean thật được đổi trong test và trả lại ở @AfterEach / @AfterAll.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
 
     private static final String AI_PATH = "/api/v1/faces/process-registration";
@@ -74,6 +92,8 @@ class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
     /** Câu thiết bị biên tự gửi kèm ERR_NO_FACE_DETECTED (src/integration/edge_agent.py), khác câu chuẩn của Backend. */
     private static final String EDGE_NO_FACE_MESSAGE = "Không phát hiện thấy khuôn mặt rõ nét trong ảnh";
     private static final String FACES_BUCKET = "face-profiles";
+    /** ai-service 5xx (src/main.py: lỗi trích xuất bất ngờ -> 500 "Registration error: ..."). */
+    private static final String AI_500_BODY = "{\"detail\":\"Registration error: RuntimeError: boom\"}";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -171,9 +191,57 @@ class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
     }
 
     private void edgeReplies(String errorCode, String errorMessage) {
-        when(edge.sendRpcRequest(eq("EXTRACT_FACE_EMBEDDING"), isNull(), anyMap(), anyLong()))
-                .thenReturn(EdgeRpcReplyDto.builder().correlationId("corr-" + UUID.randomUUID())
-                        .success(false).errorCode(errorCode).errorMessage(errorMessage).build());
+        edgeReplies(EdgeRpcReplyDto.builder().correlationId("corr-" + UUID.randomUUID())
+                .success(false).errorCode(errorCode).errorMessage(errorMessage).build());
+    }
+
+    private void edgeReplies(EdgeRpcReplyDto reply) {
+        when(edge.sendRpcRequest(eq("EXTRACT_FACE_EMBEDDING"), isNull(), anyMap(), anyLong())).thenReturn(reply);
+    }
+
+    private void expectAi500() {
+        aiServer.expect(requestTo(endsWith(AI_PATH))).andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).contentType(MediaType.APPLICATION_JSON).body(AI_500_BODY));
+    }
+
+    private void expectAiTimeout() {
+        aiServer.expect(requestTo(endsWith(AI_PATH)))
+                .andRespond(withException(new SocketTimeoutException("Read timed out")));
+    }
+
+    /**
+     * Các trường hợp edge trả lỗi KHÔNG do ảnh (mã edge_agent.py đang dùng + mã lạ + thiếu mã + thiếu dữ liệu). Mỗi câu
+     * errorMessage có dấu riêng để kiểm: không lọt ra response, có trong log WARN. ERR_EDGE_INTERNAL dùng đúng câu edge gửi
+     * khi ảnh hỏng (decode_image_safely ném ValueError): edge không có mã riêng cho ảnh hỏng nên vẫn là lỗi dịch vụ.
+     */
+    static Stream<Arguments> edgeServiceErrors() {
+        return Stream.of(
+                Arguments.of("ERR_MODEL_NOT_READY", failureReply("ERR_MODEL_NOT_READY",
+                        "Mô hình nhận diện khuôn mặt (ArcFace) chưa được nạp trên thiết bị biên")),
+                Arguments.of("ERR_FACE_STAGING_NOT_FOUND", failureReply("ERR_FACE_STAGING_NOT_FOUND",
+                        "Không tải được ảnh staging từ MinIO (face-profiles/staging/x.jpg)")),
+                Arguments.of("ERR_EDGE_INTERNAL (ảnh hỏng)", failureReply("ERR_EDGE_INTERNAL",
+                        "Không thể giải mã định dạng ảnh hoặc file bị hỏng: cannot identify image file")),
+                Arguments.of("ERR_RPC_UNKNOWN_ACTION", failureReply("ERR_RPC_UNKNOWN_ACTION",
+                        "Không hỗ trợ lệnh RPC: EXTRACT_FACE_EMBEDDING")),
+                Arguments.of("mã lạ", failureReply("ERR_SOMETHING_NEW", "edge bản mới báo lỗi chưa biết")),
+                Arguments.of("thiếu mã", failureReply(null, "edge không gửi errorCode")),
+                Arguments.of("success nhưng thiếu data", EdgeRpcReplyDto.builder()
+                        .correlationId("corr-" + UUID.randomUUID()).success(true).data(null).build()));
+    }
+
+    private static EdgeRpcReplyDto failureReply(String errorCode, String errorMessage) {
+        String marker = "edge-msg-" + UUID.randomUUID();
+        return EdgeRpcReplyDto.builder().correlationId("corr-" + UUID.randomUUID()).success(false)
+                .errorCode(errorCode).errorMessage(errorMessage + " [" + marker + "]").build();
+    }
+
+    /** Dòng log chứa correlationId của reply phải ở mức WARN, có errorCode và errorMessage của edge. */
+    private static void assertEdgeFailureLoggedAsWarn(CapturedOutput output, EdgeRpcReplyDto reply) {
+        List<String> lines = output.getOut().lines().filter(l -> l.contains(reply.getCorrelationId())).toList();
+        assertThat(lines).as("log của correlationId " + reply.getCorrelationId()).hasSize(1);
+        assertThat(lines.get(0)).contains("WARN").contains("errorCode=" + reply.getErrorCode())
+                .contains("errorMessage=" + reply.getErrorMessage());
     }
 
     private String newCode(String tag) {
@@ -252,21 +320,90 @@ class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
         assertThat(userCount(edgeCode)).isZero();
     }
 
-    @Test
-    @DisplayName("Tài khoản, Cloud-Edge: lỗi edge khác (model chưa nạp) giữ hành vi cũ — 422 kèm câu của thiết bị biên, không bị đổi thành câu \"không có mặt\"")
-    void account_edgeOtherError_unchanged() throws Exception {
-        edgeMode();
-        String modelMessage = "Mô hình nhận diện khuôn mặt (ArcFace) chưa được nạp trên thiết bị biên";
-        edgeReplies("ERR_MODEL_NOT_READY", modelMessage);
-        String code = newCode("MODEL");
-
-        MvcResult r = createAccount(code);
-
+    @ParameterizedTest(name = "Tài khoản, Cloud-Edge: {0} -> 503 giống ai-service 5xx")
+    @MethodSource("edgeServiceErrors")
+    @DisplayName("Tài khoản, Cloud-Edge: lỗi edge không do ảnh (mã đang dùng, mã lạ, thiếu mã, thiếu data) -> 503 đúng câu nhánh HTTP trả cho 5xx; câu của edge chỉ ở log WARN; không tạo tài khoản, staging được gỡ")
+    void account_edgeServiceError_sameAsHttp5xx(String label, EdgeRpcReplyDto reply, CapturedOutput output) throws Exception {
+        httpMode();
+        String httpCode = newCode("H5XX");
+        expectAi500();
+        MvcResult http = createAccount(httpCode);
         aiServer.verify();
-        assertThat(r.getResponse().getStatus()).as(body(r)).isEqualTo(422);
-        assertThat(message(r)).isEqualTo(modelMessage).isNotEqualTo(FaceDataService.NO_FACE_MESSAGE);
-        assertThat(userCount(code)).isZero();
+
+        edgeMode();
+        aiServer.reset();
+        edgeReplies(reply);
+        String edgeCode = newCode("ESVC");
+        MvcResult edgeResult = createAccount(edgeCode);
+        aiServer.verify();
+
+        assertThat(http.getResponse().getStatus()).as(body(http)).isEqualTo(503);
+        assertThat(edgeResult.getResponse().getStatus()).as(label + ": " + body(edgeResult)).isEqualTo(503);
+        assertThat(message(http)).isEqualTo(FaceDataService.AI_SERVICE_ERROR_MESSAGE);
+        assertThat(message(edgeResult)).as(label).isEqualTo(message(http));
+        if (reply.getErrorMessage() != null) {
+            assertThat(body(edgeResult)).as("câu của edge không được lọt ra response").doesNotContain(reply.getErrorMessage());
+        }
+        assertEdgeFailureLoggedAsWarn(output, reply);
+
+        verify(edge, times(1)).sendRpcRequest(eq("EXTRACT_FACE_EMBEDDING"), isNull(), anyMap(), anyLong());
         verify(minioStorageService, times(1)).removeObjectSafely(eq(FACES_BUCKET), startsWith("staging/"));
+        verify(minioStorageService, never()).uploadFaceImage(any(), anyString());
+        assertThat(userCount(httpCode)).isZero();
+        assertThat(userCount(edgeCode)).isZero();
+    }
+
+    @Test
+    @DisplayName("Tài khoản, Cloud-Edge: ảnh có 2 khuôn mặt (edge trả success, face_count = 2) -> 422 giống hệt nhánh HTTP")
+    void account_edgeMultipleFaces_sameAsHttp() throws Exception {
+        List<Float> face = TestFaces.random();
+        httpMode();
+        String httpCode = newCode("H2F");
+        aiServer.expect(requestTo(endsWith(AI_PATH)))
+                .andRespond(withSuccess(TestFaces.registrationBody(httpCode, 2, face), MediaType.APPLICATION_JSON));
+        MvcResult http = createAccount(httpCode);
+        aiServer.verify();
+
+        edgeMode();
+        aiServer.reset();
+        edgeReplies(EdgeRpcReplyDto.builder().correlationId("corr-" + UUID.randomUUID()).success(true)
+                .data(Map.of("face_count", 2, "embedding_front", face)).build());
+        String edgeCode = newCode("E2F");
+        MvcResult edgeResult = createAccount(edgeCode);
+        aiServer.verify();
+
+        assertThat(http.getResponse().getStatus()).as(body(http)).isEqualTo(422);
+        assertThat(edgeResult.getResponse().getStatus()).as(body(edgeResult)).isEqualTo(422);
+        assertThat(message(edgeResult)).isEqualTo(message(http)).isEqualTo("Ảnh chứa nhiều hơn 1 khuôn mặt");
+        verify(minioStorageService, never()).uploadFaceImage(any(), anyString());
+        assertThat(userCount(httpCode)).isZero();
+        assertThat(userCount(edgeCode)).isZero();
+    }
+
+    @Test
+    @DisplayName("Tài khoản, Cloud-Edge: RPC quá hạn (CameraException ERR_EDGE_002) -> 503 đúng câu nhánh HTTP trả khi ai-service timeout; staging được gỡ")
+    void account_edgeRpcTimeout_sameAsHttpConnectionError() throws Exception {
+        httpMode();
+        String httpCode = newCode("HTO");
+        expectAiTimeout();
+        MvcResult http = createAccount(httpCode);
+        aiServer.verify();
+
+        edgeMode();
+        aiServer.reset();
+        when(edge.sendRpcRequest(eq("EXTRACT_FACE_EMBEDDING"), isNull(), anyMap(), anyLong()))
+                .thenThrow(new CameraException(CameraErrorCode.ERR_EDGE_002));
+        String edgeCode = newCode("ETO");
+        MvcResult edgeResult = createAccount(edgeCode);
+        aiServer.verify();
+
+        assertThat(http.getResponse().getStatus()).as(body(http)).isEqualTo(503);
+        assertThat(edgeResult.getResponse().getStatus()).as(body(edgeResult)).isEqualTo(503);
+        assertThat(message(http)).isEqualTo(FaceDataService.AI_SERVICE_UNAVAILABLE_MESSAGE);
+        assertThat(message(edgeResult)).isEqualTo(message(http));
+        verify(minioStorageService, times(1)).removeObjectSafely(eq(FACES_BUCKET), startsWith("staging/"));
+        assertThat(userCount(httpCode)).isZero();
+        assertThat(userCount(edgeCode)).isZero();
     }
 
     // ------------------------------------------------------------------ khách
@@ -296,6 +433,34 @@ class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
 
         verify(edge, times(1)).sendRpcRequest(eq("EXTRACT_FACE_EMBEDDING"), isNull(), anyMap(), anyLong());
         verify(minioStorageService, times(1)).uploadStagingObject(eq(FACES_BUCKET), startsWith("staging/guest_"), any(), anyString());
+        verify(minioStorageService, times(1)).removeObjectSafely(eq(FACES_BUCKET), startsWith("staging/guest_"));
+    }
+
+    static Stream<Arguments> guestUnknownOrMissingCode() {
+        return Stream.of(
+                Arguments.of("mã lạ", "ERR_SOMETHING_NEW"),
+                Arguments.of("thiếu mã", null));
+    }
+
+    @ParameterizedTest(name = "Khách, Cloud-Edge: {0} -> ERR_GUEST_035 giống ai-service 5xx")
+    @MethodSource("guestUnknownOrMissingCode")
+    @DisplayName("Khách, Cloud-Edge: mã lạ / thiếu mã -> ERR_GUEST_035 như nhánh HTTP 5xx (luồng khách không đổi), câu của edge không lọt ra")
+    void guest_edgeUnknownOrMissingCode_err035SameAsHttp5xx(String label, String errorCode) {
+        httpMode();
+        expectAi500();
+        GuestException http = guestPhotoFailure();
+        aiServer.verify();
+
+        edgeMode();
+        aiServer.reset();
+        String edgeMessage = "edge báo lỗi " + label + " " + UUID.randomUUID();
+        edgeReplies(errorCode, edgeMessage);
+        GuestException edgeResult = guestPhotoFailure();
+        aiServer.verify();
+
+        assertThat(http.getErrorCode()).isEqualTo(GuestErrorCode.ERR_GUEST_035);
+        assertThat(edgeResult.getErrorCode()).as(label).isEqualTo(GuestErrorCode.ERR_GUEST_035);
+        assertThat(edgeResult.getMessage()).isEqualTo(http.getMessage()).doesNotContain(edgeMessage);
         verify(minioStorageService, times(1)).removeObjectSafely(eq(FACES_BUCKET), startsWith("staging/guest_"));
     }
 }
