@@ -16,6 +16,7 @@ import numpy as np
 
 from ..config import settings
 from ..pipeline.incident_recorder import incident_recording_manager
+from ..pipeline.worker_registry import get_or_start_worker
 from ..security import INTERNAL_RTSP_USER, build_internal_rtsp_url, decrypt_mqtt_secret, make_internal_api_secret
 from ..utils.security import mask_rtsp_url
 
@@ -287,32 +288,23 @@ class EdgeMqttAgent:
             target_ai_source = rtsp_url
             effective_rtsp = self._sync_local_mediamtx_path(camera_code, rtsp_url)
 
-        worker_to_stop = None
-        with self._lock:
-            existing = self.active_workers.get(camera_code)
-            if existing is not None and getattr(existing, "is_running", False):
-                if getattr(existing, "rtsp_url", None) in (effective_rtsp, target_ai_source):
-                    if roi_geometry and isinstance(roi_geometry, dict) and hasattr(existing, "update_roi"):
-                        existing.update_roi(polygons=roi_geometry.get("polygons", []))
-                    return
-                worker_to_stop = existing
-                self.active_workers.pop(camera_code, None)
-
-        if worker_to_stop:
-            try:
-                worker_to_stop.stop()
-            except Exception:
-                pass
-
         factory = self.worker_factory
         if factory is None:
             from ..pipeline.stream_worker import CameraStreamWorker
             factory = lambda c, u, r: CameraStreamWorker(camera_code=c, rtsp_url=u, roi_geometry=r)
 
-        worker = factory(camera_code, effective_rtsp, roi_geometry)
-        worker.start()  # Chạy start() ngoài lock để tránh giữ lock khi mở kết nối RTSP
-        with self._lock:
-            self.active_workers[camera_code] = worker
+        # Giữ worker đang chạy nếu cùng nguồn RTSP; khác nguồn -> dừng worker cũ rồi chạy worker mới (không để mồ côi)
+        worker, started = get_or_start_worker(
+            self.active_workers,
+            self._lock,
+            camera_code,
+            lambda: factory(camera_code, effective_rtsp, roi_geometry),
+            keep_existing=lambda w: getattr(w, "rtsp_url", None) in (effective_rtsp, target_ai_source),
+        )
+        if not started:
+            if roi_geometry and isinstance(roi_geometry, dict) and hasattr(worker, "update_roi"):
+                worker.update_roi(polygons=roi_geometry.get("polygons", []))
+            return
         logger.info(f"✅ [EdgeAgent] Đã kích hoạt CameraStreamWorker [{camera_code}] -> {mask_rtsp_url(effective_rtsp)}")
 
     def _handle_roi_config(self, data: Dict[str, Any]):

@@ -33,6 +33,7 @@ from .config import settings, INTERNAL_SERVICE_KEY_HEADER
 from .security import require_service_key, verify_stream_token
 from .pipeline.video_pipeline import VideoPipeline
 from .pipeline.stream_worker import CameraStreamWorker
+from .pipeline.worker_registry import find_worker_key, get_or_start_worker
 from .pipeline.incident_recorder import incident_recording_manager
 from .integration.storage_service import StorageService
 
@@ -210,21 +211,24 @@ async def sync_online_cameras_worker():
                         cam_code = cam_code[:-5]
 
                     with active_workers_lock:
-                        existing = active_workers.get(cam_code)
+                        existing = active_workers.get(find_worker_key(active_workers, cam_code) or cam_code)
                         is_running = bool(existing and getattr(existing, "is_running", False))
 
                     if not is_running:
                         try:
-                            from .pipeline.stream_worker import CameraStreamWorker, resolve_camera_rtsp_url
-                            worker_rtsp = resolve_camera_rtsp_url(cam_code)
-                            worker = CameraStreamWorker(
-                                camera_code=cam_code,
-                                rtsp_url=worker_rtsp
+                            from .pipeline.stream_worker import resolve_camera_rtsp_url
+                            _, started = await asyncio.to_thread(
+                                get_or_start_worker,
+                                active_workers,
+                                active_workers_lock,
+                                cam_code,
+                                lambda code=cam_code: CameraStreamWorker(
+                                    camera_code=code,
+                                    rtsp_url=resolve_camera_rtsp_url(code)
+                                ),
                             )
-                            worker.start()
-                            with active_workers_lock:
-                                active_workers[cam_code] = worker
-                            logger.info(f"📹 [Auto-Record] Đã tự động kích hoạt Stream Worker & Ghi hình định kỳ cho camera [{cam_code}] từ MediaMTX ({name})")
+                            if started:
+                                logger.info(f"📹 [Auto-Record] Đã tự động kích hoạt Stream Worker & Ghi hình định kỳ cho camera [{cam_code}] từ MediaMTX ({name})")
                         except Exception as w_err:
                             logger.warning(f"⚠️ [Auto-Record] Không thể khởi động worker cho camera [{cam_code}]: {w_err}")
         except Exception:
@@ -660,41 +664,37 @@ async def start_camera_stream(req: StreamStartRequest):
     camera_code = req.camera_code.strip()
     rtsp_url = req.rtsp_url.strip()
 
-    worker_to_stop = None
-    with active_workers_lock:
-        current_worker = active_workers.get(camera_code)
-        if current_worker and current_worker.is_running:
-            if current_worker.rtsp_url != rtsp_url:
-                logger.info(
-                    f"🔄 [StreamStart] RTSP URL thay đổi cho camera [{camera_code}] "
-                    f"({mask_rtsp_url(current_worker.rtsp_url)} -> {mask_rtsp_url(rtsp_url)}), dừng worker cũ và tái kết nối..."
-                )
-                worker_to_stop = current_worker
-                active_workers.pop(camera_code, None)
-            else:
-                if req.roi_geometry:
-                    polys = req.roi_geometry.get("polygons", [])
-                    current_worker.update_roi(polygons=polys)
-                return {"status": "ALREADY_RUNNING", "camera_code": camera_code, "rtsp_url": rtsp_url}
-
-    if worker_to_stop:
-        try:
-            worker_to_stop.stop()
-        except Exception as e:
-            logger.warning(f"Lỗi khi dừng worker cũ {camera_code}: {e}")
+    def _keep_if_same_url(current_worker) -> bool:
+        if current_worker.rtsp_url == rtsp_url:
+            return True
+        logger.info(
+            f"🔄 [StreamStart] RTSP URL thay đổi cho camera [{camera_code}] "
+            f"({mask_rtsp_url(current_worker.rtsp_url)} -> {mask_rtsp_url(rtsp_url)}), dừng worker cũ và tái kết nối..."
+        )
+        return False
 
     try:
-        worker = CameraStreamWorker(
-            camera_code=camera_code,
-            rtsp_url=rtsp_url,
-            roi_geometry=req.roi_geometry
+        worker, started = await asyncio.to_thread(
+            get_or_start_worker,
+            active_workers,
+            active_workers_lock,
+            camera_code,
+            lambda: CameraStreamWorker(
+                camera_code=camera_code,
+                rtsp_url=rtsp_url,
+                roi_geometry=req.roi_geometry
+            ),
+            _keep_if_same_url,
         )
-        worker.start()
-        with active_workers_lock:
-            active_workers[camera_code] = worker
-        return {"status": "STARTED", "camera_code": camera_code, "rtsp_url": rtsp_url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Không thể khởi động worker camera: {e}")
+
+    if not started:
+        if req.roi_geometry:
+            polys = req.roi_geometry.get("polygons", [])
+            worker.update_roi(polygons=polys)
+        return {"status": "ALREADY_RUNNING", "camera_code": camera_code, "rtsp_url": rtsp_url}
+    return {"status": "STARTED", "camera_code": camera_code, "rtsp_url": rtsp_url}
 
 @app.post("/api/v1/stream/stop", dependencies=[Depends(require_service_key)])
 async def stop_camera_stream(camera_code: str = Query(..., description="Mã camera cần dừng, ví dụ: CAM-001")):
@@ -746,14 +746,18 @@ async def get_live_annotated_feed(
         try:
             from .pipeline.stream_worker import resolve_camera_rtsp_url
             worker_rtsp = resolve_camera_rtsp_url(norm_code)
-            target_worker = CameraStreamWorker(
-                camera_code=norm_code,
-                rtsp_url=worker_rtsp
+            target_worker, started = await asyncio.to_thread(
+                get_or_start_worker,
+                active_workers,
+                active_workers_lock,
+                norm_code,
+                lambda: CameraStreamWorker(
+                    camera_code=norm_code,
+                    rtsp_url=worker_rtsp
+                ),
             )
-            target_worker.start()
-            with active_workers_lock:
-                active_workers[norm_code] = target_worker
-            logger.info(f"✅ Tự động khởi chạy CameraStreamWorker cho [{norm_code}] để phục vụ luồng live-annotated tại {mask_rtsp_url(worker_rtsp)}")
+            if started:
+                logger.info(f"✅ Tự động khởi chạy CameraStreamWorker cho [{norm_code}] để phục vụ luồng live-annotated tại {mask_rtsp_url(worker_rtsp)}")
         except Exception as ex:
             logger.warning(f"Không thể tự động kích hoạt worker cho [{norm_code}]: {ex}")
             raise HTTPException(status_code=404, detail="Camera worker hiện chưa chạy. Hãy Kết nối Stream trước.")
