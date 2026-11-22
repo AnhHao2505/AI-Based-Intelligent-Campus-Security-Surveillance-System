@@ -1,5 +1,5 @@
 -- ============================================================================
--- V135: dung lượng tối đa ảnh khuôn mặt tài khoản (USER_FACE_IMAGE_MAX_KB) vào cấu hình hệ thống
+-- V140: dung lượng tối đa ảnh khuôn mặt tài khoản (USER_FACE_IMAGE_MAX_KB) vào cấu hình hệ thống
 -- ============================================================================
 -- Trước đây FaceDataService.registerFace và UserBulkImportHelper.processSingleRow viết cứng 350 KB.
 -- Nay đọc USER_FACE_IMAGE_MAX_KB lúc chạy (sửa trên màn System Configuration có hiệu lực ngay, không cần restart).

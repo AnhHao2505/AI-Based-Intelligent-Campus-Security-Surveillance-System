@@ -53,10 +53,10 @@ public class FaceDataService {
     private final AiServiceRestTemplate restTemplate;
     /** Kiểm trùng khuôn mặt: bắt buộc (face-gate 1), thiếu bean thì ứng dụng không khởi động thay vì bỏ qua im lặng. */
     private final FaceDuplicateCheckService faceDuplicateCheckService;
-    /** V135: USER_FACE_IMAGE_MAX_KB đọc mỗi lần đăng ký (sửa trên màn System Configuration có hiệu lực ngay). */
+    /** V140: USER_FACE_IMAGE_MAX_KB đọc mỗi lần đăng ký (sửa trên màn System Configuration có hiệu lực ngay). */
     private final SystemConfigService systemConfigService;
 
-    /** V135: dung lượng tối đa ảnh khuôn mặt tài khoản (KB), kẹp theo min_value / max_value ở DB. */
+    /** V140: dung lượng tối đa ảnh khuôn mặt tài khoản (KB), kẹp theo min_value / max_value ở DB. */
     public int getFaceImageMaxKb() {
         return systemConfigService.getIntWithinBounds(ConfigKey.USER_FACE_IMAGE_MAX_KB);
     }

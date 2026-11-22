@@ -65,7 +65,7 @@ public enum ConfigKey {
     GUEST_PURPOSE_MAX_LENGTH("GUEST_PURPOSE_MAX_LENGTH", "500"),
     // UI-19 (V69): số dòng tối đa mỗi lần nạp tài khoản theo lô (cả luồng người dùng thường và cán bộ)
     USER_BULK_IMPORT_MAX_ROWS("USER_BULK_IMPORT_MAX_ROWS", "200"),
-    // V135: dung lượng tối đa ảnh khuôn mặt tài khoản (KB), đăng ký đơn lẻ + nạp theo lô; ảnh khách dùng icss.guest.photo-max-kb
+    // V140: dung lượng tối đa ảnh khuôn mặt tài khoản (KB), đăng ký đơn lẻ + nạp theo lô; ảnh khách dùng icss.guest.photo-max-kb
     USER_FACE_IMAGE_MAX_KB("USER_FACE_IMAGE_MAX_KB", "350"),
     // Nhật ký ra vào tại camera (V77): khoảng chống ghi trùng cùng người + cùng camera, và số ngày giữ log
     ENTRY_LOG_DEBOUNCE_SECONDS("ENTRY_LOG_DEBOUNCE_SECONDS", "30"),

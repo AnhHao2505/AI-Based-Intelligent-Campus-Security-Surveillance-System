@@ -46,7 +46,7 @@ public class UserBulkImportHelper {
     private final MinioStorageService minioStorageService;
     private final NotificationService notificationService;
     private final UserAccessLevelHelper userAccessLevelHelper;
-    /** V135: USER_FACE_IMAGE_MAX_KB đọc mỗi dòng. */
+    /** V140: USER_FACE_IMAGE_MAX_KB đọc mỗi dòng. */
     private final SystemConfigService systemConfigService;
 
     /** PR-AUDIT: field injection để giữ constructor; null thì không ghi audit. */
@@ -104,7 +104,7 @@ public class UserBulkImportHelper {
         if (imageBytes == null || imageBytes.length == 0) {
             return buildError(rowIndex, userCode, fullName, email, roleStr, "Không tìm thấy file ảnh tương ứng trong thư mục images/ (yêu cầu images/" + userCode + ".jpg hoặc .png)");
         }
-        // V135: cùng giới hạn USER_FACE_IMAGE_MAX_KB với đăng ký đơn lẻ (FaceDataService.registerFace)
+        // V140: cùng giới hạn USER_FACE_IMAGE_MAX_KB với đăng ký đơn lẻ (FaceDataService.registerFace)
         int maxKb = systemConfigService.getIntWithinBounds(ConfigKey.USER_FACE_IMAGE_MAX_KB);
         if (imageBytes.length > (long) maxKb * 1024) {
             return buildError(rowIndex, userCode, fullName, email, roleStr, FaceDataService.faceImageTooLargeMessage(maxKb, imageBytes.length));

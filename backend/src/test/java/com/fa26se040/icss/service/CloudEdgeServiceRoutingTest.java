@@ -183,7 +183,7 @@ class CloudEdgeServiceRoutingTest {
     @DisplayName("3. Happy Path (Cloud-Edge Face Registration via MinIO Staging + MQTT RPC): Đăng ký khuôn mặt qua NAT không cần gọi HTTP vào Edge và tự dọn staging object")
     void registerFace_inCloudEdgeMode_usesMinioStagingAndMqttRpc() {
         // face-gate 1: kiểm trùng là phụ thuộc bắt buộc (mock trả Optional.empty = không trùng)
-        // V135: giới hạn dung lượng ảnh đọc từ USER_FACE_IMAGE_MAX_KB
+        // V140: giới hạn dung lượng ảnh đọc từ USER_FACE_IMAGE_MAX_KB
         SystemConfigService faceConfig = mock(SystemConfigService.class);
         when(faceConfig.getIntWithinBounds(com.fa26se040.icss.enums.ConfigKey.USER_FACE_IMAGE_MAX_KB)).thenReturn(350);
         FaceDataService faceDataService = new FaceDataService(faceDataRepository, userRepository, minioStorageService, restTemplate,

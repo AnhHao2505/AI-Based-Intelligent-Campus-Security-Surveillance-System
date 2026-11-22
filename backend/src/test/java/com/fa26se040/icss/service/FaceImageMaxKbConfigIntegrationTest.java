@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * V135: dung lượng tối đa ảnh khuôn mặt tài khoản đọc từ USER_FACE_IMAGE_MAX_KB (mặc định 350, khoảng 100–1024), sửa qua
+ * V140: dung lượng tối đa ảnh khuôn mặt tài khoản đọc từ USER_FACE_IMAGE_MAX_KB (mặc định 350, khoảng 100–1024), sửa qua
  * SystemConfigService.update có hiệu lực ngay cho cả đăng ký đơn lẻ (FaceDataService) và nạp theo lô (UserBulkImportHelper).
  * Câu báo dùng String.format theo locale mặc định của JVM (giữ như trước), nên kỳ vọng cũng định dạng bằng String.format.
  * Mọi ca dừng ở bước kiểm dung lượng / định dạng, trước khi gọi ai-service, nên không cần AI hay MinIO.
