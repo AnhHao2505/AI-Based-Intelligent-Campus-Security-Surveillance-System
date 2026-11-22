@@ -63,6 +63,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -85,6 +86,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *   AI_SERVICE_UNAVAILABLE_MESSAGE (như lỗi kết nối HTTP). Câu của thiết bị biên không bao giờ ra response, chỉ ở log WARN.
  * - Khách (GuestFaceEmbeddingClient -> GuestPhotoService): ERR_NO_FACE_DETECTED -> ERR_GUEST_034 "(phát hiện 0)"; mã lạ / thiếu
  *   mã -> ERR_GUEST_035 như ai-service 5xx.
+ * - Chế độ edge, không tải được ảnh staging lên MinIO -> 503 AI_SERVICE_UNAVAILABLE_MESSAGE (như lỗi kết nối HTTP).
+ * - Nhánh HTTP, ai-service từ chối ảnh (400 / 422 không phải "không có mặt") -> 422 IMAGE_UNPROCESSABLE_MESSAGE, không kèm body.
  * Trường edgeMqttControlService / aiServiceUrl của bean thật được đổi trong test và trả lại ở @AfterEach / @AfterAll.
  */
 @ExtendWith(OutputCaptureExtension.class)
@@ -457,6 +460,62 @@ class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
         verify(minioStorageService, times(1)).removeObjectSafely(eq(FACES_BUCKET), startsWith("staging/"));
         assertThat(userCount(httpCode)).isZero();
         assertThat(userCount(edgeCode)).isZero();
+    }
+
+    // ------------------------------------------------------------------ chế độ edge: không tải được ảnh staging lên MinIO
+
+    /** MinioStorageService.uploadStagingObject bọc mọi lỗi MinIO thành RuntimeException "Failed to upload staging object ...". */
+    private String stagingUploadFails() {
+        String marker = "minio-detail-" + UUID.randomUUID();
+        doThrow(new RuntimeException("Failed to upload staging object to MinIO: Connection refused " + marker))
+                .when(minioStorageService).uploadStagingObject(anyString(), anyString(), any(), anyString());
+        return marker;
+    }
+
+    @Test
+    @DisplayName("Tài khoản, Cloud-Edge: không tải được ảnh staging lên MinIO -> 503 đúng câu nhánh HTTP trả khi không kết nối được ai-service (trước đây 500 \"Lỗi hệ thống\"); không gửi RPC, chi tiết MinIO chỉ ở log WARN")
+    void account_edgeStagingUploadFails_sameAsHttpConnectionError(CapturedOutput output) throws Exception {
+        httpMode();
+        String httpCode = newCode("HCONN");
+        expectAiTimeout();
+        MvcResult http = createAccount(httpCode);
+        aiServer.verify();
+
+        edgeMode();
+        aiServer.reset();
+        String marker = stagingUploadFails();
+        String edgeCode = newCode("ESTG");
+        MvcResult edgeResult = createAccount(edgeCode);
+        aiServer.verify();
+
+        assertThat(http.getResponse().getStatus()).as(body(http)).isEqualTo(503);
+        assertThat(edgeResult.getResponse().getStatus()).as(body(edgeResult)).isEqualTo(503);
+        assertThat(message(http)).isEqualTo(FaceDataService.AI_SERVICE_UNAVAILABLE_MESSAGE);
+        assertThat(message(edgeResult)).isEqualTo(message(http));
+        assertThat(body(edgeResult)).doesNotContain(marker).doesNotContain("MinIO").doesNotContain("Lỗi hệ thống");
+        assertThat(warnLineWith(output, marker)).contains(edgeCode);
+        verify(edge, never()).sendRpcRequest(anyString(), any(), anyMap(), anyLong());
+        verify(minioStorageService, never()).removeObjectSafely(anyString(), anyString());
+        verify(minioStorageService, never()).uploadFaceImage(any(), anyString());
+        assertThat(userCount(httpCode)).isZero();
+        assertThat(userCount(edgeCode)).isZero();
+    }
+
+    @Test
+    @DisplayName("Nạp theo lô, Cloud-Edge: không tải được ảnh staging lên MinIO -> dòng FAILED với câu 503 dùng chung, không kèm chi tiết MinIO")
+    void bulkImport_edgeStagingUploadFails_rowShowsSharedMessage() throws Exception {
+        edgeMode();
+        String marker = stagingUploadFails();
+        String code = newCode("BSTG");
+
+        JsonNode row = bulkImportOneRow(code);
+
+        aiServer.verify();
+        assertThat(row.path("status").asText()).isEqualTo("FAILED");
+        assertThat(row.path("errorMessage").asText()).isEqualTo(FaceDataService.AI_SERVICE_UNAVAILABLE_MESSAGE)
+                .doesNotContain(marker).doesNotContain("MinIO");
+        verify(edge, never()).sendRpcRequest(anyString(), any(), anyMap(), anyLong());
+        assertThat(userCount(code)).isZero();
     }
 
     // ------------------------------------------------------------------ nhánh HTTP: lỗi do ảnh không kèm body ai-service

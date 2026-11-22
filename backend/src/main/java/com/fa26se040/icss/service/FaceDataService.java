@@ -53,7 +53,10 @@ public class FaceDataService {
     static final String IMAGE_UNPROCESSABLE_MESSAGE = "Không thể xử lý khuôn mặt trong ảnh";
     /** ai-service trả lỗi không do ảnh (5xx...); chế độ Cloud-Edge dùng chung cho mọi mã lỗi edge không phải lỗi ảnh. */
     static final String AI_SERVICE_ERROR_MESSAGE = "Dịch vụ AI gặp lỗi khi xử lý ảnh. Vui lòng thử lại sau.";
-    /** Không kết nối được ai-service (HTTP), hoặc RPC tới edge quá hạn / mất kết nối (CameraException). */
+    /**
+     * Không kết nối được ai-service (HTTP); chế độ Cloud-Edge: RPC tới edge quá hạn / mất kết nối (CameraException) hoặc
+     * không tải được ảnh staging lên MinIO.
+     */
     static final String AI_SERVICE_UNAVAILABLE_MESSAGE = "Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.";
 
     private final FaceDataRepository faceDataRepository;
@@ -255,12 +258,19 @@ public class FaceDataService {
     private AiFaceRegistrationResponseDto extractEmbeddingViaEdgeMqtt(String code, byte[] imageBytes, String contentType) {
         String bucket = minioStorageService.getFacesBucket();
         String stagingKey = "staging/" + UUID.randomUUID() + ".jpg";
-        minioStorageService.uploadStagingObject(
-                bucket,
-                stagingKey,
-                imageBytes,
-                contentType != null ? contentType : "image/jpeg"
-        );
+        try {
+            minioStorageService.uploadStagingObject(
+                    bucket,
+                    stagingKey,
+                    imageBytes,
+                    contentType != null ? contentType : "image/jpeg"
+            );
+        } catch (RuntimeException e) {
+            // Ảnh chưa tới được thiết bị biên, như nhánh HTTP không kết nối được ai-service -> 503 câu dùng chung (trước đây
+            // rơi vào lỗi chung 500). Chi tiết MinIO chỉ ghi log WARN (không có ảnh); không có object staging để gỡ.
+            log.warn("Không tải được ảnh staging lên MinIO cho [{}] (chế độ Cloud-Edge): {}", code, e.getMessage());
+            throw new AiServiceUnavailableException(AI_SERVICE_UNAVAILABLE_MESSAGE);
+        }
         try {
             EdgeRpcReplyDto reply = edgeMqttControlService.sendRpcRequest(
                     "EXTRACT_FACE_EMBEDDING",
