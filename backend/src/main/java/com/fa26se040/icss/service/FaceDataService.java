@@ -46,6 +46,11 @@ public class FaceDataService {
 
     /** Ảnh không có khuôn mặt: face_count = 0, hoặc ai-service trả 400 "không phát hiện khuôn mặt". */
     static final String NO_FACE_MESSAGE = "Không phát hiện thấy khuôn mặt trong ảnh.";
+    /**
+     * ai-service từ chối ảnh (400 / 422 không phải "không có mặt": ảnh rỗng, không giải mã được...). Câu sẵn có trước đây đi
+     * kèm nguyên body của ai-service; nay chỉ còn câu, body ghi log WARN.
+     */
+    static final String IMAGE_UNPROCESSABLE_MESSAGE = "Không thể xử lý khuôn mặt trong ảnh";
     /** ai-service trả lỗi không do ảnh (5xx...); chế độ Cloud-Edge dùng chung cho mọi mã lỗi edge không phải lỗi ảnh. */
     static final String AI_SERVICE_ERROR_MESSAGE = "Dịch vụ AI gặp lỗi khi xử lý ảnh. Vui lòng thử lại sau.";
     /** Không kết nối được ai-service (HTTP), hoặc RPC tới edge quá hạn / mất kết nối (CameraException). */
@@ -222,14 +227,19 @@ public class FaceDataService {
             log.error("Không thể kết nối đến AI Service cho [{}]: {}", code, e.getMessage());
             throw new AiServiceUnavailableException(AI_SERVICE_UNAVAILABLE_MESSAGE);
         } catch (HttpStatusCodeException e) {
-            log.error("AI Service trả về lỗi [{}] cho [{}]: {}", e.getStatusCode(), code, e.getResponseBodyAsString());
+            // Lỗi do ảnh: người dùng chỉ nhận câu chuẩn; body / detail của ai-service chỉ ghi log WARN (không có ảnh, embedding)
             // ai-service báo 400 khi ảnh không có khuôn mặt -> cùng câu với nhánh face_count = 0 ở trên
             if (AiFaceRegistrationErrors.isNoFaceDetected(e)) {
+                log.warn("AI Service không phát hiện khuôn mặt trong ảnh của [{}] ({}): {}", code, e.getStatusCode(),
+                        AiFaceRegistrationErrors.bodyForLog(e));
                 throw new FaceDetectionException(NO_FACE_MESSAGE);
             }
             if (e.getStatusCode().value() == 422 || e.getStatusCode().value() == 400) {
-                throw new FaceDetectionException("Không thể xử lý khuôn mặt trong ảnh: " + e.getResponseBodyAsString());
+                log.warn("AI Service từ chối ảnh của [{}] ({}): {}", code, e.getStatusCode(),
+                        AiFaceRegistrationErrors.bodyForLog(e));
+                throw new FaceDetectionException(IMAGE_UNPROCESSABLE_MESSAGE);
             }
+            log.error("AI Service trả về lỗi [{}] cho [{}]: {}", e.getStatusCode(), code, AiFaceRegistrationErrors.bodyForLog(e));
             throw new AiServiceUnavailableException(AI_SERVICE_ERROR_MESSAGE);
         } catch (FaceDetectionException | FaceDuplicateException | AiServiceUnavailableException
                  | com.fa26se040.icss.exception.AuditWriteException e) {

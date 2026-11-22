@@ -582,7 +582,8 @@ class FaceDuplicateRegistrationTest extends AbstractIntegrationTest {
         MvcResult r = createStaff(code);
         aiServer.verify();
         assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(422);
-        assertThat(message(r)).startsWith("Không thể xử lý khuôn mặt trong ảnh: ").doesNotContain("Không phát hiện thấy khuôn mặt trong ảnh.");
+        // câu chuẩn, không kèm body / detail của ai-service
+        assertThat(message(r)).isEqualTo(FaceDataService.IMAGE_UNPROCESSABLE_MESSAGE).doesNotContain("cannot identify image file");
         assertThat(userCount(code)).isZero();
         verify(minioStorageService, never()).uploadFaceImage(any(), anyString());
     }
@@ -660,7 +661,9 @@ class FaceDuplicateRegistrationTest extends AbstractIntegrationTest {
         MvcResult r = createStaff(code);
         aiServer.verify();
         assertThat(r.getResponse().getStatus()).as(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).isEqualTo(422);
-        assertThat(message(r)).startsWith("Không thể xử lý khuôn mặt trong ảnh: ").doesNotContain("Không phát hiện thấy khuôn mặt trong ảnh.");
+        // không phải "0 khuôn mặt": câu chuẩn của lỗi ảnh, không kèm body / errorCode của ai-service
+        assertThat(message(r)).isEqualTo(FaceDataService.IMAGE_UNPROCESSABLE_MESSAGE)
+                .isNotEqualTo(FaceDataService.NO_FACE_MESSAGE).doesNotContain("ERR_IMAGE_DECODE");
         assertThat(userCount(code)).isZero();
 
         aiServer.reset();

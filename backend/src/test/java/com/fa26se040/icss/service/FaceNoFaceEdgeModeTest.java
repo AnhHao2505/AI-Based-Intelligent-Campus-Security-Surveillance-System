@@ -13,6 +13,7 @@ import com.fa26se040.icss.exception.GuestErrorCode;
 import com.fa26se040.icss.exception.GuestException;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.security.JwtTokenProvider;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -39,14 +40,18 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.io.ByteArrayOutputStream;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.endsWith;
@@ -236,6 +241,54 @@ class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
                 .errorCode(errorCode).errorMessage(errorMessage + " [" + marker + "]").build();
     }
 
+    /** Nạp theo lô (luồng người dùng thường) một dòng; trả kết quả của dòng đó. */
+    private JsonNode bulkImportOneRow(String code) throws Exception {
+        String csv = "user_code,full_name,email\n" + code + ",No face edge import," + code.toLowerCase(Locale.ROOT) + "@fpt.edu.vn\n";
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("metadata.csv", csv.getBytes(StandardCharsets.UTF_8));
+        entries.put("images/" + code + ".jpg", new byte[]{(byte) 0xFF, (byte) 0xD8, 3});
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(bos)) {
+            for (Map.Entry<String, byte[]> e : entries.entrySet()) {
+                zos.putNextEntry(new ZipEntry(e.getKey()));
+                zos.write(e.getValue());
+                zos.closeEntry();
+            }
+        }
+        MvcResult r = mockMvc.perform(multipart("/api/users/normal/bulk-import")
+                        .file(new MockMultipartFile("file", "edge-errors.zip", "application/zip", bos.toByteArray()))
+                        .header("Authorization", "Bearer " + jwtTokenProvider.generateToken(admin)))
+                .andReturn();
+        assertThat(r.getResponse().getStatus()).as(body(r)).isEqualTo(200);
+        JsonNode results = objectMapper.readTree(body(r)).path("data").path("results");
+        assertThat(results.size()).isEqualTo(1);
+        return results.get(0);
+    }
+
+    /** Dòng log chứa marker phải ở mức WARN. */
+    private static String warnLineWith(CapturedOutput output, String marker) {
+        List<String> lines = output.getOut().lines().filter(l -> l.contains(marker)).toList();
+        assertThat(lines).as("dòng log chứa " + marker).hasSize(1);
+        assertThat(lines.get(0)).contains("WARN");
+        return lines.get(0);
+    }
+
+    /**
+     * Lỗi ai-service do ẢNH ở nhánh HTTP (400 / 422 không phải "không có mặt"); %s là dấu riêng của từng lần chạy để kiểm
+     * body không lọt ra response và có trong log WARN. Body theo src/main.py (ảnh rỗng, ảnh không đọc được), errorCode khác
+     * ERR_NO_FACE_DETECTED, và 422 kiểu FastAPI.
+     */
+    static Stream<Arguments> httpImageErrors() {
+        return Stream.of(
+                Arguments.of("400 ảnh không đọc được", HttpStatus.BAD_REQUEST,
+                        "{\"detail\":\"Không thể đọc file ảnh chính diện: cannot identify image file %s\"}"),
+                Arguments.of("400 ảnh rỗng", HttpStatus.BAD_REQUEST, "{\"detail\":\"Ảnh chính diện bị rỗng. %s\"}"),
+                Arguments.of("400 errorCode khác", HttpStatus.BAD_REQUEST,
+                        "{\"detail\":\"Ảnh hỏng %s\",\"errorCode\":\"ERR_IMAGE_DECODE\"}"),
+                Arguments.of("422 FastAPI", HttpStatus.UNPROCESSABLE_ENTITY,
+                        "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"code\"],\"msg\":\"Field required %s\",\"input\":null}]}"));
+    }
+
     /** Dòng log chứa correlationId của reply phải ở mức WARN, có errorCode và errorMessage của edge. */
     private static void assertEdgeFailureLoggedAsWarn(CapturedOutput output, EdgeRpcReplyDto reply) {
         List<String> lines = output.getOut().lines().filter(l -> l.contains(reply.getCorrelationId())).toList();
@@ -404,6 +457,50 @@ class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
         verify(minioStorageService, times(1)).removeObjectSafely(eq(FACES_BUCKET), startsWith("staging/"));
         assertThat(userCount(httpCode)).isZero();
         assertThat(userCount(edgeCode)).isZero();
+    }
+
+    // ------------------------------------------------------------------ nhánh HTTP: lỗi do ảnh không kèm body ai-service
+
+    @ParameterizedTest(name = "Tài khoản, HTTP: {0} -> 422 câu chuẩn, body chỉ ở log WARN")
+    @MethodSource("httpImageErrors")
+    @DisplayName("Tài khoản, nhánh HTTP: ai-service từ chối ảnh (400 / 422 không phải \"không có mặt\") -> 422 đúng câu chuẩn, không kèm body / detail của ai-service; chi tiết chỉ ở log WARN")
+    void account_httpImageError_standardMessageWithoutAiBody(String label, HttpStatus status, String bodyTemplate,
+                                                             CapturedOutput output) throws Exception {
+        String marker = "ai-detail-" + UUID.randomUUID();
+        httpMode();
+        aiServer.expect(requestTo(endsWith(AI_PATH)))
+                .andRespond(withStatus(status).contentType(MediaType.APPLICATION_JSON).body(String.format(bodyTemplate, marker)));
+        String code = newCode("HIMG");
+
+        MvcResult r = createAccount(code);
+
+        aiServer.verify();
+        assertThat(r.getResponse().getStatus()).as(label + ": " + body(r)).isEqualTo(422);
+        assertThat(message(r)).isEqualTo(FaceDataService.IMAGE_UNPROCESSABLE_MESSAGE).isNotEqualTo(FaceDataService.NO_FACE_MESSAGE);
+        assertThat(body(r)).as("body / detail của ai-service không được lọt ra response").doesNotContain(marker)
+                .doesNotContain("detail");
+        assertThat(warnLineWith(output, marker)).contains(code);
+        verify(minioStorageService, never()).uploadFaceImage(any(), anyString());
+        assertThat(userCount(code)).isZero();
+    }
+
+    @Test
+    @DisplayName("Nạp theo lô, nhánh HTTP: ai-service trả 400 ảnh không đọc được -> dòng FAILED với đúng câu chuẩn, không kèm body ai-service; chi tiết chỉ ở log WARN")
+    void bulkImport_httpImageError_rowShowsStandardMessage(CapturedOutput output) throws Exception {
+        String marker = "ai-detail-" + UUID.randomUUID();
+        httpMode();
+        aiServer.expect(requestTo(endsWith(AI_PATH))).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"detail\":\"Không thể đọc file ảnh chính diện: cannot identify image file " + marker + "\"}"));
+        String code = newCode("BIMG");
+
+        JsonNode row = bulkImportOneRow(code);
+
+        aiServer.verify();
+        assertThat(row.path("status").asText()).isEqualTo("FAILED");
+        assertThat(row.path("errorMessage").asText()).isEqualTo(FaceDataService.IMAGE_UNPROCESSABLE_MESSAGE).doesNotContain(marker);
+        warnLineWith(output, marker);
+        assertThat(userCount(code)).isZero();
     }
 
     // ------------------------------------------------------------------ khách
