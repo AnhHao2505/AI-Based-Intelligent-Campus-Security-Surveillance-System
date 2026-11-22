@@ -11,8 +11,7 @@ import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.exception.AiServiceUnavailableException;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.FaceDetectionException;
-import com.fa26se040.icss.exception.GuestErrorCode;
-import com.fa26se040.icss.exception.GuestException;
+import com.fa26se040.icss.exception.FaceDuplicateException;
 import com.fa26se040.icss.repository.FaceDataRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +47,8 @@ public class FaceDataService {
     private final UserRepository userRepository;
     private final MinioStorageService minioStorageService;
     private final AiServiceRestTemplate restTemplate;
+    /** Kiểm trùng khuôn mặt: bắt buộc (face-gate 1), thiếu bean thì ứng dụng không khởi động thay vì bỏ qua im lặng. */
+    private final FaceDuplicateCheckService faceDuplicateCheckService;
 
     @Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;
@@ -55,10 +56,6 @@ public class FaceDataService {
     /** PR-AUDIT: field injection để giữ constructor (test dựng service bằng tay); null thì không ghi audit. */
     @Autowired(required = false)
     private AuditService auditService;
-
-    /** Kiểm trùng khuôn mặt (field injection như auditService để giữ constructor cho test dựng tay; null thì bỏ qua). */
-    @Autowired(required = false)
-    private FaceDuplicateCheckService faceDuplicateCheckService;
 
     /** PR-AUDIT: mã đã có khuôn mặt chưa (dùng cho snapshot hasFaceData của audit tài khoản). */
     @Transactional(readOnly = true)
@@ -139,22 +136,27 @@ public class FaceDataService {
                 throw new FaceDetectionException("AI Service không thể trích xuất vector khuôn mặt cho mã: " + code);
             }
 
-            if (aiResult.getFaceCount() != null) {
-                if (aiResult.getFaceCount() > 1) {
-                    throw new FaceDetectionException("Ảnh chứa nhiều hơn 1 khuôn mặt");
-                }
-                if (aiResult.getFaceCount() == 0) {
-                    throw new FaceDetectionException("Không phát hiện thấy khuôn mặt trong ảnh.");
-                }
+            // face-gate 1: thiếu số khuôn mặt hoặc vector không đủ 512 chiều -> chặn như luồng ảnh khách (ERR_GUEST_035),
+            // không coi là "không trùng"
+            if (aiResult.getFaceCount() == null || aiResult.getEmbeddingFront() == null
+                    || aiResult.getEmbeddingFront().size() != FaceDuplicateCheckService.EMBEDDING_DIM) {
+                log.warn("AI Service trả kết quả thiếu cho [{}]: faceCount={}, số chiều vector={}", code,
+                        aiResult.getFaceCount(), aiResult.getEmbeddingFront() == null ? null : aiResult.getEmbeddingFront().size());
+                throw new AiServiceUnavailableException("Dịch vụ AI không trích xuất được khuôn mặt, vui lòng thử lại sau.");
+            }
+            if (aiResult.getFaceCount() > 1) {
+                throw new FaceDetectionException("Ảnh chứa nhiều hơn 1 khuôn mặt");
+            }
+            if (aiResult.getFaceCount() == 0) {
+                throw new FaceDetectionException("Không phát hiện thấy khuôn mặt trong ảnh.");
             }
 
-            // Không đăng ký khuôn mặt đã thuộc về người khác: người dùng đang hoạt động (trừ chính mã này khi thay ảnh)
-            // hoặc khách của lượt còn hiệu lực / chưa bắt đầu. Kiểm trước khi tải ảnh lên kho.
-            if (faceDuplicateCheckService != null) {
-                faceDuplicateCheckService.findDuplicateForUser(aiResult.getEmbeddingFront(), code).ifPresent(match -> {
-                    throw new FaceDetectionException(GuestException.render(GuestErrorCode.ERR_GUEST_038, match.describe()));
-                });
-            }
+            // Không đăng ký khuôn mặt đã thuộc về người khác: người dùng chưa xoá mềm, kể cả đang bị vô hiệu hoá (trừ chính
+            // mã này khi thay ảnh), hoặc khách của lượt còn hiệu lực / chưa bắt đầu. Kiểm trước khi tải ảnh lên kho; khoá
+            // advisory giữ tới hết transaction nên hai lượt đăng ký cùng khuôn mặt không cùng lọt (face-gate 4, 5).
+            faceDuplicateCheckService.findDuplicateForUser(aiResult.getEmbeddingFront(), code).ifPresent(match -> {
+                throw new FaceDuplicateException(match.adminMessage());
+            });
 
             String imageUrl = minioStorageService.uploadFaceImage(imageBytes, code);
             String vecFront = formatVectorString(aiResult.getEmbeddingFront());
@@ -205,7 +207,8 @@ public class FaceDataService {
                 throw new FaceDetectionException("Không thể xử lý khuôn mặt trong ảnh: " + e.getResponseBodyAsString());
             }
             throw new AiServiceUnavailableException("Dịch vụ AI gặp lỗi khi xử lý ảnh. Vui lòng thử lại sau.");
-        } catch (FaceDetectionException | AiServiceUnavailableException | com.fa26se040.icss.exception.AuditWriteException e) {
+        } catch (FaceDetectionException | FaceDuplicateException | AiServiceUnavailableException
+                 | com.fa26se040.icss.exception.AuditWriteException e) {
             throw e;
         } catch (IllegalArgumentException e) {
             throw e;

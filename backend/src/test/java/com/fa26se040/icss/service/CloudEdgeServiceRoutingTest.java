@@ -182,7 +182,9 @@ class CloudEdgeServiceRoutingTest {
     @Test
     @DisplayName("3. Happy Path (Cloud-Edge Face Registration via MinIO Staging + MQTT RPC): Đăng ký khuôn mặt qua NAT không cần gọi HTTP vào Edge và tự dọn staging object")
     void registerFace_inCloudEdgeMode_usesMinioStagingAndMqttRpc() {
-        FaceDataService faceDataService = new FaceDataService(faceDataRepository, userRepository, minioStorageService, restTemplate);
+        // face-gate 1: kiểm trùng là phụ thuộc bắt buộc (mock trả Optional.empty = không trùng)
+        FaceDataService faceDataService = new FaceDataService(faceDataRepository, userRepository, minioStorageService, restTemplate,
+                mock(FaceDuplicateCheckService.class));
         ReflectionTestUtils.setField(faceDataService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(faceDataService, "aiServiceUrl", "");
 
@@ -196,7 +198,8 @@ class CloudEdgeServiceRoutingTest {
                 .success(true)
                 .data(Map.of(
                         "face_count", 1,
-                        "embedding_front", List.of(0.12f, -0.34f, 0.56f)
+                        // face-gate 1: vector phải đủ 512 chiều
+                        "embedding_front", java.util.Collections.nCopies(FaceDuplicateCheckService.EMBEDDING_DIM, 0.12f)
                 ))
                 .build();
         when(edgeMqttControlService.sendRpcRequest(eq("EXTRACT_FACE_EMBEDDING"), isNull(), anyMap(), anyLong()))

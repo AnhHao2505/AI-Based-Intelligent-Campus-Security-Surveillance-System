@@ -152,6 +152,14 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
+    @ExceptionHandler(FaceDuplicateException.class)
+    public ResponseEntity<ApiResponse<Object>> handleFaceDuplicate(FaceDuplicateException ex) {
+        ApiResponse<Object> body = ApiResponse.error(HttpStatus.CONFLICT.value(), FaceDuplicateException.CODE, ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
+    }
+
     @ExceptionHandler(AiServiceUnavailableException.class)
     public ResponseEntity<ApiResponse<Object>> handleAiServiceUnavailable(AiServiceUnavailableException ex) {
         return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());

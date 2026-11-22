@@ -64,6 +64,10 @@ class UserServiceCacheRefreshTest {
     @Mock
     private WebSocketSessionRegistry webSocketSessionRegistry;
 
+    // face-gate 3: kích hoạt lại kiểm trùng khuôn mặt (mock trả Optional.empty = không trùng)
+    @Mock
+    private FaceDuplicateCheckService faceDuplicateCheckService;
+
     // Logic gọi refresh-cache đã tách sang AiFaceCacheRefreshNotifier; dùng bản thật (spy) để giữ nguyên các kịch bản
     @Spy
     private AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier = new AiFaceCacheRefreshNotifier();

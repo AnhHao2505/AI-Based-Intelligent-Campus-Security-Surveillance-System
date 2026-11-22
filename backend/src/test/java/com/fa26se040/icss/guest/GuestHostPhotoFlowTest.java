@@ -4,7 +4,6 @@ import com.fa26se040.icss.TestFaces;
 import com.fa26se040.icss.entity.*;
 import com.fa26se040.icss.enums.*;
 import com.fa26se040.icss.repository.FaceDataRepository;
-import com.fa26se040.icss.service.InAppNotificationService;
 import com.fa26se040.icss.service.GuestFaceEmbeddingClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.AfterEach;
@@ -36,6 +35,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 public class GuestHostPhotoFlowTest extends GuestTestSupport {
 
     private static final String BASE = "/api/guest-visits";
+    /** face-gate 2: câu host nhận khi trùng tài khoản hoặc khách lượt khác (ERR_GUEST_041). */
+    private static final String GENERIC_DUPLICATE = "Khuôn mặt này đã được đăng ký trong hệ thống, vui lòng liên hệ quản lý";
 
     @Autowired
     private FaceDataRepository faceDataRepository;
@@ -277,23 +278,28 @@ public class GuestHostPhotoFlowTest extends GuestTestSupport {
     // ================================================================== D1, D2: trùng khuôn mặt
 
     @Test
-    @DisplayName("D1/D2: ảnh khách trùng khuôn mặt người dùng đang hoạt động -> 409 ERR_GUEST_038 \"Khuôn mặt này đã được đăng ký cho tài khoản <mã>\", không tạo lượt; người dùng đã khoá thì không tính")
+    @DisplayName("D1/D2, face-gate 2: ảnh khách trùng khuôn mặt người dùng đang hoạt động hoặc đang bị khoá -> 409 ERR_GUEST_041 câu chung, không lộ mã tài khoản, không tạo lượt")
     void create_faceOfActiveUser_blocked() throws Exception {
         List<Float> face = TestFaces.random();
         User owner = userWithFace("own", face, true);
         long before = visitsOf(hostL2);
         faces(TestFaces.random(), TestFaces.sameAs(face));
         MvcResult r = createVisit(hostL2, validBody()).andReturn();
-        assertGuestError(r, 409, "ERR_GUEST_038", 1, "Trần Thị Mời");
-        assertTrue(message(r).endsWith("Khuôn mặt này đã được đăng ký cho tài khoản " + owner.getUserCode()), message(r));
+        assertGuestError(r, 409, "ERR_GUEST_041", 1, "Trần Thị Mời");
+        assertTrue(message(r).endsWith(GENERIC_DUPLICATE), message(r));
+        assertFalse(message(r).contains(owner.getUserCode()), "không lộ mã tài khoản cho host");
         assertFalse(message(r).contains("http") || message(r).contains("face-profiles"), "không lộ ảnh người kia");
         assertEquals(before, visitsOf(hostL2));
 
         List<Float> lockedFace = TestFaces.random();
-        userWithFace("off", lockedFace, false);
+        User locked = userWithFace("off", lockedFace, false);
         faces(TestFaces.sameAs(lockedFace));
-        createdId(createVisit(hostL2, createBody(future(0), future(60), List.of(internalArea),
-                List.of(guestInput("Khách giống người đã khoá", null)))).andReturn());
+        MvcResult lockedResult = createVisit(hostL2, createBody(future(0), future(60), List.of(internalArea),
+                List.of(guestInput("Khách giống người đã khoá", null)))).andReturn();
+        assertGuestError(lockedResult, 409, "ERR_GUEST_041", 0, "Khách giống người đã khoá");
+        assertTrue(message(lockedResult).endsWith(GENERIC_DUPLICATE), message(lockedResult));
+        assertFalse(message(lockedResult).contains(locked.getUserCode()), "không lộ mã tài khoản bị khoá");
+        assertEquals(before, visitsOf(hostL2));
     }
 
     /** Lượt 1 khách (ảnh = face) của otherHost, khung giờ [s, e). */
@@ -323,16 +329,17 @@ public class GuestHostPhotoFlowTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("D1 (b): cùng khuôn mặt ở 2 lượt chồng giờ (lượt kia chờ duyệt hoặc đã duyệt) -> 409 ERR_GUEST_038 nêu khách + lượt kia (mục đích, khung giờ)")
+    @DisplayName("D1 (b), face-gate 2: cùng khuôn mặt ở 2 lượt chồng giờ (lượt kia chờ duyệt hoặc đã duyệt) -> 409 ERR_GUEST_041 câu chung, không nêu khách / lượt kia")
     void sameGuest_overlappingVisits_blocked() throws Exception {
         List<Float> face = TestFaces.random();
         OffsetDateTime s = future(0);
         UUID first = visitWithGuest(otherHost, s, s.plusMinutes(60), "Lê Văn Đã Mời", face);
 
         MvcResult pendingOverlap = tryVisit(s.plusMinutes(30), s.plusMinutes(90), TestFaces.sameAs(face));
-        assertGuestError(pendingOverlap, 409, "ERR_GUEST_038", 0, "Khách quay lại");
-        assertTrue(message(pendingOverlap).endsWith("Khuôn mặt này đã được đăng ký cho khách Lê Văn Đã Mời của lượt \"" + PURPOSE
-                + "\" (" + InAppNotificationService.formatTimeRange(s, s.plusMinutes(60)) + ")"), message(pendingOverlap));
+        assertGuestError(pendingOverlap, 409, "ERR_GUEST_041", 0, "Khách quay lại");
+        assertTrue(message(pendingOverlap).endsWith(GENERIC_DUPLICATE), message(pendingOverlap));
+        assertFalse(message(pendingOverlap).contains("Lê Văn Đã Mời") || message(pendingOverlap).contains(PURPOSE),
+                "không lộ khách / lượt của host khác");
 
         Map<String, Object> review = new LinkedHashMap<>();
         review.put("version", 0);
@@ -341,7 +348,7 @@ public class GuestHostPhotoFlowTest extends GuestTestSupport {
         // lượt mới bao trọn lượt kia cũng là chồng giờ
         MvcResult approvedOverlap = tryVisit(s.minusMinutes(30), s.plusMinutes(90), TestFaces.sameAs(face));
         assertEquals(409, status(approvedOverlap), approvedOverlap.getResponse().getContentAsString());
-        assertEquals("ERR_GUEST_038", errorCode(approvedOverlap));
+        assertEquals("ERR_GUEST_041", errorCode(approvedOverlap));
     }
 
     @Test
@@ -413,7 +420,8 @@ public class GuestHostPhotoFlowTest extends GuestTestSupport {
                     .header("Authorization", bearer(hostL2))).andReturn();
             if (id.equals(overlapping)) {
                 assertEquals(409, status(r), r.getResponse().getContentAsString());
-                assertTrue(message(r).contains("khách Lê Văn Đã Mời của lượt"), message(r));
+                assertEquals("ERR_GUEST_041", errorCode(r));
+                assertEquals(GENERIC_DUPLICATE, message(r));
             } else {
                 assertEquals(200, status(r), r.getResponse().getContentAsString());
             }
@@ -468,11 +476,11 @@ public class GuestHostPhotoFlowTest extends GuestTestSupport {
         MvcResult r = createVisit(hostL2, createBody(future(120), future(180), List.of(internalArea),
                 List.of(guestInput("Khách hơi giống", null)))).andReturn();
         assertEquals(409, status(r), r.getResponse().getContentAsString());
-        assertEquals("ERR_GUEST_038", errorCode(r));
+        assertEquals("ERR_GUEST_041", errorCode(r));
     }
 
     @Test
-    @DisplayName("D1/A5: host thay ảnh khách bằng khuôn mặt của người dùng khác -> 409 ERR_GUEST_038, ảnh cũ giữ nguyên")
+    @DisplayName("D1/A5, face-gate 2: host thay ảnh khách bằng khuôn mặt của người dùng khác -> 409 ERR_GUEST_041 câu chung, ảnh cũ giữ nguyên")
     void replace_withFaceOfUser_blocked() throws Exception {
         UUID id = createdId(createVisit(hostL2, createBody(future(0), future(60), List.of(internalArea),
                 List.of(guestInput("Khách thay ảnh", null)))).andReturn());
@@ -486,8 +494,9 @@ public class GuestHostPhotoFlowTest extends GuestTestSupport {
                 .param("consentConfirmed", "true").param("consentNoticeVersion", "v1")
                 .header("Authorization", bearer(hostL2))).andReturn();
         assertEquals(409, status(r), r.getResponse().getContentAsString());
-        assertEquals("ERR_GUEST_038", errorCode(r));
-        assertTrue(message(r).contains("tài khoản " + owner.getUserCode()), message(r));
+        assertEquals("ERR_GUEST_041", errorCode(r));
+        assertEquals(GENERIC_DUPLICATE, message(r));
+        assertFalse(message(r).contains(owner.getUserCode()), "không lộ mã tài khoản cho host");
         assertEquals(key, guest(g.getId()).getPhotoObjectKey());
         assertEquals(0L, visit(id).getVersion());
     }
