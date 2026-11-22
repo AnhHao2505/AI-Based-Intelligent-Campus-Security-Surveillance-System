@@ -291,9 +291,13 @@ public class CameraRecordingService {
         String cameraCode = rec.getCameraCode().toUpperCase();
         Camera cam = rec.getCamera() != null ? rec.getCamera() : cameraMap.get(cameraCode);
         String cameraName = cam != null ? cam.getName() : ("Camera " + cameraCode);
-        String areaName = "Khuôn viên FPTU";
-        String building = "Tòa nhà";
-        String floor = "Tầng 1";
+        String areaName = cam != null ? cam.getName() : "Khuôn viên FPTU";
+        String building = (cam != null && cam.getMapBuilding() != null && !cam.getMapBuilding().isBlank())
+                ? cam.getMapBuilding()
+                : "Tòa nhà";
+        String floor = (cam != null && cam.getMapFloorOrder() != null)
+                ? (cam.getMapFloorOrder() == 0 ? "Tầng Trệt" : "Tầng " + cam.getMapFloorOrder())
+                : "Tầng 1";
         try {
             if (cam != null && cam.getArea() != null) {
                 if (cam.getArea().getName() != null) areaName = cam.getArea().getName();

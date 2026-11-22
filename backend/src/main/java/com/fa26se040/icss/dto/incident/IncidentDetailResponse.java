@@ -1,5 +1,6 @@
 package com.fa26se040.icss.dto.incident;
 
+import com.fa26se040.icss.enums.CameraType;
 import com.fa26se040.icss.enums.IncidentDispatchStage;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentResolutionCategory;
@@ -21,9 +22,15 @@ public class IncidentDetailResponse {
     private UUID id;
     private String eventId;
     private String cameraCode;
+    private String cameraName;
+    private CameraType cameraType;
     private UUID areaId;
     private String areaName;
     private String building;
+    private String floor;
+    private Double mapLatitude;
+    private Double mapLongitude;
+    private Integer mapFloorOrder;
     private String eventType;
     private String imageUrl;
     private OffsetDateTime detectedAt;

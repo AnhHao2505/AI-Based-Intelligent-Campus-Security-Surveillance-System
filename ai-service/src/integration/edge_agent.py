@@ -121,9 +121,20 @@ class EdgeMqttAgent:
         edge_id = getattr(settings, "MQTT_CLIENT_ID", "campus-security-ai-service")
         cameras = []
         with self._lock:
+            now_ts = time.time()
             for cam_code, worker in self.active_workers.items():
                 fps = round(float(getattr(worker, "processed_fps", 0.0)), 1)
-                connected = bool(getattr(worker, "is_running", False))
+                is_running = bool(getattr(worker, "is_running", False))
+                if hasattr(worker, "is_stream_connected"):
+                    last_ts = float(getattr(worker, "last_frame_ts", 0.0))
+                    connected = bool(
+                        is_running
+                        and getattr(worker, "is_stream_connected", False)
+                        and last_ts > 0.0
+                        and (now_ts - last_ts) <= 15.0
+                    )
+                else:
+                    connected = is_running
                 cameras.append({
                     "camera_code": cam_code,
                     "fps": fps,
@@ -156,17 +167,48 @@ class EdgeMqttAgent:
             qos = 1 if status != "ONLINE" else 0
             self.mqtt.publish_json(topic, payload, qos=qos, retain=True)
 
+    def _snapshot_camera_connections(self) -> Dict[str, bool]:
+        """Ảnh chụp nhanh trạng thái connected của các worker để phát hiện đổi trạng thái tức thì."""
+        now_ts = time.time()
+        snapshot: Dict[str, bool] = {}
+        with self._lock:
+            for cam_code, worker in self.active_workers.items():
+                is_running = bool(getattr(worker, "is_running", False))
+                if hasattr(worker, "is_stream_connected"):
+                    last_ts = float(getattr(worker, "last_frame_ts", 0.0))
+                    connected = bool(
+                        is_running
+                        and getattr(worker, "is_stream_connected", False)
+                        and last_ts > 0.0
+                        and (now_ts - last_ts) <= 15.0
+                    )
+                else:
+                    connected = is_running
+                snapshot[cam_code] = connected
+        return snapshot
+
     def _heartbeat_loop(self):
         interval = float(getattr(settings, "EDGE_HEARTBEAT_SECONDS", 30.0))
+        poll_step = min(3.0, max(0.5, interval))
+        last_sent_ts = 0.0
+        last_snapshot: Dict[str, bool] = {}
+
         # Gửi heartbeat ban đầu ngay khi start
         try:
+            last_snapshot = self._snapshot_camera_connections()
             self.publish_status("ONLINE")
+            last_sent_ts = time.time()
         except Exception as e:
             logger.warning(f"⚠️ [EdgeAgent] Lỗi gửi heartbeat ban đầu: {e}")
 
-        while not self._heartbeat_stop.wait(interval):
+        while not self._heartbeat_stop.wait(poll_step):
             try:
-                self.publish_status("ONLINE")
+                now_ts = time.time()
+                current_snapshot = self._snapshot_camera_connections()
+                if current_snapshot != last_snapshot or (now_ts - last_sent_ts) >= interval:
+                    self.publish_status("ONLINE")
+                    last_snapshot = current_snapshot
+                    last_sent_ts = now_ts
             except Exception as e:
                 logger.warning(f"⚠️ [EdgeAgent] Lỗi gửi heartbeat định kỳ: {e}")
 

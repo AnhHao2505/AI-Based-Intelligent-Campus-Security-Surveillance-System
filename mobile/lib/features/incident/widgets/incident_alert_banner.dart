@@ -219,11 +219,13 @@ class IncidentAlertBanner extends StatelessWidget {
                                 alert.cameraCode,
                                 style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
                               ),
-                              if (alert.areaName != null && alert.areaName!.isNotEmpty) ...[
+                              if (alert.displayLocationName != 'Chưa rõ khu vực') ...[
                                 const Text(' • ', style: TextStyle(color: Colors.white38)),
                                 Expanded(
                                   child: Text(
-                                    alert.areaName!,
+                                    alert.isCorridor && alert.displayBuildingFloor != null
+                                        ? '${alert.displayLocationName} • ${alert.displayBuildingFloor}'
+                                        : alert.displayLocationName,
                                     style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,

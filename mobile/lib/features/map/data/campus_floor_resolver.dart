@@ -44,8 +44,9 @@ bool _isAlpha(String? building, CampusMapData? campus) {
   return building.trim().toLowerCase() == _alphaCanonicalName.toLowerCase();
 }
 
-/// Số thứ tự tầng của khu [pin]; null khi khu không có thông tin tầng (khu ngoài trời).
+/// Số thứ tự tầng của khu [pin]; ưu tiên [pin.floorOrder] tường minh trước, sau đó mới parse chuỗi [pin.floor].
 int? floorOrderOfPin(AreaPinModel pin, CampusMapData? campus) {
+  if (pin.floorOrder != null) return pin.floorOrder;
   final floor = pin.floor;
   if (floor == null || floor.trim().isEmpty) return null;
   return resolveFloorOrder(floor, isAlpha: _isAlpha(pin.building, campus));

@@ -2,9 +2,15 @@ class IncidentModel {
   final String id;
   final String? eventId;
   final String cameraCode;
+  final String? cameraName;
+  final String? cameraType;
   final String? areaId;
   final String? areaName;
   final String? building;
+  final String? floor;
+  final double? mapLatitude;
+  final double? mapLongitude;
+  final int? mapFloorOrder;
   final String eventType;
   final String? imageUrl;
   final DateTime? detectedAt;
@@ -30,9 +36,15 @@ class IncidentModel {
     required this.id,
     this.eventId,
     required this.cameraCode,
+    this.cameraName,
+    this.cameraType,
     this.areaId,
     this.areaName,
     this.building,
+    this.floor,
+    this.mapLatitude,
+    this.mapLongitude,
+    this.mapFloorOrder,
     required this.eventType,
     this.imageUrl,
     this.detectedAt,
@@ -163,6 +175,31 @@ class IncidentModel {
   bool get isClaimed => status == 'CLAIMED';
   bool get isResolved => status.startsWith('RESOLVED');
 
+  /// Sự cố phát sinh từ camera Hành lang (CORRIDOR, không gắn Area).
+  bool get isCorridor =>
+      cameraType?.toUpperCase() == 'CORRIDOR' ||
+      ((areaId == null || areaId!.isEmpty) && (areaName == null || areaName!.trim().isEmpty));
+
+  /// Tên vị trí hiển thị: ưu tiên areaName cho Phòng; nếu CORRIDOR (areaName rỗng) dùng cameraName.
+  String get displayLocationName {
+    if (areaName != null && areaName!.trim().isNotEmpty) {
+      return areaName!.trim();
+    }
+    if (cameraName != null && cameraName!.trim().isNotEmpty) {
+      return cameraName!.trim();
+    }
+    return 'Chưa rõ khu vực';
+  }
+
+  /// Phụ đề Tòa • Tầng cho hành lang / khu vực nếu có.
+  String? get displayBuildingFloor {
+    final parts = <String>[
+      if (building != null && building!.trim().isNotEmpty) building!.trim(),
+      if (floor != null && floor!.trim().isNotEmpty) floor!.trim(),
+    ];
+    return parts.isEmpty ? null : parts.join(' • ');
+  }
+
   factory IncidentModel.fromJson(Map<String, dynamic> json) {
     DateTime? parseDate(dynamic v) {
       if (v == null) return null;
@@ -174,13 +211,32 @@ class IncidentModel {
       }
     }
 
+    double? parseDouble(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString());
+    }
+
+    int? parseInt(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString());
+    }
+
     return IncidentModel(
       id: (json['id'] ?? json['incidentId'] ?? '').toString(),
       eventId: json['eventId']?.toString() ?? json['event_id']?.toString(),
       cameraCode: (json['cameraCode'] ?? json['camera_code'] ?? 'CAM-UNKNOWN').toString(),
+      cameraName: json['cameraName']?.toString() ?? json['camera_name']?.toString(),
+      cameraType: json['cameraType']?.toString() ?? json['camera_type']?.toString(),
       areaId: json['areaId']?.toString(),
       areaName: json['areaName']?.toString() ?? json['area_name']?.toString(),
       building: json['building']?.toString(),
+      floor: json['floor']?.toString(),
+      mapLatitude: parseDouble(json['mapLatitude'] ?? json['map_latitude']),
+      mapLongitude: parseDouble(json['mapLongitude'] ?? json['map_longitude']),
+      mapFloorOrder: parseInt(json['mapFloorOrder'] ?? json['map_floor_order']),
       eventType: (json['eventType'] ?? json['event_type'] ?? 'SECURITY_ALERT').toString(),
       imageUrl: json['imageUrl']?.toString() ?? json['image_url']?.toString(),
       detectedAt: parseDate(json['detectedAt'] ?? json['detected_at']),
@@ -207,9 +263,15 @@ class IncidentModel {
       'id': id,
       'eventId': eventId,
       'cameraCode': cameraCode,
+      'cameraName': cameraName,
+      'cameraType': cameraType,
       'areaId': areaId,
       'areaName': areaName,
       'building': building,
+      'floor': floor,
+      'mapLatitude': mapLatitude,
+      'mapLongitude': mapLongitude,
+      'mapFloorOrder': mapFloorOrder,
       'eventType': eventType,
       'imageUrl': imageUrl,
       'detectedAt': detectedAt?.toIso8601String(),
@@ -235,9 +297,15 @@ class IncidentModel {
     String? id,
     String? eventId,
     String? cameraCode,
+    String? cameraName,
+    String? cameraType,
     String? areaId,
     String? areaName,
     String? building,
+    String? floor,
+    double? mapLatitude,
+    double? mapLongitude,
+    int? mapFloorOrder,
     String? eventType,
     String? imageUrl,
     DateTime? detectedAt,
@@ -261,9 +329,15 @@ class IncidentModel {
       id: id ?? this.id,
       eventId: eventId ?? this.eventId,
       cameraCode: cameraCode ?? this.cameraCode,
+      cameraName: cameraName ?? this.cameraName,
+      cameraType: cameraType ?? this.cameraType,
       areaId: areaId ?? this.areaId,
       areaName: areaName ?? this.areaName,
       building: building ?? this.building,
+      floor: floor ?? this.floor,
+      mapLatitude: mapLatitude ?? this.mapLatitude,
+      mapLongitude: mapLongitude ?? this.mapLongitude,
+      mapFloorOrder: mapFloorOrder ?? this.mapFloorOrder,
       eventType: eventType ?? this.eventType,
       imageUrl: imageUrl ?? this.imageUrl,
       detectedAt: detectedAt ?? this.detectedAt,

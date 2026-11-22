@@ -102,6 +102,33 @@ public class CameraStreamLifecycleService {
                     camera.getCameraCode(), edgeOnline);
             if (edgeOnline) {
                 aiWorkerRunning = true;
+                MediaMtxService.PathReadinessState readiness = mediaMtxService.awaitPathReady(camera.getCameraCode(), 3000L);
+                if (readiness == MediaMtxService.PathReadinessState.NOT_READY) {
+                    edgeMqttControlService.publishCameraStreamConfig(
+                            camera.getCameraCode(),
+                            "",
+                            false,
+                            camera.getRoiGeometry()
+                    );
+                    mediaMtxService.deleteCameraPath(camera.getCameraCode());
+                    if (hasSub) {
+                        mediaMtxService.deleteCameraPath(camera.getCameraCode() + "_main");
+                    }
+                    camera.setOperationalStatus(OperationalStatus.OFFLINE);
+                    camera.setUpdatedAt(OffsetDateTime.now());
+                    cameraRepository.save(camera);
+                    log.warn("❌ [Cloud-Edge] Camera [{}] chưa có luồng video trên MediaMTX (state={}) -> rollback MQTT & giữ OFFLINE",
+                            camera.getCameraCode(), readiness);
+                    return CameraStreamLifecycleResponse.builder()
+                            .success(false)
+                            .cameraId(camera.getId())
+                            .cameraCode(camera.getCameraCode())
+                            .operationalStatus(OperationalStatus.OFFLINE)
+                            .aiWorkerRunning(false)
+                            .message("MediaMTX chưa nhận được luồng video từ camera. Kiểm tra thiết bị phát RTSP, đường dẫn hoặc tài khoản.")
+                            .timestamp(OffsetDateTime.now())
+                            .build();
+                }
             }
         }
 

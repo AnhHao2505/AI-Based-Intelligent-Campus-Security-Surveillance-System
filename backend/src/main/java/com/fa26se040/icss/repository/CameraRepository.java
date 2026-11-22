@@ -22,6 +22,9 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
     @Query("SELECT c FROM Camera c LEFT JOIN FETCH c.area WHERE c.cameraCode = :cameraCode AND c.deletedAt IS NULL")
     Optional<Camera> findByCameraCodeAndDeletedAtIsNull(@Param("cameraCode") String cameraCode);
 
+    @Query("SELECT c FROM Camera c LEFT JOIN FETCH c.area WHERE c.cameraCode IN :cameraCodes")
+    List<Camera> findByCameraCodeIn(@Param("cameraCodes") java.util.Collection<String> cameraCodes);
+
     Optional<Camera> findTopByCameraCodeStartingWithOrderByCameraCodeDesc(String prefix);
 
     @Query(value = "SELECT c FROM Camera c LEFT JOIN FETCH c.area WHERE " +

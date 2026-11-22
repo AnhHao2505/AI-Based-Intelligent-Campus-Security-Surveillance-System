@@ -200,7 +200,13 @@ function App() {
 						>
 							<Route
 								path="/"
-								element={<RootRoute />}
+								element={
+									resetToken ? (
+										<Navigate to="/login" replace />
+									) : (
+										<RootRoute />
+									)
+								}
 							/>
 							<Route
 								path="/dashboard"

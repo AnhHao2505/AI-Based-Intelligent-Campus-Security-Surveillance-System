@@ -8,6 +8,7 @@ class AreaPinModel {
   final int? areaAccessLevel;
   final String? building;
   final String? floor;
+  final int? floorOrder;
   final double centerLatitude;
   final double centerLongitude;
   final bool isActive;
@@ -19,6 +20,7 @@ class AreaPinModel {
     this.areaAccessLevel,
     this.building,
     this.floor,
+    this.floorOrder,
     required this.centerLatitude,
     required this.centerLongitude,
     required this.isActive,

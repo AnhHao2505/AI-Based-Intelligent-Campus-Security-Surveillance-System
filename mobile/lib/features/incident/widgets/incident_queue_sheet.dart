@@ -247,7 +247,9 @@ class IncidentQueueSheet extends StatelessWidget {
                                         const SizedBox(width: 4),
                                         Expanded(
                                           child: Text(
-                                            item.areaName ?? 'Chưa rõ khu vực',
+                                            item.isCorridor && item.displayBuildingFloor != null
+                                                ? '${item.displayLocationName} • ${item.displayBuildingFloor}'
+                                                : item.displayLocationName,
                                             style: const TextStyle(
                                               color: Colors.white70,
                                               fontSize: 12,

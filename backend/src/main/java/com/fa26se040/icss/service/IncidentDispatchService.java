@@ -3,6 +3,7 @@ package com.fa26se040.icss.service;
 import com.fa26se040.icss.config.WebSocketSessionRegistry;
 import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.entity.Area;
+import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.DutyPostType;
 import com.fa26se040.icss.entity.IncidentDispatchOffer;
 import com.fa26se040.icss.entity.IncidentDispatchPolicy;
@@ -66,6 +67,9 @@ public class IncidentDispatchService {
     private final WebSocketSessionRegistry sessionRegistry;
     private final SimpMessagingTemplate messagingTemplate;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.fa26se040.icss.repository.BuildingRepository buildingRepository;
+
     /** Kênh lời mời riêng của một bảo vệ (W-a). Interceptor đã chỉ cho chính bảo vệ đó subscribe /topic/guards/{id}/**. */
     public static String offerTopic(UUID guardId) {
         return "/topic/guards/" + guardId + "/offers";
@@ -108,6 +112,23 @@ public class IncidentDispatchService {
         return area.getFloorEntity().getBuilding().getId();
     }
 
+    /** Cho camera CORRIDOR (area == null): tra toà từ tên tòa lưu trên sự cố (lấy từ camera.mapBuilding). */
+    private UUID resolveBuildingIdByName(String buildingName) {
+        if (buildingRepository == null || buildingName == null || buildingName.isBlank()) {
+            return null;
+        }
+        Optional<Building> exact = buildingRepository.findByNameIgnoreCase(buildingName.trim());
+        if (exact.isPresent()) {
+            return exact.get().getId();
+        }
+        for (Building b : buildingRepository.findByIsActiveTrueOrderByNameAsc()) {
+            if (com.fa26se040.icss.util.StringNormalizer.matchesBuildingName(buildingName, b.getName())) {
+                return b.getId();
+            }
+        }
+        return null;
+    }
+
     /**
      * BR-DSP-02..04: chọn tối đa {@code step1_size} bảo vệ cho bước 1, đã xếp theo load score. Rỗng khi step1_size = 0,
      * khu không có toà, hoặc không có ứng viên (E1).
@@ -118,6 +139,9 @@ public class IncidentDispatchService {
             return List.of();
         }
         UUID buildingId = incidentBuildingId(incident.getArea());
+        if (buildingId == null) {
+            buildingId = resolveBuildingIdByName(incident.getBuilding());
+        }
         if (buildingId == null) {
             log.info("[DISPATCH] incident={}: khu vực không gắn toà, bỏ qua bước 1", incident.getId());
             return List.of();
