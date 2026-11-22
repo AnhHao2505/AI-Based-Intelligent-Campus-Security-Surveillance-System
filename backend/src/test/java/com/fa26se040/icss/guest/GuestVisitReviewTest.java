@@ -66,11 +66,14 @@ public class GuestVisitReviewTest extends GuestTestSupport {
     // ================================================================== duyệt / từ chối
 
     @Test
-    @DisplayName("GV-10/33: FM duyệt -> APPROVED, version 1, audit APPROVE; host nhận APPROVED; khách đã có ảnh từ lúc tạo -> không ai nhận GUEST_PHOTO_REQUIRED")
+    @DisplayName("GV-10/33: FM duyệt -> APPROVED, version 1, audit APPROVE; host nhận APPROVED; khách đã có ảnh từ lúc tạo -> không ai nhận GUEST_PHOTO_REQUIRED; báo bên nhận diện nạp lại khuôn mặt 1 lần")
     void approve_ok() throws Exception {
         UUID id = createVisit(hostL2);
+        clearInvocations(aiFaceCacheRefreshNotifier);
         MvcResult r = review(fm, id, 0L, "APPROVED", null);
         assertEquals(200, status(r), r.getResponse().getContentAsString());
+        // ảnh gắn lúc tạo (PENDING, chưa có trong kho khuôn mặt) -> duyệt phải báo nạp lại ngay
+        verify(aiFaceCacheRefreshNotifier, times(1)).notifyAfterCommit();
         GuestVisit v = visit(id);
         assertEquals(GuestVisitStatus.APPROVED, v.getStatus());
         assertEquals(1L, v.getVersion());
@@ -83,11 +86,13 @@ public class GuestVisitReviewTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("GV-33: duyệt lượt tạo trước thay đổi (khách chưa có ảnh) -> host nhận GUEST_PHOTO_REQUIRED nêu số khách thiếu ảnh; ADMIN, FM không")
+    @DisplayName("GV-33: duyệt lượt tạo trước thay đổi (khách chưa có ảnh) -> host nhận GUEST_PHOTO_REQUIRED nêu số khách thiếu ảnh; ADMIN, FM không; không có ảnh -> không báo nạp lại khuôn mặt")
     void approve_legacyVisitWithoutPhotos_hostReminded() throws Exception {
         GuestVisit legacy = newVisit(hostL2, GuestVisitStatus.PENDING, future(0), future(120), List.of(internalArea), "Khách chưa có ảnh");
+        clearInvocations(aiFaceCacheRefreshNotifier);
         MvcResult r = review(fm, legacy.getId(), 0L, "APPROVED", null);
         assertEquals(200, status(r), r.getResponse().getContentAsString());
+        verify(aiFaceCacheRefreshNotifier, never()).notifyAfterCommit();
         // host gắn / thay ảnh (ADMIN không gắn ảnh nữa)
         List<Notification> sent = notificationsOf(hostL2, NotificationType.GUEST_PHOTO_REQUIRED).stream()
                 .filter(n -> legacy.getId().equals(n.getReferenceId())).toList();

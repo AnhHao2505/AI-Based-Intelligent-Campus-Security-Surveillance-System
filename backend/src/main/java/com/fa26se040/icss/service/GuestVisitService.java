@@ -415,6 +415,12 @@ public class GuestVisitService {
             notifyAfterCommit(visit.getId(), NotificationType.GUEST_VISIT_APPROVED, "Lượt khách đã được duyệt",
                     "Lượt khách vào " + areaNames(visit) + " (" + range + ") đã được duyệt.", () -> List.of(host));
         }
+        // L3: ảnh khách gắn lúc tạo (lượt còn PENDING, kho khuôn mặt chưa lấy) -> duyệt xong báo bên nhận diện nạp lại ngay,
+        // không chờ chu kỳ nạp định kỳ
+        if (decision == GuestVisitStatus.APPROVED && visit.getGuests().stream()
+                .anyMatch(g -> g.getBiometricStatus() == GuestBiometricStatus.PHOTO_READY)) {
+            aiFaceCacheRefreshNotifier.notifyAfterCommit();
+        }
         // Host gắn ảnh ngay khi tạo lượt: chỉ lượt tạo trước thay đổi này (còn khách chưa có ảnh) mới cần nhắc.
         // Người gắn / thay ảnh là host (ADMIN không gắn ảnh nữa) -> nhắc host, mở Chi tiết lượt để gắn trước giờ bắt đầu
         long missingPhotos = visit.getGuests().stream()
