@@ -90,6 +90,9 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
     @Autowired(required = false)
     private IncidentDispatchService incidentDispatchService;
 
+    @Autowired(required = false)
+    private com.fa26se040.icss.repository.CameraRepository cameraRepository;
+
     @Override
     public void configureTasks(ScheduledTaskRegistrar registrar) {
         if (!enabled) {
@@ -232,9 +235,21 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
      * BR-IE-10: chỉ FM đang hoạt động, chưa xoá (danh sách khác rỗng, đã lấy ở doProcess); ADMIN không nhận.
      * Trả về số FM nhận thông báo in-app.
      */
+    private String resolveLocationName(SecurityIncident incident) {
+        if (incident.getArea() != null && incident.getArea().getName() != null) {
+            return incident.getArea().getName();
+        }
+        if (cameraRepository != null && incident.getCameraCode() != null) {
+            return cameraRepository.findByCameraCode(incident.getCameraCode())
+                    .map(c -> c.getName() != null && !c.getName().isBlank() ? c.getName() : incident.getCameraCode())
+                    .orElse("khu vực");
+        }
+        return "khu vực";
+    }
+
     private int notifyFacilityManagers(List<User> fms, SecurityIncident incident, OffsetDateTime incidentCreatedAt,
                                        long minutesElapsed, boolean noGuardNotified) {
-        String areaName = incident.getArea() != null ? incident.getArea().getName() : "khu vực";
+        String areaName = resolveLocationName(incident);
         String building = incident.getBuilding();
 
         int fmRecipientCount;
@@ -288,7 +303,7 @@ public class IncidentEscalationJob implements SchedulingConfigurer {
             log.warn("[INCIDENT-ESCALATION] incident={}: cũng không có ADMIN nào đang hoạt động để báo", incident.getId());
             return;
         }
-        String areaName = incident.getArea() != null ? incident.getArea().getName() : "khu vực";
+        String areaName = resolveLocationName(incident);
         String createdAtText = incident.getCreatedAt().atZoneSameInstant(VN_ZONE).format(TIME_FORMATTER);
         String title = "Không có Quản lý CSVC nhận leo thang sự cố";
         String message = "Không có Quản lý CSVC nào đang hoạt động để nhận leo thang sự cố \"" + eventTypeLabel(incident.getEventType())

@@ -143,6 +143,8 @@ class CameraStreamWorker:
         )
 
         self.is_running = False
+        self.is_stream_connected = False
+        self.last_frame_ts: float = 0.0
         self.capture_thread: Optional[threading.Thread] = None
         self.analysis_thread: Optional[threading.Thread] = None
         self.raw_frame = None
@@ -281,8 +283,12 @@ class CameraStreamWorker:
 
                 if not ret or frame is None:
                     fail_count += 1
+                    if fail_count >= 3:
+                        self.is_stream_connected = False
                     time.sleep(0.3)
                     if fail_count >= 10:
+                        self.is_stream_connected = False
+                        self.processed_fps = 0.0
                         logger.warning(
                             f"⚠️ [StreamWorker] Camera [{self.camera_code}] chưa có luồng từ MediaMTX ({mask_rtsp_url(self.rtsp_url)}). "
                             f"Kiểm tra xem camera/điện thoại phát RTSP đã bật và đúng địa chỉ IP chưa. Đang thử kết nối lại sau 3s..."
@@ -302,6 +308,8 @@ class CameraStreamWorker:
                         fail_count = 0
                     continue
                 fail_count = 0
+                self.is_stream_connected = True
+                self.last_frame_ts = time.time()
 
                 # Ghi hình liên tục vào đĩa (Non-blocking qua hàng đợi)
                 if self.recorder:

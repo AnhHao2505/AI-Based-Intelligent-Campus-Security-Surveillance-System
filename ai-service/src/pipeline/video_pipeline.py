@@ -863,7 +863,7 @@ class VideoPipeline:
                 self._last_heartbeat_time = current_time
                 logger.info(
                     f"☀️➡️🌙 [VideoPipeline:{self.camera_code}] Vào khung giờ ngoài giờ -> "
-                    f"Đánh thức AI (bật PERSON_INTRUSION, SUSPICIOUS_MOVING_OBJECT & quét mặt ngầm trừ Bảo vệ)"
+                    f"Đánh thức toàn bộ pipeline AI (tắt ngủ đông ban ngày)"
                 )
 
         early_alerts: List[SecurityAlertEvent] = []

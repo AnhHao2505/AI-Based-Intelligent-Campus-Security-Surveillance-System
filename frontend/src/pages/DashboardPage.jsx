@@ -267,7 +267,7 @@ function TopIncidentAreasPanel({ areas }) {
 			) : (
 				<ol className="area-type-bars" aria-label="Số sự cố theo khu vực">
 					{areas.map((a) => {
-						const name = a.areaName ?? "Không xác định khu vực";
+						const name = a.areaName ?? a.cameraName ?? "Không xác định khu vực";
 						return (
 							<li key={a.areaId ?? "unknown"} className="area-type-bar" title={`${name}: ${a.count} sự cố`}>
 								<div className="area-type-bar__meta">

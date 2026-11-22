@@ -164,7 +164,12 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                           ),
                         ),
                         Text(
-                          '${widget.incident.cameraCode} • ${widget.incident.areaName ?? "Khu vực mục tiêu"}',
+                          widget.incident.isCorridor
+                              ? [
+                                  widget.incident.displayLocationName,
+                                  if (widget.incident.displayBuildingFloor != null) widget.incident.displayBuildingFloor!,
+                                ].join(' • ')
+                              : '${widget.incident.cameraCode} • ${widget.incident.displayLocationName}',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 13,

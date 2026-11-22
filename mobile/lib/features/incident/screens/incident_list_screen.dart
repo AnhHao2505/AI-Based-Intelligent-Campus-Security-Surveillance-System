@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/storage_helper.dart';
@@ -219,10 +220,20 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
 
   void _navigateToMap(IncidentModel incident) {
     final mapProvider = context.read<MapProvider>();
+    final hasCamCoords = incident.mapLatitude != null &&
+        incident.mapLongitude != null &&
+        incident.mapLatitude != 0.0 &&
+        incident.mapLongitude != 0.0;
     final pin = mapProvider.findPinForIncident(
       areaId: incident.areaId,
       areaName: incident.areaName,
       cameraCode: incident.cameraCode,
+      cameraName: incident.cameraName,
+      cameraType: incident.cameraType,
+      building: incident.building,
+      floor: incident.floor,
+      floorOrder: incident.mapFloorOrder,
+      targetLatLng: hasCamCoords ? LatLng(incident.mapLatitude!, incident.mapLongitude!) : null,
     );
 
     Navigator.push(
@@ -601,7 +612,12 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        '${incident.areaName ?? 'Chưa rõ khu vực'} • ${incident.cameraCode}',
+                        incident.isCorridor
+                            ? [
+                                incident.displayLocationName,
+                                if (incident.displayBuildingFloor != null) incident.displayBuildingFloor!,
+                              ].join(' • ')
+                            : '${incident.displayLocationName} • ${incident.cameraCode}',
                         style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.bold,

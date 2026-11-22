@@ -56,7 +56,7 @@ const LEVEL_SECTIONS = [
 		levelNumber: 2,
 		title: "CẤP 2 · BẢO MẬT",
 		badgeLabel: "Cấp 2",
-		dotColor: "#0284c7",
+		dotColor: "#f59e0b",
 		filter: (a) => a.areaAccessLevel === 2 || a.areaLevel === "CONFIDENTIAL",
 	},
 	{
@@ -98,15 +98,19 @@ export default function AreaListView({
 		const counts = { ALL: floorAreas.length, 1: 0, 2: 0, 3: 0 };
 		floorAreas.forEach((a) => {
 			if (a.areaAccessLevel === 1 || a.areaLevel === "PUBLIC") counts[1]++;
-			else if (a.areaAccessLevel === 2 || a.areaLevel === "CONFIDENTIAL") counts[2]++;
-			else if (a.areaAccessLevel === 3 || a.areaLevel === "HIGHLY_CONFIDENTIAL") counts[3]++;
+			else if (a.areaAccessLevel === 2 || a.areaLevel === "CONFIDENTIAL")
+				counts[2]++;
+			else if (a.areaAccessLevel === 3 || a.areaLevel === "HIGHLY_CONFIDENTIAL")
+				counts[3]++;
 		});
 		return counts;
 	}, [floorAreas]);
 
 	const displayedSections = useMemo(() => {
 		if (selectedLevelFilter === "ALL") return LEVEL_SECTIONS;
-		return LEVEL_SECTIONS.filter((sec) => sec.levelNumber === selectedLevelFilter);
+		return LEVEL_SECTIONS.filter(
+			(sec) => sec.levelNumber === selectedLevelFilter,
+		);
 	}, [selectedLevelFilter]);
 
 	// Lọc danh sách khu vực hoạt động theo ô tìm kiếm
@@ -158,7 +162,10 @@ export default function AreaListView({
 				{/* Bên trái: Tên khu vực và Vị trí tòa/tầng */}
 				<div className="zone-item-row__info">
 					<div className="zone-item-row__title-wrap">
-						<span className="zone-item-row__title" title={area.name}>
+						<span
+							className="zone-item-row__title"
+							title={area.name}
+						>
 							{area.name}
 						</span>
 						{isUnpositioned &&
@@ -314,19 +321,23 @@ export default function AreaListView({
 				) : (
 					<div className="zone-sidebar-title-simple">
 						<div className="zone-sidebar-title-group">
-							<Layers size={14} className="zone-sidebar-title-icon" />
+							<Layers
+								size={14}
+								className="zone-sidebar-title-icon"
+							/>
 							<span className="zone-sidebar-title-text">Khu vực hoạt động</span>
 						</div>
-						<span className="zone-sidebar-tab__badge">
-							{floorAreas.length}
-						</span>
+						<span className="zone-sidebar-tab__badge">{floorAreas.length}</span>
 					</div>
 				)}
 			</div>
 
 			{/* 3. Search / Quick Filter Bar */}
 			<div className="zone-sidebar-search-box">
-				<Search size={13} className="zone-sidebar-search-icon" />
+				<Search
+					size={13}
+					className="zone-sidebar-search-icon"
+				/>
 				<input
 					type="text"
 					className="zone-sidebar-search-input"
@@ -421,7 +432,10 @@ export default function AreaListView({
 					/* Danh sách khu vực đã vô hiệu hóa */
 					<div className="zone-deactivated-list">
 						{deactivatedLoading && (
-							<LoadingState size="sm" text="Đang tải danh sách..." />
+							<LoadingState
+								size="sm"
+								text="Đang tải danh sách..."
+							/>
 						)}
 						{!deactivatedLoading && deactivatedError && (
 							<ErrorState
@@ -451,7 +465,10 @@ export default function AreaListView({
 											a.areaLevel || a.level?.code || a.level || "PUBLIC",
 										);
 										return (
-											<div key={a.id} className="zone-deactivated-item">
+											<div
+												key={a.id}
+												className="zone-deactivated-item"
+											>
 												<div className="zone-deactivated-item__info">
 													<div className="zone-deactivated-item__name">
 														{a.name}

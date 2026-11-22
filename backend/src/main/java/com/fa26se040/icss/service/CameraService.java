@@ -17,6 +17,7 @@ import com.fa26se040.icss.exception.CameraErrorCode;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.repository.*;
 import com.fa26se040.icss.util.AesEncryptionUtil;
+import com.fa26se040.icss.util.StringNormalizer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -529,21 +530,7 @@ public class CameraService {
     }
 
     private static boolean matchesBuildingName(String b1, String b2) {
-        String n1 = normalizeBuildingName(b1);
-        String n2 = normalizeBuildingName(b2);
-        return !n1.isEmpty() && n1.equals(n2);
-    }
-
-    private static String normalizeBuildingName(String raw) {
-        if (raw == null) {
-            return "";
-        }
-        String normalized = java.text.Normalizer.normalize(raw.trim().toLowerCase(Locale.ROOT), java.text.Normalizer.Form.NFD)
-                .replaceAll("\\p{M}+", "");
-        if (normalized.startsWith("toa ")) {
-            normalized = normalized.substring(4).trim();
-        }
-        return normalized;
+        return StringNormalizer.matchesBuildingName(b1, b2);
     }
 
     /**

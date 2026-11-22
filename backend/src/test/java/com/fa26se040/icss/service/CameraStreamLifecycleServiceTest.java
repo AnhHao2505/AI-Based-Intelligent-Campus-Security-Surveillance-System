@@ -312,4 +312,26 @@ class CameraStreamLifecycleServiceTest {
         assertEquals(CameraErrorCode.ERR_CAM_002, ex.getErrorCode());
         verify(cameraRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("Edge ONLINE nhưng MediaMTX chưa có luồng (NOT_READY): rollback MQTT enabled=false, xóa path và giữ OFFLINE")
+    void startStream_WhenEdgeOnlineAndMediaMtxNotReady_ShouldRollbackMqttAndKeepOffline() {
+        when(cameraRepository.findById(cameraId)).thenReturn(Optional.of(camera));
+        when(streamConfigRepo.findByCameraId(cameraId)).thenReturn(Optional.of(streamConfig));
+        when(cameraService.buildRtspUrl(streamConfig)).thenReturn("rtsp://192.168.1.50:554/stream1");
+        when(edgeMqttControlService.isConnected()).thenReturn(true);
+        when(edgeStatusService.hasActiveOnlineEdge()).thenReturn(true);
+        when(mediaMtxService.awaitPathReady("CAM-001", 3000L)).thenReturn(MediaMtxService.PathReadinessState.NOT_READY);
+
+        CameraStreamLifecycleResponse response = cameraStreamLifecycleService.startStream(cameraId);
+
+        assertNotNull(response);
+        assertFalse(response.isSuccess());
+        assertFalse(response.isAiWorkerRunning());
+        assertEquals(OperationalStatus.OFFLINE, response.getOperationalStatus());
+        verify(edgeMqttControlService).publishCameraStreamConfig(eq("CAM-001"), eq("rtsp://192.168.1.50:554/stream1"), eq(true), any());
+        verify(edgeMqttControlService).publishCameraStreamConfig(eq("CAM-001"), eq(""), eq(false), any());
+        verify(mediaMtxService).deleteCameraPath("CAM-001");
+        verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+    }
 }

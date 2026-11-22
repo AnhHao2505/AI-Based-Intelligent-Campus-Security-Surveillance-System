@@ -154,9 +154,10 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
               const SizedBox(height: 4),
               Text(
                 [
-                  offer.cameraCode,
-                  offer.areaName ?? 'Khu vực chưa rõ',
+                  if (!offer.incident.isCorridor) offer.cameraCode,
+                  offer.displayLocationName,
                   if (offer.building != null) offer.building!,
+                  if (offer.floor != null && offer.floor!.trim().isNotEmpty) offer.floor!.trim(),
                 ].join(' • '),
                 style: const TextStyle(color: Colors.white70, fontSize: 12.5),
                 maxLines: 1,

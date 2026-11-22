@@ -414,15 +414,18 @@ class MapProvider extends ChangeNotifier {
   /// Mở bản đồ từ thẻ sự cố: chọn khu, chuyển tới đúng toà / tầng của khu và tô nổi phòng chứa tâm khu.
   /// [pin] có thể là ghim tạm (chưa có toà / tầng) → thử ghép lại với ghim thật theo id / tên khi đã có danh sách khu.
   IncidentMapFocus focusIncident(AreaPinModel pin) {
-    final resolved = _areaPins.cast<AreaPinModel?>().firstWhere(
-              (p) => p!.id.toLowerCase() == pin.id.toLowerCase(),
-              orElse: () => null,
-            ) ??
-        _areaPins.cast<AreaPinModel?>().firstWhere(
-              (p) => p!.name.toLowerCase() == pin.name.toLowerCase(),
-              orElse: () => null,
-            ) ??
-        pin;
+    final isCorridorPin = pin.id.startsWith('corridor_');
+    final resolved = isCorridorPin
+        ? pin
+        : (_areaPins.cast<AreaPinModel?>().firstWhere(
+                (p) => p!.id.toLowerCase() == pin.id.toLowerCase(),
+                orElse: () => null,
+              ) ??
+            _areaPins.cast<AreaPinModel?>().firstWhere(
+                (p) => p!.name.toLowerCase() == pin.name.toLowerCase(),
+                orElse: () => null,
+              ) ??
+            pin);
     final targetCampus = _visibleCampus ?? _campus;
     final focus = resolveIncidentFocus(resolved, targetCampus);
     _selectedArea = resolved;
@@ -502,37 +505,55 @@ class MapProvider extends ChangeNotifier {
     String? areaId,
     String? areaName,
     String? cameraCode,
+    String? cameraName,
+    String? cameraType,
+    String? building,
+    String? floor,
+    int? floorOrder,
     LatLng? targetLatLng,
     String? areaLevel,
   }) {
     AreaPinModel? matchedPin;
+    final isCorridor = cameraType?.toUpperCase() == 'CORRIDOR' ||
+        ((areaId == null || areaId.isEmpty) && (areaName == null || areaName.trim().isEmpty));
 
-    if (areaId != null && areaId.isNotEmpty) {
-      matchedPin = _areaPins.cast<AreaPinModel?>().firstWhere(
-        (p) => p?.id.toLowerCase() == areaId.toLowerCase(),
-        orElse: () => null,
-      );
-    }
+    if (!isCorridor) {
+      if (areaId != null && areaId.isNotEmpty) {
+        matchedPin = _areaPins.cast<AreaPinModel?>().firstWhere(
+          (p) => p?.id.toLowerCase() == areaId.toLowerCase(),
+          orElse: () => null,
+        );
+      }
 
-    if (matchedPin == null && areaName != null && areaName.isNotEmpty) {
-      matchedPin = _areaPins.cast<AreaPinModel?>().firstWhere(
-        (p) => p?.name.toLowerCase() == areaName.toLowerCase(),
-        orElse: () => null,
-      );
+      if (matchedPin == null && areaName != null && areaName.isNotEmpty) {
+        matchedPin = _areaPins.cast<AreaPinModel?>().firstWhere(
+          (p) => p?.name.toLowerCase() == areaName.toLowerCase(),
+          orElse: () => null,
+        );
+      }
     }
 
     if (matchedPin == null) {
       // Chưa có toạ độ nào → (0, 0) = "không có toạ độ" (pinHasCoordinates); màn bản đồ ghép lại theo id / tên khi
-      // danh sách khu đã tải (focusIncident).
+      // danh sách khu đã tải (focusIncident). Riêng CORRIDOR dùng trực tiếp toạ độ ghim camera + floorOrder + building.
       final latLng = targetLatLng ??
           (_areaPins.isNotEmpty ? _areaPins.first.latLng : (visibleCampusCenter ?? campusCenter)) ??
           const LatLng(0, 0);
+      final displayName = (areaName != null && areaName.trim().isNotEmpty)
+          ? areaName.trim()
+          : (cameraName != null && cameraName.trim().isNotEmpty)
+              ? cameraName.trim()
+              : 'Vị trí sự cố (${cameraCode ?? "CAM"})';
+      final corridorId = 'corridor_${(cameraCode != null && cameraCode.trim().isNotEmpty) ? cameraCode.trim() : "CAM"}';
       matchedPin = AreaPinModel(
-        id: areaId ?? 'incident_target',
-        name: areaName ?? 'Vị trí sự cố (${cameraCode ?? "CAM"})',
+        id: (areaId != null && areaId.isNotEmpty) ? areaId : (isCorridor ? corridorId : 'incident_target'),
+        name: displayName,
         areaLevel: (areaLevel != null && areaLevel.trim().isNotEmpty)
             ? areaLevel.trim().toUpperCase()
             : AreaPinModel.unknownLevel,
+        building: building,
+        floor: floor,
+        floorOrder: floorOrder,
         centerLatitude: latLng.latitude,
         centerLongitude: latLng.longitude,
         isActive: true,
@@ -547,12 +568,22 @@ class MapProvider extends ChangeNotifier {
     String? areaId,
     String? areaName,
     String? cameraCode,
+    String? cameraName,
+    String? cameraType,
+    String? building,
+    String? floor,
+    int? floorOrder,
     LatLng? targetLatLng,
   }) async {
     final matchedPin = findPinForIncident(
       areaId: areaId,
       areaName: areaName,
       cameraCode: cameraCode,
+      cameraName: cameraName,
+      cameraType: cameraType,
+      building: building,
+      floor: floor,
+      floorOrder: floorOrder,
       targetLatLng: targetLatLng,
     );
 
