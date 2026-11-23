@@ -43,7 +43,9 @@ public enum GuestErrorCode {
     ERR_GUEST_037("ERR_GUEST_037", HttpStatus.NOT_FOUND, "Khách chưa có ảnh hoặc ảnh đã bị xoá"),
     ERR_GUEST_038("ERR_GUEST_038", HttpStatus.CONFLICT, "Khuôn mặt này đã được đăng ký cho {target}"),
     ERR_GUEST_039("ERR_GUEST_039", HttpStatus.CONFLICT, "Chỉ thay được ảnh khi lượt khách đang chờ duyệt hoặc đã duyệt nhưng chưa tới giờ bắt đầu"),
-    ERR_GUEST_040("ERR_GUEST_040", HttpStatus.BAD_REQUEST, "Số ảnh gửi kèm ({photos}) nhiều hơn số khách ({guests})");
+    ERR_GUEST_040("ERR_GUEST_040", HttpStatus.BAD_REQUEST, "Số ảnh gửi kèm ({photos}) nhiều hơn số khách ({guests})"),
+    /** face-gate 2: host gửi ảnh trùng một tài khoản (kể cả đang bị vô hiệu hoá) hoặc khách lượt khác; không nêu mã / tên / lượt. */
+    ERR_GUEST_041("ERR_GUEST_041", HttpStatus.CONFLICT, "Khuôn mặt này đã được đăng ký trong hệ thống, vui lòng liên hệ quản lý");
 
     private final String code;
     private final HttpStatus httpStatus;

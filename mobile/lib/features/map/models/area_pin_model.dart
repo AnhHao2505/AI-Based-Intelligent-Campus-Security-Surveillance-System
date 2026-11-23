@@ -8,6 +8,7 @@ class AreaPinModel {
   final int? areaAccessLevel;
   final String? building;
   final String? floor;
+  final int? floorOrder;
   final double centerLatitude;
   final double centerLongitude;
   final bool isActive;
@@ -19,6 +20,7 @@ class AreaPinModel {
     this.areaAccessLevel,
     this.building,
     this.floor,
+    this.floorOrder,
     required this.centerLatitude,
     required this.centerLongitude,
     required this.isActive,
@@ -75,7 +77,7 @@ class AreaPinModel {
       case 'CONFIDENTIAL':
       case 'INTERNAL_CONFIDENTIAL':
       case 'CONFIDENTIAL_CONTACT_REQUIRED':
-        return const Color(0xFF3B82F6); // Blue (trùng màu Bảo mật trên web)
+        return const Color(0xFFF59E0B); // Amber (đồng bộ màu Bảo mật trên web)
       case 'HIGHLY_CONFIDENTIAL':
         return const Color(0xFFEF4444); // Red
       default:

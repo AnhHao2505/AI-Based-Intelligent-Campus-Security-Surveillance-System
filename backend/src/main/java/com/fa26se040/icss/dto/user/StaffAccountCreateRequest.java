@@ -35,4 +35,10 @@ public class StaffAccountCreateRequest {
 
     @NotNull(message = "Ảnh khuôn mặt không được để trống")
     private MultipartFile faceImage;
+
+    /**
+     * BR-AL-33: cấp ban đầu, chỉ dùng khi role = NORMAL_USER (tuỳ chọn, null -> ACCESS_LEVEL_DEFAULT_NORMAL_USER).
+     * Tài khoản hệ thống bỏ qua trường này, luôn lấy ACCESS_LEVEL_DEFAULT_<ROLE>. Kiểm ở UserService.createStaffAccount.
+     */
+    private Integer accessLevel;
 }

@@ -21,9 +21,9 @@ export const AREA_LEVEL_CONFIG = {
     badgeLabel: 'Bảo mật',
     badgeClass: 'level-badge--internal',
     cardClass: 'zone-card--internal',
-    color: '#3b82f6',
-    bgColor: 'rgba(59, 130, 246, 0.08)',
-    borderColor: 'rgba(59, 130, 246, 0.35)',
+    color: '#f59e0b',
+    bgColor: 'rgba(245, 158, 11, 0.08)',
+    borderColor: 'rgba(245, 158, 11, 0.35)',
     icon: 'shield',
     description: 'Cấp 2. Người dùng cấp 2 trở lên vào thẳng; người khác vào qua đơn được duyệt, nhân sự chỉ định, khách hoặc chế độ sự kiện.'
   },

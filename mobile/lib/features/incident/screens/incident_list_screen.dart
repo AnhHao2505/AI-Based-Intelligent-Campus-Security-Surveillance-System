@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/storage_helper.dart';
+import '../../../core/widgets/authorized_network_image.dart';
 import '../../map/providers/map_provider.dart';
 import '../../map/screens/guard_map_screen.dart';
 import '../models/incident_model.dart';
@@ -189,21 +191,10 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
               minScale: 0.8,
               maxScale: 4.0,
               child: Center(
-                child: Image.network(
-                  imageUrl,
+                child: AuthorizedNetworkImage(
+                  imageUrl: imageUrl,
                   fit: BoxFit.contain,
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
-                    return const Center(
-                      child: CircularProgressIndicator(color: AppColors.primaryLight),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) => const Center(
-                    child: Text(
-                      'Không tải được hình ảnh',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ),
+                  enableZoomOnTap: false,
                 ),
               ),
             ),
@@ -219,10 +210,20 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
 
   void _navigateToMap(IncidentModel incident) {
     final mapProvider = context.read<MapProvider>();
+    final hasCamCoords = incident.mapLatitude != null &&
+        incident.mapLongitude != null &&
+        incident.mapLatitude != 0.0 &&
+        incident.mapLongitude != 0.0;
     final pin = mapProvider.findPinForIncident(
       areaId: incident.areaId,
       areaName: incident.areaName,
       cameraCode: incident.cameraCode,
+      cameraName: incident.cameraName,
+      cameraType: incident.cameraType,
+      building: incident.building,
+      floor: incident.floor,
+      floorOrder: incident.mapFloorOrder,
+      targetLatLng: hasCamCoords ? LatLng(incident.mapLatitude!, incident.mapLongitude!) : null,
     );
 
     Navigator.push(
@@ -546,34 +547,46 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
               children: [
                 // 1. Header: Loại sự cố & Badge trạng thái & Thời gian
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: sevColor.withAlpha(25),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: sevColor.withAlpha(80)),
-                      ),
+                    Expanded(
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.warning_amber_rounded, size: 14, color: sevColor),
-                          const SizedBox(width: 4),
-                          Text(
-                            incident.eventTypeDisplay,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: sevColor,
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: sevColor.withAlpha(25),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: sevColor.withAlpha(80)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, size: 14, color: sevColor),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      incident.eventTypeDisplay,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: sevColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 6),
+                          _buildStatusBadge(incident),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    _buildStatusBadge(incident),
-                    const Spacer(),
+                    const SizedBox(width: 6),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -601,7 +614,12 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        '${incident.areaName ?? 'Chưa rõ khu vực'} • ${incident.cameraCode}',
+                        incident.isCorridor
+                            ? [
+                                incident.displayLocationName,
+                                if (incident.displayBuildingFloor != null) incident.displayBuildingFloor!,
+                              ].join(' • ')
+                            : '${incident.displayLocationName} • ${incident.cameraCode}',
                         style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.bold,
@@ -645,15 +663,12 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          Image.network(
-                            incident.imageUrl!,
+                          AuthorizedNetworkImage(
+                            imageUrl: incident.imageUrl!,
+                            width: double.infinity,
+                            height: 110,
                             fit: BoxFit.cover,
-                            errorBuilder: (ctx, err, stack) => Center(
-                              child: Text(
-                                'Ảnh bằng chứng không khả dụng',
-                                style: TextStyle(fontSize: 11, color: AppColors.txtSecondary(context)),
-                              ),
-                            ),
+                            enableZoomOnTap: false,
                           ),
                           Positioned(
                             right: 8,

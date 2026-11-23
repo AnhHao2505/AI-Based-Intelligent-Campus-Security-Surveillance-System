@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { Sparkles } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { ROLES, ROLE_LABELS } from "../constants/roles";
 import { sendResetLink, resetPasswordWithToken, getPasswordPolicy } from "../services/authService";
@@ -77,6 +78,17 @@ export default function LoginPage({
 	});
 
 	const pageRef = useRef(null);
+	const [parallaxEnabled, setParallaxEnabled] = useState(() => {
+		return localStorage.getItem("login_bg_parallax") === "true";
+	});
+
+	const toggleParallax = () => {
+		setParallaxEnabled((prev) => {
+			const next = !prev;
+			localStorage.setItem("login_bg_parallax", String(next));
+			return next;
+		});
+	};
 
 	// Switch to reset mode if token exists in URL, and dismiss any active toasts
 	useEffect(() => {
@@ -104,10 +116,16 @@ export default function LoginPage({
 		};
 	}, [mode]);
 
-	// Interactive mouse parallax for login background
+	// Interactive mouse parallax for login background (disabled by default to avoid motion discomfort)
 	useEffect(() => {
 		const el = pageRef.current;
 		if (!el) return;
+
+		if (!parallaxEnabled) {
+			el.style.setProperty("--parallax-x", "0");
+			el.style.setProperty("--parallax-y", "0");
+			return undefined;
+		}
 
 		let targetX = 0;
 		let targetY = 0;
@@ -171,7 +189,7 @@ export default function LoginPage({
 			document.removeEventListener("mouseleave", handleMouseLeave);
 			if (rafId !== null) cancelAnimationFrame(rafId);
 		};
-	}, []);
+	}, [parallaxEnabled]);
 
 	const handleGoogleSuccess = async (credentialResponse) => {
 		setError(null);
@@ -298,10 +316,28 @@ export default function LoginPage({
 	return (
 		<div className="login-page" ref={pageRef}>
 			{/* Interactive mouse-parallax background */}
-			<div className="login-bg" aria-hidden="true">
+			<div
+				className={`login-bg ${!parallaxEnabled ? "login-bg--static" : ""}`}
+				aria-hidden="true"
+			>
 				<div className="login-bg__mesh" />
 				<div className="login-bg__grid" />
 			</div>
+
+			<button
+				type="button"
+				className={`login-bg-toggle ${parallaxEnabled ? "login-bg-toggle--active" : ""}`}
+				onClick={toggleParallax}
+				aria-pressed={parallaxEnabled}
+				title={
+					parallaxEnabled
+						? "Tắt hiệu ứng chuyển động nền"
+						: "Bật hiệu ứng chuyển động nền"
+				}
+			>
+				<Sparkles size={14} />
+				<span>{parallaxEnabled ? "Nền động: Bật" : "Nền động: Tắt"}</span>
+			</button>
 
 			<div className="login-card">
 				{/* Logo / Icon */}

@@ -43,13 +43,30 @@ import "../../styles/ManageAccountPage.css";
 import PageHeader from "../../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
 import { formatDateTime, formatTime } from "../../utils/formatDateTime";
+import {
+	readFaceImageMaxKb,
+	validateFaceImageSize,
+	faceImageLimitText,
+} from "../../utils/accountFaceImage";
 import useDialogA11y from "../../hooks/useDialogA11y";
 import AccountAuditLogTab from "./AccountAuditLogTab";
+import {
+	NORMAL_USER_INITIAL_LEVELS,
+	describeInitialLevel,
+	pickInitialLevel,
+} from "../../constants/accessLevels";
 
 const DEFAULT_PAGE_SIZE = 10;
 
 // System account roles eligible for creation
 const SYSTEM_STAFF_ROLES = [ROLES.FACILITY_MANAGER, ROLES.GUARD];
+
+// BR-AL-33: cấp mặc định theo role đọc từ cấu hình ACCESS_LEVEL_DEFAULT_<ROLE>, không viết cứng số
+const CREATABLE_ROLES = [ROLES.NORMAL_USER, ...SYSTEM_STAFF_ROLES];
+const parseLevel = (raw) => {
+	const n = parseInt(raw, 10);
+	return Number.isFinite(n) ? n : null;
+};
 
 // UI-11: cùng quy tắc backend StaffAccountCreateRequest (fullName 3–100, userCode 1–50 ^[a-zA-Z0-9_-]+$, email ≤ 255)
 const USER_CODE_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -122,6 +139,9 @@ export default function ManageAccountPage() {
 	});
 	const [frontFile, setFrontFile] = useState(null);
 	const [frontPreview, setFrontPreview] = useState(null);
+	// BR-AL-33: { defaults: { ROLE: cấp }, guestHostMinLevel } đọc mỗi lần mở form tạo; null = chưa đọc / lỗi
+	const [levelConfig, setLevelConfig] = useState(null);
+	const [levelConfigError, setLevelConfigError] = useState(false);
 
 	// Bulk Import Normal User Form State
 	const [bulkZipFile, setBulkZipFile] = useState(null);
@@ -130,6 +150,9 @@ export default function ManageAccountPage() {
 	const [showBulkConfirmModal, setShowBulkConfirmModal] = useState(false);
 	// UI-19: số dòng tối đa đọc từ cấu hình USER_BULK_IMPORT_MAX_ROWS mỗi lần mở modal (null = chưa đọc được)
 	const [bulkMaxRows, setBulkMaxRows] = useState(null);
+	// V140: dung lượng tối đa ảnh khuôn mặt (USER_FACE_IMAGE_MAX_KB), đọc cùng lần với cấu hình khác khi mở popup tạo /
+	// nạp theo lô. null = chưa đọc được -> không chặn ở trình duyệt, backend tự kiểm
+	const [faceImageMaxKb, setFaceImageMaxKb] = useState(null);
 
 	// Batch Management State
 	const [showBatchListModal, setShowBatchListModal] = useState(false);
@@ -258,9 +281,11 @@ export default function ManageAccountPage() {
 		setShowBulkConfirmModal(false);
 		setModalType("bulkImport");
 		setBulkMaxRows(null);
+		setFaceImageMaxKb(null);
 		loadBulkMaxRows();
 	};
 
+	// USER_BULK_IMPORT_MAX_ROWS và USER_FACE_IMAGE_MAX_KB (V140) cho hướng dẫn nạp theo lô
 	const loadBulkMaxRows = async () => {
 		try {
 			const list = await getSystemConfigs();
@@ -269,12 +294,14 @@ export default function ManageAccountPage() {
 			);
 			const n = cfg ? parseInt(cfg.configValue, 10) : NaN;
 			setBulkMaxRows(Number.isFinite(n) && n > 0 ? n : null);
+			setFaceImageMaxKb(readFaceImageMaxKb(list));
 		} catch (err) {
 			console.error(
 				"Không đọc được cấu hình số dòng tối đa khi nạp theo lô:",
 				err,
 			);
 			setBulkMaxRows(null);
+			setFaceImageMaxKb(null);
 		}
 	};
 
@@ -482,6 +509,46 @@ export default function ManageAccountPage() {
 		dialogFocus,
 	);
 
+	// BR-AL-33: cấp mặc định theo role (ACCESS_LEVEL_DEFAULT_*) và ngưỡng mời khách (GUEST_HOST_MIN_LEVEL);
+	// V140: cùng lần đọc lấy luôn USER_FACE_IMAGE_MAX_KB cho ô ảnh khuôn mặt
+	const loadLevelConfig = async () => {
+		setLevelConfig(null);
+		setLevelConfigError(false);
+		setFaceImageMaxKb(null);
+		try {
+			const list = await getSystemConfigs();
+			setFaceImageMaxKb(readFaceImageMaxKb(list));
+			const valueOf = (key) =>
+				parseLevel((list || []).find((c) => c.configKey === key)?.configValue);
+			const defaults = {};
+			for (const role of CREATABLE_ROLES) {
+				defaults[role] = valueOf(`ACCESS_LEVEL_DEFAULT_${role}`);
+			}
+			// V136: cấu hình ngoài 1–2 (dữ liệu cũ) -> chọn sẵn cấp thấp nhất như backend, không để ô kẹt ở placeholder
+			const normalPick = pickInitialLevel(defaults[ROLES.NORMAL_USER]);
+			if (normalPick.invalid) {
+				console.warn(
+					"ACCESS_LEVEL_DEFAULT_NORMAL_USER ngoài khoảng cho phép, chọn sẵn cấp",
+					normalPick.level,
+				);
+			}
+			setLevelConfig({
+				defaults,
+				guestHostMinLevel: valueOf("GUEST_HOST_MIN_LEVEL"),
+				normalPick,
+			});
+			setCreateForm((prev) =>
+				prev.accessLevel === ""
+					? { ...prev, accessLevel: String(normalPick.level) }
+					: prev,
+			);
+		} catch (err) {
+			console.error("Không đọc được cấu hình cấp truy cập mặc định:", err);
+			setLevelConfigError(true);
+			setFaceImageMaxKb(null);
+		}
+	};
+
 	// Open Create Modal
 	const handleOpenCreate = () => {
 		setCreateForm({
@@ -489,11 +556,13 @@ export default function ManageAccountPage() {
 			userCode: "",
 			email: "",
 			role: activeTab === "NORMAL" ? "NORMAL_USER" : ROLES.GUARD,
+			accessLevel: "",
 		});
 		setFrontFile(null);
 		setFrontPreview(null);
 		setFormErrors({});
 		setModalType("create");
+		loadLevelConfig();
 	};
 
 	// Handle Image File Input Change
@@ -509,10 +578,12 @@ export default function ManageAccountPage() {
 			return;
 		}
 
-		if (file.size > 350 * 1024) {
+		// V140: giới hạn theo USER_FACE_IMAGE_MAX_KB; chưa đọc được cấu hình thì không chặn (backend kiểm)
+		const sizeError = validateFaceImageSize(file, faceImageMaxKb);
+		if (sizeError) {
 			setFormErrors((prev) => ({
 				...prev,
-				faceImage: `Dung lượng ảnh (${(file.size / 1024).toFixed(1)} KB) vượt quá giới hạn tối đa 350 KB. Vui lòng chọn hoặc nén ảnh nhỏ hơn.`,
+				faceImage: sizeError,
 			}));
 			return;
 		}
@@ -552,8 +623,10 @@ export default function ManageAccountPage() {
 		if (!frontFile) {
 			errors.faceImage =
 				"Vui lòng tải lên ảnh chân dung chính diện để đăng ký khuôn mặt";
-		} else if (frontFile.size > 350 * 1024) {
-			errors.faceImage = `Dung lượng ảnh (${(frontFile.size / 1024).toFixed(1)} KB) vượt quá giới hạn tối đa 350 KB. Vui lòng chọn hoặc nén ảnh nhỏ hơn.`;
+		} else {
+			// V140: kiểm lại lúc gửi (cấu hình có thể đọc xong sau khi đã chọn ảnh)
+			const sizeError = validateFaceImageSize(frontFile, faceImageMaxKb);
+			if (sizeError) errors.faceImage = sizeError;
 		}
 
 		if (Object.keys(errors).length > 0) {
@@ -570,6 +643,11 @@ export default function ManageAccountPage() {
 				userCode: createForm.userCode.trim(),
 				email: createForm.email.trim(),
 				role: isNormal ? "NORMAL_USER" : createForm.role,
+				// BR-AL-33: chỉ người dùng thường gửi cấp; để trống thì backend dùng ACCESS_LEVEL_DEFAULT_NORMAL_USER
+				accessLevel:
+					isNormal && createForm.accessLevel !== ""
+						? Number(createForm.accessLevel)
+						: undefined,
 				faceImage: frontFile,
 			});
 			showToast(
@@ -587,7 +665,9 @@ export default function ManageAccountPage() {
 				(isNormal
 					? "Không thể tạo tài khoản người dùng"
 					: "Không thể tạo tài khoản cán bộ");
-			if (msg.toLowerCase().includes("email")) {
+			if (err.code === "ERR_AC_014") {
+				setFormErrors({ accessLevel: msg });
+			} else if (msg.toLowerCase().includes("email")) {
 				setFormErrors({ email: msg });
 			} else if (
 				msg.toLowerCase().includes("mã") ||
@@ -867,6 +947,7 @@ export default function ManageAccountPage() {
 								<th>Họ và tên</th>
 								<th>Email</th>
 								{activeTab === "SYSTEM" && <th>Quyền</th>}
+								<th>Cấp truy cập</th>
 								<th>Trạng thái</th>
 								<th className="account-col-actions" style={{ textAlign: "center" }}>Thao tác</th>
 							</tr>
@@ -907,6 +988,12 @@ export default function ManageAccountPage() {
 										<td>
 											<div
 												className="account-skeleton-block"
+												style={{ width: "50px" }}
+											/>
+										</td>
+										<td>
+											<div
+												className="account-skeleton-block"
 												style={{ width: "90px", borderRadius: "9999px" }}
 											/>
 										</td>
@@ -920,7 +1007,7 @@ export default function ManageAccountPage() {
 								))
 							) : error ? (
 								<tr>
-									<td colSpan={activeTab === "NORMAL" ? 5 : 6}>
+									<td colSpan={activeTab === "NORMAL" ? 6 : 7}>
 										<div className="account-empty-state">
 											<div className="account-empty-state__icon">
 												<AlertCircle size={28} />
@@ -942,7 +1029,7 @@ export default function ManageAccountPage() {
 								</tr>
 							) : users.length === 0 ? (
 								<tr>
-									<td colSpan={activeTab === "NORMAL" ? 5 : 6}>
+									<td colSpan={activeTab === "NORMAL" ? 6 : 7}>
 										<div className="account-empty-state">
 											<div className="account-empty-state__icon">
 												<Users size={28} />
@@ -1021,6 +1108,11 @@ export default function ManageAccountPage() {
 													</span>
 												</td>
 											)}
+
+											{/* BR-AL-33: chỉ đọc; đổi cấp sau khi tạo do FM ở trang Cấp truy cập */}
+											<td className="account-cell--level">
+												{item.accessLevel != null ? `Cấp ${item.accessLevel}` : "—"}
+											</td>
 
 											<td>
 												<span
@@ -1391,6 +1483,76 @@ export default function ManageAccountPage() {
 											disabled={isSubmitting}
 											options={SYSTEM_STAFF_ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] || r }))}
 										/>
+										{/* BR-AL-33: tài khoản hệ thống không chọn cấp; hiện cấp theo ACCESS_LEVEL_DEFAULT_<ROLE> */}
+										<p className="account-form-readonly" aria-live="polite">
+											Cấp truy cập:{" "}
+											<strong>
+												{levelConfig?.defaults?.[createForm.role] ?? "—"}
+											</strong>
+											<span className="account-form-note">
+												{levelConfigError
+													? " (không đọc được cấu hình, hệ thống vẫn gán theo cấu hình mặc định)"
+													: " (theo cấu hình mặc định của vai trò)"}
+											</span>
+										</p>
+									</div>
+								)}
+
+								{activeTab === "NORMAL" && (
+									<div className="account-form-group">
+										<label
+											className="account-form-label"
+											htmlFor="account-create-access-level"
+										>
+											<span>
+												Cấp truy cập ban đầu
+												<span className="account-form-label__required">*</span>
+											</span>
+										</label>
+										<Select
+											id="account-create-access-level"
+											value={createForm.accessLevel}
+											onChange={(e) => {
+												setCreateForm({ ...createForm, accessLevel: e.target.value });
+												if (formErrors.accessLevel) {
+													setFormErrors((prev) => ({ ...prev, accessLevel: null }));
+												}
+											}}
+											disabled={isSubmitting}
+											placeholder={
+												levelConfigError
+													? "Theo cấu hình mặc định"
+													: levelConfig
+														? "Chọn cấp"
+														: "Đang tải cấp mặc định..."
+											}
+											options={NORMAL_USER_INITIAL_LEVELS.map((lv) => ({
+												value: String(lv),
+												label: `Cấp ${lv}`,
+											}))}
+											error={formErrors.accessLevel || undefined}
+										/>
+										{levelConfig?.normalPick?.invalid && (
+											<span className="account-form-note" role="status">
+												Cấu hình cấp mặc định
+												{levelConfig.normalPick.configured !== null
+													? ` hiện là ${levelConfig.normalPick.configured}`
+													: ""}{" "}
+												không hợp lệ (chỉ được {NORMAL_USER_INITIAL_LEVELS.join(" hoặc ")}); đã chọn sẵn
+												cấp {levelConfig.normalPick.level}. Hãy sửa lại ở Cấu hình hệ thống.
+											</span>
+										)}
+										<ul className="account-level-desc">
+											{NORMAL_USER_INITIAL_LEVELS.map((lv) => (
+												<li key={lv}>
+													<strong>Cấp {lv}:</strong>{" "}
+													{describeInitialLevel(lv, levelConfig?.guestHostMinLevel ?? null)}
+												</li>
+											))}
+										</ul>
+										<span className="account-form-note">
+											Sau khi tạo, chỉ Quản lý cơ sở vật chất đổi được cấp (trang Cấp truy cập).
+										</span>
 									</div>
 								)}
 
@@ -1472,7 +1634,8 @@ export default function ManageAccountPage() {
 													marginTop: "2px",
 												}}
 											>
-												Hỗ trợ định dạng JPG, PNG...
+												Hỗ trợ định dạng JPG, PNG
+												{faceImageMaxKb ? `, ${faceImageLimitText(faceImageMaxKb)}` : "..."}
 											</span>
 										</label>
 									)}
@@ -1923,8 +2086,9 @@ export default function ManageAccountPage() {
 															<br />• Nén file <code>
 																metadata.xlsx
 															</code> (hoặc <code>metadata.csv</code>) cùng thư
-															mục <code>images/</code> chứa ảnh chân dung (tối
-															đa 350KB/ảnh, tên ảnh khớp với{" "}
+															mục <code>images/</code> chứa ảnh chân dung (
+															{faceImageLimitText(faceImageMaxKb)}, tên ảnh khớp
+															với{" "}
 															<code>user_code</code>) vào file <code>.zip</code>{" "}
 															để nạp.
 														</>
@@ -1946,8 +2110,9 @@ export default function ManageAccountPage() {
 															<br />• Nén file <code>
 																metadata.xlsx
 															</code> (hoặc <code>metadata.csv</code>) cùng thư
-															mục <code>images/</code> chứa ảnh chân dung (tối
-															đa 350KB/ảnh, tên ảnh khớp với{" "}
+															mục <code>images/</code> chứa ảnh chân dung (
+															{faceImageLimitText(faceImageMaxKb)}, tên ảnh khớp
+															với{" "}
 															<code>user_code</code>) vào file <code>.zip</code>{" "}
 															để nạp.
 														</>

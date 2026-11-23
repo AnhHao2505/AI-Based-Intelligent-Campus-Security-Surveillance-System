@@ -33,7 +33,9 @@ class IncidentOfferModel {
   String get eventType => incident.eventType;
   String? get severity => incident.severity;
   String? get building => incident.building;
+  String? get floor => incident.floor;
   String? get areaName => incident.areaName;
+  String get displayLocationName => incident.displayLocationName;
   String get cameraCode => incident.cameraCode;
   String? get imageUrl => incident.imageUrl;
 

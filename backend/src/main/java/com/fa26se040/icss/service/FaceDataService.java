@@ -4,6 +4,7 @@ import com.fa26se040.icss.dto.AiFaceRegistrationResponseDto;
 import com.fa26se040.icss.dto.FaceDataResponseDto;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.FaceRegistrationAuditSnapshot;
 import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.dto.edge.EdgeRpcReplyDto;
 import com.fa26se040.icss.entity.FaceData;
@@ -11,8 +12,7 @@ import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.exception.AiServiceUnavailableException;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.FaceDetectionException;
-import com.fa26se040.icss.exception.GuestErrorCode;
-import com.fa26se040.icss.exception.GuestException;
+import com.fa26se040.icss.exception.FaceDuplicateException;
 import com.fa26se040.icss.repository.FaceDataRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -44,10 +44,39 @@ import java.util.UUID;
 @Slf4j
 public class FaceDataService {
 
+    /** Ảnh không có khuôn mặt: face_count = 0, hoặc ai-service trả 400 "không phát hiện khuôn mặt". */
+    static final String NO_FACE_MESSAGE = "Không phát hiện thấy khuôn mặt trong ảnh.";
+    /**
+     * ai-service từ chối ảnh (400 / 422 không phải "không có mặt": ảnh rỗng, không giải mã được...). Câu sẵn có trước đây đi
+     * kèm nguyên body của ai-service; nay chỉ còn câu, body ghi log WARN.
+     */
+    static final String IMAGE_UNPROCESSABLE_MESSAGE = "Không thể xử lý khuôn mặt trong ảnh";
+    /** ai-service trả lỗi không do ảnh (5xx...); chế độ Cloud-Edge dùng chung cho mọi mã lỗi edge không phải lỗi ảnh. */
+    static final String AI_SERVICE_ERROR_MESSAGE = "Dịch vụ AI gặp lỗi khi xử lý ảnh. Vui lòng thử lại sau.";
+    /**
+     * Không kết nối được ai-service (HTTP); chế độ Cloud-Edge: RPC tới edge quá hạn / mất kết nối (CameraException) hoặc
+     * không tải được ảnh staging lên MinIO.
+     */
+    static final String AI_SERVICE_UNAVAILABLE_MESSAGE = "Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.";
+
     private final FaceDataRepository faceDataRepository;
     private final UserRepository userRepository;
     private final MinioStorageService minioStorageService;
     private final AiServiceRestTemplate restTemplate;
+    /** Kiểm trùng khuôn mặt: bắt buộc (face-gate 1), thiếu bean thì ứng dụng không khởi động thay vì bỏ qua im lặng. */
+    private final FaceDuplicateCheckService faceDuplicateCheckService;
+    /** V140: USER_FACE_IMAGE_MAX_KB đọc mỗi lần đăng ký (sửa trên màn System Configuration có hiệu lực ngay). */
+    private final SystemConfigService systemConfigService;
+
+    /** V140: dung lượng tối đa ảnh khuôn mặt tài khoản (KB), kẹp theo min_value / max_value ở DB. */
+    public int getFaceImageMaxKb() {
+        return systemConfigService.getIntWithinBounds(ConfigKey.USER_FACE_IMAGE_MAX_KB);
+    }
+
+    /** Câu báo ảnh quá dung lượng, dùng chung cho đăng ký đơn lẻ và nạp theo lô (nội suy giá trị cấu hình). */
+    static String faceImageTooLargeMessage(int maxKb, long sizeBytes) {
+        return String.format("Kích thước ảnh vượt quá giới hạn tối đa %dKB (dung lượng file: %.1f KB)", maxKb, sizeBytes / 1024.0);
+    }
 
     @Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;
@@ -55,10 +84,6 @@ public class FaceDataService {
     /** PR-AUDIT: field injection để giữ constructor (test dựng service bằng tay); null thì không ghi audit. */
     @Autowired(required = false)
     private AuditService auditService;
-
-    /** Kiểm trùng khuôn mặt (field injection như auditService để giữ constructor cho test dựng tay; null thì bỏ qua). */
-    @Autowired(required = false)
-    private FaceDuplicateCheckService faceDuplicateCheckService;
 
     /** PR-AUDIT: mã đã có khuôn mặt chưa (dùng cho snapshot hasFaceData của audit tài khoản). */
     @Transactional(readOnly = true)
@@ -95,9 +120,9 @@ public class FaceDataService {
                 throw new IllegalArgumentException("Ảnh khuôn mặt không được để trống.");
             }
 
-            long maxSizeBytes = 350 * 1024; // 350 KB
-            if (frontImage.getSize() > maxSizeBytes) {
-                throw new IllegalArgumentException(String.format("Kích thước ảnh vượt quá giới hạn tối đa 350KB (dung lượng file: %.1f KB)", frontImage.getSize() / 1024.0));
+            int maxKb = getFaceImageMaxKb();
+            if (frontImage.getSize() > (long) maxKb * 1024) {
+                throw new IllegalArgumentException(faceImageTooLargeMessage(maxKb, frontImage.getSize()));
             }
 
             String contentType = frontImage.getContentType();
@@ -139,22 +164,27 @@ public class FaceDataService {
                 throw new FaceDetectionException("AI Service không thể trích xuất vector khuôn mặt cho mã: " + code);
             }
 
-            if (aiResult.getFaceCount() != null) {
-                if (aiResult.getFaceCount() > 1) {
-                    throw new FaceDetectionException("Ảnh chứa nhiều hơn 1 khuôn mặt");
-                }
-                if (aiResult.getFaceCount() == 0) {
-                    throw new FaceDetectionException("Không phát hiện thấy khuôn mặt trong ảnh.");
-                }
+            // face-gate 1: thiếu số khuôn mặt hoặc vector không đủ 512 chiều -> chặn như luồng ảnh khách (ERR_GUEST_035),
+            // không coi là "không trùng"
+            if (aiResult.getFaceCount() == null || aiResult.getEmbeddingFront() == null
+                    || aiResult.getEmbeddingFront().size() != FaceDuplicateCheckService.EMBEDDING_DIM) {
+                log.warn("AI Service trả kết quả thiếu cho [{}]: faceCount={}, số chiều vector={}", code,
+                        aiResult.getFaceCount(), aiResult.getEmbeddingFront() == null ? null : aiResult.getEmbeddingFront().size());
+                throw new AiServiceUnavailableException("Dịch vụ AI không trích xuất được khuôn mặt, vui lòng thử lại sau.");
+            }
+            if (aiResult.getFaceCount() > 1) {
+                throw new FaceDetectionException("Ảnh chứa nhiều hơn 1 khuôn mặt");
+            }
+            if (aiResult.getFaceCount() == 0) {
+                throw new FaceDetectionException(NO_FACE_MESSAGE);
             }
 
-            // Không đăng ký khuôn mặt đã thuộc về người khác: người dùng đang hoạt động (trừ chính mã này khi thay ảnh)
-            // hoặc khách của lượt còn hiệu lực / chưa bắt đầu. Kiểm trước khi tải ảnh lên kho.
-            if (faceDuplicateCheckService != null) {
-                faceDuplicateCheckService.findDuplicateForUser(aiResult.getEmbeddingFront(), code).ifPresent(match -> {
-                    throw new FaceDetectionException(GuestException.render(GuestErrorCode.ERR_GUEST_038, match.describe()));
-                });
-            }
+            // Không đăng ký khuôn mặt đã thuộc về người khác: người dùng chưa xoá mềm, kể cả đang bị vô hiệu hoá (trừ chính
+            // mã này khi thay ảnh), hoặc khách của lượt còn hiệu lực / chưa bắt đầu. Kiểm trước khi tải ảnh lên kho; khoá
+            // advisory giữ tới hết transaction nên hai lượt đăng ký cùng khuôn mặt không cùng lọt (face-gate 4, 5).
+            faceDuplicateCheckService.findDuplicateForUser(aiResult.getEmbeddingFront(), code).ifPresent(match -> {
+                throw new FaceDuplicateException(match.adminMessage());
+            });
 
             String imageUrl = minioStorageService.uploadFaceImage(imageBytes, code);
             String vecFront = formatVectorString(aiResult.getEmbeddingFront());
@@ -198,14 +228,24 @@ public class FaceDataService {
 
         } catch (ResourceAccessException | CameraException e) {
             log.error("Không thể kết nối đến AI Service cho [{}]: {}", code, e.getMessage());
-            throw new AiServiceUnavailableException("Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.");
+            throw new AiServiceUnavailableException(AI_SERVICE_UNAVAILABLE_MESSAGE);
         } catch (HttpStatusCodeException e) {
-            log.error("AI Service trả về lỗi [{}] cho [{}]: {}", e.getStatusCode(), code, e.getResponseBodyAsString());
-            if (e.getStatusCode().value() == 422 || e.getStatusCode().value() == 400) {
-                throw new FaceDetectionException("Không thể xử lý khuôn mặt trong ảnh: " + e.getResponseBodyAsString());
+            // Lỗi do ảnh: người dùng chỉ nhận câu chuẩn; body / detail của ai-service chỉ ghi log WARN (không có ảnh, embedding)
+            // ai-service báo 400 khi ảnh không có khuôn mặt -> cùng câu với nhánh face_count = 0 ở trên
+            if (AiFaceRegistrationErrors.isNoFaceDetected(e)) {
+                log.warn("AI Service không phát hiện khuôn mặt trong ảnh của [{}] ({}): {}", code, e.getStatusCode(),
+                        AiFaceRegistrationErrors.bodyForLog(e));
+                throw new FaceDetectionException(NO_FACE_MESSAGE);
             }
-            throw new AiServiceUnavailableException("Dịch vụ AI gặp lỗi khi xử lý ảnh. Vui lòng thử lại sau.");
-        } catch (FaceDetectionException | AiServiceUnavailableException | com.fa26se040.icss.exception.AuditWriteException e) {
+            if (e.getStatusCode().value() == 422 || e.getStatusCode().value() == 400) {
+                log.warn("AI Service từ chối ảnh của [{}] ({}): {}", code, e.getStatusCode(),
+                        AiFaceRegistrationErrors.bodyForLog(e));
+                throw new FaceDetectionException(IMAGE_UNPROCESSABLE_MESSAGE);
+            }
+            log.error("AI Service trả về lỗi [{}] cho [{}]: {}", e.getStatusCode(), code, AiFaceRegistrationErrors.bodyForLog(e));
+            throw new AiServiceUnavailableException(AI_SERVICE_ERROR_MESSAGE);
+        } catch (FaceDetectionException | FaceDuplicateException | AiServiceUnavailableException
+                 | com.fa26se040.icss.exception.AuditWriteException e) {
             throw e;
         } catch (IllegalArgumentException e) {
             throw e;
@@ -218,12 +258,19 @@ public class FaceDataService {
     private AiFaceRegistrationResponseDto extractEmbeddingViaEdgeMqtt(String code, byte[] imageBytes, String contentType) {
         String bucket = minioStorageService.getFacesBucket();
         String stagingKey = "staging/" + UUID.randomUUID() + ".jpg";
-        minioStorageService.uploadStagingObject(
-                bucket,
-                stagingKey,
-                imageBytes,
-                contentType != null ? contentType : "image/jpeg"
-        );
+        try {
+            minioStorageService.uploadStagingObject(
+                    bucket,
+                    stagingKey,
+                    imageBytes,
+                    contentType != null ? contentType : "image/jpeg"
+            );
+        } catch (RuntimeException e) {
+            // Ảnh chưa tới được thiết bị biên, như nhánh HTTP không kết nối được ai-service -> 503 câu dùng chung (trước đây
+            // rơi vào lỗi chung 500). Chi tiết MinIO chỉ ghi log WARN (không có ảnh); không có object staging để gỡ.
+            log.warn("Không tải được ảnh staging lên MinIO cho [{}] (chế độ Cloud-Edge): {}", code, e.getMessage());
+            throw new AiServiceUnavailableException(AI_SERVICE_UNAVAILABLE_MESSAGE);
+        }
         try {
             EdgeRpcReplyDto reply = edgeMqttControlService.sendRpcRequest(
                     "EXTRACT_FACE_EMBEDDING",
@@ -235,9 +282,13 @@ public class FaceDataService {
                     ),
                     8000L
             );
-            if (!reply.isSuccess() || reply.getData() == null) {
-                String errMsg = reply.getErrorMessage() != null ? reply.getErrorMessage() : "Không thể xử lý khuôn mặt trong ảnh";
-                throw new FaceDetectionException(errMsg);
+            if (reply == null || !reply.isSuccess() || reply.getData() == null) {
+                String errorCode = reply != null ? reply.getErrorCode() : null;
+                // Câu của thiết bị biên chỉ ghi log (WARN, không có ảnh / embedding), không bao giờ trả cho người dùng
+                log.warn("Edge RPC EXTRACT_FACE_EMBEDDING thất bại cho [{}]: errorCode={}, errorMessage={}, correlationId={}",
+                        code, errorCode, reply != null ? reply.getErrorMessage() : null,
+                        reply != null ? reply.getCorrelationId() : null);
+                throw edgeExtractionFailure(errorCode);
             }
 
             Map<String, Object> data = reply.getData();
@@ -260,6 +311,26 @@ public class FaceDataService {
         } finally {
             minioStorageService.removeObjectSafely(bucket, stagingKey);
         }
+    }
+
+    /**
+     * Lỗi RPC EXTRACT_FACE_EMBEDDING của thiết bị biên (ai-service/src/integration/edge_agent.py) -> cùng kết quả với nhánh HTTP:
+     * <ul>
+     *   <li>lỗi do ảnh: ERR_NO_FACE_DETECTED -> 422 {@link #NO_FACE_MESSAGE} (như HTTP 400 errorCode ERR_NO_FACE_DETECTED).
+     *       Đây là mã lỗi ảnh duy nhất edge đang dùng: nhiều hơn 1 mặt không phải lỗi RPC (edge trả success, face_count &gt; 1,
+     *       registerFace kiểm chung như nhánh HTTP); ảnh hỏng / không giải mã được không có mã riêng (ValueError rơi vào
+     *       ERR_EDGE_INTERNAL) nên không tách được khỏi lỗi nội bộ;</li>
+     *   <li>mọi mã khác (ERR_MODEL_NOT_READY, ERR_FACE_STAGING_NOT_FOUND, ERR_EDGE_INTERNAL, ERR_RPC_UNKNOWN_ACTION), mã lạ,
+     *       thiếu mã -> 503 {@link #AI_SERVICE_ERROR_MESSAGE} (như ai-service trả 5xx).</li>
+     * </ul>
+     * Quá hạn RPC / mất kết nối là CameraException, registerFace trả 503 {@link #AI_SERVICE_UNAVAILABLE_MESSAGE} như lỗi
+     * kết nối HTTP.
+     */
+    static RuntimeException edgeExtractionFailure(String errorCode) {
+        if (AiFaceRegistrationErrors.EDGE_NO_FACE_ERROR_CODE.equals(errorCode)) {
+            return new FaceDetectionException(NO_FACE_MESSAGE);
+        }
+        return new AiServiceUnavailableException(AI_SERVICE_ERROR_MESSAGE);
     }
 
     private String formatVectorString(List<Float> vector) {

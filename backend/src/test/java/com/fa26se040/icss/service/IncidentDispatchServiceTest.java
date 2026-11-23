@@ -56,6 +56,7 @@ class IncidentDispatchServiceTest {
     @Mock private IncidentRecipientResolver incidentRecipientResolver;
     @Mock private WebSocketSessionRegistry sessionRegistry;
     @Mock private SimpMessagingTemplate messagingTemplate;
+    @Mock private com.fa26se040.icss.repository.BuildingRepository buildingRepository;
 
     @InjectMocks
     private IncidentDispatchService service;
@@ -243,5 +244,32 @@ class IncidentDispatchServiceTest {
         verify(offerRepository).respondIfPending(pending.get(3).getId(), DispatchOfferResponse.CANCELLED,
                 DispatchOfferCancelReason.INCIDENT_CLOSED, NOW);
         verify(offerRepository, never()).respondIfPending(eq(pending.get(0).getId()), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("CORRIDOR (area=null): selectStep1Guards vẫn tra được building từ incident.building để mời bảo vệ")
+    void selectStep1Guards_corridorWithoutArea_resolvesBuildingByName() {
+        UUID buildingId = UUID.randomUUID();
+        Building eps = Building.builder().id(buildingId).name("Epsilon").isActive(true).build();
+        SecurityIncident corridorInc = SecurityIncident.builder()
+                .id(UUID.randomUUID())
+                .cameraCode("CAM-CORR-019")
+                .area(null)
+                .building("Tòa Epsilon")
+                .severity(IncidentSeverity.MEDIUM)
+                .build();
+        User g1 = guard("Bảo vệ 1");
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "buildingRepository", buildingRepository);
+        when(buildingRepository.findByNameIgnoreCase("Tòa Epsilon")).thenReturn(Optional.empty());
+        when(buildingRepository.findByIsActiveTrueOrderByNameAsc()).thenReturn(List.of(eps));
+        when(dutyPostTypeRepository.findByIsActiveTrueOrderBySortOrderAscCodeAsc()).thenReturn(List.of(
+                DutyPostType.builder().code("PATROL").dispatchable(true).isActive(true).build()));
+        when(incidentRecipientResolver.findDispatchCandidates(
+                eq(NOW), eq(buildingId), isNull(), anySet(), any(), anySet()))
+                .thenReturn(List.of(g1));
+
+        List<User> picked = service.selectStep1Guards(corridorInc, policy(1, 60, false), NOW);
+
+        assertEquals(List.of(g1), picked);
     }
 }

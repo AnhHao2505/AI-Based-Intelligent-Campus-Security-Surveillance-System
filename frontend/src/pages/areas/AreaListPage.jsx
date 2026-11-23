@@ -133,7 +133,8 @@ export default function AreaListPage() {
 	const [pickingCameraLocation, setPickingCameraLocation] = useState(false);
 	const [isCameraGeneralEditing, setIsCameraGeneralEditing] = useState(false);
 	const [cameraEditDraftScope, setCameraEditDraftScope] = useState(null);
-	const [pendingEditLocationDraft, setPendingEditLocationDraft] = useState(null);
+	const [pendingEditLocationDraft, setPendingEditLocationDraft] =
+		useState(null);
 	const [pickedAreaOverride, setPickedAreaOverride] = useState(null);
 	const [optimisticMapPlacements, setOptimisticMapPlacements] = useState({});
 	const cameraMapPlacements = useMemo(
@@ -550,7 +551,11 @@ export default function AreaListPage() {
 		if (!access.showCameraTab) {
 			setLeftSidebarMode("AREAS");
 			setSelectedCameraId(null);
-			prevUrlRef.current = { tab: urlTab, cameraId: urlCameraId, cameraTab: urlCameraTab };
+			prevUrlRef.current = {
+				tab: urlTab,
+				cameraId: urlCameraId,
+				cameraTab: urlCameraTab,
+			};
 			return;
 		}
 		const prev = prevUrlRef.current;
@@ -569,7 +574,11 @@ export default function AreaListPage() {
 				setSelectedCameraId(null);
 			}
 		}
-		prevUrlRef.current = { tab: urlTab, cameraId: urlCameraId, cameraTab: urlCameraTab };
+		prevUrlRef.current = {
+			tab: urlTab,
+			cameraId: urlCameraId,
+			cameraTab: urlCameraTab,
+		};
 	}, [isAdmin, urlTab, urlCameraId, urlCameraTab]);
 
 	const handleSwitchLeftSidebarMode = useCallback(
@@ -648,7 +657,11 @@ export default function AreaListPage() {
 				if (areaInfo.building) setSelectedBuilding(areaInfo.building);
 				if (areaInfo.floor) setSelectedFloor(areaInfo.floor);
 			}
-			syncCameraUrlParams(leftSidebarMode, camera.id, preferredTab || "general");
+			syncCameraUrlParams(
+				leftSidebarMode,
+				camera.id,
+				preferredTab || "general",
+			);
 		},
 		[areaById, leftSidebarMode, syncCameraUrlParams],
 	);
@@ -699,21 +712,31 @@ export default function AreaListPage() {
 		async ({ lng, lat, building, floorOrder }) => {
 			if (!selectedCameraId || !isAdmin) return;
 			const targetCam = cameras.find((c) => c.id === selectedCameraId);
-			const activeDraftScope = isCameraGeneralEditing ? cameraEditDraftScope : null;
+			const activeDraftScope = isCameraGeneralEditing
+				? cameraEditDraftScope
+				: null;
 			const isCorridorCam = activeDraftScope
 				? String(activeDraftScope.cameraType || "").toUpperCase() === "CORRIDOR"
 				: String(targetCam?.cameraType || "").toUpperCase() === "CORRIDOR";
-			const areaInfo = targetCam ? extractCameraAreaInfo(targetCam, areaById) : null;
+			const areaInfo = targetCam
+				? extractCameraAreaInfo(targetCam, areaById)
+				: null;
 			const effectiveAreaId = isCorridorCam
 				? null
 				: activeDraftScope?.areaId || areaInfo?.areaId || null;
-			const matchedArea = effectiveAreaId ? areaById.get(effectiveAreaId) : null;
+			const matchedArea = effectiveAreaId
+				? areaById.get(effectiveAreaId)
+				: null;
 			const assignedBuilding = isCorridorCam
 				? null
-				: matchedArea?.building || (!activeDraftScope ? areaInfo?.building : null) || null;
+				: matchedArea?.building ||
+					(!activeDraftScope ? areaInfo?.building : null) ||
+					null;
 			const assignedFloor = isCorridorCam
 				? null
-				: matchedArea?.floor || (!activeDraftScope ? areaInfo?.floor : null) || null;
+				: matchedArea?.floor ||
+					(!activeDraftScope ? areaInfo?.floor : null) ||
+					null;
 			const assignedFloorOrder =
 				assignedBuilding && assignedFloor
 					? resolveFloorOrder(assignedBuilding, assignedFloor)
@@ -818,8 +841,8 @@ export default function AreaListPage() {
 		(cameraId, patch) => {
 			if (!cameraId || !isAdmin) return;
 			setOptimisticMapPlacements((prev) => {
-				const base =
-					prev[cameraId] || cameraMapPlacements?.[cameraId] || { cameraId };
+				const base = prev[cameraId] ||
+					cameraMapPlacements?.[cameraId] || { cameraId };
 				return {
 					...prev,
 					[cameraId]: { ...base, ...patch, cameraId },
@@ -840,11 +863,15 @@ export default function AreaListPage() {
 			const isCorridorCam = activeDraftScope
 				? String(activeDraftScope.cameraType || "").toUpperCase() === "CORRIDOR"
 				: String(targetCam?.cameraType || "").toUpperCase() === "CORRIDOR";
-			const areaInfo = targetCam ? extractCameraAreaInfo(targetCam, areaById) : null;
+			const areaInfo = targetCam
+				? extractCameraAreaInfo(targetCam, areaById)
+				: null;
 			const effectiveAreaId = isCorridorCam
 				? null
 				: activeDraftScope?.areaId || areaInfo?.areaId || null;
-			const matchedArea = effectiveAreaId ? areaById.get(effectiveAreaId) : null;
+			const matchedArea = effectiveAreaId
+				? areaById.get(effectiveAreaId)
+				: null;
 			const resolvedBuilding = isCorridorCam
 				? building || targetCam?.mapBuilding || null
 				: matchedArea?.building ||
@@ -852,14 +879,14 @@ export default function AreaListPage() {
 					building ||
 					null;
 			const resolvedFloorOrder = isCorridorCam
-				? floorOrder ?? targetCam?.mapFloorOrder ?? null
+				? (floorOrder ?? targetCam?.mapFloorOrder ?? null)
 				: resolvedBuilding &&
 					  (matchedArea?.floor || (!activeDraftScope ? areaInfo?.floor : null))
 					? resolveFloorOrder(
 							resolvedBuilding,
 							matchedArea?.floor || areaInfo?.floor,
 						)
-					: floorOrder ?? null;
+					: (floorOrder ?? null);
 
 			if (activeDraftScope?.scopeChanged) {
 				setPendingEditLocationDraft({
@@ -996,8 +1023,7 @@ export default function AreaListPage() {
 				await fetchAllCameras();
 			} catch (err) {
 				toast.error(
-					err?.response?.data?.message ||
-						"Không thể kích hoạt lại camera này",
+					err?.response?.data?.message || "Không thể kích hoạt lại camera này",
 				);
 			} finally {
 				setCameraActionLoadingId(null);
@@ -1019,8 +1045,7 @@ export default function AreaListPage() {
 			await fetchAllCameras();
 		} catch (err) {
 			toast.error(
-				err?.response?.data?.message ||
-					"Không thể ngưng hoạt động camera này",
+				err?.response?.data?.message || "Không thể ngưng hoạt động camera này",
 			);
 		} finally {
 			setCameraActionLoadingId(null);
@@ -1040,9 +1065,7 @@ export default function AreaListPage() {
 			setSidebarDeleteTarget(null);
 			await fetchAllCameras();
 		} catch (err) {
-			toast.error(
-				err?.response?.data?.message || "Không thể xóa camera này",
-			);
+			toast.error(err?.response?.data?.message || "Không thể xóa camera này");
 		} finally {
 			setCameraActionLoadingId(null);
 		}
@@ -1356,7 +1379,7 @@ export default function AreaListPage() {
 				<div className="zone-toolbar">
 					<div className="zone-toolbar__spacer" />
 					<div className="zone-toolbar__actions">
-						<button
+						{/* <button
 							type="button"
 							className="zone-toolbar__studio-btn"
 							onClick={() => setDigitizerStudioOpen(true)}
@@ -1367,7 +1390,7 @@ export default function AreaListPage() {
 								strokeWidth={2.2}
 							/>
 							<span>Studio 3D</span>
-						</button>
+						</button> */}
 
 						<button
 							type="button"
@@ -1420,7 +1443,9 @@ export default function AreaListPage() {
 							>
 								<MapPin size={14} />
 								<span>Khu vực</span>
-								<span className="zone-mode-switcher__count">{areas.length}</span>
+								<span className="zone-mode-switcher__count">
+									{areas.length}
+								</span>
 							</button>
 							<button
 								type="button"
@@ -1431,7 +1456,9 @@ export default function AreaListPage() {
 							>
 								<Video size={14} />
 								<span>Camera</span>
-								<span className="zone-mode-switcher__count">{cameras.length}</span>
+								<span className="zone-mode-switcher__count">
+									{cameras.length}
+								</span>
 							</button>
 						</div>
 					)}
@@ -1527,7 +1554,9 @@ export default function AreaListPage() {
 							onSelectCameraPin={handleSelectCameraPin}
 							onUpdateCameraMapLocation={handleUpdateCameraLocation}
 							onCommitCameraLocation={handleCommitCameraLocation}
-							canDragCameraPin={Boolean(selectedCameraId && isCameraGeneralEditing)}
+							canDragCameraPin={Boolean(
+								selectedCameraId && isCameraGeneralEditing,
+							)}
 							rightDrawerContent={
 								isAdmin && selectedCameraId ? (
 									<CameraInspectorDrawer
@@ -1535,7 +1564,9 @@ export default function AreaListPage() {
 										initialTab={selectedCameraInitialTab}
 										availableAreas={areas}
 										isAdmin={isAdmin}
-										liveOperationalStatus={selectedCameraSummary?.operationalStatus}
+										liveOperationalStatus={
+											selectedCameraSummary?.operationalStatus
+										}
 										liveStatus={selectedCameraSummary?.status}
 										onClose={handleCloseCameraInspector}
 										onCameraLoaded={syncCameraStatusInState}
@@ -1561,7 +1592,9 @@ export default function AreaListPage() {
 										onConsumePickedAreaOverride={() =>
 											setPickedAreaOverride(null)
 										}
-										mapPlacement={cameraMapPlacements?.[selectedCameraId] || null}
+										mapPlacement={
+											cameraMapPlacements?.[selectedCameraId] || null
+										}
 										isPickingLocationOnMap={pickingCameraLocation}
 										onRequestPickLocationOnMap={() => {
 											setPickingCameraArea(false);
@@ -1579,7 +1612,8 @@ export default function AreaListPage() {
 													if (draftArea) {
 														if (draftArea.building)
 															setSelectedBuilding(draftArea.building);
-														if (draftArea.floor) setSelectedFloor(draftArea.floor);
+														if (draftArea.floor)
+															setSelectedFloor(draftArea.floor);
 														setSelectedAreaId(draftArea.id);
 													} else if (selectedCameraSummary) {
 														const areaInfo = extractCameraAreaInfo(
@@ -1655,7 +1689,7 @@ export default function AreaListPage() {
 											setIsCreateCameraOpen(false);
 											setSelectedCameraId(null);
 											setIsCreatingOnMap(true);
-									  }
+										}
 									: undefined
 							}
 							onCancelCreateArea={() => setIsCreatingOnMap(false)}

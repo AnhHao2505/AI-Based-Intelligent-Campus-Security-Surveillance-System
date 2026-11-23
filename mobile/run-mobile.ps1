@@ -1,4 +1,4 @@
-﻿Write-Host "===================================================" -ForegroundColor Cyan
+Write-Host "===================================================" -ForegroundColor Cyan
 Write-Host "  KHOI DONG GUARD PATROL MOBILE (FLUTTER)" -ForegroundColor Cyan
 Write-Host "===================================================" -ForegroundColor Cyan
 
@@ -15,4 +15,4 @@ if ($adbPath) {
 
 # 2. Chay ung dung Flutter
 Write-Host "[2/2] Dang khoi chay ung dung len dien thoai..." -ForegroundColor Yellow
-flutter run
+flutter run --android-skip-build-dependency-validation @args

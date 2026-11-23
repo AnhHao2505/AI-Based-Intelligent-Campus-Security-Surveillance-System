@@ -154,6 +154,9 @@ export const getActionLabel = (targetType, action) => {
 		else if (action === "RESTORE") actionLabel = "Khôi phục lô";
 	} else if (targetType === "SYSTEM_CONFIG" && action === "UPDATE") {
 		actionLabel = "Sửa cấu hình";
+	} else if (targetType === "USER_ACCESS_LEVEL" && action === "CREATE") {
+		// BR-AL-33 (V135): Admin đặt cấp ban đầu khi tạo tay tài khoản
+		actionLabel = "Đặt cấp ban đầu";
 	}
 
 	if (targetType === "AREA_EVENT_SCHEDULE") {

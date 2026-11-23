@@ -29,4 +29,28 @@ public final class StringNormalizer {
     public static String normName(String name) {
         return name == null ? "" : name.replaceAll("[\\p{Z}\\s]+", " ").trim();
     }
+
+    /**
+     * Chuẩn hoá tên toà nhà (bỏ dấu tiếng Việt, bỏ tiền tố "tòa " / "toa ", chuyển chữ thường) để so khớp đồng nhất.
+     */
+    public static String normalizeBuildingName(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String normalized = java.text.Normalizer.normalize(raw.trim().toLowerCase(java.util.Locale.ROOT), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        if (normalized.startsWith("toa ")) {
+            normalized = normalized.substring(4).trim();
+        }
+        return normalized;
+    }
+
+    /**
+     * Kiểm tra hai tên toà nhà có trùng nhau sau chuẩn hoá hay không.
+     */
+    public static boolean matchesBuildingName(String b1, String b2) {
+        String n1 = normalizeBuildingName(b1);
+        String n2 = normalizeBuildingName(b2);
+        return !n1.isEmpty() && n1.equals(n2);
+    }
 }

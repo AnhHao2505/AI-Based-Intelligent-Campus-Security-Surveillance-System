@@ -7,6 +7,7 @@ import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Camera;
+import com.fa26se040.icss.entity.Floor;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.IncidentDispatchOffer;
 import com.fa26se040.icss.entity.IncidentDispatchPolicy;
@@ -16,6 +17,7 @@ import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
 import com.fa26se040.icss.enums.CameraStatus;
+import com.fa26se040.icss.enums.CameraType;
 import com.fa26se040.icss.enums.IncidentDispatchStage;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentResolutionCategory;
@@ -96,6 +98,9 @@ public class SecurityIncidentService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;
 
+    @Autowired(required = false)
+    private com.fa26se040.icss.repository.FloorRepository floorRepository;
+
     @Transactional
     public IncidentDetailResponse ingestIncident(IncidentEventDto eventDto) {
         log.info("Processing incoming incident for camera [{}] type [{}]",
@@ -108,7 +113,7 @@ public class SecurityIncidentService {
             Optional<SecurityIncident> existing = incidentRepository.findByEventId(eventDto.getEventId());
             if (existing.isPresent()) {
                 log.info("Bỏ qua sự cố trùng event_id [{}]: đã có sự cố [{}]", eventDto.getEventId(), existing.get().getId());
-                return mapToDetailResponse(existing.get());
+                return mapToDetailResponse(existing.get(), null);
             }
         }
 
@@ -130,14 +135,21 @@ public class SecurityIncidentService {
         }
 
         Area area = camera.getArea();
-        if (area == null) {
+        CameraType effectiveType = camera.getCameraType() != null
+                ? camera.getCameraType()
+                : CameraType.RESTRICTED_AREA;
+        if (area == null && effectiveType != CameraType.CORRIDOR) {
             log.warn("Không tìm thấy khu vực hoạt động nào liên kết với camera [{}] để ghi nhận sự cố", eventDto.getCameraCode());
             throw new IllegalArgumentException("Camera " + eventDto.getCameraCode() + " chưa được gán vào khu vực hoạt động nào!");
         }
 
-        String building = (area.getBuilding() != null && !area.getBuilding().isBlank())
-                ? area.getBuilding()
-                : "FPT_CAMPUS";
+        String building = resolveBuildingName(area, camera);
+        if (building == null) {
+            log.warn("Camera [{}] (type={}) chưa có thông tin tòa nhà để ghi nhận sự cố", camera.getCameraCode(), effectiveType);
+            throw new IllegalStateException("Camera " + camera.getCameraCode() + " chưa có thông tin tòa nhà để ghi nhận sự cố!");
+        }
+        String locationName = area != null ? area.getName()
+                : (camera.getName() != null && !camera.getName().isBlank() ? camera.getName() : camera.getCameraCode());
 
         // Normalize MinIO image URL for web clients
         String imageUrl = normalizeImageUrl(eventDto.getImageUrl());
@@ -150,22 +162,24 @@ public class SecurityIncidentService {
 
         // Quyết định 03/11: AUTHORIZED_PERSON chỉ dùng cho lịch sử ra vào, không tạo sự cố
         if ("AUTHORIZED_PERSON".equals(normalizedEventType)) {
-            log.info("Bỏ qua sự kiện [{}] (người hợp lệ) tại khu vực [{}]: không tạo sự cố.", rawEventType, area.getName());
+            log.info("Bỏ qua sự kiện [{}] (người hợp lệ) tại [{}]: không tạo sự cố.", rawEventType, locationName);
             return null;
         }
 
-        // Quy chuẩn an ninh khuôn viên: Khu vực Cấp 1 (PUBLIC) cho phép tự do ra vào trong giờ hoạt động
-        // -> Không tạo cảnh báo sự cố đối với người lạ (UNKNOWN_PERSON) và không cảnh báo truy cập trái phép (UNAUTHORIZED_PERSON) trong giờ
+        // Quy chuẩn an ninh khuôn viên: Khu vực Cấp 1 (PUBLIC) hoặc Hành lang (CORRIDOR, dùng chuẩn PUBLIC) cho phép tự do
+        // ra vào trong giờ hoạt động -> Không tạo cảnh báo UNKNOWN_PERSON và UNAUTHORIZED_PERSON trong giờ
         // (Ngoại lệ: Sự kiện Test do Bảo vệ kích hoạt để kiểm thử tính năng thì luôn được ghi nhận)
         boolean isTestEvent = eventDto.getEventId() != null
                 && (eventDto.getEventId().startsWith("EVT-") || eventDto.getEventId().startsWith("TEST-"));
 
-        boolean isPublicArea = !isTestEvent && (area.getAreaLevel() == AreaLevel.PUBLIC
-                || (area.getAreaAccessLevel() != null && area.getAreaAccessLevel() <= 1));
+        AreaLevel effectiveAreaLevel = area != null ? area.getAreaLevel() : AreaLevel.PUBLIC;
+        Integer effectiveAccessLevel = area != null ? area.getAreaAccessLevel() : 1;
+        boolean isPublicArea = !isTestEvent && (effectiveAreaLevel == AreaLevel.PUBLIC
+                || (effectiveAccessLevel != null && effectiveAccessLevel <= 1));
 
         if (isPublicArea && ("UNKNOWN_PERSON".equals(normalizedEventType) || "UNAUTHORIZED_PERSON".equals(normalizedEventType))) {
-            log.info("Khu vực [{}] thuộc Cấp 1 (PUBLIC) - Bỏ qua cảnh báo [{}] trong giờ hoạt động bình thường.",
-                    area.getName(), normalizedEventType);
+            log.info("Vị trí [{}] thuộc chuẩn PUBLIC - Bỏ qua cảnh báo [{}] trong giờ hoạt động bình thường.",
+                    locationName, normalizedEventType);
             return null;
         }
 
@@ -186,11 +200,11 @@ public class SecurityIncidentService {
         String incidentResolutionNotes = cleanDetails;
         if (incidentResolutionNotes.isBlank()) {
             incidentResolutionNotes = switch (normalizedEventType) {
-                case "PERSON_INTRUSION" -> "Phát hiện đối tượng xuất hiện ngoài giờ hoạt động tại " + area.getName() + ".";
-                case "UNAUTHORIZED_PERSON" -> "Phát hiện đối tượng không có quyền truy cập tại " + area.getName() + ".";
-                case "UNKNOWN_PERSON" -> "Phát hiện người chưa đăng ký tại " + area.getName() + ".";
-                case "SUSPICIOUS_MOVING_OBJECT" -> "Phát hiện vật thể chuyển động bất thường tại " + area.getName() + ".";
-                default -> "Phát hiện sự cố an ninh tại " + area.getName() + ".";
+                case "PERSON_INTRUSION" -> "Phát hiện đối tượng xuất hiện ngoài giờ hoạt động tại " + locationName + ".";
+                case "UNAUTHORIZED_PERSON" -> "Phát hiện đối tượng không có quyền truy cập tại " + locationName + ".";
+                case "UNKNOWN_PERSON" -> "Phát hiện người chưa đăng ký tại " + locationName + ".";
+                case "SUSPICIOUS_MOVING_OBJECT" -> "Phát hiện vật thể chuyển động bất thường tại " + locationName + ".";
+                default -> "Phát hiện sự cố an ninh tại " + locationName + ".";
             };
         }
 
@@ -208,7 +222,7 @@ public class SecurityIncidentService {
                 .broadcastAt(detectedAt)
                 .aiSessionId(truncate(eventDto.getRoiSessionId(), 64))
                 .build();
-        incident.setSeverity(resolveSeverity(normalizedEventType, area, detectedAt));
+        incident.setSeverity(resolveSeverity(normalizedEventType, effectiveAreaLevel, locationName, detectedAt));
         // V93 (BR-DSP-02): mã người bị nhận diện, để loại người đó khỏi danh sách mời. Gọi parser có sẵn, không sửa regex.
         if (incidentDispatchService != null) {
             incident.setSubjectUserCode(subjectUserCodeOf(cleanDetails));
@@ -217,7 +231,7 @@ public class SecurityIncidentService {
         SecurityIncident saved = incidentRepository.save(incident);
         // Ghi xuống DB ngay: tin trùng đến cùng lúc vấp unique index event_id tại đây, trước mọi tác dụng phụ bên dưới
         incidentRepository.flush();
-        IncidentDetailResponse response = mapToDetailResponse(saved);
+        IncidentDetailResponse response = mapToDetailResponse(saved, camera);
 
         // 1b. Tự động đồng bộ sự cố người lạ / vi phạm / sai giờ / ngoài giờ sang Nhật ký ra vào của Camera (Tab 4 Camera Detail)
         if (cameraAccessLogService != null && eventDto.getCameraCode() != null) {
@@ -232,8 +246,8 @@ public class SecurityIncidentService {
 
                 CheckCameraEntryResponse logEntry = CheckCameraEntryResponse.builder()
                         .cameraCode(eventDto.getCameraCode())
-                        .areaId(area.getId())
-                        .areaName(area.getName())
+                        .areaId(area != null ? area.getId() : null)
+                        .areaName(locationName)
                         .userCode(personInfo.userCode)
                         .fullName(personInfo.fullName)
                         .allowed(false)
@@ -258,7 +272,7 @@ public class SecurityIncidentService {
         //     -> đi đúng luồng cũ ở mục 2 bên dưới. Bước 1 có người được mời -> KHÔNG gửi 3 kênh broadcast (X3).
         boolean dispatchEnabled = incidentDispatchService != null && incidentDispatchService.isEnabled();
         if (dispatchEnabled) {
-            IncidentDetailResponse step1Response = startStep1IfPossible(saved);
+            IncidentDetailResponse step1Response = startStep1IfPossible(saved, camera);
             if (step1Response != null) {
                 return step1Response;
             }
@@ -271,7 +285,7 @@ public class SecurityIncidentService {
         //    Lỗi SQL trong transaction này làm cả transaction rollback (kể cả sự cố) — try/catch chỉ chặn lỗi tầng Java.
         //    V93: phần gửi tách thành sendToOnDutyGuards / sendToBuildingAndGlobalTopics (giữ nguyên nội dung, thứ tự)
         //    để job dùng lại khi sự cố chuyển STEP1 -> BROADCAST.
-        int guardRecipientCount = sendToOnDutyGuards(saved, response, area.getName(), building, detectedAt);
+        int guardRecipientCount = sendToOnDutyGuards(saved, response, locationName, building, detectedAt);
 
         try {
             incidentEscalationRepository.save(IncidentEscalation.builder()
@@ -348,7 +362,7 @@ public class SecurityIncidentService {
      * V93 (K6 bước 3, BR-DSP-02..04): mời tối đa step1_size bảo vệ. Trả về response (dispatchStage = STEP1) nếu đã mời;
      * null nếu không vào bước 1 (step1_size = 0, không có ứng viên E1, hoặc lỗi chọn ứng viên) -> ingest phát như cũ.
      */
-    private IncidentDetailResponse startStep1IfPossible(SecurityIncident saved) {
+    private IncidentDetailResponse startStep1IfPossible(SecurityIncident saved, Camera camera) {
         OffsetDateTime now = OffsetDateTime.now();
         IncidentDispatchPolicy policy;
         List<User> invited;
@@ -371,7 +385,7 @@ public class SecurityIncidentService {
         saved.setDispatchStage(IncidentDispatchStage.STEP1);
         saved.setBroadcastAt(null);
         List<IncidentDispatchOffer> offers = incidentDispatchService.createOffers(saved, invited, policy, now);
-        IncidentDetailResponse response = mapToDetailResponse(saved);
+        IncidentDetailResponse response = mapToDetailResponse(saved, camera);
 
         // BR-IE-03: vẫn tạo bản ghi leo thang. Số bảo vệ được nhắm tới = số người được mời (khác 0), để job leo thang
         // không báo FM ngay; hạn leo thang vẫn tính từ lúc tạo sự cố (BR-DSP-09)
@@ -438,10 +452,19 @@ public class SecurityIncidentService {
 
         // promoteToBroadcast không làm mới entity trong persistence context. Không sửa entity (tránh UPDATE thừa và tăng
         // version, làm claim song song bị 409 oan), chỉ sửa DTO gửi đi.
-        IncidentDetailResponse response = mapToDetailResponse(incident);
+        Camera cam = findCameraByCode(incident.getCameraCode());
+        IncidentDetailResponse response = mapToDetailResponse(incident, cam);
         response.setDispatchStage(IncidentDispatchStage.BROADCAST);
-        String areaName = incident.getArea() != null ? incident.getArea().getName() : null;
-        String building = incident.getBuilding() != null ? incident.getBuilding() : "FPT_CAMPUS";
+        String areaName = incident.getArea() != null ? incident.getArea().getName()
+                : (cam != null && cam.getName() != null ? cam.getName() : null);
+        String candidateBuilding = resolveBuildingName(incident.getArea(), cam);
+        final String building = (candidateBuilding != null && !candidateBuilding.isBlank())
+                ? candidateBuilding
+                : incident.getBuilding();
+        if (building == null || building.isBlank()) {
+            log.warn("[DISPATCH] incident={}: thiếu thông tin tòa nhà khi chuyển BROADCAST", incidentId);
+            return false;
+        }
 
         // Số bảo vệ được nhắm tới đổi thành số người nhận broadcast (0 -> job leo thang báo FM ở lần chạy kế)
         int targeted = 0;
@@ -488,26 +511,29 @@ public class SecurityIncidentService {
         SecurityIncident incident = found.get();
         if (incident.getStatus() == IncidentStatus.RESOLVED_VERIFIED || incident.getStatus() == IncidentStatus.RESOLVED_DISMISSED) {
             log.info("[IDENTITY_UPDATE] Sự cố [{}] đã đóng ({}), bỏ qua", incident.getId(), incident.getStatus());
-            return mapToDetailResponse(incident);
+            return mapToDetailResponse(incident, null);
         }
 
         String outcome = dto.getIdentityOutcome() != null ? dto.getIdentityOutcome().trim().toUpperCase() : "";
         String code = dto.getUserCode() != null && !dto.getUserCode().isBlank() ? dto.getUserCode().trim() : null;
         String name = dto.getUserName() != null && !dto.getUserName().isBlank() ? dto.getUserName().trim() : code;
         String who = code != null ? name + " (" + code + ")" : "người trong khu vực";
-        String areaName = incident.getArea() != null ? incident.getArea().getName() : incident.getCameraCode();
+        Camera cam = incident.getArea() == null ? findCameraByCode(incident.getCameraCode()) : null;
+        String areaName = incident.getArea() != null ? incident.getArea().getName()
+                : (cam != null && cam.getName() != null && !cam.getName().isBlank() ? cam.getName() : incident.getCameraCode());
 
         if (IDENTITY_AUTHORIZED.equals(outcome)) {
-            return applyAuthorizedIdentity(incident, dto, who, areaName);
+            return applyAuthorizedIdentity(incident, dto, who, areaName, cam);
         }
         if (IDENTITY_UNAUTHORIZED.equals(outcome)) {
-            return applyUnauthorizedIdentity(incident, dto, code, who, areaName);
+            return applyUnauthorizedIdentity(incident, dto, code, who, areaName, cam);
         }
         log.warn("[IDENTITY_UPDATE] identity_outcome không hợp lệ [{}] cho sự cố [{}], bỏ qua", dto.getIdentityOutcome(), incident.getId());
         return null;
     }
 
-    private IncidentDetailResponse applyAuthorizedIdentity(SecurityIncident incident, IncidentEventDto dto, String who, String areaName) {
+    private IncidentDetailResponse applyAuthorizedIdentity(SecurityIncident incident, IncidentEventDto dto, String who,
+                                                           String areaName, Camera cam) {
         String newImageUrl = normalizeImageUrl(dto.getImageUrl());
         if (newImageUrl != null && !newImageUrl.isBlank()) {
             incident.setImageUrl(newImageUrl);
@@ -527,7 +553,7 @@ public class SecurityIncidentService {
             sendIncidentUpdateAfterCommit(payload);
             log.info("[IDENTITY_UPDATE] Sự cố [{}] đã được nhận ({}): {} có quyền, chỉ gửi thông báo", incident.getId(),
                     incident.getStatus(), who);
-            return mapToDetailResponse(incident);
+            return mapToDetailResponse(incident, cam);
         }
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -563,11 +589,11 @@ public class SecurityIncidentService {
                 + " có quyền ra vào.");
         sendIncidentUpdateAfterCommit(payload);
         log.info("[IDENTITY_UPDATE] Tự đóng sự cố [{}]: {} có quyền ra vào", saved.getId(), who);
-        return mapToDetailResponse(saved);
+        return mapToDetailResponse(saved, cam);
     }
 
     private IncidentDetailResponse applyUnauthorizedIdentity(SecurityIncident incident, IncidentEventDto dto, String code,
-                                                             String who, String areaName) {
+                                                             String who, String areaName, Camera cam) {
         String cleanDetails = dto.getDetails() != null ? dto.getDetails().replaceAll("\\[[A-Z0-9_]+\\]\\s*", "").trim() : "";
         if ("UNKNOWN_PERSON".equals(incident.getEventType())) {
             incident.setEventType("UNAUTHORIZED_PERSON");
@@ -582,11 +608,10 @@ public class SecurityIncidentService {
         if (newImageUrl != null && !newImageUrl.isBlank()) {
             incident.setImageUrl(newImageUrl);
         }
-        if (incident.getArea() != null) {
-            IncidentSeverity raised = resolveSeverity(incident.getEventType(), incident.getArea(), incident.getDetectedAt());
-            if (raised != null && (incident.getSeverity() == null || raised.ordinal() > incident.getSeverity().ordinal())) {
-                incident.setSeverity(raised);
-            }
+        AreaLevel effectiveLevel = incident.getArea() != null ? incident.getArea().getAreaLevel() : AreaLevel.PUBLIC;
+        IncidentSeverity raised = resolveSeverity(incident.getEventType(), effectiveLevel, areaName, incident.getDetectedAt());
+        if (raised != null && (incident.getSeverity() == null || raised.ordinal() > incident.getSeverity().ordinal())) {
+            incident.setSeverity(raised);
         }
         SecurityIncident saved = incidentRepository.saveAndFlush(incident);
 
@@ -600,7 +625,7 @@ public class SecurityIncidentService {
         payload.put("identityNotice", "Sự cố tại " + areaName + ": AI nhận diện được " + who + ", không có quyền ra vào.");
         sendIncidentUpdateAfterCommit(payload);
         log.info("[IDENTITY_UPDATE] Cập nhật sự cố [{}] theo danh tính: {} không có quyền", saved.getId(), who);
-        return mapToDetailResponse(saved);
+        return mapToDetailResponse(saved, cam);
     }
 
     private Map<String, Object> baseIdentityPayload(SecurityIncident incident) {
@@ -666,13 +691,13 @@ public class SecurityIncidentService {
     @Transactional(readOnly = true)
     public List<IncidentDetailResponse> getActiveIncidents(String building) {
         List<SecurityIncident> list = incidentRepository.findActiveIncidents(building);
-        return list.stream().map(this::mapToDetailResponse).collect(Collectors.toList());
+        return mapToDetailResponses(list);
     }
 
     @Transactional(readOnly = true)
     public List<IncidentDetailResponse> getIncidents(String building, IncidentStatus status) {
         List<SecurityIncident> list = incidentRepository.findIncidents(building, status);
-        return list.stream().map(this::mapToDetailResponse).collect(Collectors.toList());
+        return mapToDetailResponses(list);
     }
 
     @Transactional
@@ -798,14 +823,62 @@ public class SecurityIncidentService {
         return mapToDetailResponse(saved);
     }
 
+    private List<IncidentDetailResponse> mapToDetailResponses(List<SecurityIncident> list) {
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Camera> camerasByCode = new HashMap<>();
+        java.util.Set<String> codes = list.stream()
+                .map(SecurityIncident::getCameraCode)
+                .filter(c -> c != null && !c.isBlank())
+                .collect(Collectors.toSet());
+        if (!codes.isEmpty() && cameraRepository != null) {
+            List<Camera> found = cameraRepository.findByCameraCodeIn(codes);
+            if (found != null) {
+                for (Camera c : found) {
+                    if (c.getCameraCode() != null) {
+                        camerasByCode.put(c.getCameraCode().toUpperCase(), c);
+                    }
+                }
+            }
+        }
+        return list.stream()
+                .map(i -> {
+                    Camera cam = i.getCameraCode() != null ? camerasByCode.get(i.getCameraCode().toUpperCase()) : null;
+                    if (cam == null) {
+                        cam = findCameraByCode(i.getCameraCode());
+                    }
+                    return mapToDetailResponse(i, cam);
+                })
+                .collect(Collectors.toList());
+    }
+
+    private Camera findCameraByCode(String cameraCode) {
+        if (cameraRepository == null || cameraCode == null || cameraCode.isBlank()) {
+            return null;
+        }
+        return cameraRepository.findByCameraCode(cameraCode).orElse(null);
+    }
+
     private IncidentDetailResponse mapToDetailResponse(SecurityIncident i) {
+        return mapToDetailResponse(i, findCameraByCode(i.getCameraCode()));
+    }
+
+    private IncidentDetailResponse mapToDetailResponse(SecurityIncident i, Camera cam) {
+        Integer effectiveFloorOrder = resolveEffectiveFloorOrder(i.getArea(), cam);
         return IncidentDetailResponse.builder()
                 .id(i.getId())
                 .eventId(i.getEventId())
                 .cameraCode(i.getCameraCode())
+                .cameraName(cam != null ? cam.getName() : null)
+                .cameraType(cam != null ? cam.getCameraType() : null)
                 .areaId(i.getArea() != null ? i.getArea().getId() : null)
                 .areaName(i.getArea() != null ? i.getArea().getName() : null)
                 .building(i.getBuilding())
+                .floor(resolveFloorDisplay(i.getArea(), cam, i.getBuilding(), effectiveFloorOrder))
+                .mapLatitude(cam != null ? cam.getMapLatitude() : null)
+                .mapLongitude(cam != null ? cam.getMapLongitude() : null)
+                .mapFloorOrder(effectiveFloorOrder)
                 .eventType(i.getEventType())
                 .imageUrl(i.getImageUrl())
                 .detectedAt(i.getDetectedAt())
@@ -826,18 +899,74 @@ public class SecurityIncidentService {
                 .build();
     }
 
+    private static String resolveBuildingName(Area area, Camera camera) {
+        if (area != null && area.getBuilding() != null && !area.getBuilding().isBlank()) {
+            return area.getBuilding().trim();
+        }
+        if (area != null && area.getFloorEntity() != null && area.getFloorEntity().getBuilding() != null
+                && area.getFloorEntity().getBuilding().getName() != null
+                && !area.getFloorEntity().getBuilding().getName().isBlank()) {
+            return area.getFloorEntity().getBuilding().getName().trim();
+        }
+        if (camera != null && camera.getMapBuilding() != null && !camera.getMapBuilding().isBlank()) {
+            return camera.getMapBuilding().trim();
+        }
+        return null;
+    }
+
+    private static Integer resolveEffectiveFloorOrder(Area area, Camera cam) {
+        if (cam != null && cam.getMapFloorOrder() != null) {
+            return cam.getMapFloorOrder();
+        }
+        if (area != null && area.getFloorEntity() != null) {
+            return area.getFloorEntity().getFloorOrder();
+        }
+        return null;
+    }
+
+    private String resolveFloorDisplay(Area area, Camera cam, String building, Integer floorOrder) {
+        if (area != null) {
+            if (area.getFloor() != null && !area.getFloor().isBlank()) {
+                return area.getFloor().trim();
+            }
+            if (area.getFloorEntity() != null && area.getFloorEntity().getName() != null
+                    && !area.getFloorEntity().getName().isBlank()) {
+                return area.getFloorEntity().getName().trim();
+            }
+        }
+        if (floorOrder == null) {
+            return null;
+        }
+        String lookupBuilding = (cam != null && cam.getMapBuilding() != null && !cam.getMapBuilding().isBlank())
+                ? cam.getMapBuilding()
+                : building;
+        if (floorRepository != null && lookupBuilding != null && !lookupBuilding.isBlank()) {
+            try {
+                for (Floor f : floorRepository.findAllActiveFloors()) {
+                    if (f.getBuilding() != null
+                            && com.fa26se040.icss.util.StringNormalizer.matchesBuildingName(lookupBuilding, f.getBuilding().getName())
+                            && java.util.Objects.equals(f.getFloorOrder(), floorOrder)) {
+                        return f.getName();
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return floorOrder == 0 ? "Tầng Trệt" : "Tầng " + floorOrder;
+    }
+
     /**
      * V90 (BR-SEV-01): mức độ của sự cố mới. Resolver chưa được inject (test dựng service thủ công) hoặc lỗi tầng Java
      * -> NULL, ingest chạy tiếp như trước V90.
      */
-    private IncidentSeverity resolveSeverity(String eventType, Area area, OffsetDateTime at) {
+    private IncidentSeverity resolveSeverity(String eventType, AreaLevel areaLevel, String locationName, OffsetDateTime at) {
         if (incidentSeverityResolver == null) {
             return null;
         }
         try {
-            return incidentSeverityResolver.resolve(eventType, area.getAreaLevel(), at);
+            return incidentSeverityResolver.resolve(eventType, areaLevel, at);
         } catch (Exception e) {
-            log.error("Không tính được severity cho sự cố loại [{}] tại khu [{}]: {}", eventType, area.getName(), e.getMessage(), e);
+            log.error("Không tính được severity cho sự cố loại [{}] tại [{}]: {}", eventType, locationName, e.getMessage(), e);
             return null;
         }
     }

@@ -116,14 +116,25 @@ class EdgeMqttAgent:
             self._relay_processes.clear()
         self._executor.shutdown(wait=False)
 
+    @staticmethod
+    def _is_worker_connected(worker: Any, now_ts: float) -> bool:
+        """Kiểm tra worker có đang thực sự nhận frame RTSP mới hay không (an toàn với MagicMock)."""
+        is_running = bool(getattr(worker, "is_running", False))
+        stream_flag = getattr(worker, "is_stream_connected", None)
+        last_ts = getattr(worker, "last_frame_ts", None)
+        if isinstance(stream_flag, bool) and isinstance(last_ts, (int, float)):
+            return bool(is_running and stream_flag and last_ts > 0.0 and (now_ts - float(last_ts)) <= 15.0)
+        return is_running
+
     def collect_edge_status(self, status: str = "ONLINE") -> Dict[str, Any]:
         """Thu thập trạng thái sức khỏe và danh sách camera của thiết bị biên."""
         edge_id = getattr(settings, "MQTT_CLIENT_ID", "campus-security-ai-service")
         cameras = []
         with self._lock:
+            now_ts = time.time()
             for cam_code, worker in self.active_workers.items():
                 fps = round(float(getattr(worker, "processed_fps", 0.0)), 1)
-                connected = bool(getattr(worker, "is_running", False))
+                connected = self._is_worker_connected(worker, now_ts)
                 cameras.append({
                     "camera_code": cam_code,
                     "fps": fps,
@@ -156,17 +167,37 @@ class EdgeMqttAgent:
             qos = 1 if status != "ONLINE" else 0
             self.mqtt.publish_json(topic, payload, qos=qos, retain=True)
 
+    def _snapshot_camera_connections(self) -> Dict[str, bool]:
+        """Ảnh chụp nhanh trạng thái connected của các worker để phát hiện đổi trạng thái tức thì."""
+        now_ts = time.time()
+        snapshot: Dict[str, bool] = {}
+        with self._lock:
+            for cam_code, worker in self.active_workers.items():
+                snapshot[cam_code] = self._is_worker_connected(worker, now_ts)
+        return snapshot
+
     def _heartbeat_loop(self):
         interval = float(getattr(settings, "EDGE_HEARTBEAT_SECONDS", 30.0))
+        poll_step = min(3.0, max(0.5, interval))
+        last_sent_ts = 0.0
+        last_snapshot: Dict[str, bool] = {}
+
         # Gửi heartbeat ban đầu ngay khi start
         try:
+            last_snapshot = self._snapshot_camera_connections()
             self.publish_status("ONLINE")
+            last_sent_ts = time.time()
         except Exception as e:
             logger.warning(f"⚠️ [EdgeAgent] Lỗi gửi heartbeat ban đầu: {e}")
 
-        while not self._heartbeat_stop.wait(interval):
+        while not self._heartbeat_stop.wait(poll_step):
             try:
-                self.publish_status("ONLINE")
+                now_ts = time.time()
+                current_snapshot = self._snapshot_camera_connections()
+                if current_snapshot != last_snapshot or (now_ts - last_sent_ts) >= interval:
+                    self.publish_status("ONLINE")
+                    last_snapshot = current_snapshot
+                    last_sent_ts = now_ts
             except Exception as e:
                 logger.warning(f"⚠️ [EdgeAgent] Lỗi gửi heartbeat định kỳ: {e}")
 
@@ -602,13 +633,16 @@ class EdgeMqttAgent:
             }
 
         reg_max_dim = getattr(detector, "registration_max_dim", getattr(settings, "FACE_REGISTRATION_MAX_DIM", 640))
-        faces = detector.detect_in_image(img, max_dim=reg_max_dim)
-        face_count = len(faces)
+        # Cùng cách đếm với POST /api/v1/faces/process-registration (mặt chính ở reg_max_dim + lượt đếm mặt phụ nhỏ)
+        from ..core.face_detector import detect_registration_faces, ERR_NO_FACE_DETECTED
+        faces, face_count = detect_registration_faces(
+            detector, img, reg_max_dim, getattr(settings, "FACE_REGISTRATION_COUNT_MAX_DIM", 0)
+        )
         if not faces:
             return {
                 "correlationId": corr_id,
                 "success": False,
-                "errorCode": "ERR_NO_FACE_DETECTED",
+                "errorCode": ERR_NO_FACE_DETECTED,
                 "errorMessage": "Không phát hiện thấy khuôn mặt rõ nét trong ảnh",
                 "latencyMs": int((time.time() - t0) * 1000),
             }

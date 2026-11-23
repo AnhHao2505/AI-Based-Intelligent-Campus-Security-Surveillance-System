@@ -247,6 +247,14 @@ export default function GuestPhotoPage() {
                           {accessEnd.label}: <strong>{formatDateTime(accessEnd.at)}</strong>
                           {v.status === 'REVOKED' && v.revokedByName ? ` (${v.revokedByName})` : ''}
                         </div>
+                        {/* V137: người huỷ; lượt huỷ trước V137 không có dữ liệu thì không hiện dòng này */}
+                        {v.status === 'CANCELLED' && v.cancelledByName && (
+                          <div className="guest-visit__muted" style={{ fontSize: '12px', marginTop: '2px' }}>
+                            {v.cancelledBySystem
+                              ? `Hệ thống huỷ (khi ${v.cancelledByName} thay đổi khu vực)`
+                              : `Người mời tự huỷ (${v.cancelledByName})`}
+                          </div>
+                        )}
                       </div>
                     </div>
 

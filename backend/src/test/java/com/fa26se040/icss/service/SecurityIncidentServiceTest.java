@@ -681,4 +681,142 @@ class SecurityIncidentServiceTest {
         assertNotNull(result);
         assertEquals(expectedTs, result.getDetectedAt());
     }
+
+    @Test
+    @DisplayName("CORRIDOR (area=null): ingest thành công, dùng mapBuilding, trả đủ tọa độ ghim & cameraName trong DTO")
+    void ingestIncident_corridorWithoutArea_succeedsAndEnrichesCameraPin() {
+        Camera corridorCam = Camera.builder()
+                .cameraCode("CAM-CORR-019")
+                .name("Hành lang Black")
+                .cameraType(com.fa26se040.icss.enums.CameraType.CORRIDOR)
+                .area(null)
+                .mapBuilding("Tòa Epsilon")
+                .mapFloorOrder(3)
+                .mapLatitude(10.84118)
+                .mapLongitude(106.80985)
+                .build();
+
+        IncidentEventDto eventDto = IncidentEventDto.builder()
+                .eventId("CORR-EVT-001")
+                .cameraCode("CAM-CORR-019")
+                .eventType("PERSON_INTRUSION")
+                .imageUrl("http://minio:9000/security-evidence/corr.jpg")
+                .build();
+
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-CORR-019"))
+                .thenReturn(Optional.of(corridorCam));
+        when(incidentRepository.save(any())).thenAnswer(inv -> {
+            SecurityIncident s = inv.getArgument(0);
+            s.setId(UUID.randomUUID());
+            return s;
+        });
+
+        IncidentDetailResponse result = incidentService.ingestIncident(eventDto);
+
+        assertNotNull(result);
+        assertNull(result.getAreaId());
+        assertNull(result.getAreaName());
+        assertEquals("CAM-CORR-019", result.getCameraCode());
+        assertEquals("Hành lang Black", result.getCameraName());
+        assertEquals(com.fa26se040.icss.enums.CameraType.CORRIDOR, result.getCameraType());
+        assertEquals("Tòa Epsilon", result.getBuilding());
+        assertEquals("Tầng 3", result.getFloor());
+        assertEquals(3, result.getMapFloorOrder());
+        assertEquals(10.84118, result.getMapLatitude());
+        assertEquals(106.80985, result.getMapLongitude());
+        assertTrue(result.getResolutionNotes().contains("Hành lang Black"));
+        verify(messagingTemplate).convertAndSend(eq("/topic/buildings/TÒA EPSILON/alerts"), any(Object.class));
+        verify(cameraAccessLogService).recordAccessLog(argThat(entry ->
+                entry.getAreaId() == null && "Hành lang Black".equals(entry.getAreaName())), any());
+    }
+
+    @Test
+    @DisplayName("CORRIDOR thiếu mapBuilding -> ném IllegalStateException, không fallback giả FPT_CAMPUS")
+    void ingestIncident_corridorMissingBuilding_throwsIllegalState() {
+        Camera corridorCam = Camera.builder()
+                .cameraCode("CAM-CORR-NOBLDG")
+                .name("Hành lang Trống")
+                .cameraType(com.fa26se040.icss.enums.CameraType.CORRIDOR)
+                .area(null)
+                .mapBuilding(null)
+                .build();
+
+        IncidentEventDto eventDto = IncidentEventDto.builder()
+                .eventId("CORR-EVT-002")
+                .cameraCode("CAM-CORR-NOBLDG")
+                .eventType("PERSON_INTRUSION")
+                .build();
+
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-CORR-NOBLDG"))
+                .thenReturn(Optional.of(corridorCam));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> incidentService.ingestIncident(eventDto));
+        assertTrue(ex.getMessage().contains("chưa có thông tin tòa nhà"));
+        verify(incidentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CORRIDOR áp dụng chuẩn PUBLIC: bỏ qua UNKNOWN_PERSON ban ngày (không phải Test event)")
+    void ingestIncident_corridorDaytimeUnknown_ignoredByPublicRule() {
+        Camera corridorCam = Camera.builder()
+                .cameraCode("CAM-CORR-PUB")
+                .name("Hành lang Cánh Đông")
+                .cameraType(com.fa26se040.icss.enums.CameraType.CORRIDOR)
+                .area(null)
+                .mapBuilding("Tòa Epsilon")
+                .mapFloorOrder(1)
+                .mapLatitude(10.841)
+                .mapLongitude(106.809)
+                .build();
+
+        IncidentEventDto eventDto = IncidentEventDto.builder()
+                .eventId("AI-DAY-001")
+                .cameraCode("CAM-CORR-PUB")
+                .eventType("UNKNOWN_PERSON")
+                .build();
+
+        when(cameraRepository.findByCameraCodeAndDeletedAtIsNull("CAM-CORR-PUB"))
+                .thenReturn(Optional.of(corridorCam));
+
+        IncidentDetailResponse result = incidentService.ingestIncident(eventDto);
+        assertNull(result);
+        verify(incidentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("getActiveIncidents batch lookup camera để điền tọa độ ghim và tên camera hành lang")
+    void getActiveIncidents_batchEnrichesCorridorIncident() {
+        SecurityIncident corrInc = SecurityIncident.builder()
+                .id(UUID.randomUUID())
+                .cameraCode("CAM-CORR-019")
+                .area(null)
+                .building("Tòa Epsilon")
+                .eventType("PERSON_INTRUSION")
+                .status(IncidentStatus.NEW)
+                .detectedAt(OffsetDateTime.now())
+                .build();
+        Camera cam = Camera.builder()
+                .cameraCode("CAM-CORR-019")
+                .name("Hành lang Black")
+                .cameraType(com.fa26se040.icss.enums.CameraType.CORRIDOR)
+                .mapBuilding("Tòa Epsilon")
+                .mapFloorOrder(0)
+                .mapLatitude(10.8412)
+                .mapLongitude(106.8099)
+                .build();
+
+        when(incidentRepository.findActiveIncidents(null)).thenReturn(List.of(corrInc));
+        when(cameraRepository.findByCameraCodeIn(anyCollection())).thenReturn(List.of(cam));
+
+        List<IncidentDetailResponse> active = incidentService.getActiveIncidents(null);
+
+        assertEquals(1, active.size());
+        IncidentDetailResponse dto = active.get(0);
+        assertEquals("Hành lang Black", dto.getCameraName());
+        assertEquals("Tầng Trệt", dto.getFloor());
+        assertEquals(0, dto.getMapFloorOrder());
+        assertEquals(10.8412, dto.getMapLatitude());
+        assertEquals(106.8099, dto.getMapLongitude());
+    }
 }

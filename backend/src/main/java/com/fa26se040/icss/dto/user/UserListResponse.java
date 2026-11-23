@@ -17,7 +17,9 @@ public record UserListResponse(
     UUID teamId,
     String teamName,
     // LT-03: thời điểm hết khoá đăng nhập tạm (V114) nếu tài khoản ĐANG bị khoá; null nếu không khoá / người gọi không phải ADMIN
-    OffsetDateTime loginLockedUntil
+    OffsetDateTime loginLockedUntil,
+    // BR-AL-33: cấp truy cập hiện tại, chỉ đọc ở danh sách tài khoản (ADMIN không đổi cấp sau khi tạo)
+    Integer accessLevel
 ) {
     public static UserListResponse fromEntity(User user) {
         return fromEntity(user, null);
@@ -41,7 +43,8 @@ public record UserListResponse(
             user.getCreatedAt(),
             hasActiveTeam ? user.getTeam().getId() : null,
             hasActiveTeam ? user.getTeam().getTeamName() : null,
-            locked ? lockedUntil : null
+            locked ? lockedUntil : null,
+            user.getAccessLevel()
         );
     }
 }

@@ -29,6 +29,10 @@ export async function createStaffAccount(data) {
   formData.append('userCode', data.userCode);
   formData.append('email', data.email);
   formData.append('role', data.role);
+  // BR-AL-33: chỉ người dùng thường gửi cấp ban đầu; không gửi thì backend dùng ACCESS_LEVEL_DEFAULT_NORMAL_USER
+  if (data.accessLevel !== undefined && data.accessLevel !== null) {
+    formData.append('accessLevel', data.accessLevel);
+  }
   if (data.faceImage) {
     formData.append('faceImage', data.faceImage);
   }

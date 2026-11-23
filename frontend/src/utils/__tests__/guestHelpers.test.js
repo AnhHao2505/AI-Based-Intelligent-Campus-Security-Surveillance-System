@@ -4,6 +4,8 @@ import {
 	canReviewGuestVisit,
 	canHostReplacePhoto,
 	validateGuestPhotoFile,
+	readGuestPhotoMaxKb,
+	guestPhotoLimitText,
 	getErrorGuestIndex,
 	guestHasPhoto,
 } from "../guestHelpers.js";
@@ -68,6 +70,49 @@ describe("validateGuestPhotoFile (A1: ảnh JPG / PNG trong giới hạn)", () =
 		assert.match(validateGuestPhotoFile(null, 2048), /Chưa chọn ảnh/);
 		assert.match(validateGuestPhotoFile({ type: "image/gif", size: 10 }, 2048), /JPG hoặc PNG/);
 		assert.match(validateGuestPhotoFile({ type: "image/jpeg", size: 2049 * 1024 }, 2048), /2048 KB/);
+	});
+
+	it("V141: câu lỗi nêu đúng giới hạn cấu hình đang dùng, không còn số 2048 viết cứng", () => {
+		const msg = validateGuestPhotoFile({ type: "image/jpeg", size: 300 * 1024 + 1 }, 300);
+		assert.match(msg, /Ảnh tối đa 300 KB/);
+		assert.match(msg, /ảnh đang chọn 301 KB/);
+		assert.doesNotMatch(msg, /2048/);
+		assert.equal(validateGuestPhotoFile({ type: "image/jpeg", size: 300 * 1024 }, 300), null);
+		assert.equal(validateGuestPhotoFile({ type: "image/png", size: 9000 * 1024 }, 10240), null);
+	});
+
+	it("V141: chưa đọc được giới hạn (null / không hợp lệ) -> không chặn dung lượng, vẫn kiểm thiếu ảnh và định dạng", () => {
+		for (const maxKb of [null, undefined, NaN, 0, -1]) {
+			assert.equal(validateGuestPhotoFile({ type: "image/jpeg", size: 50 * 1024 * 1024 }, maxKb), null, String(maxKb));
+			assert.match(validateGuestPhotoFile({ type: "image/gif", size: 10 }, maxKb), /JPG hoặc PNG/);
+			assert.match(validateGuestPhotoFile(null, maxKb), /Chưa chọn ảnh/);
+		}
+		// không truyền giới hạn: không còn mặc định đoán số
+		assert.equal(validateGuestPhotoFile({ type: "image/jpeg", size: 50 * 1024 * 1024 }), null);
+	});
+});
+
+describe("readGuestPhotoMaxKb (V141: giới hạn ảnh khách từ /eligibility)", () => {
+	it("đọc photoMaxKb của /eligibility", () => {
+		assert.equal(readGuestPhotoMaxKb({ canHost: true, photoMaxKb: 2048 }), 2048);
+		assert.equal(readGuestPhotoMaxKb({ photoMaxKb: 100 }), 100);
+		assert.equal(readGuestPhotoMaxKb({ photoMaxKb: "10240" }), 10240);
+	});
+
+	it("chưa tải được / thiếu / sai -> null (không đoán số)", () => {
+		for (const eligibility of [null, undefined, {}, { photoMaxKb: null }, { photoMaxKb: 0 }, { photoMaxKb: -5 },
+			{ photoMaxKb: 12.5 }, { photoMaxKb: "abc" }]) {
+			assert.equal(readGuestPhotoMaxKb(eligibility), null, JSON.stringify(eligibility));
+		}
+	});
+});
+
+describe("guestPhotoLimitText (nhãn ô chọn ảnh khách)", () => {
+	it("có giới hạn -> nêu số; chưa đọc được -> theo cấu hình hệ thống, không có số", () => {
+		assert.equal(guestPhotoLimitText(2048), "tối đa 2048 KB");
+		assert.equal(guestPhotoLimitText(100), "tối đa 100 KB");
+		assert.equal(guestPhotoLimitText(null), "dung lượng tối đa theo cấu hình hệ thống");
+		assert.doesNotMatch(guestPhotoLimitText(undefined), /\d/);
 	});
 });
 

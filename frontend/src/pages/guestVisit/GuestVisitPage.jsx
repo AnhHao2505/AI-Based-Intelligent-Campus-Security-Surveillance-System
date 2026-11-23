@@ -30,7 +30,7 @@ import {
 	getMissingPhotoInfo,
 	canHostReplacePhoto,
 	getErrorGuestIndex,
-	GUEST_PHOTO_FALLBACK_MAX_KB,
+	readGuestPhotoMaxKb,
 } from "../../utils/guestHelpers";
 import GuestPhotoPicker from "./GuestPhotoPicker";
 import GuestPhotoThumb from "./GuestPhotoThumb";
@@ -183,9 +183,10 @@ export default function GuestVisitPage() {
 			.catch((err) => console.error("Lỗi tải điều kiện mời khách:", err));
 	}, []);
 	const cannotHost = eligibility?.canHost === false;
-	// Phiên bản thông báo đồng ý + giới hạn ảnh lấy từ /eligibility (NORMAL_USER không đọc được System Configuration)
+	// Phiên bản thông báo đồng ý + giới hạn ảnh lấy từ /eligibility (NORMAL_USER không đọc được System Configuration).
+	// V141: chưa đọc được giới hạn thì null -> form không chặn dung lượng, backend kiểm (ERR_GUEST_033); không đoán số
 	const consentVersion = eligibility?.consentNoticeVersion || null;
-	const photoMaxKb = eligibility?.photoMaxKb || GUEST_PHOTO_FALLBACK_MAX_KB;
+	const photoMaxKb = readGuestPhotoMaxKb(eligibility);
 
 	const selectableAreas = useMemo(
 		() => areas.filter((a) => GUEST_ALLOWED_AREA_LEVELS.includes(a.areaLevel)),
@@ -705,7 +706,8 @@ export default function GuestVisitPage() {
 					<div className="guest-visit__detail">
 						<div className="guest-visit__detail-row">
 							<span className="guest-visit__label">Trạng thái</span>
-							{renderStatus(detail.status)}
+							{/* Bọc div như GuestVisitReviewPage: Badge làm ô grid trực tiếp sẽ bị kéo giãn hết cột 1fr */}
+							<div>{renderStatus(detail.status)}</div>
 						</div>
 						<div className="guest-visit__detail-row">
 							<span className="guest-visit__label">Khung giờ</span>

@@ -177,7 +177,7 @@ services:
     container_name: sep_mediamtx
     restart: always
     environment:
-      MTX_AUTHHTTPADDRESS: ${MEDIAMTX_AUTH_HTTP_ADDRESS}
+      MTX_AUTHHTTPADDRESS: ${MEDIAMTX_AUTH_HTTP_ADDRESS:-http://host.docker.internal:8080/api/cameras/whep-auth}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

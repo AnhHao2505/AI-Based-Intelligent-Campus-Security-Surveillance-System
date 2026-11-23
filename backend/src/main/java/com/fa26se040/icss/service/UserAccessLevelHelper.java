@@ -6,10 +6,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class UserAccessLevelHelper {
+
+    /**
+     * BR-AL-33: cấp ban đầu Admin được chọn khi tạo tay người dùng thường (không cấp 3 lúc tạo; đổi về sau do FM).
+     * Quy tắc nghiệp vụ cố định, không phải tham số vận hành; tài khoản hệ thống không chọn cấp.
+     */
+    public static final List<Integer> NORMAL_USER_INITIAL_LEVELS = List.of(1, 2);
 
     private final SystemConfigService systemConfigService;
 
@@ -25,7 +33,9 @@ public class UserAccessLevelHelper {
             return 1;
         }
 
-        return systemConfigService.getInt(key);
+        // BR-AL-33 (V136): giá trị nằm ngoài min_value / max_value ở DB (vd ACCESS_LEVEL_DEFAULT_NORMAL_USER = 3 còn từ
+        // dữ liệu cũ) -> WARN + mặc định của ConfigKey (NORMAL_USER: 1), không gán cấp ngoài khoảng cho tài khoản mới
+        return systemConfigService.getIntWithinBounds(key);
     }
 
     public ConfigKey resolveConfigKey(Role role) {
