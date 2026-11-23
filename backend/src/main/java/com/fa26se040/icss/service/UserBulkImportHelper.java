@@ -167,13 +167,8 @@ public class UserBulkImportHelper {
             log.error("Lỗi khi xử lý dòng {}: {}", rowIndex, e.getMessage());
             // Mark transaction as rollback-only so User/FaceData DB records are undone
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
-
-            // Compensating action: cleanup MinIO if upload succeeded before exception
-            try {
-                minioStorageService.deleteFaceImage(userCode);
-            } catch (Exception minioEx) {
-                log.warn("Không thể xóa ảnh MinIO của [{}] khi rollback: {}", userCode, minioEx.getMessage());
-            }
+            // Ảnh đã tải lên (nếu có) được FaceDataService xoá sau khi transaction của dòng này rollback (afterCompletion);
+            // không xoá thêm ở đây
 
             String errorMsg = e.getMessage();
             if (errorMsg == null || errorMsg.isBlank()) {

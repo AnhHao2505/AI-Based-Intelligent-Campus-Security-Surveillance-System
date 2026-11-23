@@ -207,8 +207,8 @@ public class UserService {
                     .createdAt(savedUser.getCreatedAt() != null ? savedUser.getCreatedAt().toInstant() : Instant.now())
                     .build();
         } catch (Exception e) {
-            log.error("DB Transaction failed for userCode {}. Deleting uploaded image from MinIO.", normUserCode, e);
-            minioStorageService.deleteFaceImage(normUserCode);
+            // Ảnh vừa tải được FaceDataService xoá sau khi transaction rollback (afterCompletion); không xoá thêm ở đây
+            log.error("DB Transaction failed for userCode {}. Uploaded face image is removed after rollback.", normUserCode, e);
             throw e;
         }
     }
