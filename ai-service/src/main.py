@@ -509,6 +509,10 @@ async def configure_camera(req: ROIConfigRequest):
     ah_start = req.after_hour_start or settings.DEFAULT_AFTER_HOUR_START
     ah_end = req.after_hour_end or settings.DEFAULT_AFTER_HOUR_END
 
+    # Báo edge agent ROI mới nhất: cấu hình stream retained (MQTT) nhận lại sau này không được đè ROI này bằng bản cũ
+    if edge_agent is not None and hasattr(edge_agent, "remember_roi"):
+        edge_agent.remember_roi(req.camera_code, polygons_to_set)
+
     worker_updated = False
     with active_workers_lock:
         target_worker = active_workers.get(req.camera_code)

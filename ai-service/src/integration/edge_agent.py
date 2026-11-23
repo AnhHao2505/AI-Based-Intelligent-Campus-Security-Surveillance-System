@@ -9,7 +9,7 @@ import threading
 import subprocess
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any, Callable, List
 
 import cv2
 import numpy as np
@@ -87,6 +87,11 @@ class EdgeMqttAgent:
         self.face_embedder = face_embedder_instance
         self._lock = active_workers_lock if active_workers_lock is not None else threading.RLock()
         self._relay_processes: Dict[str, subprocess.Popen] = {}
+        # ROI mới nhất của từng camera (topic config/roi/<CAM> hoặc POST /api/v1/cameras/configure).
+        # Cấu hình stream retained (config/cameras/<CAM>) kèm roi_geometry chụp lúc BẬT stream và Backend không gửi lại
+        # khi lưu ROI -> mỗi lần nhận lại (MQTT kết nối lại) nó đè ROI mới bằng ROI cũ. Có bản ở đây thì dùng bản này.
+        self._latest_roi: Dict[str, List[Any]] = {}
+        self._latest_roi_lock = threading.Lock()
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="edge-mqtt-rpc")
         # M4: Luồng heartbeat định kỳ
         self._heartbeat_stop = threading.Event()
@@ -324,23 +329,59 @@ class EdgeMqttAgent:
             from ..pipeline.stream_worker import CameraStreamWorker
             factory = lambda c, u, r: CameraStreamWorker(camera_code=c, rtsp_url=u, roi_geometry=r)
 
+        # roi_geometry kèm cấu hình stream có thể là bản cũ (chụp lúc bật stream): đã có ROI mới nhất thì dùng bản đó
+        latest_polygons = self.get_latest_roi(camera_code)
+        if latest_polygons is not None:
+            effective_roi = {"polygons": latest_polygons}
+        else:
+            effective_roi = roi_geometry
+
         # Giữ worker đang chạy nếu cùng nguồn RTSP; khác nguồn -> dừng worker cũ rồi chạy worker mới (không để mồ côi)
         worker, started = get_or_start_worker(
             self.active_workers,
             self._lock,
             camera_code,
-            lambda: factory(camera_code, effective_rtsp, roi_geometry),
+            lambda: factory(camera_code, effective_rtsp, effective_roi),
             keep_existing=lambda w: getattr(w, "rtsp_url", None) in (effective_rtsp, target_ai_source),
         )
-        if not started:
+
+        # Đọc lại sau khi có worker: config/roi được xử lý song song (executor 4 luồng) có thể tới giữa lúc đọc ở trên
+        # và lúc worker được đăng ký (khi đó handler ROI chưa thấy worker để cập nhật) -> áp lại bản mới nhất.
+        latest_after = self.get_latest_roi(camera_code)
+        if latest_after is not None and hasattr(worker, "update_roi"):
+            if not started or latest_after != latest_polygons:
+                worker.update_roi(polygons=latest_after)
+        elif not started:
+            # Chưa từng nhận ROI qua kênh ROI (vd AI vừa khởi động, chưa có retained config/roi): dùng bản kèm stream
             if roi_geometry and isinstance(roi_geometry, dict) and hasattr(worker, "update_roi"):
                 worker.update_roi(polygons=roi_geometry.get("polygons", []))
+
+        if not started:
             return
         logger.info(f"✅ [EdgeAgent] Đã kích hoạt CameraStreamWorker [{camera_code}] -> {mask_rtsp_url(effective_rtsp)}")
+
+    def remember_roi(self, camera_code: Optional[str], polygons: Optional[List[Any]]):
+        """
+        Ghi nhận ROI mới nhất của camera (từ topic config/roi hoặc POST /api/v1/cameras/configure).
+        polygons=None -> bỏ qua (không có thông tin ROI). [] -> ROI rỗng (giám sát toàn khung hình), vẫn ghi nhận.
+        """
+        code = str(camera_code or "").strip().upper()
+        if not code or polygons is None:
+            return
+        with self._latest_roi_lock:
+            self._latest_roi[code] = list(polygons)
+
+    def get_latest_roi(self, camera_code: Optional[str]) -> Optional[List[Any]]:
+        code = str(camera_code or "").strip().upper()
+        with self._latest_roi_lock:
+            polys = self._latest_roi.get(code)
+            return list(polys) if polys is not None else None
 
     def _handle_roi_config(self, data: Dict[str, Any]):
         camera_code = str(data.get("camera_code") or "").strip().upper()
         polygons = data.get("polygons", [])
+        # Ghi nhận TRƯỚC khi tìm worker: worker đang được tạo song song (cấu hình stream) sẽ đọc lại bản này
+        self.remember_roi(camera_code, polygons)
         ah_start = data.get("after_hour_start") or settings.DEFAULT_AFTER_HOUR_START
         ah_end = data.get("after_hour_end") or settings.DEFAULT_AFTER_HOUR_END
 
