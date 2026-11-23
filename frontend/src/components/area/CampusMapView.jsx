@@ -31,6 +31,9 @@ import {
 	Loader2,
 	Menu,
 	Check,
+	ShieldAlert,
+	Users,
+	Route,
 } from "lucide-react";
 import {
 	getLevelConfig,
@@ -41,7 +44,7 @@ import {
 } from "../../utils/areaHelpers";
 import { createArea, updateArea } from "../../services/areaService";
 import { createCamera } from "../../services/cameraService";
-import AreaSelectWithFilter from "./AreaSelectWithFilter";
+import "../../styles/cameraShared.css";
 import {
 	DEFAULT_BUILDINGS_META,
 	FLOOR_ELEVATION_STEP,
@@ -78,8 +81,8 @@ import {
 import {
 	CAMERA_TYPE_OPTIONS,
 	buildCameraMapMarkersGeoJSON,
+	extractAreaLevelKey,
 	extractCameraAreaInfo,
-	filterAreasForCameraType,
 	normalizeCorridorCameraName,
 	stripCorridorPrefix,
 } from "../../utils/campusCameraHelpers";
@@ -201,6 +204,7 @@ export default function CampusMapView({
 	cameraMapPlacements = {},
 	pickingCameraLocation = false,
 	pickingCameraTargetOverride = null,
+	allowRoomSwitchOnMapPick = false,
 	onCancelPickCameraLocation = null,
 	onCameraLocationPicked = null,
 	onCameraPlacementRejected = null,
@@ -750,6 +754,8 @@ export default function CampusMapView({
 	]);
 
 	const hasRightDrawer = Boolean(rightDrawerContent);
+	const isInspectorMode =
+		hasRightDrawer && !isCreatingArea && !isCreatingCamera;
 	const layoutRef = useRef(null);
 	const mapCardRef = useRef(null);
 	const [inspectorWidth, setInspectorWidth] = useState(() => {
@@ -761,51 +767,81 @@ export default function CampusMapView({
 		}
 		return 410;
 	});
-	const [isResizingInspector, setIsResizingInspector] = useState(false);
-
-	const handleInspectorResizeStart = useCallback((e) => {
-		e.preventDefault();
-		const layoutEl = layoutRef.current;
-		if (!layoutEl) return;
-		setIsResizingInspector(true);
-
-		const onMouseMove = (moveEvent) => {
-			const rect = layoutEl.getBoundingClientRect();
-			const maxAllowed = Math.min(760, Math.max(360, Math.floor(rect.width * 0.62)));
-			const rawWidth = rect.right - moveEvent.clientX;
-			const next = Math.max(320, Math.min(maxAllowed, Math.round(rawWidth)));
-			setInspectorWidth(next);
-		};
-
-		const onMouseUp = (upEvent) => {
-			window.removeEventListener("mousemove", onMouseMove);
-			window.removeEventListener("mouseup", onMouseUp);
-			setIsResizingInspector(false);
-			const rect = layoutEl.getBoundingClientRect();
-			const maxAllowed = Math.min(760, Math.max(360, Math.floor(rect.width * 0.62)));
-			const rawWidth = rect.right - upEvent.clientX;
-			const finalWidth = Math.max(320, Math.min(maxAllowed, Math.round(rawWidth)));
-			try {
-				localStorage.setItem("campus_inspector_width", String(finalWidth));
-			} catch {
-				// ignore storage error
-			}
-			mapRef.current?.resize?.();
-		};
-
-		window.addEventListener("mousemove", onMouseMove);
-		window.addEventListener("mouseup", onMouseUp);
-	}, []);
-
-	const handleInspectorResizeReset = useCallback(() => {
-		setInspectorWidth(410);
+	const [railWidth, setRailWidth] = useState(() => {
 		try {
-			localStorage.setItem("campus_inspector_width", "410");
+			const saved = Number(localStorage.getItem("campus_rail_width"));
+			if (Number.isFinite(saved) && saved >= 260 && saved <= 760) return saved;
 		} catch {
 			// ignore storage error
 		}
+		return 280;
+	});
+	const [isResizingInspector, setIsResizingInspector] = useState(false);
+
+	const handleInspectorResizeStart = useCallback(
+		(e) => {
+			e.preventDefault();
+			const layoutEl = layoutRef.current;
+			if (!layoutEl) return;
+			setIsResizingInspector(true);
+			const minW = isInspectorMode ? 320 : 260;
+			const storageKey = isInspectorMode
+				? "campus_inspector_width"
+				: "campus_rail_width";
+			const setWidth = isInspectorMode ? setInspectorWidth : setRailWidth;
+
+			const clampWidth = (clientX) => {
+				const rect = layoutEl.getBoundingClientRect();
+				const maxAllowed = Math.min(
+					760,
+					Math.max(360, Math.floor(rect.width * 0.62)),
+				);
+				const rawWidth = rect.right - clientX;
+				return Math.max(minW, Math.min(maxAllowed, Math.round(rawWidth)));
+			};
+
+			const onMouseMove = (moveEvent) => {
+				setWidth(clampWidth(moveEvent.clientX));
+			};
+
+			const onMouseUp = (upEvent) => {
+				window.removeEventListener("mousemove", onMouseMove);
+				window.removeEventListener("mouseup", onMouseUp);
+				setIsResizingInspector(false);
+				const finalWidth = clampWidth(upEvent.clientX);
+				setWidth(finalWidth);
+				try {
+					localStorage.setItem(storageKey, String(finalWidth));
+				} catch {
+					// ignore storage error
+				}
+				mapRef.current?.resize?.();
+			};
+
+			window.addEventListener("mousemove", onMouseMove);
+			window.addEventListener("mouseup", onMouseUp);
+		},
+		[isInspectorMode],
+	);
+
+	const handleInspectorResizeReset = useCallback(() => {
+		if (isInspectorMode) {
+			setInspectorWidth(410);
+			try {
+				localStorage.setItem("campus_inspector_width", "410");
+			} catch {
+				// ignore storage error
+			}
+		} else {
+			setRailWidth(280);
+			try {
+				localStorage.setItem("campus_rail_width", "280");
+			} catch {
+				// ignore storage error
+			}
+		}
 		requestAnimationFrame(() => mapRef.current?.resize?.());
-	}, []);
+	}, [isInspectorMode]);
 
 	// Tự động resize map khi sidebar trái, drawer phải hoặc kích thước card thay đổi
 	useEffect(() => {
@@ -964,26 +1000,11 @@ export default function CampusMapView({
 				areas.find((a) => String(a.id) === String(createCameraDefaultAreaId)) ||
 				null;
 			if (initialArea) {
-				const rawLvl =
-					typeof initialArea.areaLevel === "string"
-						? initialArea.areaLevel
-						: initialArea.areaLevel?.code || "";
 				initialType =
-					String(rawLvl).toUpperCase() === "PUBLIC"
+					extractAreaLevelKey(initialArea) === "PUBLIC"
 						? "PUBLIC_AREA"
 						: "RESTRICTED_AREA";
 			}
-		}
-		if (!initialArea) {
-			const filtered = filterAreasForCameraType(areas, initialType);
-			initialArea =
-				filtered.find(
-					(a) =>
-						matchesBuilding(a.building, effectiveBuilding3d) &&
-						resolveFloorOrder(a.building, a.floor) === renderedFloorOrder2d,
-				) ||
-				filtered[0] ||
-				null;
 		}
 
 		const targetBuilding = initialArea?.building || effectiveBuilding3d;
@@ -1058,7 +1079,10 @@ export default function CampusMapView({
 	const skipNextCameraFlyRef = useRef(false);
 	const prevSyncedCameraIdRef = useRef(selectedCameraId);
 	useEffect(() => {
-		if (!selectedCameraId || prevSyncedCameraIdRef.current === selectedCameraId) {
+		if (
+			!selectedCameraId ||
+			prevSyncedCameraIdRef.current === selectedCameraId
+		) {
 			prevSyncedCameraIdRef.current = selectedCameraId;
 			return;
 		}
@@ -1086,9 +1110,7 @@ export default function CampusMapView({
 		const lng = Number(placement?.lng ?? cam.mapLongitude);
 		const lat = Number(placement?.lat ?? cam.mapLatitude);
 		const hasPinCoords =
-			Number.isFinite(lng) &&
-			Number.isFinite(lat) &&
-			!(lng === 0 && lat === 0);
+			Number.isFinite(lng) && Number.isFinite(lat) && !(lng === 0 && lat === 0);
 		const areaCoords = area ? getValidCoordinates(area) : null;
 		const targetCenter = hasPinCoords
 			? [lng, lat]
@@ -1121,120 +1143,27 @@ export default function CampusMapView({
 		isEditingCoords,
 	]);
 
-	const filteredCreateCamAreas = useMemo(
-		() => filterAreasForCameraType(areas, createCamForm.cameraType),
-		[areas, createCamForm.cameraType],
-	);
-
 	const handleCreateCamTypeChange = (nextType) => {
-		const nextFiltered = filterAreasForCameraType(areas, nextType);
-		const nextArea =
-			nextType === "CORRIDOR"
-				? null
-				: nextFiltered.find(
-						(a) =>
-							matchesBuilding(a.building, effectiveBuilding3d) &&
-							resolveFloorOrder(a.building, a.floor) === renderedFloorOrder2d,
-					) ||
-					nextFiltered[0] ||
-					null;
-		const nextBldg = nextArea?.building || effectiveBuilding3d;
-		const nextFlOrder = nextArea
-			? resolveFloorOrder(nextArea.building, nextArea.floor)
-			: renderedFloorOrder2d;
-		if (nextArea) {
-			setActiveBuilding3d(nextBldg);
-			setActiveFloorOrder3d(nextFlOrder);
-			const coords = getValidCoordinates(nextArea);
-			if (coords && mapRef.current) {
-				mapRef.current.flyTo({
-					center: coords,
-					zoom: 20.6,
-					pitch: 0,
-					duration: 500,
-				});
-			}
-		}
-		setCreateCamForm((prev) => ({
-			...prev,
-			cameraType: nextType,
-			areaId: nextArea?.id || "",
-			mapBuilding: nextBldg,
-			mapFloorOrder: nextFlOrder,
-		}));
-		setCreateCamPinDraft(null);
-		setCreateCamError(null);
-	};
-
-	const handleCreateCamAreaChange = (nextAreaId) => {
-		const targetArea = areas.find((a) => String(a.id) === String(nextAreaId));
-		const nextBldg = targetArea?.building || effectiveBuilding3d;
-		const nextFlOrder = targetArea
-			? resolveFloorOrder(targetArea.building, targetArea.floor)
-			: renderedFloorOrder2d;
-		if (targetArea) {
-			setActiveBuilding3d(nextBldg);
-			setActiveFloorOrder3d(nextFlOrder);
-			const coords = getValidCoordinates(targetArea);
-			if (coords && mapRef.current) {
-				mapRef.current.flyTo({
-					center: coords,
-					zoom: 20.6,
-					pitch: 0,
-					duration: 500,
-				});
-			}
-		}
-		setCreateCamForm((prev) => ({
-			...prev,
-			areaId: nextAreaId,
-			mapBuilding: nextBldg,
-			mapFloorOrder: nextFlOrder,
-		}));
-		setCreateCamPinDraft(null);
-		setCreateCamError(null);
-	};
-
-	const handleCreateCamFilterChange = ({ building, floor }) => {
-		const matchedBld =
-			building && building !== "ALL"
-				? DEFAULT_BUILDINGS_META.find((b) => matchesBuilding(building, b.name))
-				: null;
-		if (matchedBld) {
-			const flOrder =
-				floor && floor !== "ALL"
-					? resolveFloorOrder(matchedBld.name, floor)
-					: renderedFloorOrder2d;
-			setActiveBuilding3d(matchedBld.name);
-			setActiveFloorOrder3d(flOrder);
-			if (mapRef.current) {
-				mapRef.current.flyTo({
-					center: matchedBld.center,
-					zoom: 18.6,
-					pitch: 0,
-					duration: 500,
-				});
-			}
-		}
 		const currentArea = areas.find(
 			(a) => String(a.id) === String(createCamForm.areaId),
 		);
-		const matchesNewFilter =
+		const currentIsPublic =
+			currentArea && extractAreaLevelKey(currentArea) === "PUBLIC";
+		const keepCurrentArea =
+			nextType !== "CORRIDOR" &&
 			currentArea &&
-			(building === "ALL" || matchesBuilding(currentArea.building, building)) &&
-			(floor === "ALL" || currentArea.floor === floor);
-		if (!matchesNewFilter && createCamForm.areaId) {
-			setCreateCamForm((prev) => ({
-				...prev,
-				areaId: "",
-				mapBuilding: matchedBld?.name || prev.mapBuilding,
-				mapFloorOrder:
-					matchedBld && floor && floor !== "ALL"
-						? resolveFloorOrder(matchedBld.name, floor)
-						: prev.mapFloorOrder,
-			}));
+			((nextType === "PUBLIC_AREA" && currentIsPublic) ||
+				(nextType === "RESTRICTED_AREA" && !currentIsPublic));
+
+		setCreateCamForm((prev) => ({
+			...prev,
+			cameraType: nextType,
+			areaId: keepCurrentArea ? prev.areaId : "",
+		}));
+		if (!keepCurrentArea) {
 			setCreateCamPinDraft(null);
 		}
+		setCreateCamError(null);
 	};
 
 	const isCreateCamIncomplete = useMemo(() => {
@@ -1751,8 +1680,13 @@ export default function CampusMapView({
 				if (p.matchedAreaId) {
 					const st = cameraStatsByArea?.[p.matchedAreaId];
 					const totalCams = st?.total ?? cameraCounts?.[p.matchedAreaId] ?? 0;
-					if (pickingCameraArea) {
-						occupiedSub = "Nhấp để gán camera vào khu vực này";
+					if (
+						pickingCameraArea ||
+						(pickingCameraLocation &&
+							(pickingCameraTargetOverride || allowRoomSwitchOnMapPick)) ||
+						(isCreatingCamera && createCamForm.cameraType !== "CORRIDOR")
+					) {
+						occupiedSub = "Nhấp để chọn phòng này & đặt ghim";
 					} else if (totalCams > 0) {
 						const offlineTxt =
 							st?.offlineCount > 0 ? ` · ${st.offlineCount} Offline` : "";
@@ -1806,6 +1740,10 @@ export default function CampusMapView({
 			isEditingCoords,
 			pickingCameraArea,
 			pickingCameraLocation,
+			pickingCameraTargetOverride,
+			allowRoomSwitchOnMapPick,
+			isCreatingCamera,
+			createCamForm.cameraType,
 			canDragCameraPin,
 			selectedCameraId,
 			onUpdateCameraMapLocation,
@@ -1845,11 +1783,57 @@ export default function CampusMapView({
 			);
 			const roomProps = clickedRoomFeature?.properties;
 
+			if (pickingCameraArea && isAdmin) {
+				if (clickedRoomFeature && roomProps?.matchedAreaId) {
+					const matchedArea = areas.find(
+						(a) => String(a.id) === String(roomProps.matchedAreaId),
+					) || {
+						id: roomProps.matchedAreaId,
+						name: roomProps.matchedAreaName || "Khu vực",
+						areaLevel: roomProps.areaLevelCode || "",
+					};
+					onAreaPickedForCamera?.(matchedArea);
+				} else {
+					onCameraPlacementRejected?.(
+						"Hãy nhấp trực tiếp vào một phòng đã gán khu vực trên bản đồ.",
+					);
+				}
+				return;
+			}
+
 			if (pickingCameraLocation && isAdmin) {
 				if (!e?.lngLat) return;
 				const lngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
 				const pickedBuilding = effectiveBuilding3d;
 				const pickedFloorOrder = renderedFloorOrder2d;
+				const isRoomEditMapPick =
+					(Boolean(pickingCameraTargetOverride) || allowRoomSwitchOnMapPick) &&
+					String(pickingTargetCamera?.cameraType || "").toUpperCase() !==
+						"CORRIDOR";
+
+				if (isRoomEditMapPick) {
+					if (!clickedRoomFeature || !roomProps?.matchedAreaId) {
+						onCameraPlacementRejected?.(
+							"Hãy nhấp trực tiếp vào bên trong một phòng đã có khu vực trên bản đồ 2D.",
+						);
+						return;
+					}
+					const pickedArea = areas.find(
+						(a) => String(a.id) === String(roomProps.matchedAreaId),
+					);
+					const bldg = pickedArea?.building || pickedBuilding;
+					const flOrder = pickedArea
+						? resolveFloorOrder(bldg, pickedArea.floor)
+						: pickedFloorOrder;
+					onCameraLocationPicked?.({
+						lng: lngLat.lng,
+						lat: lngLat.lat,
+						building: bldg,
+						floorOrder: flOrder,
+						pickedAreaId: roomProps.matchedAreaId,
+					});
+					return;
+				}
 
 				const validation = validateCameraPinPlacement({
 					lng: lngLat.lng,
@@ -1884,30 +1868,52 @@ export default function CampusMapView({
 				if (!e?.lngLat) return;
 				const lngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
 				const isCorr = createCamForm.cameraType === "CORRIDOR";
-				if (!isCorr && !createCamSelectedArea) {
-					setCreateCamError(
-						"Vui lòng chọn Khu vực phụ trách ở cột bên phải trước khi ghim vị trí.",
+				if (!isCorr) {
+					if (!clickedRoomFeature || !roomProps?.matchedAreaId) {
+						setCreateCamError(
+							"Hãy nhấp trực tiếp vào bên trong một phòng đã có khu vực trên bản đồ 2D (hoặc chọn loại Hành lang).",
+						);
+						return;
+					}
+					const pickedArea = areas.find(
+						(a) => String(a.id) === String(roomProps.matchedAreaId),
 					);
+					if (!pickedArea) {
+						setCreateCamError("Không tìm thấy thông tin khu vực đã chọn.");
+						return;
+					}
+					const pickedLevel = extractAreaLevelKey(pickedArea);
+					const syncedCamType =
+						pickedLevel === "PUBLIC" ? "PUBLIC_AREA" : "RESTRICTED_AREA";
+					const pickedBldg = pickedArea.building || effectiveBuilding3d;
+					const pickedFlOrder = resolveFloorOrder(pickedBldg, pickedArea.floor);
+					setCreateCamForm((prev) => ({
+						...prev,
+						cameraType: syncedCamType,
+						areaId: pickedArea.id,
+						mapBuilding: pickedBldg,
+						mapFloorOrder: pickedFlOrder,
+					}));
+					setCreateCamPinDraft({
+						lng: Number(lngLat.lng.toFixed(7)),
+						lat: Number(lngLat.lat.toFixed(7)),
+						building: pickedBldg,
+						floorOrder: pickedFlOrder,
+					});
+					setCreateCamError(null);
 					return;
 				}
 				const draftTargetCam = {
-					cameraType: createCamForm.cameraType,
-					areaId: isCorr ? null : createCamForm.areaId,
-					mapBuilding: isCorr
-						? effectiveBuilding3d
-						: createCamSelectedArea?.building || effectiveBuilding3d,
-					mapFloorOrder: isCorr
-						? renderedFloorOrder2d
-						: resolveFloorOrder(
-								createCamSelectedArea?.building || effectiveBuilding3d,
-								createCamSelectedArea?.floor,
-							),
+					cameraType: "CORRIDOR",
+					areaId: null,
+					mapBuilding: effectiveBuilding3d,
+					mapFloorOrder: renderedFloorOrder2d,
 				};
 				const validation = validateCameraPinPlacement({
 					lng: lngLat.lng,
 					lat: lngLat.lat,
 					targetCam: draftTargetCam,
-					targetArea: createCamSelectedArea,
+					targetArea: null,
 					activeBuilding: effectiveBuilding3d,
 					activeFloorOrder: renderedFloorOrder2d,
 					clickedRoomProps: roomProps || null,
@@ -2115,6 +2121,8 @@ export default function CampusMapView({
 			isEditingCoords,
 			pickingCameraArea,
 			pickingCameraLocation,
+			pickingCameraTargetOverride,
+			allowRoomSwitchOnMapPick,
 			pickingTargetCamera,
 			pickingTargetArea,
 			effectiveBuilding3d,
@@ -2143,18 +2151,27 @@ export default function CampusMapView({
 		],
 	);
 
+	const isRailExpanded =
+		railCollapsed ||
+		(hideRail && !isCreatingArea && !isCreatingCamera && !hasRightDrawer);
+
 	return (
 		<div
 			ref={layoutRef}
-			className={`campus-map-layout ${railCollapsed || (hideRail && !isCreatingArea && !isCreatingCamera && !hasRightDrawer) ? "campus-map-layout--expanded" : ""} ${isCreatingArea || isCreatingCamera ? "campus-map-layout--create" : ""} ${hasRightDrawer && !isCreatingArea && !isCreatingCamera ? "campus-map-layout--camera-inspector" : ""} ${isResizingInspector ? "campus-map-layout--resizing" : ""}`}
+			className={`campus-map-layout ${isRailExpanded ? "campus-map-layout--expanded" : ""} ${isCreatingArea || isCreatingCamera ? "campus-map-layout--create" : ""} ${isInspectorMode ? "campus-map-layout--camera-inspector" : ""} ${isResizingInspector ? "campus-map-layout--resizing" : ""}`}
 			style={
-				hasRightDrawer && !isCreatingArea && !isCreatingCamera && !railCollapsed
-					? { "--campus-inspector-width": `${inspectorWidth}px` }
+				!isRailExpanded
+					? isInspectorMode
+						? { "--campus-inspector-width": `${inspectorWidth}px` }
+						: { "--campus-rail-width": `${railWidth}px` }
 					: undefined
 			}
 		>
 			{/* LEFT: MAIN MAPLIBRE CANVAS */}
-			<div ref={mapCardRef} className="campus-map-card">
+			<div
+				ref={mapCardRef}
+				className="campus-map-card"
+			>
 				{/* Floating Top Controls (Sidebar Toggle + 2D Building/Floor Select-Options + Compass) */}
 				<div className="campus-map-floating-bar">
 					{onToggleLeftSidebar && (
@@ -2458,7 +2475,11 @@ export default function CampusMapView({
 							)}
 							<span className="campus-draw-bar__sep">·</span>
 							<span className="campus-draw-bar__hint">
-								Nhấn vào phòng được gán để ghim · Esc để hủy
+								{allowRoomSwitchOnMapPick &&
+								String(pickingTargetCamera?.cameraType || "").toUpperCase() !==
+									"CORRIDOR"
+									? "Nhấn vào một phòng trên bản đồ để chọn khu vực & đặt ghim · Esc để hủy"
+									: "Nhấn vào phòng được gán để ghim · Esc để hủy"}
 							</span>
 						</div>
 						<div className="campus-draw-bar__actions">
@@ -2475,7 +2496,7 @@ export default function CampusMapView({
 
 				{/* Map Viewport */}
 				<div
-					className={`campus-map-viewport ${compactLabels ? "campus-map-viewport--compact" : ""} ${isEditingCoords || pickingCameraArea || pickingCameraLocation ? "campus-map-viewport--editing" : ""}`}
+					className={`campus-map-viewport ${compactLabels ? "campus-map-viewport--compact" : ""} ${isEditingCoords || pickingCameraArea || pickingCameraLocation || isCreatingCamera ? "campus-map-viewport--editing" : ""}`}
 				>
 					<MapGL
 						ref={mapRef}
@@ -2909,18 +2930,16 @@ export default function CampusMapView({
 			{/* RIGHT RAIL: AREAS LIST & DETAILS, CREATE PANEL OR CAMERA INSPECTOR */}
 			{(!hideRail || isCreatingArea || isCreatingCamera || hasRightDrawer) && (
 				<div className="campus-rail">
-					{!isCreatingArea && !isCreatingCamera && hasRightDrawer && (
-						<div
-							role="separator"
-							aria-orientation="vertical"
-							aria-label="Kéo để thay đổi chiều rộng bảng thông tin camera"
-							title="Kéo sang trái/phải để đổi kích thước (nhấp đúp để đặt lại mặc định)"
-							className={`campus-rail-resizer ${isResizingInspector ? "campus-rail-resizer--active" : ""}`}
-							onMouseDown={handleInspectorResizeStart}
-							onDoubleClick={handleInspectorResizeReset}
-						/>
-					)}
-					{!isCreatingArea && !isCreatingCamera && hasRightDrawer ? (
+					<div
+						role="separator"
+						aria-orientation="vertical"
+						aria-label="Kéo để thay đổi chiều rộng bảng bên phải"
+						title="Kéo sang trái/phải để đổi kích thước (nhấp đúp để đặt lại mặc định)"
+						className={`campus-rail-resizer ${isResizingInspector ? "campus-rail-resizer--active" : ""}`}
+						onMouseDown={handleInspectorResizeStart}
+						onDoubleClick={handleInspectorResizeReset}
+					/>
+					{isInspectorMode ? (
 						rightDrawerContent
 					) : isCreatingCamera ? (
 						<div className="campus-rail-card campus-rail-card--create">
@@ -2955,18 +2974,30 @@ export default function CampusMapView({
 									<div className="cam-type-selector-grid">
 										{CAMERA_TYPE_OPTIONS.map((opt) => {
 											const isSelected = createCamForm.cameraType === opt.value;
+											const TypeIcon =
+												opt.value === "RESTRICTED_AREA"
+													? ShieldAlert
+													: opt.value === "PUBLIC_AREA"
+														? Users
+														: Route;
 											return (
 												<button
 													key={opt.value}
 													type="button"
+													data-cam-type={opt.value}
 													className={`cam-type-option-btn ${
 														isSelected ? "cam-type-option-btn--active" : ""
 													}`}
 													onClick={() => handleCreateCamTypeChange(opt.value)}
 													disabled={creatingCamLoading}
 												>
-													<span className="cam-type-option-btn__title">
-														{opt.label}
+													<span className="cam-type-option-btn__head">
+														<span className="cam-type-option-btn__icon">
+															<TypeIcon size={14} />
+														</span>
+														<span className="cam-type-option-btn__title">
+															{opt.label}
+														</span>
 													</span>
 													<span className="cam-type-option-btn__sub">
 														{opt.aiModeLabel}
@@ -2975,6 +3006,20 @@ export default function CampusMapView({
 											);
 										})}
 									</div>
+									{(() => {
+										const activeOpt =
+											CAMERA_TYPE_OPTIONS.find(
+												(o) => o.value === createCamForm.cameraType,
+											) || CAMERA_TYPE_OPTIONS[0];
+										return (
+											<div
+												className="cam-type-rule-callout"
+												data-cam-type={activeOpt.value}
+											>
+												{activeOpt.description}
+											</div>
+										);
+									})()}
 								</div>
 
 								<div className="area-form-group">
@@ -3023,114 +3068,233 @@ export default function CampusMapView({
 								{createCamForm.cameraType !== "CORRIDOR" ? (
 									<div className="area-form-group">
 										<label className="area-form-label">
-											3. Khu vực phụ trách (
-											{createCamForm.cameraType === "PUBLIC_AREA"
-												? "Cấp 1 · Công khai"
-												: "Cấp 2 & 3 · Hạn chế"}
-											) *
+											3. Khu vực & Vị trí ghim trên bản đồ 2D *
 										</label>
-										<AreaSelectWithFilter
-											areas={filteredCreateCamAreas}
-											value={createCamForm.areaId || ""}
-											onChange={(e) =>
-												handleCreateCamAreaChange(e.target.value)
-											}
-											onFilterChange={handleCreateCamFilterChange}
-											placeholder="-- Chọn khu vực --"
-											placeholderDisabled
-											required
-											disabled={creatingCamLoading}
-										/>
+										{createCamSelectedArea ? (
+											(() => {
+												const pickedLvlCfg = getLevelConfig(
+													extractAreaLevelKey(createCamSelectedArea) ||
+														createCamSelectedArea.areaAccessLevel,
+												);
+												const flOrder = resolveFloorOrder(
+													createCamSelectedArea.building,
+													createCamSelectedArea.floor,
+												);
+												return (
+													<div className="cam-map-target-card cam-map-target-card--selected">
+														<div className="cam-map-target-card__head">
+															<span className="cam-map-target-card__title">
+																{createCamSelectedArea.name}
+															</span>
+															{pickedLvlCfg && (
+																<span
+																	className={`level-badge ${pickedLvlCfg.badgeClass || ""}`}
+																>
+																	{pickedLvlCfg.badgeLabel || pickedLvlCfg.name}
+																</span>
+															)}
+														</div>
+														<div className="cam-map-target-card__meta">
+															<MapPin size={13} />
+															<span>
+																{createCamSelectedArea.building} ·{" "}
+																{flOrder === 0
+																	? "Tầng Trệt"
+																	: `Tầng ${flOrder}`}
+															</span>
+														</div>
+														<div
+															className={`cam-map-target-card__pin ${
+																createCamPinDraft
+																	? "cam-map-target-card__pin--ok"
+																	: "cam-map-target-card__pin--wait"
+															}`}
+														>
+															<Crosshair size={13} />
+															{createCamPinDraft ? (
+																<span>Đã đặt ghim</span>
+															) : (
+																<span>
+																	Nhấp vào bên trong phòng này trên bản đồ 2D để
+																	đặt ghim
+																</span>
+															)}
+														</div>
+														<div className="cam-map-target-card__hint">
+															Nhấp vị trí khác trong phòng để dời ghim, hoặc
+															nhấp phòng khác trên bản đồ để đổi khu vực.
+														</div>
+													</div>
+												);
+											})()
+										) : (
+											<div className="cam-map-target-card cam-map-target-card--empty">
+												<Crosshair
+													size={18}
+													className="cam-map-target-card__empty-icon"
+												/>
+												<div className="cam-map-target-card__empty-title">
+													Nhấp vào một phòng trên bản đồ 2D
+												</div>
+												<div className="cam-map-target-card__empty-sub">
+													Tự động chọn khu vực, đồng bộ chế độ AI và đặt ghim
+													ngay tại điểm nhấp.
+												</div>
+											</div>
+										)}
 									</div>
 								) : (
-									<div className="area-form-group">
-										<label className="area-form-label">
-											3. Tòa nhà & Tầng hành lang *
-										</label>
-										<div className="cam-corridor-floor-row">
-											<select
-												className="area-form-input"
-												value={effectiveBuilding3d}
-												onChange={(e) => {
-													const nextB = e.target.value;
-													handleSelect3dBuilding(nextB, renderedFloorOrder2d);
-													setCreateCamForm((prev) => ({
-														...prev,
-														mapBuilding: nextB,
-													}));
-													setCreateCamPinDraft(null);
-												}}
-												disabled={creatingCamLoading}
-											>
-												{VISIBLE_BUILDINGS_META.map((b) => (
-													<option
-														key={b.id}
-														value={b.name}
-													>
-														{b.name}
-													</option>
-												))}
-											</select>
-											<select
-												className="area-form-input"
-												value={String(renderedFloorOrder2d)}
-												onChange={(e) => {
-													const nextFl = Number(e.target.value);
-													setActiveFloorOrder3d(nextFl);
-													setCreateCamForm((prev) => ({
-														...prev,
-														mapFloorOrder: nextFl,
-													}));
-													setCreateCamPinDraft(null);
-												}}
-												disabled={creatingCamLoading}
-											>
-												{(
-													activeBuildingMeta3d || VISIBLE_BUILDINGS_META[0]
-												).floors.map((fl) => (
-													<option
-														key={fl.id}
-														value={String(fl.floorOrder)}
-													>
-														{fl.name}
-													</option>
-												))}
-											</select>
+									<>
+										<div className="area-form-group">
+											<label className="area-form-label">
+												3. Tòa nhà & Tầng hành lang *
+											</label>
+											<div className="cam-corridor-floor-row">
+												<select
+													className="area-form-input"
+													value={effectiveBuilding3d}
+													onChange={(e) => {
+														const nextB = e.target.value;
+														handleSelect3dBuilding(nextB, renderedFloorOrder2d);
+														setCreateCamForm((prev) => ({
+															...prev,
+															mapBuilding: nextB,
+														}));
+														setCreateCamPinDraft(null);
+													}}
+													disabled={creatingCamLoading}
+												>
+													{VISIBLE_BUILDINGS_META.map((b) => (
+														<option
+															key={b.id}
+															value={b.name}
+														>
+															{b.name}
+														</option>
+													))}
+												</select>
+												<select
+													className="area-form-input"
+													value={String(renderedFloorOrder2d)}
+													onChange={(e) => {
+														const nextFl = Number(e.target.value);
+														setActiveFloorOrder3d(nextFl);
+														setCreateCamForm((prev) => ({
+															...prev,
+															mapFloorOrder: nextFl,
+														}));
+														setCreateCamPinDraft(null);
+													}}
+													disabled={creatingCamLoading}
+												>
+													{(
+														activeBuildingMeta3d || VISIBLE_BUILDINGS_META[0]
+													).floors.map((fl) => (
+														<option
+															key={fl.id}
+															value={String(fl.floorOrder)}
+														>
+															{fl.name}
+														</option>
+													))}
+												</select>
+											</div>
 										</div>
-									</div>
+
+										<div className="area-form-group">
+											<label className="area-form-label">
+												4. Vị trí ghim trên bản đồ 2D *
+											</label>
+											<div
+												className={`campus-create-coord-badge ${
+													!createCamPinDraft
+														? "campus-create-coord-badge--empty"
+														: ""
+												}`}
+											>
+												<MapPin size={14} />
+												{createCamPinDraft ? (
+													<span>
+														Đã ghim vị trí · {createCamPinDraft.building} ·{" "}
+														{createCamPinDraft.floorOrder === 0
+															? "Tầng Trệt"
+															: `Tầng ${createCamPinDraft.floorOrder}`}
+													</span>
+												) : (
+													<span>
+														Nhấp vào sàn hành lang trên bản đồ 2D để ghim *
+													</span>
+												)}
+											</div>
+										</div>
+									</>
 								)}
 
-								<div className="area-form-group">
-									<label className="area-form-label">
-										4. Vị trí ghim trên bản đồ 2D *
-									</label>
+								<div className="cam-create-checklist">
+									<div className="cam-create-checklist__title">
+										Kiểm tra trước khi tạo
+									</div>
 									<div
-										className={`campus-create-coord-badge ${
-											!createCamPinDraft
-												? "campus-create-coord-badge--empty"
+										className={`cam-create-checklist__item ${
+											createCamForm.name.trim()
+												? "cam-create-checklist__item--done"
 												: ""
 										}`}
 									>
-										<MapPin size={14} />
-										{createCamPinDraft ? (
-											<span>
-												Đã ghim vị trí · {createCamPinDraft.building} ·{" "}
-												{createCamPinDraft.floorOrder === 0
-													? "Tầng Trệt"
-													: `Tầng ${createCamPinDraft.floorOrder}`}
-											</span>
-										) : (
-											<span>
-												{createCamForm.cameraType === "CORRIDOR"
-													? "Nhấp vào sàn hành lang trên bản đồ 2D để ghim *"
-													: "Nhấp vào bên trong phòng đã chọn trên bản đồ 2D để ghim *"}
-											</span>
-										)}
+										<Check size={13} />
+										<span>
+											{createCamForm.name.trim()
+												? `Tên: ${createCamForm.name.trim()}`
+												: "Nhập tên camera"}
+										</span>
+									</div>
+									<div
+										className={`cam-create-checklist__item ${
+											createCamForm.cameraType === "CORRIDOR" ||
+											createCamForm.areaId
+												? "cam-create-checklist__item--done"
+												: ""
+										}`}
+									>
+										<Check size={13} />
+										<span>
+											{createCamForm.cameraType === "CORRIDOR"
+												? `Hành lang: ${effectiveBuilding3d} · ${renderedFloorOrder2d === 0 ? "Tầng Trệt" : `Tầng ${renderedFloorOrder2d}`}`
+												: createCamForm.areaId
+													? "Đã chọn khu vực phụ trách"
+													: "Chọn khu vực phụ trách"}
+										</span>
+									</div>
+									<div
+										className={`cam-create-checklist__item ${
+											createCamPinDraft
+												? "cam-create-checklist__item--done"
+												: ""
+										}`}
+									>
+										<Check size={13} />
+										<span>
+											{createCamPinDraft
+												? "Đã ghim tọa độ trên bản đồ 2D"
+												: "Chấm vị trí ghim trên bản đồ 2D"}
+										</span>
 									</div>
 								</div>
 							</div>
 
 							<div className="campus-rail-footer">
+								{isCreateCamIncomplete && (
+									<p className="cam-create-readiness-hint">
+										{!createCamForm.name.trim()
+											? "Nhập tên camera để tiếp tục"
+											: createCamForm.cameraType !== "CORRIDOR" &&
+												  !createCamForm.areaId
+												? "Chọn khu vực phụ trách"
+												: !createCamPinDraft
+													? "Nhấp chọn vị trí ghim trên bản đồ 2D để hoàn tất"
+													: ""}
+									</p>
+								)}
 								<button
 									type="button"
 									className={`area-btn-modal area-btn-modal--submit ${
@@ -3258,6 +3422,56 @@ export default function CampusMapView({
 												</div>
 											</button>
 										))}
+									</div>
+								</div>
+
+								<div className="cam-create-checklist">
+									<div className="cam-create-checklist__title">
+										Kiểm tra trước khi tạo
+									</div>
+									<div
+										className={`cam-create-checklist__item ${
+											createDraftCoords
+												? "cam-create-checklist__item--done"
+												: ""
+										}`}
+									>
+										<Check size={13} />
+										<span>
+											{createDraftCoords
+												? "Đã chọn phòng trống trên bản đồ"
+												: "Nhấp chọn một phòng trống trên bản đồ"}
+										</span>
+									</div>
+									<div
+										className={`cam-create-checklist__item ${
+											createFormData.name.trim()
+												? "cam-create-checklist__item--done"
+												: ""
+										}`}
+									>
+										<Check size={13} />
+										<span>
+											{createFormData.name.trim()
+												? `Tên: ${createFormData.name.trim()}`
+												: "Nhập tên khu vực"}
+										</span>
+									</div>
+									<div
+										className={`cam-create-checklist__item ${
+											createFormData.areaLevel
+												? "cam-create-checklist__item--done"
+												: ""
+										}`}
+									>
+										<Check size={13} />
+										<span>
+											{`Cấp độ: ${
+												AREA_LEVEL_CARDS.find(
+													(l) => l.value === createFormData.areaLevel,
+												)?.name || "Công khai"
+											}`}
+										</span>
 									</div>
 								</div>
 							</div>

@@ -47,6 +47,23 @@ export function resolveCameraTypeConfig(cameraType) {
 	);
 }
 
+export function extractAreaLevelKey(area) {
+	if (!area) return "";
+	const rawLevel =
+		typeof area.areaLevel === "string"
+			? area.areaLevel
+			: area.areaLevel?.code || area.level?.code || area.level || "";
+	const code = String(rawLevel).toUpperCase();
+	if (code === "PUBLIC" || code === "CONFIDENTIAL" || code === "HIGHLY_CONFIDENTIAL") {
+		return code;
+	}
+	const accessLvl = Number(area.areaAccessLevel ?? area.accessLevel ?? 0);
+	if (accessLvl === 1) return "PUBLIC";
+	if (accessLvl === 2) return "CONFIDENTIAL";
+	if (accessLvl === 3) return "HIGHLY_CONFIDENTIAL";
+	return code;
+}
+
 /**
  * Filters available areas according to the selected cameraType:
  * - RESTRICTED_AREA -> CONFIDENTIAL, HIGHLY_CONFIDENTIAL (Level 2 & 3)
@@ -62,18 +79,52 @@ export function filterAreasForCameraType(
 	if (type === "CORRIDOR") return [];
 	return areas.filter((a) => {
 		if (!a) return false;
-		const rawLevel =
-			typeof a.areaLevel === "string"
-				? a.areaLevel
-				: a.areaLevel?.code || a.level?.code || a.level || "";
-		const code = String(rawLevel).toUpperCase();
-		const accessLvl = Number(a.areaAccessLevel ?? a.accessLevel ?? 0);
-		const isPublic = code === "PUBLIC" || (!code && accessLvl === 1);
+		const code = extractAreaLevelKey(a);
+		const isPublic = code === "PUBLIC";
 		if (type === "PUBLIC_AREA") {
 			return isPublic;
 		}
 		return !isPublic;
 	});
+}
+
+/**
+ * Filters areas by both cameraType and restricted sub-level ("ALL" | "CONFIDENTIAL" | "HIGHLY_CONFIDENTIAL").
+ */
+export function filterAreasForCameraScope(
+	areas = [],
+	cameraType = "RESTRICTED_AREA",
+	levelFilter = "ALL",
+) {
+	const byType = filterAreasForCameraType(areas, cameraType);
+	const type = String(cameraType || "RESTRICTED_AREA").toUpperCase();
+	if (type !== "RESTRICTED_AREA" || !levelFilter || levelFilter === "ALL") {
+		return byType;
+	}
+	const targetLevel = String(levelFilter).toUpperCase();
+	return byType.filter((a) => extractAreaLevelKey(a) === targetLevel);
+}
+
+/**
+ * Counts Level 2 (CONFIDENTIAL) and Level 3 (HIGHLY_CONFIDENTIAL) areas for segmented level filter pills.
+ */
+export function countRestrictedAreasByLevel(areas = []) {
+	const restricted = filterAreasForCameraType(areas, "RESTRICTED_AREA");
+	let confidential = 0;
+	let highlyConfidential = 0;
+	for (const area of restricted) {
+		const code = extractAreaLevelKey(area);
+		if (code === "HIGHLY_CONFIDENTIAL") {
+			highlyConfidential += 1;
+		} else if (code === "CONFIDENTIAL") {
+			confidential += 1;
+		}
+	}
+	return {
+		ALL: restricted.length,
+		CONFIDENTIAL: confidential,
+		HIGHLY_CONFIDENTIAL: highlyConfidential,
+	};
 }
 
 /**

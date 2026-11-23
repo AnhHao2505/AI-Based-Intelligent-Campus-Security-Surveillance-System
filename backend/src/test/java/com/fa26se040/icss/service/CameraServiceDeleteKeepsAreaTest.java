@@ -28,6 +28,7 @@ class CameraServiceDeleteKeepsAreaTest {
 
     @Mock private CameraRepository cameraRepository;
     @Mock private MediaMtxService mediaMtxService;
+    @Mock private AuditService auditService;
 
     @InjectMocks private CameraService cameraService;
 
@@ -55,5 +56,16 @@ class CameraServiceDeleteKeepsAreaTest {
         assertEquals(OperationalStatus.OFFLINE, saved.getValue().getOperationalStatus());
         assertNotNull(saved.getValue().getDeletedAt());
         verify(mediaMtxService).deleteCameraPath("CAM-DEL-001");
+        verify(auditService).record(
+                eq(com.fa26se040.icss.enums.AuditTargetType.CAMERA),
+                eq(com.fa26se040.icss.enums.AuditAction.DELETE),
+                eq(cameraId.toString()),
+                eq(area),
+                isNull(),
+                any(),
+                any(),
+                contains("Xóa camera"),
+                nullable(com.fa26se040.icss.dto.audit.AuditActor.class)
+        );
     }
 }

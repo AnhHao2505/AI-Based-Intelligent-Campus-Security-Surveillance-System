@@ -15,12 +15,11 @@ import { getLevelConfig } from "../../utils/areaHelpers";
 import { formatLocation } from "../../utils/formatLocation";
 import {
 	CAMERA_TYPE_OPTIONS,
-	filterAreasForCameraType,
+	extractAreaLevelKey,
 	normalizeCorridorCameraName,
 	resolveCameraTypeConfig,
 	stripCorridorPrefix,
 } from "../../utils/campusCameraHelpers";
-import AreaSelectWithFilter from "../area/AreaSelectWithFilter";
 
 export default function CameraGeneralTab({
 	camera,
@@ -86,11 +85,6 @@ export default function CameraGeneralTab({
 		hasLocationScopeChanged &&
 		!hasUpdatedPinInEdit;
 	const canChangeLocationScope = Boolean(onPickLocationOnMap);
-
-	const filteredAreas = useMemo(
-		() => filterAreasForCameraType(availableAreas, activeCameraType),
-		[availableAreas, activeCameraType],
-	);
 
 	const selectedArea = useMemo(() => {
 		if (isCorridorType) return null;
@@ -161,16 +155,17 @@ export default function CameraGeneralTab({
 
 	const handleCameraTypeChange = (nextType) => {
 		if (!canChangeLocationScope) return;
-		const nextFiltered = filterAreasForCameraType(availableAreas, nextType);
-		const currentAreaStillValid = nextFiltered.some(
+		const currentAreaObj = availableAreas.find(
 			(a) => String(a.id) === String(generalForm.areaId),
 		);
-		const nextAreaId =
-			nextType === "CORRIDOR"
-				? ""
-				: currentAreaStillValid
-					? generalForm.areaId
-					: nextFiltered[0]?.id || "";
+		const currentIsPublic =
+			currentAreaObj && extractAreaLevelKey(currentAreaObj) === "PUBLIC";
+		const keepCurrentArea =
+			nextType !== "CORRIDOR" &&
+			currentAreaObj &&
+			((nextType === "PUBLIC_AREA" && currentIsPublic) ||
+				(nextType === "RESTRICTED_AREA" && !currentIsPublic));
+		const nextAreaId = keepCurrentArea ? generalForm.areaId : "";
 		const nextName =
 			nextType === "CORRIDOR"
 				? normalizeCorridorCameraName(generalForm.name || "")
@@ -192,7 +187,7 @@ export default function CameraGeneralTab({
 	};
 
 	const handleFormSubmit = async (e) => {
-		if (requiresNewPinOnMap) {
+		if (requiresNewPinOnMap || (!isCorridorType && !generalForm.areaId)) {
 			e.preventDefault();
 			onPickLocationOnMap?.();
 			return;
@@ -437,30 +432,42 @@ export default function CameraGeneralTab({
 							</span>
 						</label>
 
-						<div className="camera-general-area-row">
-							<AreaSelectWithFilter
-								className="camera-general-area-select"
-								areas={filteredAreas}
-								value={generalForm.areaId || ""}
-								onChange={(e) => {
-									const nextAreaId = e.target.value;
-									setGeneralForm({ ...generalForm, areaId: nextAreaId });
-									const nextScopeChanged =
-										activeCameraType !== originalCameraType ||
-										String(nextAreaId || "") !== originalAreaId;
-									onEditScopeChange?.({
-										cameraType: activeCameraType,
-										areaId: nextAreaId || null,
-										scopeChanged: nextScopeChanged,
-									});
-								}}
-								placeholder="-- Chọn khu vực --"
-								placeholderDisabled
-								required
-								disabled={!isAdmin || saving || !canChangeLocationScope}
-							/>
+						{selectedArea ? (
+							<div className="cam-map-target-card cam-map-target-card--selected">
+								<div className="cam-map-target-card__head">
+									<span className="cam-map-target-card__title">
+										{selectedArea.name}
+									</span>
+									{selectedLevelCfg && (
+										<span
+											className={`level-badge ${selectedLevelCfg.badgeClass || ""}`}
+										>
+											{selectedLevelCfg.badgeLabel || selectedLevelCfg.name}
+										</span>
+									)}
+								</div>
+								{areaLocationSubtitle && (
+									<div className="cam-map-target-card__meta">
+										<MapPin size={13} />
+										<span>{areaLocationSubtitle}</span>
+									</div>
+								)}
+							</div>
+						) : (
+							<div className="cam-map-target-card cam-map-target-card--empty">
+								<div className="cam-map-target-card__empty-title">
+									Chưa chọn phòng phụ trách
+								</div>
+								<div className="cam-map-target-card__empty-sub">
+									{canChangeLocationScope
+										? "Nhấp trực tiếp vào một phòng trên bản đồ 2D để chọn khu vực và đặt ghim."
+										: "Mở camera trên Bản đồ 2D để chọn lại khu vực."}
+								</div>
+							</div>
+						)}
 
-							{showAreaExternalLink && (
+						{showAreaExternalLink && (
+							<div style={{ marginTop: "8px" }}>
 								<button
 									type="button"
 									onClick={() => navigate("/admin/areas")}
@@ -469,17 +476,6 @@ export default function CameraGeneralTab({
 									<ExternalLink size={14} />
 									<span>Đến danh sách khu vực</span>
 								</button>
-							)}
-						</div>
-						{selectedArea && selectedLevelCfg && (
-							<div
-								className="cam-map-card__hint"
-								style={{ marginTop: "4px" }}
-							>
-								Cấp bảo mật:{" "}
-								<strong style={{ color: selectedLevelCfg.color }}>
-									{selectedLevelCfg.badgeLabel || selectedLevelCfg.name}
-								</strong>
 							</div>
 						)}
 					</div>
@@ -517,12 +513,14 @@ export default function CameraGeneralTab({
 						<MapPin size={14} />
 						<span>
 							{isPickingLocationOnMap
-								? "Đang chọn trên bản đồ..."
-								: requiresNewPinOnMap
-									? "Bắt buộc chọn lại vị trí trên bản đồ"
-									: mapPlacement
-										? "Đặt lại vị trí trên bản đồ"
-										: "Đặt vị trí trên bản đồ"}
+								? isCorridorType
+									? "Đang chờ nhấp hành lang trên bản đồ 2D..."
+									: "Đang chờ nhấp phòng trên bản đồ 2D..."
+								: isCorridorType
+									? mapPlacement
+										? "Đặt lại vị trí hành lang trên bản đồ"
+										: "Chọn vị trí hành lang trên bản đồ"
+									: "Chọn phòng & vị trí ghim trên bản đồ"}
 						</span>
 					</button>
 

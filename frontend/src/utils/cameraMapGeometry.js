@@ -344,7 +344,7 @@ export function validateCameraPinPlacement({
 			return {
 				ok: false,
 				reason: "wrong-building",
-				message: `Camera thuộc ${expectedBuilding}${expectedFloorName ? ` · ${expectedFloorName}` : ""}. Vui lòng chuyển về đúng tòa nhà.`,
+				message: `Đang xem tòa nhà ${activeBuilding}, nhưng camera thuộc ${expectedBuilding}${expectedFloorName ? ` · ${expectedFloorName}` : ""}. Vui lòng chuyển sang tòa nhà ${expectedBuilding}.`,
 			};
 		}
 		if (
@@ -354,10 +354,11 @@ export function validateCameraPinPlacement({
 			expectedFloorOrder !== null &&
 			Number(activeFloorOrder) !== Number(expectedFloorOrder)
 		) {
+			const expectedFloorLabel = expectedFloorName || `Tầng ${expectedFloorOrder}`;
 			return {
 				ok: false,
 				reason: "wrong-floor",
-				message: `Camera thuộc ${expectedBuilding}${expectedFloorName ? ` · ${expectedFloorName}` : ""}. Không thể đặt ở tầng khác.`,
+				message: `Đang xem Tầng ${activeFloorOrder}, nhưng camera thuộc ${expectedBuilding} · ${expectedFloorLabel}. Vui lòng chuyển về đúng tầng.`,
 			};
 		}
 	}
@@ -399,11 +400,15 @@ export function validateCameraPinPlacement({
 
 	if (isCorridorCamera) {
 		if (effectiveRoomProps) {
+			const roomLabel =
+				effectiveRoomProps.matchedAreaName ||
+				effectiveRoomProps.name ||
+				effectiveRoomProps.roomName ||
+				"";
 			return {
 				ok: false,
 				reason: "inside-room-for-corridor",
-				message:
-					"Camera hành lang chỉ được đặt trên sàn hành lang, không được đặt bên trong phòng.",
+				message: `Không thể đặt camera hành lang vào bên trong phòng${roomLabel ? ` "${roomLabel}"` : ""}. Vui lòng đặt trên sàn hành lang (vùng ngoài các phòng).`,
 			};
 		}
 		const pt = [Number(lng), Number(lat)];
@@ -434,11 +439,13 @@ export function validateCameraPinPlacement({
 				}
 			}
 			if (!inSlab) {
+				const floorLabel =
+					expectedFloorName ||
+					(expectedFloorOrder !== null ? `Tầng ${expectedFloorOrder}` : "");
 				return {
 					ok: false,
 					reason: "outside-corridor-slab",
-					message:
-						"Chỉ được đặt camera hành lang trong phạm vi sàn hành lang của tòa nhà.",
+					message: `Vị trí vừa chọn nằm ngoài phạm vi sàn${expectedBuilding ? ` của ${expectedBuilding}` : ""}${floorLabel ? ` (${floorLabel})` : ""}. Vui lòng đặt camera hành lang trên phần sàn bên trong tòa nhà.`,
 				};
 			}
 		} else if (
@@ -467,11 +474,13 @@ export function validateCameraPinPlacement({
 				}
 			}
 			if (!inBoundary) {
+				const floorLabel =
+					expectedFloorName ||
+					(expectedFloorOrder !== null ? `Tầng ${expectedFloorOrder}` : "");
 				return {
 					ok: false,
 					reason: "outside-corridor-slab",
-					message:
-						"Chỉ được đặt camera hành lang trong phạm vi sàn hành lang của tòa nhà.",
+					message: `Vị trí vừa chọn nằm ngoài phạm vi sàn${expectedBuilding ? ` của ${expectedBuilding}` : ""}${floorLabel ? ` (${floorLabel})` : ""}. Vui lòng đặt camera hành lang trên phần sàn bên trong tòa nhà.`,
 				};
 			}
 		}
@@ -484,15 +493,22 @@ export function validateCameraPinPlacement({
 		};
 	}
 
+	const areaLabel =
+		targetArea?.name ||
+		targetCam?.areaName ||
+		targetCam?.assignedArea?.name ||
+		"được gán";
+
 	if (effectiveRoomProps?.matchedAreaId) {
 		if (
 			targetAreaId &&
 			String(effectiveRoomProps.matchedAreaId) !== String(targetAreaId)
 		) {
+			const otherAreaLabel = effectiveRoomProps.matchedAreaName || "khác";
 			return {
 				ok: false,
 				reason: "other-area-room",
-				message: `Không thể đặt pin vào phòng của khu vực "${effectiveRoomProps.matchedAreaName || "khác"}".`,
+				message: `Vị trí vừa chọn thuộc phòng "${otherAreaLabel}", nhưng camera thuộc khu vực "${areaLabel}". Vui lòng đặt pin vào đúng phòng "${areaLabel}".`,
 			};
 		}
 		if (
@@ -509,15 +525,19 @@ export function validateCameraPinPlacement({
 	}
 
 	if (targetAreaId && (Array.isArray(roomFeatures) || clickedRoomProps || store)) {
-		const areaLabel =
-			targetArea?.name ||
-			targetCam?.areaName ||
-			targetCam?.assignedArea?.name ||
-			"được gán";
+		if (effectiveRoomProps) {
+			const unassignedRoomLabel =
+				effectiveRoomProps.name || effectiveRoomProps.roomName || "này";
+			return {
+				ok: false,
+				reason: "outside-target-room",
+				message: `Phòng "${unassignedRoomLabel}" chưa được gán cho khu vực "${areaLabel}". Vui lòng đặt pin vào đúng phòng "${areaLabel}".`,
+			};
+		}
 		return {
 			ok: false,
 			reason: "outside-target-room",
-			message: `Chỉ có thể đặt pin trong khuôn khổ phòng "${areaLabel}".`,
+			message: `Vị trí vừa chọn nằm ngoài phòng "${areaLabel}" (trên hành lang hoặc ngoài tòa nhà). Vui lòng đặt pin vào bên trong khuôn khổ phòng "${areaLabel}".`,
 		};
 	}
 

@@ -60,6 +60,9 @@ class AreaServiceAccessLevelTest {
     private AreaDependencyChecker dependencyChecker;
 
     @Mock
+    private com.fa26se040.icss.repository.CameraRepository cameraRepository;
+
+    @Mock
     private com.fa26se040.icss.service.AuditService auditService;
 
     @Mock

@@ -1,19 +1,99 @@
 /* ==========================================================================
-   AreaSelectWithFilter — Compact Building & Floor Filter + Area Select
+   AreaSelectWithFilter — Unified Level + Quick Location Filter + Primary Select
    ========================================================================== */
 
 .area-select-filter {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* Segmented Pill cho Cấp độ phòng (Tất cả / Cấp 2 / Cấp 3) */
+.area-level-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--theme-surface-subtle, #f1f5f9);
+  border: 1px solid var(--theme-border, #e2e8f0);
+}
+
+.area-level-segmented__btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-muted, #475569);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.area-level-segmented__btn:hover:not(:disabled) {
+  color: var(--theme-text-primary, #0f172a);
+}
+
+.area-level-segmented__btn--active {
+  background: var(--theme-bg-surface, #ffffff);
+  color: var(--brand-blue, #034ea2);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.area-level-segmented__btn:focus-visible {
+  outline: 2px solid var(--theme-primary, #f37021);
+  outline-offset: 1px;
+}
+
+.area-level-segmented__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Thanh Lọc nhanh tách biệt rõ với ô chọn Khu vực chính */
+.area-select-filter__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--theme-surface-subtle, #f8fafc);
+  border: 1px dashed var(--theme-border, #cbd5e1);
+}
+
+.area-select-filter__bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.area-select-filter__bar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--theme-text-muted, #64748b);
 }
 
 .area-select-filter__bar {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+  flex: 1;
+  min-width: 0;
   align-items: center;
 }
 
@@ -22,22 +102,23 @@
 }
 
 .area-select-filter__sub .ui-select__field {
-  height: 32px;
-  font-size: 0.8125rem;
-  padding: 0 28px 0 10px;
-  background-color: var(--theme-bg-surface-elevated, var(--theme-bg-input));
+  height: 28px;
+  font-size: 0.75rem;
+  padding: 0 24px 0 8px;
+  border-radius: 6px;
+  background-color: var(--theme-bg-surface, #ffffff);
   border-color: var(--theme-border);
   color: var(--theme-text-secondary);
 }
 
 .area-select-filter__sub .ui-select__arrow {
-  right: 8px;
+  right: 6px;
 }
 
 .area-select-filter__sub--active .ui-select__field {
   border-color: var(--brand-blue);
   color: var(--theme-text-primary);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .area-select-filter__meta {
@@ -45,8 +126,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 2px;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   line-height: 1.3;
   color: var(--theme-text-muted);
 }
@@ -65,7 +145,7 @@
   background: transparent;
   color: var(--brand-blue);
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
@@ -84,4 +164,35 @@
 .area-select-filter__reset:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Primary Room Selector nổi bật hơn bộ lọc phụ */
+.area-select-filter__primary .ui-select__field {
+  height: 40px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+[data-theme="dark"] .area-level-segmented {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+[data-theme="dark"] .area-level-segmented__btn {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .area-level-segmented__btn--active {
+  background: rgba(30, 41, 59, 0.95);
+  color: #60a5fa;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .area-select-filter__toolbar {
+  background: rgba(15, 23, 42, 0.4);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+[data-theme="dark"] .area-select-filter__sub .ui-select__field {
+  background-color: rgba(30, 41, 59, 0.85);
 }

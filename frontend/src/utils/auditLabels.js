@@ -17,6 +17,9 @@ export const SYSTEM_ACTOR_LABELS = {
 	FACE_REGISTRATION: "Đăng ký khuôn mặt",
 	// AreaService.AFTER_HOURS_CHANGE_SOURCE: đổi AI_AFTER_HOUR_START làm hệ thống cắt / huỷ lịch, tắt sự kiện (LT-07)
 	AFTER_HOURS_CONFIG_CHANGE: "Đổi khung giờ ban đêm",
+	// V142: camera & stream lifecycle
+	CAMERA_SERVICE: "Quản lý camera",
+	CAMERA_STREAM_SERVICE: "Quản lý luồng camera",
 	// AuditService: ghi nhật ký không xác định được người thực hiện
 	SYSTEM_AUTOMATION: "Tác vụ tự động",
 };
@@ -66,6 +69,8 @@ export const TARGET_TYPE_LABELS = {
 	USER_IMPORT_BATCH: "Lô tài khoản",
 	FACE_REGISTRATION: "Khuôn mặt",
 	AUTH: "Đăng nhập",
+	// V142
+	CAMERA: "Camera",
 };
 
 // PR-AUDIT: lý do nội bộ của LOGIN_FAILED (chỉ ADMIN xem; người đăng nhập luôn nhận câu chung BR-AU-32)
@@ -143,8 +148,14 @@ export const getActionLabel = (targetType, action) => {
 	else if (action === "ACCOUNT_LOCKED") actionLabel = "Khoá đăng nhập tạm thời";
 	else if (action === "PASSWORD_RESET_REQUESTED") actionLabel = "Yêu cầu đặt lại mật khẩu";
 	else if (action === "PASSWORD_RESET_COMPLETED") actionLabel = "Đặt lại mật khẩu";
+	else if (action === "STOP_STREAM") actionLabel = "Ngắt kết nối stream";
 
-	if (targetType === "USER_ACCOUNT") {
+	if (targetType === "CAMERA") {
+		if (action === "DEACTIVATE") actionLabel = "Tắt camera";
+		else if (action === "DELETE") actionLabel = "Xóa camera";
+		else if (action === "STOP_STREAM") actionLabel = "Ngắt kết nối stream";
+		else if (action === "UPDATE") actionLabel = "Cập nhật camera";
+	} else if (targetType === "USER_ACCOUNT") {
 		if (action === "CREATE") actionLabel = "Tạo tài khoản";
 		else if (action === "DEACTIVATE") actionLabel = "Vô hiệu hoá";
 		else if (action === "REACTIVATE") actionLabel = "Kích hoạt lại";

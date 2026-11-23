@@ -10,6 +10,8 @@ import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.CameraType;
 import com.fa26se040.icss.enums.OperationalStatus;
@@ -63,6 +65,9 @@ class CameraServiceTest {
 
     @Mock
     private AreaRepository areaRepository;
+
+    @Mock
+    private AuditService auditService;
 
     @Mock
     private com.fa26se040.icss.util.RtspHandshakeChecker rtspHandshakeChecker;
@@ -228,6 +233,19 @@ class CameraServiceTest {
                 c.getDeletedAt() != null
         ));
         verify(mediaMtxService).deleteCameraPath("CAM-001");
+        verify(auditService).record(
+                eq(AuditTargetType.CAMERA),
+                eq(AuditAction.DELETE),
+                eq(testCameraId.toString()),
+                eq(originalArea),
+                isNull(),
+                argThat(snap -> snap instanceof com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot s
+                        && !s.deleted() && s.status() == CameraStatus.ACTIVE),
+                argThat(snap -> snap instanceof com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot s
+                        && s.deleted() && s.status() == CameraStatus.DECOMMISSIONED && s.operationalStatus() == OperationalStatus.OFFLINE),
+                contains("Xóa camera"),
+                nullable(com.fa26se040.icss.dto.audit.AuditActor.class)
+        );
     }
 
     @Test
@@ -248,6 +266,19 @@ class CameraServiceTest {
                 c.getOperationalStatus() == OperationalStatus.OFFLINE
         ));
         verify(mediaMtxService).deleteCameraPath("CAM-001");
+        verify(auditService).record(
+                eq(AuditTargetType.CAMERA),
+                eq(AuditAction.DEACTIVATE),
+                eq(testCameraId.toString()),
+                eq(testCamera.getArea()),
+                isNull(),
+                argThat(snap -> snap instanceof com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot s
+                        && !s.deleted() && s.status() == CameraStatus.ACTIVE),
+                argThat(snap -> snap instanceof com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot s
+                        && !s.deleted() && s.status() == CameraStatus.DECOMMISSIONED && s.operationalStatus() == OperationalStatus.OFFLINE),
+                contains("Tắt camera"),
+                nullable(com.fa26se040.icss.dto.audit.AuditActor.class)
+        );
     }
 
     @Test

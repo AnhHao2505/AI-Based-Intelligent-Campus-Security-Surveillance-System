@@ -131,6 +131,18 @@ export default function AreaTypeChangePreviewModal({ isOpen, areaName, preview, 
 						<span>Lượt khách đã duyệt sẽ bị thu hồi</span>
 						<strong>{preview.guestVisitsToRevokeCount || "Không có"}</strong>
 					</div>
+					{preview.camerasToSyncTypeCount > 0 && (
+						<div className="atcp-fact">
+							<span>Camera tự động đồng bộ chế độ AI</span>
+							<strong>
+								{preview.camerasToSyncTypeCount} camera (
+								{preview.newAreaLevel === "PUBLIC"
+									? "AI giờ giới nghiêm"
+									: "AI 24/7"}
+								)
+							</strong>
+						</div>
+					)}
 				</div>
 
 				<RequestList title="Đơn đã duyệt (APPROVED) sẽ bị hệ thống huỷ" items={preview.approvedRequestsToCancel} />

@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot;
 import com.fa26se040.icss.dto.accessrequest.AreaSimpleResponse;
 import com.fa26se040.icss.dto.camera.*;
 import com.fa26se040.icss.entity.*;
@@ -42,6 +43,7 @@ public class CameraService {
     private final MinioStorageService minioStorageService;
     private final SystemConfigService systemConfigService;
     private final AreaRepository areaRepository;
+    private final AuditService auditService;
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
@@ -554,27 +556,57 @@ public class CameraService {
     public CameraDetailResponse decommissionCamera(UUID id) {
         log.info("Decommissioning camera for id: {}", id);
         Camera camera = findActiveCameraById(id);
+        CameraAuditSnapshot oldSnap = CameraAuditSnapshot.from(camera);
 
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
 
         Camera saved = cameraRepository.save(camera);
+        Camera effective = saved != null ? saved : camera;
         mediaMtxService.deleteCameraPath(camera.getCameraCode());
         stopAiStreamWorkerSafely(camera.getCameraCode());
-        return mapToDetailResponse(saved);
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.CAMERA,
+                    AuditAction.DEACTIVATE,
+                    effective.getId().toString(),
+                    effective.getArea(),
+                    null,
+                    oldSnap,
+                    CameraAuditSnapshot.from(effective),
+                    "Tắt camera " + effective.getCameraCode(),
+                    auditService.resolveCurrentActor("CAMERA_SERVICE")
+            );
+        }
+        return mapToDetailResponse(effective);
     }
 
     public void deleteCamera(UUID id) {
         log.info("Soft deleting camera for id: {}", id);
         Camera camera = findActiveCameraById(id);
+        CameraAuditSnapshot oldSnap = CameraAuditSnapshot.from(camera);
 
         camera.setStatus(CameraStatus.DECOMMISSIONED);
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
         camera.setDeletedAt(OffsetDateTime.now());
 
-        cameraRepository.save(camera);
+        Camera saved = cameraRepository.save(camera);
+        Camera effective = saved != null ? saved : camera;
         mediaMtxService.deleteCameraPath(camera.getCameraCode());
         stopAiStreamWorkerSafely(camera.getCameraCode());
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.CAMERA,
+                    AuditAction.DELETE,
+                    effective.getId().toString(),
+                    effective.getArea(),
+                    null,
+                    oldSnap,
+                    CameraAuditSnapshot.from(effective),
+                    "Xóa camera " + effective.getCameraCode(),
+                    auditService.resolveCurrentActor("CAMERA_SERVICE")
+            );
+        }
     }
 
     public CameraDetailResponse reactivateCamera(UUID id) {

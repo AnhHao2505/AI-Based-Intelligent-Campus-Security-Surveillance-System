@@ -23,6 +23,7 @@ import {
 } from "../../services/cameraService";
 import {
 	applyLiveCameraStatus,
+	extractAreaLevelKey,
 	extractCameraAreaInfo,
 	isStreamConfigDirty,
 	normalizeCorridorCameraName,
@@ -43,6 +44,7 @@ const VALID_TABS = [
 
 export default function CameraInspectorDrawer({
 	cameraId,
+	refreshNonce = 0,
 	initialTab = "general",
 	availableAreas = [],
 	isAdmin = false,
@@ -179,7 +181,7 @@ export default function CameraInspectorDrawer({
 	useEffect(() => {
 		setTestResult(null);
 		loadCameraDetails();
-	}, [loadCameraDetails]);
+	}, [loadCameraDetails, refreshNonce]);
 
 	useEffect(() => {
 		if (!liveOperationalStatus && !liveStatus) return;
@@ -194,11 +196,41 @@ export default function CameraInspectorDrawer({
 	// Apply 3D map room pick override to generalForm
 	useEffect(() => {
 		if (!pickedAreaOverride?.id) return;
-		setGeneralForm((prev) => ({ ...prev, areaId: pickedAreaOverride.id }));
+		const matchedArea = availableAreas.find(
+			(a) => String(a.id) === String(pickedAreaOverride.id),
+		);
+		const levelKey = extractAreaLevelKey(matchedArea || pickedAreaOverride);
+		const nextType =
+			levelKey === "PUBLIC" ? "PUBLIC_AREA" : "RESTRICTED_AREA";
+		const originalAreaId = String(
+			camera?.areaId ||
+				camera?.assignedArea?.id ||
+				camera?.assignedAreas?.[0]?.id ||
+				"",
+		);
+		const originalCameraType =
+			camera?.cameraType ||
+			(camera?.assignedArea?.areaLevel === "PUBLIC"
+				? "PUBLIC_AREA"
+				: "RESTRICTED_AREA");
+		const scopeChanged =
+			nextType !== originalCameraType ||
+			String(pickedAreaOverride.id) !== originalAreaId;
+
+		setGeneralForm((prev) => ({
+			...prev,
+			cameraType: nextType,
+			areaId: pickedAreaOverride.id,
+		}));
 		setActiveTab("general");
-		toast.success(`Đã chọn khu vực: ${pickedAreaOverride.name}`);
+		onEditScopeChange?.({
+			cameraType: nextType,
+			areaId: pickedAreaOverride.id,
+			scopeChanged,
+			preservePendingLocation: Boolean(pickedAreaOverride.skipClearPendingLocation),
+		});
 		onConsumePickedAreaOverride?.();
-	}, [pickedAreaOverride, onConsumePickedAreaOverride]);
+	}, [pickedAreaOverride, availableAreas, camera, onEditScopeChange, onConsumePickedAreaOverride]);
 
 	if (!cameraId) return null;
 
