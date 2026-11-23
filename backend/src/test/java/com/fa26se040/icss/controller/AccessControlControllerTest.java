@@ -228,7 +228,7 @@ class AccessControlControllerTest {
                 "face_match_threshold", 0.75,
                 "after_hour_start", "22:00",
                 "after_hour_end", "06:00",
-                "max_inactive_seconds", 10.0,
+                "recording_retention_hours", 0.5,
                 "unknown_alert_cooldown", 30
         );
 
@@ -239,7 +239,7 @@ class AccessControlControllerTest {
                 .andExpect(jsonPath("$.data.face_match_threshold").value(0.75))
                 .andExpect(jsonPath("$.data.after_hour_start").value("22:00"))
                 .andExpect(jsonPath("$.data.after_hour_end").value("06:00"))
-                .andExpect(jsonPath("$.data.max_inactive_seconds").value(10.0))
+                .andExpect(jsonPath("$.data.recording_retention_hours").value(0.5))
                 .andExpect(jsonPath("$.data.unknown_alert_cooldown").value(30));
     }
 }

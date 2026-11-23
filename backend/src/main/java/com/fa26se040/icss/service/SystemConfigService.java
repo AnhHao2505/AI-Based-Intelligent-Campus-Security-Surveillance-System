@@ -47,19 +47,10 @@ public class SystemConfigService {
     /** Khoá cấu hình runtime của AI (trừ giờ ngoài giờ): đổi khoá nào trong tập này thì đồng bộ ngay xuống AI. */
     static final Set<String> AI_RUNTIME_KEYS = Set.of(
             ConfigKey.AI_FACE_MATCH_THRESHOLD.getKey(),
-            ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS.getKey(),
             ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS.getKey(),
-            ConfigKey.AI_ACCESS_CHECK_TIMEOUT_SECONDS.getKey(),
-            ConfigKey.AI_ACCESS_DECISION_CACHE_TTL.getKey(),
-            ConfigKey.AI_ACCESS_DENY_CACHE_TTL.getKey(),
-            ConfigKey.AI_IDENTITY_GRACE_SECONDS.getKey(),
             ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS.getKey(),
             ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS.getKey(),
-            ConfigKey.AI_IDENTITY_HOLD_SECONDS.getKey(),
-            ConfigKey.AI_CAMERA_UNKNOWN_MIN_INTERVAL_SECONDS.getKey(),
             ConfigKey.RECORDING_RETENTION_HOURS.getKey(),
-            ConfigKey.RECORDING_SEGMENT_SECONDS.getKey(),
-            ConfigKey.INCIDENT_RECORDING_START_DELAY_SECONDS.getKey(),
             ConfigKey.INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS.getKey());
 
     private final SystemConfigurationRepository systemConfigurationRepository;
@@ -427,19 +418,12 @@ public class SystemConfigService {
         map.put("face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD));
         map.put("after_hour_start", getString(ConfigKey.AI_AFTER_HOUR_START));
         map.put("after_hour_end", getString(ConfigKey.AI_AFTER_HOUR_END));
-        map.put("max_inactive_seconds", getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS));
         map.put("unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS));
-        map.put("access_check_timeout_seconds", getDouble(ConfigKey.AI_ACCESS_CHECK_TIMEOUT_SECONDS));
-        map.put("access_decision_cache_ttl", getDouble(ConfigKey.AI_ACCESS_DECISION_CACHE_TTL));
-        map.put("access_deny_cache_ttl", getDouble(ConfigKey.AI_ACCESS_DENY_CACHE_TTL));
-        map.put("identity_grace_seconds", getDouble(ConfigKey.AI_IDENTITY_GRACE_SECONDS));
         map.put("unauthorized_alert_cooldown", getInt(ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS));
         map.put("suspicious_motion_cooldown", getInt(ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS));
         map.put("recording_retention_hours", getDouble(ConfigKey.RECORDING_RETENTION_HOURS));
-        map.put("identity_hold_seconds", getDouble(ConfigKey.AI_IDENTITY_HOLD_SECONDS));
-        map.put("camera_unknown_min_interval", getInt(ConfigKey.AI_CAMERA_UNKNOWN_MIN_INTERVAL_SECONDS));
-        map.put("recording_segment_seconds", getInt(ConfigKey.RECORDING_SEGMENT_SECONDS));
-        map.put("incident_start_delay_seconds", getDouble(ConfigKey.INCIDENT_RECORDING_START_DELAY_SECONDS));
+        // V142: các tham số kỹ thuật (max_inactive_seconds, identity_grace/hold, cache TTL, timeout check-entry,
+        // camera_unknown_min_interval, recording_segment_seconds, incident_start_delay) AI đọc từ .env, không gửi nữa
         map.put("incident_no_detection_timeout_seconds", getDouble(ConfigKey.INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS));
         return map;
     }
