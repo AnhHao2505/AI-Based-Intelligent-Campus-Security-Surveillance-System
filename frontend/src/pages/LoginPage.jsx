@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { Sparkles } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { ROLES, ROLE_LABELS } from "../constants/roles";
 import { sendResetLink, resetPasswordWithToken, getPasswordPolicy } from "../services/authService";
@@ -77,6 +78,17 @@ export default function LoginPage({
 	});
 
 	const pageRef = useRef(null);
+	const [parallaxEnabled, setParallaxEnabled] = useState(() => {
+		return localStorage.getItem("login_bg_parallax") === "true";
+	});
+
+	const toggleParallax = () => {
+		setParallaxEnabled((prev) => {
+			const next = !prev;
+			localStorage.setItem("login_bg_parallax", String(next));
+			return next;
+		});
+	};
 
 	// Switch to reset mode if token exists in URL, and dismiss any active toasts
 	useEffect(() => {
