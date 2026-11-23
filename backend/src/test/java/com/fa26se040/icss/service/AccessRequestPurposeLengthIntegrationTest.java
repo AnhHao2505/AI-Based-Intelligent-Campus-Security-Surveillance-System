@@ -53,8 +53,14 @@ class AccessRequestPurposeLengthIntegrationTest extends GuestTestSupport {
                 body(purpose, group)).andReturn();
     }
 
-    /** Lỗi validate của trường purpose (null nếu trường này không lỗi). */
+    /**
+     * Lỗi validate của trường purpose (null nếu trường này không lỗi). Chỉ đọc khi response là lỗi validate: tạo đơn
+     * thành công thì data.purpose là chính mục đích của đơn, không phải câu báo lỗi.
+     */
     private String purposeError(MvcResult r) throws Exception {
+        if (!"VALIDATION_ERROR".equals(errorCode(r))) {
+            return null;
+        }
         JsonNode node = json(r).path("data").path("purpose");
         return node.isMissingNode() || node.isNull() ? null : node.asText();
     }
