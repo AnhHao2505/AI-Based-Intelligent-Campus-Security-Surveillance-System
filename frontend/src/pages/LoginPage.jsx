@@ -116,10 +116,16 @@ export default function LoginPage({
 		};
 	}, [mode]);
 
-	// Interactive mouse parallax for login background
+	// Interactive mouse parallax for login background (disabled by default to avoid motion discomfort)
 	useEffect(() => {
 		const el = pageRef.current;
 		if (!el) return;
+
+		if (!parallaxEnabled) {
+			el.style.setProperty("--parallax-x", "0");
+			el.style.setProperty("--parallax-y", "0");
+			return undefined;
+		}
 
 		let targetX = 0;
 		let targetY = 0;
@@ -183,7 +189,7 @@ export default function LoginPage({
 			document.removeEventListener("mouseleave", handleMouseLeave);
 			if (rafId !== null) cancelAnimationFrame(rafId);
 		};
-	}, []);
+	}, [parallaxEnabled]);
 
 	const handleGoogleSuccess = async (credentialResponse) => {
 		setError(null);
