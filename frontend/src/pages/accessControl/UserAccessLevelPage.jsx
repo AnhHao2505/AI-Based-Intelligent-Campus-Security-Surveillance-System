@@ -26,6 +26,7 @@ import PageHeader from '../../components/ui/PageHeader';
 import { LoadingState, EmptyState, ErrorState, Select } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
 import ReasonTextarea from '../../components/ui/ReasonTextarea';
+import { useReasonLimits } from '../../hooks/useReasonLimits';
 import '../../styles/UserAccessLevelPage.css';
 
 const PAGE_SIZE = 20;
@@ -85,6 +86,8 @@ export default function UserAccessLevelPage() {
   const [selectedLevels, setSelectedLevels] = useState({});
   const debounceRef = useRef(null);
   const userReasonRef = useRef(null);
+  // Độ dài lý do theo REASON_MIN_LENGTH / REASON_MAX_LENGTH (như các màn khác), không viết cứng con số
+  const reasonLimits = useReasonLimits();
 
   // BR-AL-28: phân trang, lọc theo cấp hiện tại, chọn nhiều người (giữ lựa chọn khi đổi trang / đổi từ khoá)
   const [page, setPage] = useState(0);
@@ -265,10 +268,10 @@ export default function UserAccessLevelPage() {
 
   const handleConfirmBulk = async () => {
     const trimmedReason = bulkModal.reason?.trim() || '';
-    if (trimmedReason.length < 10 || trimmedReason.length > 500) {
+    if (!reasonLimits.isValid(trimmedReason)) {
       setBulkModal((prev) => ({
         ...prev,
-        reasonError: `Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`,
+        reasonError: reasonLimits.error(trimmedReason),
       }));
       bulkReasonRef.current?.focus();
       return;
@@ -295,10 +298,10 @@ export default function UserAccessLevelPage() {
   const handleConfirmSaveUserLevel = async () => {
     const { user, newLevel, reason } = confirmUserModal;
     const trimmedReason = reason?.trim() || '';
-    if (trimmedReason.length < 10 || trimmedReason.length > 500) {
+    if (!reasonLimits.isValid(trimmedReason)) {
       setConfirmUserModal((prev) => ({
         ...prev,
-        reasonError: `Lý do phải từ 10 đến 500 ký tự (hiện có ${trimmedReason.length}).`,
+        reasonError: reasonLimits.error(trimmedReason),
       }));
       userReasonRef.current?.focus();
       return;
@@ -610,14 +613,12 @@ export default function UserAccessLevelPage() {
                         ...prev,
                         reason: val,
                         reasonError:
-                          prev.reasonError && val.trim().length >= 10 && val.trim().length <= 500
+                          prev.reasonError && reasonLimits.isValid(val)
                             ? ''
                             : prev.reasonError,
                       }));
                     }}
-                    min={10}
-                    max={500}
-                    placeholder="Nhập lý do điều chỉnh cấp độ truy cập (từ 10 đến 500 ký tự)..."
+                    placeholder={`Nhập lý do điều chỉnh cấp độ truy cập (từ ${reasonLimits.min} đến ${reasonLimits.max} ký tự)...`}
                     rows={3}
                     error={bulkModal.reasonError}
                     disabled={bulkModal.isSaving}
@@ -733,14 +734,12 @@ export default function UserAccessLevelPage() {
                     ...prev,
                     reason: val,
                     reasonError:
-                      prev.reasonError && val.trim().length >= 10 && val.trim().length <= 500
+                      prev.reasonError && reasonLimits.isValid(val)
                         ? ''
                         : prev.reasonError,
                   }));
                 }}
-                minLength={10}
-                maxLength={500}
-                placeholder="Nhập lý do cụ thể điều chỉnh cấp độ truy cập (từ 10 đến 500 ký tự)..."
+                placeholder={`Nhập lý do cụ thể điều chỉnh cấp độ truy cập (từ ${reasonLimits.min} đến ${reasonLimits.max} ký tự)...`}
                 rows={3}
                 error={confirmUserModal.reasonError}
                 disabled={confirmUserModal.isSaving}
