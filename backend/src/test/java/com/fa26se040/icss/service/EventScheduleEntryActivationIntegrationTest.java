@@ -19,6 +19,7 @@ import com.fa26se040.icss.repository.AreaEventScheduleRepository;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.BuildingRepository;
 import com.fa26se040.icss.repository.FloorRepository;
+import com.fa26se040.icss.repository.SystemConfigurationRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,8 +56,8 @@ import static org.mockito.Mockito.when;
  * quyết định đã trả về; chống trùng nhờ khoá dòng khu + kiểm trạng thái lịch trong activateScheduleInTx.
  * DB test thật, transaction thật, luồng nền thật (eventActivationExecutor).
  *
- * <p>Giới hạn chung với ES-T09: activateScheduleInTx đánh FAILED nếu lịch chạm khung ban đêm hiện hành, nên chạy test
- * trong khung ban đêm (lịch [now − 5', now + 1h)) sẽ không tạo phiên.</p>
+ * <p>activateScheduleInTx đánh FAILED nếu lịch chạm khung ban đêm hiện hành; lịch dựng theo giờ hiện tại nên tắt khung ban
+ * đêm trong lúc test (AfterHoursTestSupport, cùng cách AreaEventScheduleIntegrationTest), trả lại ở @AfterEach.</p>
  */
 class EventScheduleEntryActivationIntegrationTest extends AbstractIntegrationTest {
 
@@ -68,9 +69,13 @@ class EventScheduleEntryActivationIntegrationTest extends AbstractIntegrationTes
     @Autowired private FloorRepository floorRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private SystemConfigService systemConfigService;
+    @Autowired private SystemConfigurationRepository systemConfigurationRepository;
 
     private User student;
     private User fm;
+    private User admin;
+    private String[] nightWindowBefore;
     private Area area;
     private Object decisionTarget;
     private Object realProvider;
@@ -90,6 +95,9 @@ class EventScheduleEntryActivationIntegrationTest extends AbstractIntegrationTes
                 .fullName("SV kích hoạt lịch " + suffix).role(Role.NORMAL_USER).accessLevel(1).isActive(true).build());
         fm = userRepository.save(User.builder().email("fm.evact." + suffix + "@fpt.edu.vn").userCode("FM_EA_" + suffix)
                 .fullName("FM kích hoạt lịch " + suffix).role(Role.FACILITY_MANAGER).accessLevel(3).isActive(true).build());
+        admin = userRepository.save(User.builder().email("adm.evact." + suffix + "@fpt.edu.vn").userCode("ADM_EA_" + suffix)
+                .fullName("Admin kích hoạt lịch " + suffix).role(Role.ADMIN).accessLevel(3).isActive(true).build());
+        nightWindowBefore = AfterHoursTestSupport.disableNightWindow(systemConfigService, systemConfigurationRepository);
         area = areaRepository.save(Area.builder().name("Khu kích hoạt lịch " + suffix).areaLevel(AreaLevel.CONFIDENTIAL)
                 .areaAccessLevel(2).floorEntity(floor).building(building.getName()).floor(floor.getName())
                 .isActive(true).openToMembers(false).build());
@@ -106,6 +114,8 @@ class EventScheduleEntryActivationIntegrationTest extends AbstractIntegrationTes
     void tearDown() {
         ReflectionTestUtils.setField(decisionTarget, "areaServiceProvider", realProvider);
         decisionLogger.detachAppender(logs);
+        AfterHoursTestSupport.restore(systemConfigService, systemConfigurationRepository, nightWindowBefore, admin.getEmail());
+        nightWindowBefore = null;
     }
 
     private AreaEventSchedule dueSchedule() {
