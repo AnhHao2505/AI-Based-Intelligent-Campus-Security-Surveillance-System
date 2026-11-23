@@ -30,9 +30,10 @@
   background: var(--theme-bg-surface, #1e293b);
   border: 1px solid var(--theme-border, #334155);
   border-radius: 12px;
-  width: 96vw;
+  /* Không vượt vùng trong của overlay (overlay có padding 16px) -> modal không bao giờ chạm mép màn hình */
+  width: min(96vw, 100%);
   max-width: 1550px;
-  height: 92vh;
+  height: min(92vh, 100%);
   display: flex;
   flex-direction: column;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
@@ -239,6 +240,23 @@
   border-radius: 6px;
   object-fit: contain;
   pointer-events: none;
+}
+
+/* Khung vẽ đã được JS đo vừa vùng trống (giữ tỉ lệ camera): ảnh / lưới phủ kín đúng khung, lớp SVG trùng khít */
+.roi-viewport--fitted {
+  max-width: none;
+  max-height: none;
+  flex-shrink: 0;
+}
+
+.roi-viewport--fitted .roi-snapshot-img,
+.roi-viewport--fitted .roi-grid-canvas,
+.roi-viewport--fitted .roi-no-image {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  aspect-ratio: auto;
 }
 
 .roi-grid-canvas {

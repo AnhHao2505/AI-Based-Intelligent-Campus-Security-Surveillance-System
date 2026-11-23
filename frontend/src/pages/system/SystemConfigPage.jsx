@@ -38,18 +38,15 @@ import { useReasonLimits } from "../../hooks/useReasonLimits";
 
 /** Nhóm con trong một tab cấu hình, theo tiền tố config_key (UI-AUDIT #33). */
 const CONFIG_SUBGROUPS = {
+	// V142: nhóm AI chỉ còn 8 khoá admin chỉnh (6 khoá AI_ + 2 khoá ghi hình)
 	AI_CONFIG: [
 		{
-			title: "Ghi hình sự cố an ninh",
-			prefixes: ["INCIDENT_RECORDING_"],
-		},
-		{
-			title: "Ghi hình & Lưu trữ định kỳ",
-			prefixes: ["RECORDING_RETENTION_", "RECORDING_SEGMENT_"],
-		},
-		{
-			title: "Chính sách cảnh báo & Nhận diện",
+			title: "Nhận diện & Cảnh báo",
 			prefixes: ["AI_"],
+		},
+		{
+			title: "Ghi hình",
+			prefixes: ["RECORDING_RETENTION_", "INCIDENT_RECORDING_"],
 		},
 	],
 	SECURITY: [

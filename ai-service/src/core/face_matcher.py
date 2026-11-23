@@ -10,6 +10,7 @@ except ImportError:
 
 from .face_embedder import FaceEmbedder, get_shared_face_embedder
 from .shared_face_cache import SharedFaceCache, get_shared_face_cache
+from .access_reasons import is_identity_gone_reason
 from ..config import settings, INTERNAL_SERVICE_KEY_HEADER
 
 logger = logging.getLogger(__name__)
@@ -341,9 +342,9 @@ class FaceMatcher:
                 raw_starts_at = data.get("startsAt")
                 starts_at = float(raw_starts_at) if raw_starts_at is not None else None
 
-                # Tự động loại bỏ khỏi Face RAM Cache nếu Backend phản hồi người dùng không tồn tại / đã bị xoá
-                reason_lower = (reason or "").lower()
-                if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+                # Tự động loại bỏ khỏi Face RAM Cache nếu Backend phản hồi người dùng không tồn tại / đã bị xoá.
+                # Chỉ khi lý do nói về NGƯỜI: "Camera không tồn tại" / "Khu vực không tồn tại" không phải lý do xoá mặt.
+                if is_identity_gone_reason(reason, deny_reason):
                     logger.info(f"🗑️ [FaceMatcher] Tài khoản [{user_code}] đã bị xoá hoặc không tồn tại trên hệ thống -> Loại bỏ ngay khỏi Face RAM Cache.")
                     self.cache.remove_face(user_code)
                     with self._access_cache_lock:

@@ -14,6 +14,7 @@ from .entity import (
 from ..utils.geometry import (
     is_point_in_polygon, scale_polygon_to_frame
 )
+from .access_reasons import is_identity_gone_reason
 
 logger = logging.getLogger(__name__)
 
@@ -937,7 +938,6 @@ class FrameAnalysisEngine:
                     reason_str = getattr(person.face_info, "access_reason", None) or "Không có quyền ra vào khu vực này."
 
                     role = getattr(person.face_info, "role", "NORMAL_USER")
-                    reason_lower = (reason_str or "").lower()
                     access_source = getattr(person.face_info, "access_source", None)
                     if access_source:
                         access_source = str(access_source).strip().upper()
@@ -987,7 +987,7 @@ class FrameAnalysisEngine:
                         absorb_now = should_alert_unauth and self._unknown_verdict_active(person, current_time)
                         if should_alert_unauth:
                             clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
-                            if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+                            if is_identity_gone_reason(reason_str, deny_reason_code):
                                 if after_hours:
                                     event_type = "PERSON_INTRUSION"
                                     detail_msg = f"[PERSON_INTRUSION] Vị trí: {location_display}"

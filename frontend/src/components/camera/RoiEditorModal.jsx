@@ -50,6 +50,43 @@ export default function RoiEditorModal({
 
 	const svgRef = useRef(null);
 	const imgRef = useRef(null);
+	const canvasWrapperRef = useRef(null);
+	// Kích thước khung vẽ (px) vừa khít vùng trống thật của .roi-canvas-wrapper, giữ đúng tỉ lệ khung hình camera.
+	// Trước đây ảnh chỉ bị giới hạn bằng max-height ước lượng (92vh - 160px) nên hay tràn và bị cắt sát mép.
+	const [fitSize, setFitSize] = useState(null);
+
+	useEffect(() => {
+		if (!isOpen) return undefined;
+		const wrapper = canvasWrapperRef.current;
+		if (!wrapper) return undefined;
+		const ratio = imgDimensions.width > 0 && imgDimensions.height > 0
+			? imgDimensions.width / imgDimensions.height
+			: 16 / 9;
+		const recompute = () => {
+			const cs = window.getComputedStyle(wrapper);
+			const availW = wrapper.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+			const availH = wrapper.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+			if (availW <= 0 || availH <= 0) return;
+			let w = availW;
+			let h = w / ratio;
+			if (h > availH) {
+				h = availH;
+				w = h * ratio;
+			}
+			const next = { width: Math.floor(w), height: Math.floor(h) };
+			setFitSize((prev) =>
+				prev && prev.width === next.width && prev.height === next.height ? prev : next,
+			);
+		};
+		recompute();
+		if (typeof ResizeObserver === "undefined") {
+			window.addEventListener("resize", recompute);
+			return () => window.removeEventListener("resize", recompute);
+		}
+		const ro = new ResizeObserver(recompute);
+		ro.observe(wrapper);
+		return () => ro.disconnect();
+	}, [isOpen, imgDimensions.width, imgDimensions.height]);
 
 	// URL MinIO (http://host:9000/bucket/key) -> /api/media/bucket/key; ảnh /api/media tải kèm JWT qua useAuthorizedImage
 	const formattedSnapshot = snapshotBase64
@@ -547,13 +584,14 @@ export default function RoiEditorModal({
 						</div>
 
 						{/* Snapshot Canvas Container */}
-						<div className="roi-canvas-wrapper">
+						<div className="roi-canvas-wrapper" ref={canvasWrapperRef}>
 							<div
-								className="roi-viewport"
+								className={`roi-viewport ${fitSize ? "roi-viewport--fitted" : ""}`}
 								style={{
 									position: "relative",
 									display: "inline-block",
 									lineHeight: 0,
+									...(fitSize ? { width: `${fitSize.width}px`, height: `${fitSize.height}px` } : {}),
 								}}
 							>
 								{imageSrc ? (
@@ -563,6 +601,7 @@ export default function RoiEditorModal({
 										alt="Camera Snapshot Reference"
 										className="roi-snapshot-img"
 										onLoad={handleImageLoad}
+										draggable={false}
 									/>
 								) : imageError ? (
 									<div className="roi-no-image">
@@ -587,6 +626,7 @@ export default function RoiEditorModal({
 								<svg
 									ref={svgRef}
 									viewBox={`0 0 ${imgDimensions.width} ${imgDimensions.height}`}
+									preserveAspectRatio="none"
 									className={`roi-svg-overlay ${drawMode ? "drawing" : ""}`}
 									onClick={handleSvgClick}
 									onDoubleClick={handleSvgDoubleClick}

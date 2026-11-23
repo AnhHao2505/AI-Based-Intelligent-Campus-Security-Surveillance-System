@@ -250,47 +250,49 @@ class SystemConfigServiceTest {
     @DisplayName("getDouble returns parsed double value from cache or default fallback")
     void testGetDouble_ValidAndDefault() {
         SystemConfiguration config = SystemConfiguration.builder()
-                .configKey(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS.getKey())
+                .configKey(ConfigKey.RECORDING_RETENTION_HOURS.getKey())
                 .configValue("12.5")
                 .dataType("DECIMAL")
                 .build();
         when(systemConfigurationRepository.findAll()).thenReturn(List.of(config));
         systemConfigService.initCache();
 
-        assertEquals(12.5, systemConfigService.getDouble(ConfigKey.AI_TRACK_MAX_INACTIVE_SECONDS));
+        assertEquals(12.5, systemConfigService.getDouble(ConfigKey.RECORDING_RETENTION_HOURS));
         assertEquals(30, systemConfigService.getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS));
     }
 
     @Test
-    @DisplayName("M3: getAiRuntimeConfigMap chứa đầy đủ 3 khóa mới: timeout check-entry và TTL cache")
-    void testGetAiRuntimeConfigMap_ContainsM3Keys() {
+    @DisplayName("V142: getAiRuntimeConfigMap chỉ gửi 8 khoá admin chỉnh, giá trị mặc định đúng")
+    void testGetAiRuntimeConfigMap_AdminKeysWithDefaults() {
         when(systemConfigurationRepository.findAll()).thenReturn(List.of());
         systemConfigService.initCache();
 
         var map = systemConfigService.getAiRuntimeConfigMap();
         assertNotNull(map);
-        assertEquals(1.5, map.get("access_check_timeout_seconds"));
-        assertEquals(30.0, map.get("access_decision_cache_ttl"));
-        assertEquals(5.0, map.get("access_deny_cache_ttl"));
+        assertEquals(8, map.size());
         assertEquals(0.50, map.get("face_match_threshold"));
+        assertEquals("22:00", map.get("after_hour_start"));
+        assertEquals("06:00", map.get("after_hour_end"));
+        assertEquals(30, map.get("unknown_alert_cooldown"));
+        assertEquals(30, map.get("unauthorized_alert_cooldown"));
+        assertEquals(5, map.get("suspicious_motion_cooldown"));
         assertEquals(0.5, map.get("recording_retention_hours"));
+        assertEquals(0.0, map.get("incident_no_detection_timeout_seconds"));
     }
 
     @Test
-    @DisplayName("V125: getAiRuntimeConfigMap chứa 3 khoá chính sách cảnh báo mới với giá trị mặc định")
-    void testGetAiRuntimeConfigMap_ContainsAlertPolicyKeys() {
+    @DisplayName("V142: không gửi tham số kỹ thuật, để AI dùng giá trị .env")
+    void testGetAiRuntimeConfigMap_OmitsTechnicalKeys() {
         when(systemConfigurationRepository.findAll()).thenReturn(List.of());
         systemConfigService.initCache();
 
         var map = systemConfigService.getAiRuntimeConfigMap();
-        assertEquals(1.5, map.get("identity_grace_seconds"));
-        assertEquals(30, map.get("unauthorized_alert_cooldown"));
-        assertEquals(5, map.get("suspicious_motion_cooldown"));
-        assertEquals(1.0, map.get("identity_hold_seconds"));
-        assertEquals(3, map.get("camera_unknown_min_interval"));
-        assertEquals(60, map.get("recording_segment_seconds"));
-        assertEquals(0.0, map.get("incident_start_delay_seconds"));
-        assertEquals(0.0, map.get("incident_no_detection_timeout_seconds"));
+        for (String removed : List.of("max_inactive_seconds", "access_check_timeout_seconds",
+                "access_decision_cache_ttl", "access_deny_cache_ttl", "identity_grace_seconds",
+                "identity_hold_seconds", "camera_unknown_min_interval", "recording_segment_seconds",
+                "incident_start_delay_seconds")) {
+            assertFalse(map.containsKey(removed), removed);
+        }
     }
 
     @Test
@@ -300,8 +302,6 @@ class SystemConfigServiceTest {
             String key = k.getKey();
             boolean isAiRuntime = key.startsWith("AI_")
                     || key.equals(ConfigKey.RECORDING_RETENTION_HOURS.getKey())
-                    || key.equals(ConfigKey.RECORDING_SEGMENT_SECONDS.getKey())
-                    || key.equals(ConfigKey.INCIDENT_RECORDING_START_DELAY_SECONDS.getKey())
                     || key.equals(ConfigKey.INCIDENT_RECORDING_NO_DETECTION_TIMEOUT_SECONDS.getKey());
             boolean isAfterHour = key.equals("AI_AFTER_HOUR_START") || key.equals("AI_AFTER_HOUR_END");
             assertEquals(isAiRuntime && !isAfterHour, SystemConfigService.AI_RUNTIME_KEYS.contains(key), key);

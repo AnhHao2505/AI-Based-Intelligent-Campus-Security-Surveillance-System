@@ -590,11 +590,12 @@ export function SecuritySurveillancePage() {
 		isSpotlightPinnedRef.current = isSpotlightPinned;
 	}, [isSpotlightPinned]);
 
-	// Trình duyệt chỉ cho phát âm thanh sau thao tác đầu tiên của người dùng (autoplay policy)
-	useEffect(() => installAlertSoundUnlock(), []);
 	useEffect(() => {
 		activeAlertsRef.current = activeAlerts;
 	}, [activeAlerts]);
+
+	// Trình duyệt chỉ cho phát âm thanh sau thao tác đầu tiên của người dùng (autoplay policy)
+	useEffect(() => installAlertSoundUnlock(), []);
 
 	// Đóng menu dropdown lọc khi click ra ngoài
 	useEffect(() => {
@@ -1135,7 +1136,13 @@ export function SecuritySurveillancePage() {
 			.filter((a) => !knownIds.has(String(a.id)))
 			.sort(newestFirst);
 		if (fresh.length > 0) {
-			playAlertSound();
+			const unacked = fresh.filter((a) => !a.socAcknowledged);
+			if (unacked.length > 0) {
+				playAlertSound(
+					unacked.map((a) => a.id),
+					`${unacked[0].camCodeClean}|${unacked[0].eventType}`,
+				);
+			}
 			flashCameraAlert(fresh[0].camCodeClean);
 			setSelectedCamera(fresh[0].camCodeClean);
 		}

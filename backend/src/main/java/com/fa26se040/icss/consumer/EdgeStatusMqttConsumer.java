@@ -1,5 +1,6 @@
 package com.fa26se040.icss.consumer;
 
+import com.fa26se040.icss.service.EdgeGhostCameraReconciler;
 import com.fa26se040.icss.service.EdgeStatusService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 public class EdgeStatusMqttConsumer implements IMqttMessageListener {
 
     private final EdgeStatusService edgeStatusService;
+    private final EdgeGhostCameraReconciler edgeGhostCameraReconciler;
 
     @Override
     public void messageArrived(String topic, MqttMessage message) {
@@ -25,5 +27,7 @@ public class EdgeStatusMqttConsumer implements IMqttMessageListener {
 
         String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
         edgeStatusService.processHeartbeat(topic, payload);
+        // Camera edge báo đang chạy nhưng DB không còn (xoá bằng migration / SQL) -> gửi lệnh tắt
+        edgeGhostCameraReconciler.reconcile(payload);
     }
 }
