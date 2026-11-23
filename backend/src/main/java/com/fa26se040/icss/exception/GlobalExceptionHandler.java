@@ -23,7 +23,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 @Slf4j
 @RestControllerAdvice
@@ -360,9 +359,9 @@ public class GlobalExceptionHandler {
             log.warn("Response already committed, cannot send error response for: {}", ex.getMessage());
             return null;
         }
-        String errorId = UUID.randomUUID().toString().substring(0, 8);
+        String errorId = SystemErrorReference.newErrorId();
         log.error("Unhandled exception [errorId={}]: ", errorId, ex);
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi hệ thống. Mã tra cứu: " + errorId);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, SystemErrorReference.message(errorId));
     }
 
     private boolean isClientDisconnect(Throwable ex) {

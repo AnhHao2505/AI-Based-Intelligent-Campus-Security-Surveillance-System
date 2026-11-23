@@ -18,8 +18,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -54,6 +57,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * errorCode của kết quả từng dòng. Dịch vụ AI giả bằng MockRestServiceServer; MinIO, mail là mock (cùng bộ MockBean với
  * FaceDuplicateRegistrationTest để dùng lại Spring context).
  */
+@ExtendWith(OutputCaptureExtension.class)
 class AccountFaceErrorCodeIntegrationTest extends AbstractIntegrationTest {
 
     private static final String AI_PATH = "/api/v1/faces/process-registration";
@@ -329,5 +333,56 @@ class AccountFaceErrorCodeIntegrationTest extends AbstractIntegrationTest {
                 Role.NORMAL_USER, UUID.randomUUID(), JPEG, "x.jpg", "Temp@123456");
         assertThat(rEmail.getStatus()).isEqualTo("FAILED");
         assertThat(rEmail.getErrorCode()).isNull();
+    }
+
+    // ------------------------------------------------------------------ lỗi không lường trước trong registerFace
+
+    /** ai-service trả 200 nhưng body không phải JSON -> RestTemplate không đọc được -> nhánh catch chung của registerFace. */
+    private void expectAiGarbage() {
+        aiServer.expect(requestTo(endsWith(AI_PATH)))
+                .andRespond(withSuccess("not-json{", MediaType.APPLICATION_JSON));
+    }
+
+    private static final String LOOKUP_MESSAGE_REGEX = "^Lỗi hệ thống\\. Mã tra cứu: [0-9a-f]{8}$";
+
+    @Test
+    @DisplayName("Nạp theo lô: lỗi không lường trước trong registerFace -> cột lỗi chỉ có \"Lỗi hệ thống. Mã tra cứu: xxxxxxxx\", không lớp / message nội bộ / stack; chi tiết nằm ở log kèm cùng mã")
+    void bulkRow_unexpectedError_onlyLookupReference(CapturedOutput output) {
+        String code = newCode("BGARBAGE");
+        expectAiGarbage();
+        BulkImportRowResult row = importRow(code, JPEG, code + ".jpg");
+        aiServer.verify();
+
+        assertThat(row.getStatus()).isEqualTo("FAILED");
+        assertThat(row.getErrorCode()).isNull();
+        assertThat(row.getErrorMessage())
+                .matches(LOOKUP_MESSAGE_REGEX)
+                .doesNotContain("Lỗi xử lý khuôn mặt")
+                .doesNotContain("Exception")
+                .doesNotContain("com.fa26se040")
+                .doesNotContain("AiFaceRegistrationResponseDto")
+                .doesNotContain("JSON")
+                .doesNotContain("\tat ");
+        assertThat(userRepository.findByUserCode(code)).isEmpty();
+
+        String errorId = row.getErrorMessage().substring(row.getErrorMessage().length() - 8);
+        assertThat(output.getAll()).as("chi tiết chỉ ở log server, cùng mã tra cứu")
+                .contains("errorId=" + errorId)
+                .contains("Lỗi xử lý khuôn mặt");
+    }
+
+    @Test
+    @DisplayName("Tạo tài khoản: cùng lỗi không lường trước -> 500 \"Lỗi hệ thống. Mã tra cứu: xxxxxxxx\" (không đổi), không lộ chi tiết")
+    void create_unexpectedError_lookupReference() throws Exception {
+        String code = newCode("GARBAGE");
+        expectAiGarbage();
+        MvcResult r = createStaff(code);
+        aiServer.verify();
+
+        String raw = r.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(r.getResponse().getStatus()).as(raw).isEqualTo(500);
+        assertThat(objectMapper.readTree(raw).path("message").asText()).matches(LOOKUP_MESSAGE_REGEX);
+        assertThat(raw).doesNotContain("Lỗi xử lý khuôn mặt").doesNotContain("com.fa26se040");
+        assertThat(userRepository.findByUserCode(code)).isEmpty();
     }
 }
