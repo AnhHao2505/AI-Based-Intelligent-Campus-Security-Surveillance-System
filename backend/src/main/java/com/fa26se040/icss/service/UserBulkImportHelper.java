@@ -6,6 +6,9 @@ import com.fa26se040.icss.enums.AuditAction;
 import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.exception.AuditWriteException;
+import com.fa26se040.icss.exception.FaceErrorCode;
+import com.fa26se040.icss.exception.SystemErrorReference;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.UserRepository;
 import com.fa26se040.icss.util.StringNormalizer;
@@ -29,6 +32,7 @@ import java.io.InputStream;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -102,17 +106,20 @@ public class UserBulkImportHelper {
 
         // 2. Validate face image
         if (imageBytes == null || imageBytes.length == 0) {
-            return buildError(rowIndex, userCode, fullName, email, roleStr, "Không tìm thấy file ảnh tương ứng trong thư mục images/ (yêu cầu images/" + userCode + ".jpg hoặc .png)");
+            return buildError(rowIndex, userCode, fullName, email, roleStr, "Không tìm thấy file ảnh tương ứng trong thư mục images/ (yêu cầu images/" + userCode + ".jpg hoặc .png)",
+                    FaceErrorCode.ERR_FACE_002.getCode());
         }
         // V140: cùng giới hạn USER_FACE_IMAGE_MAX_KB với đăng ký đơn lẻ (FaceDataService.registerFace)
         int maxKb = systemConfigService.getIntWithinBounds(ConfigKey.USER_FACE_IMAGE_MAX_KB);
         if (imageBytes.length > (long) maxKb * 1024) {
-            return buildError(rowIndex, userCode, fullName, email, roleStr, FaceDataService.faceImageTooLargeMessage(maxKb, imageBytes.length));
+            return buildError(rowIndex, userCode, fullName, email, roleStr, FaceDataService.faceImageTooLargeMessage(maxKb, imageBytes.length),
+                    FaceErrorCode.ERR_FACE_003.getCode());
         }
 
         String lowerImgName = imageFileName != null ? imageFileName.toLowerCase() : "";
         if (!(lowerImgName.endsWith(".jpg") || lowerImgName.endsWith(".jpeg") || lowerImgName.endsWith(".png"))) {
-            return buildError(rowIndex, userCode, fullName, email, roleStr, "Định dạng file ảnh không hợp lệ. Chỉ chấp nhận file JPG hoặc PNG.");
+            return buildError(rowIndex, userCode, fullName, email, roleStr, "Định dạng file ảnh không hợp lệ. Chỉ chấp nhận file JPG hoặc PNG.",
+                    FaceErrorCode.ERR_FACE_004.getCode());
         }
 
         // 3. Perform DB User creation & Face Registration inside try-catch
@@ -164,18 +171,27 @@ public class UserBulkImportHelper {
                     .build();
 
         } catch (Exception e) {
-            log.error("Lỗi khi xử lý dòng {}: {}", rowIndex, e.getMessage());
             // Mark transaction as rollback-only so User/FaceData DB records are undone
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
             // Ảnh đã tải lên (nếu có) được FaceDataService xoá sau khi transaction của dòng này rollback (afterCompletion);
             // không xoá thêm ở đây
 
-            String errorMsg = e.getMessage();
-            if (errorMsg == null || errorMsg.isBlank()) {
-                errorMsg = "Lỗi hệ thống khi xử lý người dùng " + userCode;
+            // B1: lỗi ảnh khuôn mặt (registerFace) giữ câu chuẩn và mang mã ERR_FACE_xxx vào kết quả dòng
+            Optional<FaceErrorCode> faceErrorCode = FaceErrorCode.of(e);
+            if (faceErrorCode.isPresent()) {
+                log.error("Lỗi khi xử lý dòng {}: {}", rowIndex, e.getMessage());
+                return buildError(rowIndex, userCode, fullName, email, roleStr, e.getMessage(), faceErrorCode.get().getCode());
             }
-
-            return buildError(rowIndex, userCode, fullName, email, roleStr, errorMsg);
+            // Ghi audit lỗi: câu cố định của AuditService, cùng mã ERR_AUDIT_001 như response HTTP
+            if (e instanceof AuditWriteException auditError) {
+                log.error("Lỗi khi xử lý dòng {}: {}", rowIndex, auditError.getMessage());
+                return buildError(rowIndex, userCode, fullName, email, roleStr, auditError.getMessage(), auditError.getCode());
+            }
+            // Lỗi không lường trước (vd. RuntimeException "Lỗi xử lý khuôn mặt: ..." của registerFace): cột lỗi chỉ có câu
+            // chung + mã tra cứu; lớp exception, message nội bộ và stack chỉ ghi log server kèm cùng mã
+            String errorId = SystemErrorReference.newErrorId();
+            log.error("Lỗi không lường trước khi xử lý dòng {} [{}] [errorId={}]: ", rowIndex, userCode, errorId, e);
+            return buildError(rowIndex, userCode, fullName, email, roleStr, SystemErrorReference.message(errorId), null);
         }
     }
 
@@ -206,6 +222,11 @@ public class UserBulkImportHelper {
     }
 
     private BulkImportRowResult buildError(int rowIndex, String userCode, String fullName, String email, String role, String errorMessage) {
+        return buildError(rowIndex, userCode, fullName, email, role, errorMessage, null);
+    }
+
+    private BulkImportRowResult buildError(int rowIndex, String userCode, String fullName, String email, String role, String errorMessage,
+                                           String errorCode) {
         return BulkImportRowResult.builder()
                 .rowIndex(rowIndex)
                 .userCode(userCode)
@@ -214,6 +235,7 @@ public class UserBulkImportHelper {
                 .role(role)
                 .status("FAILED")
                 .errorMessage(errorMessage)
+                .errorCode(errorCode)
                 .build();
     }
 

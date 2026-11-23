@@ -13,6 +13,8 @@ import com.fa26se040.icss.exception.AiServiceUnavailableException;
 import com.fa26se040.icss.exception.CameraException;
 import com.fa26se040.icss.exception.FaceDetectionException;
 import com.fa26se040.icss.exception.FaceDuplicateException;
+import com.fa26se040.icss.exception.FaceErrorCode;
+import com.fa26se040.icss.exception.FaceImageException;
 import com.fa26se040.icss.repository.FaceDataRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -119,12 +121,12 @@ public class FaceDataService {
             log.info("Bắt đầu xử lý đăng ký khuôn mặt cho [{}]", code);
 
             if (frontImage == null || frontImage.isEmpty()) {
-                throw new IllegalArgumentException("Ảnh khuôn mặt không được để trống.");
+                throw new FaceImageException(FaceErrorCode.ERR_FACE_002, "Ảnh khuôn mặt không được để trống.");
             }
 
             int maxKb = getFaceImageMaxKb();
             if (frontImage.getSize() > (long) maxKb * 1024) {
-                throw new IllegalArgumentException(faceImageTooLargeMessage(maxKb, frontImage.getSize()));
+                throw new FaceImageException(FaceErrorCode.ERR_FACE_003, faceImageTooLargeMessage(maxKb, frontImage.getSize()));
             }
 
             String contentType = frontImage.getContentType();
@@ -133,7 +135,7 @@ public class FaceDataService {
                     || (filename.endsWith(".jpg") || filename.endsWith(".jpeg") || filename.endsWith(".png"));
 
             if (!isValidFormat) {
-                throw new IllegalArgumentException("Định dạng file không hợp lệ. Chỉ chấp nhận file ảnh định dạng JPG hoặc PNG.");
+                throw new FaceImageException(FaceErrorCode.ERR_FACE_004, "Định dạng file không hợp lệ. Chỉ chấp nhận file ảnh định dạng JPG hoặc PNG.");
             }
 
             byte[] imageBytes = frontImage.getBytes();
@@ -163,7 +165,7 @@ public class FaceDataService {
             }
 
             if (aiResult == null || !aiResult.isSuccess()) {
-                throw new FaceDetectionException("AI Service không thể trích xuất vector khuôn mặt cho mã: " + code);
+                throw new FaceDetectionException(FaceErrorCode.ERR_FACE_007, "AI Service không thể trích xuất vector khuôn mặt cho mã: " + code);
             }
 
             // face-gate 1: thiếu số khuôn mặt hoặc vector không đủ 512 chiều -> chặn như luồng ảnh khách (ERR_GUEST_035),
@@ -175,10 +177,10 @@ public class FaceDataService {
                 throw new AiServiceUnavailableException("Dịch vụ AI không trích xuất được khuôn mặt, vui lòng thử lại sau.");
             }
             if (aiResult.getFaceCount() > 1) {
-                throw new FaceDetectionException("Ảnh chứa nhiều hơn 1 khuôn mặt");
+                throw new FaceDetectionException(FaceErrorCode.ERR_FACE_006, "Ảnh chứa nhiều hơn 1 khuôn mặt");
             }
             if (aiResult.getFaceCount() == 0) {
-                throw new FaceDetectionException(NO_FACE_MESSAGE);
+                throw new FaceDetectionException(FaceErrorCode.ERR_FACE_005, NO_FACE_MESSAGE);
             }
 
             // Không đăng ký khuôn mặt đã thuộc về người khác: người dùng chưa xoá mềm, kể cả đang bị vô hiệu hoá (trừ chính
@@ -238,12 +240,12 @@ public class FaceDataService {
             if (AiFaceRegistrationErrors.isNoFaceDetected(e)) {
                 log.warn("AI Service không phát hiện khuôn mặt trong ảnh của [{}] ({}): {}", code, e.getStatusCode(),
                         AiFaceRegistrationErrors.bodyForLog(e));
-                throw new FaceDetectionException(NO_FACE_MESSAGE);
+                throw new FaceDetectionException(FaceErrorCode.ERR_FACE_005, NO_FACE_MESSAGE);
             }
             if (e.getStatusCode().value() == 422 || e.getStatusCode().value() == 400) {
                 log.warn("AI Service từ chối ảnh của [{}] ({}): {}", code, e.getStatusCode(),
                         AiFaceRegistrationErrors.bodyForLog(e));
-                throw new FaceDetectionException(IMAGE_UNPROCESSABLE_MESSAGE);
+                throw new FaceDetectionException(FaceErrorCode.ERR_FACE_007, IMAGE_UNPROCESSABLE_MESSAGE);
             }
             log.error("AI Service trả về lỗi [{}] cho [{}]: {}", e.getStatusCode(), code, AiFaceRegistrationErrors.bodyForLog(e));
             throw new AiServiceUnavailableException(AI_SERVICE_ERROR_MESSAGE);
@@ -384,7 +386,7 @@ public class FaceDataService {
      */
     static RuntimeException edgeExtractionFailure(String errorCode) {
         if (AiFaceRegistrationErrors.EDGE_NO_FACE_ERROR_CODE.equals(errorCode)) {
-            return new FaceDetectionException(NO_FACE_MESSAGE);
+            return new FaceDetectionException(FaceErrorCode.ERR_FACE_005, NO_FACE_MESSAGE);
         }
         return new AiServiceUnavailableException(AI_SERVICE_ERROR_MESSAGE);
     }

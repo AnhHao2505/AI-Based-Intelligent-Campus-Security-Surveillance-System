@@ -303,6 +303,9 @@ class FaceImageRollbackCleanupTest {
 
         assertThat(response.getSuccessCount()).isEqualTo(1);
         assertThat(response.getFailureCount()).isEqualTo(1);
+        // B1: lỗi ghi audit giữ câu của AuditWriteException và mang mã ERR_AUDIT_001 ở kết quả dòng
+        assertThat(response.getResults().get(1).getErrorMessage()).isEqualTo("audit dòng 2 lỗi");
+        assertThat(response.getResults().get(1).getErrorCode()).isEqualTo("ERR_AUDIT_001");
         verify(minioStorageService).uploadFaceImage(any(), eq("OI12A"));
         verify(minioStorageService).uploadFaceImage(any(), eq("OI12B"));
         verify(minioStorageService, never()).deleteFaceImage("OI12A");
