@@ -25,6 +25,10 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
     @Query("SELECT c FROM Camera c LEFT JOIN FETCH c.area WHERE c.cameraCode IN :cameraCodes")
     List<Camera> findByCameraCodeIn(@Param("cameraCodes") java.util.Collection<String> cameraCodes);
 
+    /** Mã camera (viết hoa) còn tồn tại, chưa xoá mềm, trong số các mã truyền vào (so không phân biệt hoa thường). */
+    @Query("SELECT UPPER(c.cameraCode) FROM Camera c WHERE c.deletedAt IS NULL AND UPPER(c.cameraCode) IN :upperCodes")
+    List<String> findExistingUpperCameraCodes(@Param("upperCodes") java.util.Collection<String> upperCodes);
+
     Optional<Camera> findTopByCameraCodeStartingWithOrderByCameraCodeDesc(String prefix);
 
     @Query(value = "SELECT c FROM Camera c LEFT JOIN FETCH c.area WHERE " +
