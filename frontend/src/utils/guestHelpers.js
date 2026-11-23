@@ -74,6 +74,64 @@ export function readGuestPhotoMaxKb(eligibility) {
 }
 
 /**
+ * TC-F12-S07: giới hạn ảnh (GUEST_PHOTO_MAX_KB) và phiên bản thông báo đồng ý của MỘT lần mở form khách
+ * (form tạo lượt / hộp gắn - thay ảnh). Mỗi lần mở form đọc lại /eligibility, không dùng giá trị đọc lúc tải trang.
+ * status: 'idle' (chưa mở) | 'loading' (đang đọc) | 'ready' (đã đọc) | 'error' (đọc lỗi).
+ * Đang đọc hoặc đọc lỗi: photoMaxKb = null -> trình duyệt không chặn dung lượng, backend kiểm (ERR_GUEST_033);
+ * consentVersion = null -> khoá ô đồng ý như khi chưa tải được phiên bản thông báo.
+ */
+export const GUEST_FORM_LIMITS_INITIAL = Object.freeze({
+  status: 'idle',
+  photoMaxKb: null,
+  consentVersion: null,
+});
+
+/**
+ * @param {{ status: string, photoMaxKb: number|null, consentVersion: string|null }} state
+ * @param {{ type: 'open' } | { type: 'loaded', eligibility: object|null } | { type: 'failed' }} action
+ */
+export function guestFormLimitsReducer(state, action) {
+  switch (action?.type) {
+    case 'open':
+      return { status: 'loading', photoMaxKb: null, consentVersion: null };
+    case 'loaded':
+      return {
+        status: 'ready',
+        photoMaxKb: readGuestPhotoMaxKb(action.eligibility),
+        consentVersion: action.eligibility?.consentNoticeVersion || null,
+      };
+    case 'failed':
+      return { status: 'error', photoMaxKb: null, consentVersion: null };
+    default:
+      return state;
+  }
+}
+
+/**
+ * Hàm đọc lại /eligibility cho mỗi lần mở form: dispatch 'open' (xoá giá trị cũ) rồi 'loaded' / 'failed'.
+ * Mở form lần sau khi lần trước chưa trả về: kết quả của lần cũ bị bỏ qua (không ghi đè giá trị mới).
+ * @param {() => Promise<object|null>} fetchEligibility gọi GET /api/guest-visits/eligibility
+ * @param {(action: object) => void} dispatch dispatch của guestFormLimitsReducer
+ * @returns {() => Promise<object|null>} trả dữ liệu /eligibility của lần mở mới nhất; null nếu lỗi hoặc đã có lần mở mới hơn
+ */
+export function createGuestFormLimitsLoader(fetchEligibility, dispatch) {
+  let latest = 0;
+  return async function reload() {
+    const seq = ++latest;
+    dispatch({ type: 'open' });
+    try {
+      const data = (await fetchEligibility()) || null;
+      if (seq !== latest) return null;
+      dispatch({ type: 'loaded', eligibility: data });
+      return data;
+    } catch {
+      if (seq === latest) dispatch({ type: 'failed' });
+      return null;
+    }
+  };
+}
+
+/**
  * Cụm chữ giới hạn dung lượng cho nhãn ô chọn ảnh khách.
  * @param {number|null} maxKb
  * @returns {string} "tối đa 2048 KB" hoặc "dung lượng tối đa theo cấu hình hệ thống" khi chưa đọc được

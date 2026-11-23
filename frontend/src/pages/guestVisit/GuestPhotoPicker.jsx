@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { validateGuestPhotoFile, guestPhotoLimitText } from "../../utils/guestHelpers";
 
 /**
@@ -26,6 +26,7 @@ export default function GuestPhotoPicker({
 	const file = value?.file || null;
 	const [previewUrl, setPreviewUrl] = useState(null);
 	const [fileError, setFileError] = useState(null);
+	const inputRef = useRef(null);
 
 	useEffect(() => {
 		if (!file) {
@@ -36,6 +37,17 @@ export default function GuestPhotoPicker({
 		setPreviewUrl(url);
 		return () => URL.revokeObjectURL(url);
 	}, [file]);
+
+	// TC-F12-S07: form mở lúc giới hạn còn đang tải (maxKb null -> không chặn) mà đã chọn ảnh, giới hạn đọc xong thì kiểm lại
+	// ảnh đang chọn theo giới hạn vừa đọc; vượt thì bỏ ảnh và báo lỗi như khi chọn ảnh quá cỡ.
+	useEffect(() => {
+		if (!file) return;
+		const error = validateGuestPhotoFile(file, maxKb);
+		if (!error) return;
+		setFileError(error);
+		if (inputRef.current) inputRef.current.value = "";
+		onChange({ ...value, file: null });
+	}, [maxKb, file, value, onChange]);
 
 	const handleFile = (e) => {
 		const picked = e.target.files?.[0] || null;
@@ -55,6 +67,7 @@ export default function GuestPhotoPicker({
 					Ảnh khuôn mặt * (JPG, PNG, {guestPhotoLimitText(maxKb)})
 				</label>
 				<input
+					ref={inputRef}
 					id={`${id}-file`}
 					className="guest-visit__file-input"
 					type="file"
@@ -83,7 +96,7 @@ export default function GuestPhotoPicker({
 					</span>
 				</label>
 			</div>
-			{previewUrl && (
+			{previewUrl && file && (
 				<figure className="guest-visit__photo-preview">
 					<img src={previewUrl} alt={`Xem trước ảnh của ${guestLabel}`} />
 					<figcaption className="guest-visit__muted">

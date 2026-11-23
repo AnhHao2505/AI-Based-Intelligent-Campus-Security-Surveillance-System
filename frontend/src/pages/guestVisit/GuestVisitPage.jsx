@@ -30,7 +30,6 @@ import {
 	getMissingPhotoInfo,
 	canHostReplacePhoto,
 	getErrorGuestIndex,
-	readGuestPhotoMaxKb,
 } from "../../utils/guestHelpers";
 import GuestPhotoPicker from "./GuestPhotoPicker";
 import GuestPhotoThumb from "./GuestPhotoThumb";
@@ -40,6 +39,8 @@ import { toast } from "sonner";
 import { useReasonLimits } from "../../hooks/useReasonLimits";
 import useRevealMessage from "../../hooks/useRevealMessage";
 import useGuestPurposeLimits from "../../hooks/useGuestPurposeLimits";
+import useGuestFormLimits from "../../hooks/useGuestFormLimits";
+import { guestPurposeState } from "../../utils/guestPurposeLimits";
 
 const PAGE_SIZE = 10;
 // A1: mỗi khách có ảnh khuôn mặt + xác nhận đồng ý; uid làm key ổn định khi xoá khách giữa danh sách
@@ -69,8 +70,9 @@ function ReasonBlock({ label, value }) {
 
 export default function GuestVisitPage() {
 	const reasonLimits = useReasonLimits();
-	// N1 (V120): độ dài mục đích lượt khách đọc từ cấu hình (GUEST_PURPOSE_MIN_LENGTH / GUEST_PURPOSE_MAX_LENGTH)
-	const purposeLimits = useGuestPurposeLimits();
+	// N1 (V120): độ dài mục đích lượt khách đọc từ cấu hình (GUEST_PURPOSE_MIN_LENGTH / GUEST_PURPOSE_MAX_LENGTH),
+	// đọc lại mỗi lần mở form tạo lượt; chưa đọc được thì không chặn độ dài, backend kiểm
+	const [purposeLimits, reloadPurposeLimits] = useGuestPurposeLimits();
 	// Danh sách
 	const [visits, setVisits] = useState([]);
 	const [page, setPage] = useState(0);
@@ -184,9 +186,15 @@ export default function GuestVisitPage() {
 	}, []);
 	const cannotHost = eligibility?.canHost === false;
 	// Phiên bản thông báo đồng ý + giới hạn ảnh lấy từ /eligibility (NORMAL_USER không đọc được System Configuration).
-	// V141: chưa đọc được giới hạn thì null -> form không chặn dung lượng, backend kiểm (ERR_GUEST_033); không đoán số
-	const consentVersion = eligibility?.consentNoticeVersion || null;
-	const photoMaxKb = readGuestPhotoMaxKb(eligibility);
+	// TC-F12-S07: đọc lại MỖI LẦN mở form tạo lượt / hộp gắn - thay ảnh (không dùng giá trị đọc lúc tải trang), để Admin
+	// đổi GUEST_PHOTO_MAX_KB khi trang đang mở thì lần mở form sau dùng giá trị mới.
+	// V141: đang đọc / đọc lỗi thì photoMaxKb null -> form không chặn dung lượng, backend kiểm (ERR_GUEST_033); không đoán số
+	const [createLimits, reloadCreateLimits] = useGuestFormLimits();
+	const [replaceLimits, reloadReplaceLimits] = useGuestFormLimits();
+	// Cùng lời gọi /eligibility: cập nhật luôn canHost của trang (nút "Tạo lượt khách", cảnh báo chưa đủ cấp)
+	const refreshEligibility = (data) => {
+		if (data) setEligibility(data);
+	};
 
 	const selectableAreas = useMemo(
 		() => areas.filter((a) => GUEST_ALLOWED_AREA_LEVELS.includes(a.areaLevel)),
@@ -202,6 +210,8 @@ export default function GuestVisitPage() {
 		setCreateError("");
 		setErrorGuestIndex(null);
 		setCreateOpen(true);
+		reloadCreateLimits().then(refreshEligibility);
+		reloadPurposeLimits();
 		setLoadingAreas(true);
 		try {
 			const data = await guestVisitService.getSelectableAreas();
@@ -258,19 +268,19 @@ export default function GuestVisitPage() {
 		setErrorGuestIndex(null);
 	};
 
-	const purposeLength = purpose.trim().length;
+	const purposeState = guestPurposeState(purpose, purposeLimits);
 	// UX-03: lý do nút "Gửi duyệt" đang khoá — cùng điều kiện với canSubmitCreate
 	const createBlockers = [];
-	if (!purposeLimits.isValid(purpose)) {
-		createBlockers.push(`mục đích ${purposeLimits.min}–${purposeLimits.max} ký tự (hiện có ${purposeLength})`);
-	}
+	if (purposeState.blocker) createBlockers.push(purposeState.blocker);
 	if (!startTime || !endTime) createBlockers.push("chọn thời gian bắt đầu và kết thúc");
 	if (areaIds.length === 0) createBlockers.push("chọn ít nhất một khu vực");
 	if (guests.length === 0 || !guests.every((g) => g.fullName.trim().length >= 2)) {
 		createBlockers.push("nhập họ tên (tối thiểu 2 ký tự) cho mọi khách");
 	}
-	if (!consentVersion) {
-		createBlockers.push("tải được phiên bản thông báo đồng ý (thử tải lại trang)");
+	if (createLimits.status === "loading") {
+		createBlockers.push("chờ tải phiên bản thông báo đồng ý");
+	} else if (!createLimits.consentVersion) {
+		createBlockers.push("tải được phiên bản thông báo đồng ý (thử đóng rồi mở lại form)");
 	} else if (!guests.every((g) => g.photo.file && g.photo.consent)) {
 		createBlockers.push("chọn ảnh và tick đồng ý chụp ảnh cho mọi khách");
 	}
@@ -286,7 +296,7 @@ export default function GuestVisitPage() {
 				startTime: toIso(startTime),
 				endTime: toIso(endTime),
 				areaIds,
-				consentNoticeVersion: consentVersion,
+				consentNoticeVersion: createLimits.consentVersion,
 				guests: guests.map((g) => ({
 					fullName: g.fullName.trim(),
 					organization: g.organization.trim() || null,
@@ -351,6 +361,7 @@ export default function GuestVisitPage() {
 		setReplaceTarget({ visit, guest });
 		setReplacePhoto({ file: null, consent: false });
 		setReplaceError("");
+		reloadReplaceLimits().then(refreshEligibility);
 	};
 
 	const closeReplace = () => {
@@ -360,6 +371,7 @@ export default function GuestVisitPage() {
 	};
 
 	const submitReplace = async () => {
+		const consentVersion = replaceLimits.consentVersion;
 		if (!replaceTarget || !replacePhoto.file || !replacePhoto.consent || !consentVersion) return;
 		setReplacing(true);
 		setReplaceError("");
@@ -567,8 +579,8 @@ export default function GuestVisitPage() {
 							onChange={(e) => setPurpose(e.target.value)}
 							placeholder="Ví dụ: Đối tác doanh nghiệp tham quan phòng lab AI để bàn hợp tác đào tạo"
 						/>
-						<span className={`guest-visit__hint ${purposeLength > 0 && !purposeLimits.isValid(purpose) ? "guest-visit__hint--error" : ""}`}>
-							{purposeLength}/{purposeLimits.max} ký tự (tối thiểu {purposeLimits.min})
+						<span className={`guest-visit__hint ${purposeState.error ? "guest-visit__hint--error" : ""}`}>
+							{purposeState.counter}
 						</span>
 					</label>
 
@@ -663,8 +675,8 @@ export default function GuestVisitPage() {
 										updateGuest(i, "photo", next);
 										if (errorGuestIndex === i) setErrorGuestIndex(null);
 									}}
-									maxKb={photoMaxKb}
-									consentVersion={consentVersion}
+									maxKb={createLimits.photoMaxKb}
+									consentVersion={createLimits.consentVersion}
 									disabled={creating}
 								/>
 							</div>
@@ -824,7 +836,7 @@ export default function GuestVisitPage() {
 					<Button
 						onClick={submitReplace}
 						loading={replacing}
-						disabled={replacing || !replacePhoto.file || !replacePhoto.consent || !consentVersion}
+						disabled={replacing || !replacePhoto.file || !replacePhoto.consent || !replaceLimits.consentVersion}
 					>
 						Lưu ảnh
 					</Button>
@@ -847,8 +859,8 @@ export default function GuestVisitPage() {
 							guestLabel={replaceTarget.guest.fullName}
 							value={replacePhoto}
 							onChange={setReplacePhoto}
-							maxKb={photoMaxKb}
-							consentVersion={consentVersion}
+							maxKb={replaceLimits.photoMaxKb}
+							consentVersion={replaceLimits.consentVersion}
 							disabled={replacing}
 						/>
 					</div>
