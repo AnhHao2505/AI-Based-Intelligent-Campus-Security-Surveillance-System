@@ -1009,7 +1009,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			{/* Thanh DVR YouTube-Live Video Scrubber + Red Dots */}
 			{enableDvr && (
 				<div
-					className={`dvr-scrubber-bar ${compactScrubber ? "is-compact" : ""}`}
+					className={`dvr-scrubber-bar ${compactScrubber ? "is-compact" : ""} ${isScrubbing ? "is-scrubbing" : ""}`}
 					onClick={(e) => e.stopPropagation()}
 				>
 					{/* Hàng 1: Timeline Scrubber Track + Chấm đỏ cảnh báo */}
