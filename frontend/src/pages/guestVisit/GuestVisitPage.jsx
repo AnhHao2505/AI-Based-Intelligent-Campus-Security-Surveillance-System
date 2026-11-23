@@ -40,6 +40,7 @@ import { useReasonLimits } from "../../hooks/useReasonLimits";
 import useRevealMessage from "../../hooks/useRevealMessage";
 import useGuestPurposeLimits from "../../hooks/useGuestPurposeLimits";
 import useGuestFormLimits from "../../hooks/useGuestFormLimits";
+import { guestPurposeState } from "../../utils/guestPurposeLimits";
 
 const PAGE_SIZE = 10;
 // A1: mỗi khách có ảnh khuôn mặt + xác nhận đồng ý; uid làm key ổn định khi xoá khách giữa danh sách
@@ -69,8 +70,9 @@ function ReasonBlock({ label, value }) {
 
 export default function GuestVisitPage() {
 	const reasonLimits = useReasonLimits();
-	// N1 (V120): độ dài mục đích lượt khách đọc từ cấu hình (GUEST_PURPOSE_MIN_LENGTH / GUEST_PURPOSE_MAX_LENGTH)
-	const purposeLimits = useGuestPurposeLimits();
+	// N1 (V120): độ dài mục đích lượt khách đọc từ cấu hình (GUEST_PURPOSE_MIN_LENGTH / GUEST_PURPOSE_MAX_LENGTH),
+	// đọc lại mỗi lần mở form tạo lượt; chưa đọc được thì không chặn độ dài, backend kiểm
+	const [purposeLimits, reloadPurposeLimits] = useGuestPurposeLimits();
 	// Danh sách
 	const [visits, setVisits] = useState([]);
 	const [page, setPage] = useState(0);
@@ -209,6 +211,7 @@ export default function GuestVisitPage() {
 		setErrorGuestIndex(null);
 		setCreateOpen(true);
 		reloadCreateLimits().then(refreshEligibility);
+		reloadPurposeLimits();
 		setLoadingAreas(true);
 		try {
 			const data = await guestVisitService.getSelectableAreas();
@@ -265,12 +268,10 @@ export default function GuestVisitPage() {
 		setErrorGuestIndex(null);
 	};
 
-	const purposeLength = purpose.trim().length;
+	const purposeState = guestPurposeState(purpose, purposeLimits);
 	// UX-03: lý do nút "Gửi duyệt" đang khoá — cùng điều kiện với canSubmitCreate
 	const createBlockers = [];
-	if (!purposeLimits.isValid(purpose)) {
-		createBlockers.push(`mục đích ${purposeLimits.min}–${purposeLimits.max} ký tự (hiện có ${purposeLength})`);
-	}
+	if (purposeState.blocker) createBlockers.push(purposeState.blocker);
 	if (!startTime || !endTime) createBlockers.push("chọn thời gian bắt đầu và kết thúc");
 	if (areaIds.length === 0) createBlockers.push("chọn ít nhất một khu vực");
 	if (guests.length === 0 || !guests.every((g) => g.fullName.trim().length >= 2)) {
@@ -578,8 +579,8 @@ export default function GuestVisitPage() {
 							onChange={(e) => setPurpose(e.target.value)}
 							placeholder="Ví dụ: Đối tác doanh nghiệp tham quan phòng lab AI để bàn hợp tác đào tạo"
 						/>
-						<span className={`guest-visit__hint ${purposeLength > 0 && !purposeLimits.isValid(purpose) ? "guest-visit__hint--error" : ""}`}>
-							{purposeLength}/{purposeLimits.max} ký tự (tối thiểu {purposeLimits.min})
+						<span className={`guest-visit__hint ${purposeState.error ? "guest-visit__hint--error" : ""}`}>
+							{purposeState.counter}
 						</span>
 					</label>
 
