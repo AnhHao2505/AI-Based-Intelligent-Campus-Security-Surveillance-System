@@ -126,7 +126,9 @@ class Settings(BaseSettings):
         default=["ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"],
         validation_alias="NIGHT_ALLOWED_ACCESS_SOURCES"
     )
-    DEFAULT_TRACK_MAX_INACTIVE_SECONDS: float = 2.0
+    # V142: tham số kỹ thuật, đọc từ .env (không còn trên màn Cấu hình). 4.0 > 2.0s ByteTrack nhớ người mất dấu,
+    # để engine còn giữ danh tính khi ByteTrack trả lại đúng ID cũ (motion gating / FPS thực thấp hơn analysis_fps).
+    DEFAULT_TRACK_MAX_INACTIVE_SECONDS: float = Field(default=4.0, validation_alias="DEFAULT_TRACK_MAX_INACTIVE_SECONDS")
     DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS: float = 30.0
     DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS: float = Field(default=30.0, validation_alias="DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS")
     ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS: float = Field(default=1.5, validation_alias="ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS")
