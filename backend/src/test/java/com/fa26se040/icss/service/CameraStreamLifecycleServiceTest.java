@@ -52,6 +52,9 @@ class CameraStreamLifecycleServiceTest {
     @Mock
     private EdgeStatusService edgeStatusService;
 
+    @Mock
+    private AuditService auditService;
+
     @InjectMocks
     private CameraStreamLifecycleService cameraStreamLifecycleService;
 
@@ -212,6 +215,19 @@ class CameraStreamLifecycleServiceTest {
         verify(mediaMtxService).deleteCameraPath("CAM-001");
         verify(restTemplate).postForObject(contains("/api/v1/stream/stop?camera_code=CAM-001"), isNull(), eq(Map.class));
         verify(cameraRepository).save(argThat(c -> c.getOperationalStatus() == OperationalStatus.OFFLINE));
+        verify(auditService).record(
+                eq(com.fa26se040.icss.enums.AuditTargetType.CAMERA),
+                eq(com.fa26se040.icss.enums.AuditAction.STOP_STREAM),
+                eq(cameraId.toString()),
+                eq(camera.getArea()),
+                isNull(),
+                argThat(snap -> snap instanceof com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot s
+                        && s.operationalStatus() == OperationalStatus.ONLINE),
+                argThat(snap -> snap instanceof com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot s
+                        && s.operationalStatus() == OperationalStatus.OFFLINE),
+                contains("Ngắt kết nối stream"),
+                nullable(com.fa26se040.icss.dto.audit.AuditActor.class)
+        );
     }
 
     @Test

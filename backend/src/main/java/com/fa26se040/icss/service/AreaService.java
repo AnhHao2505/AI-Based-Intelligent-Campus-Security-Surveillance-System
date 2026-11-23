@@ -20,6 +20,7 @@ import com.fa26se040.icss.dto.area.AreaEventModeUpdateRequest;
 import com.fa26se040.icss.dto.accesscontrol.snapshot.AreaSnapshot;
 import com.fa26se040.icss.enums.AuditAction;
 import com.fa26se040.icss.enums.AuditTargetType;
+import com.fa26se040.icss.enums.CameraType;
 import com.fa26se040.icss.dto.area.AreaCameraResponse;
 import com.fa26se040.icss.dto.camera.CameraSimpleResponse;
 import com.fa26se040.icss.entity.Camera;
@@ -422,6 +423,53 @@ public class AreaService {
         guestVisitServiceProvider.getObject().closeForAreaDeactivation(visitIds, actor, reason, now);
     }
 
+    private static CameraType expectedCameraTypeForAreaLevel(AreaLevel level) {
+        return level == AreaLevel.PUBLIC ? CameraType.PUBLIC_AREA : CameraType.RESTRICTED_AREA;
+    }
+
+    private int countCamerasToSyncType(UUID areaId, AreaLevel newLevel) {
+        if (cameraRepository == null) {
+            return 0;
+        }
+        CameraType expected = expectedCameraTypeForAreaLevel(newLevel);
+        return (int) cameraRepository.findByAreaIdAndDeletedAtIsNull(areaId).stream()
+                .filter(c -> c.getCameraType() != CameraType.CORRIDOR && c.getCameraType() != expected)
+                .count();
+    }
+
+    /**
+     * Đồng bộ cameraType của các camera thuộc khu vực khi Admin đổi loại khu vực (PUBLIC <-> RESTRICTED/HIGH_SECURITY),
+     * đảm bảo chế độ AI (giờ giới nghiêm vs 24/7) luôn khớp với cấp khu vực mới và có audit log cùng correlationId.
+     */
+    private void syncCameraTypesOnTypeChange(Area savedArea, AreaLevel newLevel) {
+        if (cameraRepository == null) {
+            return;
+        }
+        CameraType expected = expectedCameraTypeForAreaLevel(newLevel);
+        List<Camera> areaCameras = cameraRepository.findByAreaIdAndDeletedAtIsNull(savedArea.getId());
+        for (Camera cam : areaCameras) {
+            if (cam.getCameraType() == CameraType.CORRIDOR || cam.getCameraType() == expected) {
+                continue;
+            }
+            com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot beforeCam =
+                    com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot.from(cam);
+            cam.setCameraType(expected);
+            Camera savedCam = cameraRepository.save(cam);
+            Camera effective = savedCam != null ? savedCam : cam;
+            auditService.record(
+                    AuditTargetType.CAMERA,
+                    AuditAction.UPDATE,
+                    effective.getId().toString(),
+                    savedArea,
+                    null,
+                    beforeCam,
+                    com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot.from(effective),
+                    "Tự động đồng bộ loại camera theo cấp khu vực mới (" + newLevel.name() + ")",
+                    com.fa26se040.icss.dto.audit.AuditActor.system(AREA_TYPE_CHANGE_SOURCE)
+            );
+        }
+    }
+
     /** BR-TC-03: xem trước đổi loại (chỉ đọc). Cùng hàm đánh giá với PUT. */
     @Transactional(readOnly = true)
     public com.fa26se040.icss.dto.area.AreaTypeChangePreviewResponse previewTypeChange(UUID id, AreaLevel newLevel) {
@@ -450,6 +498,7 @@ public class AreaService {
                         .filter(v -> v.getStatus() == com.fa26se040.icss.enums.GuestVisitStatus.PENDING).count())
                 .guestVisitsToRevokeCount((int) ev.guestVisitsToClose().stream()
                         .filter(v -> v.getStatus() == com.fa26se040.icss.enums.GuestVisitStatus.APPROVED).count())
+                .camerasToSyncTypeCount(countCamerasToSyncType(area.getId(), newLevel))
                 .blockingReasons(ev.blockers().stream()
                         .map(b -> new com.fa26se040.icss.dto.area.AreaTypeChangePreviewResponse.BlockingReason(
                                 b.getErrorCode().getCode(), b.getMessage()))
@@ -947,6 +996,7 @@ public class AreaService {
                     List<com.fa26se040.icss.entity.AccessRequest> cancelled =
                             cancelRequestsBySystem(savedArea, evaluation.allToCancel(), now, AREA_TYPE_CHANGE_SOURCE);
                     closeGuestVisitsOnTypeChange(savedArea, evaluation, actor, now);
+                    syncCameraTypesOnTypeChange(savedArea, evaluation.newLevel());
                     notifyAfterTypeChange(savedArea, evaluation.currentLevel(), evaluation.newLevel(), reason, cancelled);
                 } else {
                     auditService.record(

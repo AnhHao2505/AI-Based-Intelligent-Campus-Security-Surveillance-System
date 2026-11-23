@@ -39,5 +39,7 @@ public enum AuditAction {
     LOGIN_FAILED,
     ACCOUNT_LOCKED,
     PASSWORD_RESET_REQUESTED,
-    PASSWORD_RESET_COMPLETED
+    PASSWORD_RESET_COMPLETED,
+    // V142: camera stream lifecycle
+    STOP_STREAM
 }

@@ -25,5 +25,7 @@ public enum AuditTargetType {
     USER_IMPORT_BATCH,
     FACE_REGISTRATION,
     AUTH,
-    SYSTEM_CONFIG
+    SYSTEM_CONFIG,
+    // V142: camera & stream lifecycle
+    CAMERA
 }

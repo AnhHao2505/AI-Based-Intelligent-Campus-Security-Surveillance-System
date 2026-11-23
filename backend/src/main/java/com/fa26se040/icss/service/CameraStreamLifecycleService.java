@@ -1,9 +1,12 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.CameraAuditSnapshot;
 import com.fa26se040.icss.dto.camera.CameraStreamLifecycleResponse;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.CameraStreamConfiguration;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.OperationalStatus;
 import com.fa26se040.icss.exception.AreaErrorCode;
@@ -43,6 +46,7 @@ public class CameraStreamLifecycleService {
     private final CameraService cameraService;
     private final MediaMtxService mediaMtxService;
     private final AiServiceRestTemplate restTemplate;
+    private final AuditService auditService;
 
     @Autowired(required = false)
     private EdgeMqttControlService edgeMqttControlService;
@@ -213,6 +217,7 @@ public class CameraStreamLifecycleService {
         Camera camera = cameraRepository.findById(cameraId)
                 .filter(c -> c.getDeletedAt() == null)
                 .orElseThrow(() -> new CameraException(CameraErrorCode.ERR_CAM_002));
+        CameraAuditSnapshot oldSnap = CameraAuditSnapshot.from(camera);
 
         boolean mqttConnected = edgeMqttControlService != null && edgeMqttControlService.isConnected();
         boolean edgeOnline = mqttConnected && edgeStatusService != null && edgeStatusService.hasActiveOnlineEdge();
@@ -243,7 +248,22 @@ public class CameraStreamLifecycleService {
 
         camera.setOperationalStatus(OperationalStatus.OFFLINE);
         camera.setUpdatedAt(OffsetDateTime.now());
-        cameraRepository.save(camera);
+        Camera saved = cameraRepository.save(camera);
+        Camera effective = saved != null ? saved : camera;
+
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.CAMERA,
+                    AuditAction.STOP_STREAM,
+                    effective.getId().toString(),
+                    effective.getArea(),
+                    null,
+                    oldSnap,
+                    CameraAuditSnapshot.from(effective),
+                    "Ngắt kết nối stream camera " + effective.getCameraCode(),
+                    auditService.resolveCurrentActor("CAMERA_STREAM_SERVICE")
+            );
+        }
 
         return CameraStreamLifecycleResponse.builder()
                 .success(true)

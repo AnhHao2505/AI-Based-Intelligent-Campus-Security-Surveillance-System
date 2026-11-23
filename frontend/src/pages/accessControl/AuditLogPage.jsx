@@ -67,6 +67,10 @@ const AUDIT_FIELD_LABELS = {
 	consentNoticeVersion: "Phiên bản thông báo đồng ý",
 	photoDeletionScheduled: "Lịch xóa ảnh",
 	anonymized: "Ẩn danh hóa",
+	cameraCode: "Mã camera",
+	cameraType: "Loại camera",
+	operationalStatus: "Trạng thái kết nối",
+	deleted: "Đã xóa",
 };
 
 const isBlankValue = (v) => v === null || v === undefined;
@@ -113,6 +117,8 @@ const MODULE_OPTIONS_ADMIN = [
 	{ value: "GUEST", label: "Khách" },
 	// Xem ảnh qua /api/media — chỉ ADMIN (audit_module_roles, V81_1)
 	{ value: "SECURITY", label: "An ninh" },
+	// Camera & stream lifecycle — chỉ ADMIN (audit_module_roles, V142)
+	{ value: "CAMERA", label: "Camera" },
 ];
 
 const MODULE_OPTIONS_FM = [
@@ -148,8 +154,14 @@ const TARGET_TYPE_OPTIONS_SECURITY = [
 	{ value: "SECURITY_EVIDENCE", label: "Ảnh bằng chứng sự cố" },
 ];
 
+// Đối tượng của phân hệ CAMERA — chỉ ADMIN được đọc (V142)
+const TARGET_TYPE_OPTIONS_CAMERA = [
+	{ value: "CAMERA", label: "Camera" },
+];
+
 // Màu badge "Loại sự kiện" theo bảng màu của thiết kế (category-badge--*)
 const TARGET_TYPE_CATEGORY = {
+	CAMERA: "warning",
 	USER_ACCESS_LEVEL: "purple",
 	AREA_ACCESS_RULES: "purple",
 	AREA_ASSIGNMENT: "purple",
@@ -526,6 +538,67 @@ export default function AuditLogPage() {
 			);
 		}
 
+		if (targetType === "CAMERA") {
+			const oldCam = oldValue || {};
+			const newCam = newValue || {};
+			const code = newCam.cameraCode || oldCam.cameraCode;
+			const name = newCam.name || oldCam.name;
+			const cameraStatusLabel = (s) =>
+				s === "ACTIVE" ? "Đang bật" : s === "DECOMMISSIONED" ? "Đã tắt" : s || "—";
+			const opStatusLabel = (s) =>
+				s === "ONLINE" ? "Đang kết nối" : s === "OFFLINE" ? "Mất kết nối" : s || "—";
+			const camTypeLabel = (t) =>
+				t === "RESTRICTED_AREA"
+					? "Phòng hạn chế (AI 24/7)"
+					: t === "PUBLIC_AREA"
+						? "Phòng công cộng (AI giờ giới nghiêm)"
+						: t === "CORRIDOR"
+							? "Hành lang (AI giờ giới nghiêm)"
+							: t || "—";
+			return (
+				<div className="audit-detail-rules">
+					{(code || name) && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Camera:</span>
+							<strong>{[code, name].filter(Boolean).join(" – ")}</strong>
+						</div>
+					)}
+					{oldCam.cameraType !== newCam.cameraType && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Chế độ AI:</span>
+							<span>{camTypeLabel(oldCam.cameraType)}</span>
+							<span className="audit-arrow">→</span>
+							<strong className="audit-val--new">{camTypeLabel(newCam.cameraType)}</strong>
+						</div>
+					)}
+					{oldCam.status !== newCam.status && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Trạng thái:</span>
+							<span>{cameraStatusLabel(oldCam.status)}</span>
+							<span className="audit-arrow">→</span>
+							<strong className="audit-val--new">{cameraStatusLabel(newCam.status)}</strong>
+						</div>
+					)}
+					{oldCam.operationalStatus !== newCam.operationalStatus && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Luồng stream:</span>
+							<span>{opStatusLabel(oldCam.operationalStatus)}</span>
+							<span className="audit-arrow">→</span>
+							<strong className="audit-val--new">
+								{opStatusLabel(newCam.operationalStatus)}
+							</strong>
+						</div>
+					)}
+					{newCam.deleted && !oldCam.deleted && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Xóa mềm:</span>
+							<strong className="audit-val--new">Đã xóa</strong>
+						</div>
+					)}
+				</div>
+			);
+		}
+
 		// USER_ACCOUNT: hiện như tab Nhật ký của Quản lý tài khoản. Snapshot không có e-mail / mật khẩu / token.
 		if (targetType === "USER_ACCOUNT") {
 			const newV = newValue || {};
@@ -663,7 +736,12 @@ export default function AuditLogPage() {
 							onChange={(e) => setFilterTargetType(e.target.value)}
 							options={
 								isAdmin
-									? [...TARGET_TYPE_OPTIONS, ...TARGET_TYPE_OPTIONS_GUEST, ...TARGET_TYPE_OPTIONS_SECURITY]
+									? [
+											...TARGET_TYPE_OPTIONS,
+											...TARGET_TYPE_OPTIONS_GUEST,
+											...TARGET_TYPE_OPTIONS_SECURITY,
+											...TARGET_TYPE_OPTIONS_CAMERA,
+										]
 									: TARGET_TYPE_OPTIONS
 							}
 						/>

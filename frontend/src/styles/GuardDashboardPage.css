@@ -22,7 +22,8 @@
    Tối ưu hóa 100% cho Desktop & Điện Thoại Di Động (Landscape / Portrait)
    Đảm bảo cả thanh OSD trên và dưới KHÔNG BAO GIỜ bị tràn màn hình
    -------------------------------------------------------------------------- */
-.guard-dashboard-container.soc-theater-mode {
+.guard-dashboard-container.soc-theater-mode,
+body.soc-theater-active .guard-dashboard-container.soc-theater-mode {
   position: fixed;
   inset: 0;
   z-index: 9999;
@@ -30,13 +31,21 @@
   height: 100vh;
   height: 100dvh;
   /* dvh hỗ trợ chuẩn xác thanh địa chỉ trên trình duyệt di động */
-  padding: 4px 8px;
-  background: #000000;
+  padding: 6px 10px;
+  background: #0b0f19 !important;
+  background-color: #0b0f19 !important;
   overflow: hidden;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+}
+
+body.soc-theater-active .guard-chat-fab,
+body.soc-theater-active .guard-chat-window,
+body.soc-theater-active .headbar-peek,
+body.soc-theater-active .sidebar {
+  display: none !important;
 }
 
 .guard-dashboard-container.soc-theater-mode .guard-main-grid {
@@ -78,20 +87,28 @@
   height: 100%;
   width: 100%;
   display: grid;
-  align-items: center;
-  justify-content: center;
+  grid-template-rows: repeat(var(--grid-rows, 1), minmax(0, 1fr));
+  align-content: stretch;
+  align-items: stretch;
+  justify-items: stretch;
+  justify-content: stretch;
   overflow: hidden;
   gap: 6px;
 }
 
-/* Đảm bảo khung camera luôn nằm trọn vẹn trong viewport của điện thoại */
-.guard-dashboard-container.soc-theater-mode .video-viewport-card {
+/* Đảm bảo khung camera & ô trống chia đều 100% chiều cao từng hàng trong chế độ phóng to */
+.guard-dashboard-container.soc-theater-mode .video-viewport-card,
+.guard-dashboard-container.soc-theater-mode .camera-grid-empty-slot {
   width: 100%;
   height: 100%;
   max-width: 100%;
   max-height: 100%;
   min-height: 0;
   min-width: 0;
+  aspect-ratio: auto;
+}
+
+.guard-dashboard-container.soc-theater-mode .video-viewport-card {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -101,26 +118,40 @@
   border-radius: 3px;
 }
 
-/* Bố cục 1 Camera: Tự động khóa chiều cao để chiều rộng 16:9 không làm mất thanh dưới OSD */
+/* Bố cục 1 Camera: Khóa tỷ lệ 16:9 theo chiều cao 1fr khả dụng để không bị co về 0px hoặc tràn OSD */
 .guard-dashboard-container.soc-theater-mode .camera-grid--1 .cctv-player-wrapper {
-  max-height: 100%;
-  max-width: calc((100dvh - 52px) * 16 / 9);
+  width: min(100%, calc((100dvh - 58px) * 16 / 9));
   height: 100%;
-  width: auto;
-  aspect-ratio: 16 / 9;
-  margin: auto;
-}
-
-/* Bố cục nhiều camera trong chế độ phóng to */
-.guard-dashboard-container.soc-theater-mode .camera-grid--4 .cctv-player-wrapper,
-.guard-dashboard-container.soc-theater-mode .camera-grid--9 .cctv-player-wrapper,
-.guard-dashboard-container.soc-theater-mode .camera-grid--16 .cctv-player-wrapper {
   max-width: 100%;
   max-height: 100%;
+  aspect-ratio: auto;
+  margin: 0 auto;
+}
+
+/* Bố cục nhiều camera trong chế độ phóng to: Lấp đầy ô 1fr, giữ tỷ lệ video gốc bằng object-fit: contain */
+.guard-dashboard-container.soc-theater-mode .camera-grid--4 .cctv-player-wrapper,
+.guard-dashboard-container.soc-theater-mode .camera-grid--9 .cctv-player-wrapper,
+.guard-dashboard-container.soc-theater-mode .camera-grid--16 .cctv-player-wrapper,
+.guard-dashboard-container.soc-theater-mode .camera-grid--spotlight .cctv-player-wrapper,
+.guard-dashboard-container.soc-theater-mode .camera-grid--auto .cctv-player-wrapper {
   width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  margin: auto;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: auto;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .guard-dashboard-container.soc-theater-mode .camera-grid--spotlight {
+    grid-template-rows: minmax(0, 1.35fr) repeat(3, minmax(0, 1fr));
+  }
+}
+
+.guard-dashboard-container.soc-theater-mode .camera-grid--spotlight {
+  grid-auto-rows: minmax(0, 1fr);
 }
 
 /* Nút Thu nhỏ trên thanh điều khiển */
@@ -449,7 +480,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   Cột Trái: Giám Sát Video Trực Tiếp
+   Cột Trái: Giám Sát Video Trực Tiếp (Dark SOC Video Wall)
    -------------------------------------------------------------------------- */
 .video-surveillance-panel {
   display: flex;
@@ -457,6 +488,11 @@
   gap: 8px;
   min-width: 0;
   width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  background: #0b0f19;
+  border: 1px solid #1e293b;
+  box-sizing: border-box;
 }
 
 /* Thanh điều khiển tích hợp trên video */
@@ -465,10 +501,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 5px 10px;
-  background: var(--theme-bg-surface, #ffffff);
-  border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 4px;
+  padding: 6px 10px;
+  background: #111827;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
   flex-wrap: wrap;
 }
 
@@ -482,10 +518,10 @@
 .control-bar-label {
   display: flex;
   align-items: center;
-  gap: 3px;
-  font-size: 0.75rem;
+  gap: 4px;
+  font-size: 0.74rem;
   font-weight: 700;
-  color: var(--theme-text-muted, #64748b);
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -495,31 +531,109 @@
   align-items: center;
   gap: 2px;
   padding: 2px;
-  background: var(--theme-bg-page, #f8fafc);
-  border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 3px;
+  background: #0b0f19;
+  border: 1px solid #1e293b;
+  border-radius: 5px;
 }
 
 .camera-layout-option {
-  padding: 3px 7px;
+  padding: 4px 8px;
   border: 0;
-  border-radius: 2px;
+  border-radius: 4px;
   background: transparent;
-  color: var(--theme-text-secondary, #475569);
+  color: #94a3b8;
   font-size: 0.725rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
-  transition: all 0.2s ease;
+  white-space: nowrap;
+  transition: background-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .camera-layout-option:hover {
-  color: var(--theme-text-primary, #0f172a);
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .camera-layout-option.active {
-  background: var(--theme-bg-surface, #ffffff);
-  color: var(--theme-primary, #2563eb);
-  box-shadow: var(--theme-card-shadow);
+  background: #034ea2;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.area-filter-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  background: #0b0f19;
+  border: 1px solid #1e293b;
+  border-radius: 5px;
+  color: #cbd5e1;
+}
+
+.area-filter-icon {
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.area-filter-select {
+  background: transparent;
+  border: 0;
+  color: #e2e8f0;
+  font-size: 0.725rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  max-width: 175px;
+}
+
+.area-filter-select option {
+  background: #0f172a;
+  color: #f1f5f9;
+}
+
+.toolbar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  background: #0b0f19;
+  border: 1px solid #1e293b;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  flex-shrink: 0;
+}
+
+.toolbar-icon-btn--labeled {
+  width: auto;
+  padding: 0 9px;
+  gap: 5px;
+  font-size: 0.725rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.toolbar-icon-btn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.toolbar-icon-btn.is-pin-active {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.65);
+  color: #fbbf24;
+}
+
+.toolbar-icon-btn.is-adjacent-active {
+  background: rgba(14, 165, 233, 0.18);
+  border-color: rgba(56, 189, 248, 0.65);
+  color: #38bdf8;
 }
 
 /* Nút chuyển đổi sắp xếp Camera Tăng dần hoặc Ưu tiên sự cố */
@@ -582,30 +696,81 @@
 .cam-chip-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: 3px;
-  background: var(--theme-bg-page, #f8fafc);
-  border: 1px solid var(--theme-border, #e2e8f0);
-  color: var(--theme-text-secondary, #475569);
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  background: #161f30;
+  border: 1px solid #263248;
+  color: #cbd5e1;
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s ease;
+  max-width: 190px;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 
 .cam-chip-btn:hover {
-  background: var(--theme-bg-surface-elevated, #ffffff);
-  border-color: var(--theme-border-hover);
-  color: var(--theme-text-primary);
+  background: #1e293b;
+  border-color: #475569;
+  color: #f8fafc;
 }
 
 .cam-chip-btn.active {
-  background: var(--theme-primary-subtle, rgba(37, 99, 235, 0.08));
-  border-color: var(--theme-primary, #2563eb);
-  color: var(--theme-primary, #2563eb);
+  background: rgba(3, 78, 162, 0.28);
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.cam-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Phân trang lưới camera */
+.grid-pagination-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 5px;
+  background: #0b0f19;
+  border: 1px solid #1e293b;
+  flex-shrink: 0;
+}
+
+.grid-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.grid-page-btn:hover:not(:disabled) {
+  background: #1e293b;
+  color: #ffffff;
+}
+
+.grid-page-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.grid-page-readout {
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #cbd5e1;
+  padding: 0 4px;
 }
 
 .status-indicator-dot {
@@ -739,13 +904,14 @@
 }
 
 /* --------------------------------------------------------------------------
-   Lưới Video (Hỗ trợ 4 Layout Options: 1, 2x2, 3x3, 4x4)
+   Lưới Video (1, 1+5 Spotlight, 2x2, 3x3, 4x4, Tự vừa)
    -------------------------------------------------------------------------- */
 .camera-grid {
   display: grid;
   gap: 8px;
   min-width: 0;
   width: 100%;
+  align-content: start;
 }
 
 .camera-grid--1 {
@@ -764,16 +930,63 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.camera-grid--auto {
+  grid-template-columns: repeat(var(--auto-cols, 2), minmax(0, 1fr));
+}
+
+/* Bố cục bất đối xứng Spotlight 1+5: 1 ô chính 2x2 + 5 ô phụ xung quanh */
+.camera-grid--spotlight {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.video-viewport-card--spotlight {
+  grid-column: 1 / 3;
+  grid-row: 1 / 3;
+  height: 100%;
+}
+
+.video-viewport-card--spotlight .cctv-player-wrapper {
+  height: 100%;
+}
+
+@media (max-width: 900px) {
+  .camera-grid--spotlight {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .video-viewport-card--spotlight {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+}
+
+.camera-grid-empty-slot {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  border-radius: 6px;
+  background: #111622;
+  border: 1px dashed rgba(148, 163, 184, 0.22);
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  user-select: none;
+}
+
 .camera-grid-placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 360px;
-  background: var(--theme-bg-surface, #ffffff);
-  border: 1px dashed var(--theme-border, #e2e8f0);
-  border-radius: 4px;
-  color: var(--theme-text-muted, #64748b);
+  background: #111622;
+  border: 1px dashed rgba(148, 163, 184, 0.25);
+  border-radius: 6px;
+  color: #94a3b8;
   gap: 8px;
   font-size: 0.825rem;
 }
@@ -791,7 +1004,7 @@
   transition: all 0.25s ease;
 }
 
-/* 1. Mức độ NGUY CẤP (Critical - Đỏ) */
+/* 1. Mức độ NGUY CẤP (Critical - Đỏ: viền đỏ xung nổi bật nhất) */
 .video-viewport-card.card-has-incident.severity-critical {
   border-color: var(--theme-danger) !important;
   box-shadow: 0 0 16px rgba(239, 68, 68, 0.45) !important;
@@ -803,40 +1016,42 @@
   animation: cctvRedAlertFlash 1s infinite alternate !important;
 }
 
-/* 2. Mức độ CAO (High - Cam / Vàng hổ phách) */
+/* 2. Mức độ CAO (High - Cam #f97316: viền cam tĩnh, không nhấp nháy gây nhiễu) */
 .video-viewport-card.card-has-incident.severity-high {
-  border-color: var(--theme-warning) !important;
-  box-shadow: 0 0 16px rgba(245, 158, 11, 0.45) !important;
+  border-color: #f97316 !important;
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.28) !important;
 }
 
-.video-viewport-card.card-has-incident.severity-high .cctv-player-wrapper,
+.video-viewport-card.card-has-incident.severity-high .cctv-player-wrapper {
+  border-color: #f97316 !important;
+  animation: none !important;
+}
+
 .video-viewport-card.card-flashing.severity-high .cctv-player-wrapper {
-  border-color: var(--theme-warning) !important;
-  animation: cctvAmberAlertFlash 1s infinite alternate !important;
+  border-color: #f97316 !important;
+  animation: cctvAmberAlertFlash 1.2s 3 alternate !important;
 }
 
-/* 3. Mức độ CẢNH BÁO (Warning - Xanh lam / Cyan) */
+/* 3. Mức độ TRUNG BÌNH / CẢNH BÁO (Medium - Vàng #eab308: chỉ viền mảnh dịu, không nhấp nháy) */
 .video-viewport-card.card-has-incident.severity-warning {
-  border-color: var(--theme-info) !important;
-  box-shadow: 0 0 16px rgba(2, 132, 199, 0.45) !important;
+  border-color: rgba(234, 179, 8, 0.55) !important;
+  box-shadow: none !important;
 }
 
 .video-viewport-card.card-has-incident.severity-warning .cctv-player-wrapper,
 .video-viewport-card.card-flashing.severity-warning .cctv-player-wrapper {
-  border-color: var(--theme-info) !important;
-  animation: cctvBlueAlertFlash 1s infinite alternate !important;
+  border-color: rgba(234, 179, 8, 0.55) !important;
+  animation: none !important;
 }
 
 /* Fallback chung */
 .video-viewport-card.card-has-incident {
-  border-color: var(--theme-danger) !important;
-  box-shadow: 0 0 16px rgba(239, 68, 68, 0.4) !important;
+  border-color: rgba(239, 68, 68, 0.75) !important;
 }
 
-.video-viewport-card.card-has-incident .cctv-player-wrapper,
 .video-viewport-card.card-flashing .cctv-player-wrapper {
   border-color: var(--theme-danger) !important;
-  animation: cctvRedAlertFlash 1s infinite alternate !important;
+  animation: cctvRedAlertFlash 1s 4 alternate !important;
 }
 
 @keyframes cctvRedAlertFlash {
