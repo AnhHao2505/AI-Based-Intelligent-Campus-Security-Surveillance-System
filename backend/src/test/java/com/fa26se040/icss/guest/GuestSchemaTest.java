@@ -138,7 +138,7 @@ public class GuestSchemaTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("P1: seed 11 config khách (8 của V60 + GUEST_PHOTO_REMINDER_MINUTES_BEFORE của V71 + 2 độ dài mục đích của V120) + hằng trong ConfigKey khớp mặc định")
+    @DisplayName("P1: seed 12 config khách (8 của V60 + GUEST_PHOTO_REMINDER_MINUTES_BEFORE của V71 + 2 độ dài mục đích của V120 + GUEST_PHOTO_MAX_KB của V141) + hằng trong ConfigKey khớp mặc định")
     void configsSeeded() {
         Map<String, String> rows = jdbc.queryForList(
                         "SELECT config_key, data_type || ':' || config_value AS v FROM system_configurations WHERE config_group = 'GUEST'")
@@ -154,7 +154,8 @@ public class GuestSchemaTest extends AbstractIntegrationTest {
                 Map.entry("GUEST_CONSENT_NOTICE_VERSION", "STRING:v1"),
                 Map.entry("GUEST_PHOTO_REMINDER_MINUTES_BEFORE", "INTEGER:60"), // BR-GV-39 (V71)
                 Map.entry("GUEST_PURPOSE_MIN_LENGTH", "INTEGER:10"), // BR-GV-03 (V120)
-                Map.entry("GUEST_PURPOSE_MAX_LENGTH", "INTEGER:500")); // BR-GV-03 (V120)
+                Map.entry("GUEST_PURPOSE_MAX_LENGTH", "INTEGER:500"), // BR-GV-03 (V120)
+                Map.entry("GUEST_PHOTO_MAX_KB", "INTEGER:2048")); // V141, thay icss.guest.photo-max-kb
         assertEquals(expected, rows);
         for (Map.Entry<String, String> e : expected.entrySet()) {
             ConfigKey key = ConfigKey.valueOf(e.getKey());

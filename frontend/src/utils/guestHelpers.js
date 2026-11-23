@@ -62,17 +62,37 @@ export function guestHasPhoto(guest) {
   return guest?.biometricStatus === 'PHOTO_READY' || guest?.biometricStatus === 'PHOTO_ONLY';
 }
 
-/** Giới hạn ảnh khách mặc định khi chưa tải được /eligibility (trùng icss.guest.photo-max-kb ở backend). */
-export const GUEST_PHOTO_FALLBACK_MAX_KB = 2048;
+/**
+ * V141: giới hạn ảnh khách (GUEST_PHOTO_MAX_KB) lấy từ /api/guest-visits/eligibility (người dùng thường không đọc được
+ * /api/system-configurations). Không có / không phải số nguyên dương -> null: không đoán số, trình duyệt không chặn.
+ * @param {{ photoMaxKb?: number }|null|undefined} eligibility
+ * @returns {number|null}
+ */
+export function readGuestPhotoMaxKb(eligibility) {
+  const kb = Number(eligibility?.photoMaxKb);
+  return Number.isSafeInteger(kb) && kb > 0 ? kb : null;
+}
 
 /**
- * A1: kiểm ảnh khách phía trình duyệt trước khi gửi (backend vẫn kiểm lại): JPG / PNG, không quá maxKb.
+ * Cụm chữ giới hạn dung lượng cho nhãn ô chọn ảnh khách.
+ * @param {number|null} maxKb
+ * @returns {string} "tối đa 2048 KB" hoặc "dung lượng tối đa theo cấu hình hệ thống" khi chưa đọc được
+ */
+export function guestPhotoLimitText(maxKb) {
+  return Number.isFinite(maxKb) && maxKb > 0 ? `tối đa ${maxKb} KB` : 'dung lượng tối đa theo cấu hình hệ thống';
+}
+
+/**
+ * A1: kiểm ảnh khách phía trình duyệt trước khi gửi (backend vẫn kiểm lại, ERR_GUEST_033): JPG / PNG, không quá maxKb.
+ * maxKb null (chưa đọc được giới hạn) -> không kiểm dung lượng ở trình duyệt, để backend kiểm.
  * @returns {string|null} câu lỗi, hoặc null nếu hợp lệ
  */
-export function validateGuestPhotoFile(file, maxKb = GUEST_PHOTO_FALLBACK_MAX_KB) {
+export function validateGuestPhotoFile(file, maxKb) {
   if (!file) return 'Chưa chọn ảnh khuôn mặt';
   if (!['image/jpeg', 'image/png'].includes(file.type)) return 'Ảnh phải là JPG hoặc PNG';
-  if (file.size > maxKb * 1024) return `Ảnh tối đa ${maxKb} KB (ảnh đang chọn ${Math.ceil(file.size / 1024)} KB)`;
+  if (Number.isFinite(maxKb) && maxKb > 0 && file.size > maxKb * 1024) {
+    return `Ảnh tối đa ${maxKb} KB (ảnh đang chọn ${Math.ceil(file.size / 1024)} KB)`;
+  }
   return null;
 }
 

@@ -17,7 +17,6 @@ import com.fa26se040.icss.repository.GuestVisitRepository;
 import com.fa26se040.icss.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -31,7 +30,7 @@ import java.util.UUID;
 /**
  * Ảnh khách (BR-GV-14..18): host gắn ảnh khi tạo lượt ({@link GuestVisitService#create}) và thay ảnh khi lượt còn chờ
  * duyệt hoặc đã duyệt nhưng chưa tới giờ bắt đầu; host / FM / ADMIN xin URL xem ảnh có hạn.
- * Mỗi ảnh: JPG / PNG ≤ icss.guest.photo-max-kb, trích embedding 512d đúng 1 khuôn mặt, không trùng khuôn mặt người dùng
+ * Mỗi ảnh: JPG / PNG ≤ GUEST_PHOTO_MAX_KB (V141), trích embedding 512d đúng 1 khuôn mặt, không trùng khuôn mặt người dùng
  * chưa xoá mềm (kể cả đang bị vô hiệu hoá), khách khác trong cùng lượt, hay khách của lượt chờ duyệt / đã duyệt chồng giờ
  * ({@link FaceDuplicateCheckService#findDuplicateForGuest}). Trùng tài khoản hoặc khách lượt khác: host chỉ nhận câu chung
  * ERR_GUEST_041, không lộ mã / tên / lượt (face-gate 2); trùng khách cùng lượt: ERR_GUEST_038 nêu tên khách đó.
@@ -55,10 +54,6 @@ public class GuestPhotoService {
     private final AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
     private final FaceDuplicateCheckService duplicateCheck;
 
-    /** Giới hạn kỹ thuật của ảnh đầu vào (property vận hành icss.guest.photo-max-kb), không phải tham số nghiệp vụ. */
-    @Value("${icss.guest.photo-max-kb:2048}")
-    private int photoMaxKb;
-
     /** Ảnh đã đọc, đúng định dạng và dung lượng, chưa trích khuôn mặt. */
     public record ImageFile(byte[] bytes, String contentType, String filename) {
     }
@@ -67,8 +62,12 @@ public class GuestPhotoService {
     public record CheckedPhoto(ImageFile image, List<Float> embedding) {
     }
 
+    /**
+     * V141: dung lượng tối đa mỗi ảnh khách (KB), đọc mỗi lần dùng từ GUEST_PHOTO_MAX_KB (sửa trên màn System Configuration
+     * có hiệu lực ngay), kẹp theo min_value / max_value ở DB. Dùng cho tạo lượt, gắn / thay ảnh và /eligibility.
+     */
     public int getPhotoMaxKb() {
-        return photoMaxKb;
+        return systemConfigService.getIntWithinBounds(ConfigKey.GUEST_PHOTO_MAX_KB);
     }
 
     public String currentConsentVersion() {
@@ -85,11 +84,13 @@ public class GuestPhotoService {
         return currentVersion;
     }
 
-    /** BR-GV-14: có ảnh, JPG / PNG, không quá photoMaxKb. Chưa gọi trích khuôn mặt. */
+    /** BR-GV-14: có ảnh, JPG / PNG, không quá GUEST_PHOTO_MAX_KB. Chưa gọi trích khuôn mặt. */
     public ImageFile readImage(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new GuestException(GuestErrorCode.ERR_GUEST_020, "ảnh khuôn mặt");
         }
+        // đọc một lần cho cả lần kiểm và câu báo ERR_GUEST_033 (câu nêu đúng giới hạn vừa dùng)
+        int photoMaxKb = getPhotoMaxKb();
         boolean png = isPng(file);
         if (!(png || isJpeg(file)) || file.getSize() > (long) photoMaxKb * 1024) {
             throw new GuestException(GuestErrorCode.ERR_GUEST_033, photoMaxKb);
