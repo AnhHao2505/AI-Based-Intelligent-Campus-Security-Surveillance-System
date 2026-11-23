@@ -47,8 +47,8 @@ import {
 	readFaceImageMaxKb,
 	validateFaceImageSize,
 	faceImageLimitText,
-	isAccountFaceErrorCode,
 } from "../../utils/accountFaceImage";
+import { mapCreateAccountError } from "../../utils/createAccountErrors";
 import useDialogA11y from "../../hooks/useDialogA11y";
 import AccountAuditLogTab from "./AccountAuditLogTab";
 import {
@@ -661,26 +661,13 @@ export default function ManageAccountPage() {
 			fetchUsers();
 		} catch (err) {
 			console.error("Error creating account:", err);
-			const msg =
-				err.message ||
-				(isNormal
+			const fallbackMessage =
+				isNormal
 					? "Không thể tạo tài khoản người dùng"
-					: "Không thể tạo tài khoản cán bộ");
-			if (err.code === "ERR_AC_014") {
-				setFormErrors({ accessLevel: msg });
-			} else if (isAccountFaceErrorCode(err.code)) {
-				// B1: lỗi ảnh khuôn mặt theo mã ERR_FACE_xxx, hiện dưới ô ảnh
-				setFormErrors({ faceImage: msg });
-			} else if (msg.toLowerCase().includes("email")) {
-				setFormErrors({ email: msg });
-			} else if (
-				msg.toLowerCase().includes("mã") ||
-				msg.toLowerCase().includes("code")
-			) {
-				setFormErrors({ userCode: msg });
-			} else {
-				setFormErrors({ general: msg });
-			}
+					: "Không thể tạo tài khoản cán bộ";
+			// B1: gán ô theo errorCode / data (ERR_AC_014, ERR_FACE_xxx, trùng mã / email, lỗi @Valid), không so chữ;
+			// 500 và lỗi không nhận ra -> vùng lỗi chung của popup
+			setFormErrors(mapCreateAccountError(err, fallbackMessage));
 		} finally {
 			setIsSubmitting(false);
 		}
