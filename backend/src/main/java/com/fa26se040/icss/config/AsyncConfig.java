@@ -28,4 +28,20 @@ public class AsyncConfig {
         executor.setAwaitTerminationSeconds(10);
         return executor;
     }
+
+    public static final String EVENT_ACTIVATION_EXECUTOR = "eventActivationExecutor";
+
+    /**
+     * Việc 9: kích hoạt lịch sự kiện do lượt vào (AccessDecisionService bước 4c) chạy nền, sau khi check-entry đã trả quyết
+     * định. Pool nhỏ: mỗi lịch chỉ có tối đa một tác vụ đang chạy; hàng đầy thì bỏ (job AreaEventModeScheduler vẫn kích hoạt).
+     */
+    @Bean(name = EVENT_ACTIVATION_EXECUTOR)
+    public ThreadPoolTaskExecutor eventActivationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("event-activate-");
+        return executor;
+    }
 }
