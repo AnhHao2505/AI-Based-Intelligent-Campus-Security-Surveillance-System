@@ -563,6 +563,23 @@
   background: rgba(243, 112, 33, 0.12);
 }
 
+[data-theme="light"] .login-bg-toggle {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+[data-theme="light"] .login-bg-toggle:hover {
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+[data-theme="light"] .login-bg-toggle--active {
+  color: #ea580c;
+  border-color: rgba(243, 112, 33, 0.5);
+  background: rgba(255, 247, 237, 0.92);
+}
+
 [data-theme="light"] .login-footer {
   color: #475569;
 }
