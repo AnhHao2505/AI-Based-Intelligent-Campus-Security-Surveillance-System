@@ -50,4 +50,19 @@ final class AiFaceRegistrationErrors {
             return false;
         }
     }
+
+    /** Số ký tự tối đa của body lỗi ai-service được ghi vào log (giới hạn kỹ thuật cho dòng log, không phải tham số nghiệp vụ). */
+    static final int LOG_BODY_MAX_CHARS = 500;
+
+    /**
+     * Body lỗi của ai-service để GHI LOG, không bao giờ đưa vào câu báo cho người dùng. Body lỗi chỉ có detail / errorCode
+     * (không có ảnh, không có embedding); vẫn cắt ở LOG_BODY_MAX_CHARS ký tự để dòng log không phình.
+     */
+    static String bodyForLog(HttpStatusCodeException e) {
+        String body = e.getResponseBodyAsString();
+        if (body == null) {
+            return "";
+        }
+        return body.length() > LOG_BODY_MAX_CHARS ? body.substring(0, LOG_BODY_MAX_CHARS) + "...(cắt)" : body;
+    }
 }
