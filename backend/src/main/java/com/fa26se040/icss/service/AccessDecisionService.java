@@ -80,6 +80,21 @@ public class AccessDecisionService {
     private GuardShiftRepository guardShiftRepository;
 
     /**
+     * Việc 9: bước 4c cho vào theo lịch SCHEDULED mà chưa có phiên -> kích hoạt lịch bằng AreaService.activateScheduleInTx
+     * (hàm job dùng). ObjectProvider: lấy proxy lúc cần (REQUIRES_NEW có hiệu lực, không tạo vòng phụ thuộc bean).
+     * Field injection để giữ constructor; null (test dựng tay) thì không kích hoạt.
+     */
+    @Autowired(required = false)
+    private org.springframework.beans.factory.ObjectProvider<AreaService> areaServiceProvider;
+
+    @Autowired(required = false)
+    @org.springframework.beans.factory.annotation.Qualifier(com.fa26se040.icss.config.AsyncConfig.EVENT_ACTIVATION_EXECUTOR)
+    private java.util.concurrent.Executor eventActivationExecutor;
+
+    /** Lịch đang chờ / đang kích hoạt nền: nhiều lượt vào cùng lúc chỉ xếp một tác vụ. Chống trùng thật nằm ở DB (khoá khu). */
+    private final java.util.Set<UUID> activationsInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
      * Xét user có được vào area tại thời điểm at hay không. Thứ tự kiểm:
      * <ol>
      *   <li>User không tồn tại / inactive / xoá mềm → denied, NONE</li>
@@ -158,6 +173,8 @@ public class AccessDecisionService {
                 && areaEventScheduleRepository.existsByAreaIdAndStatusAndStartAtLessThanEqualAndEndAtGreaterThan(
                 areaId, com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED, at, at)) {
             AreaEventSchedule covering = findCoveringSchedules(areaId, at).stream().findFirst().orElse(null);
+            // Việc 9: tới đây là chưa có phiên phủ at (bước 4b) -> kích hoạt lịch chạy nền, không đổi quyết định
+            activateScheduleInBackground(covering, areaId);
             return AccessDecision.allowed(
                     AccessSource.OPEN_EVENT,
                     covering != null ? covering.getId() : null,
@@ -301,6 +318,73 @@ public class AccessDecisionService {
      * </ul>
      * Số phút đọc qua SystemConfigService mỗi lần gọi nên đổi cấu hình có hiệu lực ngay.
      */
+    /**
+     * Việc 9: luôn có phiên sự kiện khi khu mở theo lịch. Bước 4c cho vào vì lịch SCHEDULED phủ thời điểm mà chưa có phiên
+     * -> kích hoạt lịch đó bằng chính AreaService.activateScheduleInTx (hàm job AreaEventModeScheduler dùng):
+     * <ul>
+     *   <li>chạy NỀN trên {@code eventActivationExecutor}, transaction REQUIRES_NEW riêng, xếp hàng SAU KHI transaction của
+     *       check-entry kết thúc (afterCompletion) — quyết định và thời gian phản hồi không đổi;</li>
+     *   <li>chỉ lịch đã tới giờ bắt đầu và chưa hết giờ theo đồng hồ hiện tại (cùng điều kiện findSchedulesReadyToStart của
+     *       job), không theo {@code at} của khung hình;</li>
+     *   <li>chống trùng: activateScheduleInTx khoá dòng khu (PESSIMISTIC_WRITE) rồi mới đọc lịch, lịch không còn SCHEDULED thì
+     *       bỏ qua -> nhiều lượt vào hoặc job chạy cùng lúc chỉ tạo đúng 1 phiên. {@link #activationsInFlight} chỉ để không
+     *       xếp nhiều tác vụ cho cùng lịch;</li>
+     *   <li>audit actor hệ thống EVENT_SCHEDULE_ACTIVATION như job; log ghi rõ kích hoạt do lượt vào;</li>
+     *   <li>lỗi chỉ log ERROR.</li>
+     * </ul>
+     */
+    void activateScheduleInBackground(AreaEventSchedule schedule, UUID areaId) {
+        if (schedule == null || schedule.getId() == null || areaServiceProvider == null) {
+            return;
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        if (schedule.getStartAt() == null || schedule.getEndAt() == null
+                || schedule.getStartAt().isAfter(now) || !schedule.getEndAt().isAfter(now)) {
+            return;
+        }
+        UUID scheduleId = schedule.getId();
+        if (!activationsInFlight.add(scheduleId)) {
+            return;
+        }
+        Runnable task = () -> {
+            try {
+                AreaService areaService = areaServiceProvider.getIfAvailable();
+                if (areaService == null) {
+                    return;
+                }
+                log.info("Kích hoạt lịch sự kiện {} của khu {} do lượt vào (check-entry), không phải do job", scheduleId, areaId);
+                areaService.activateScheduleInTx(scheduleId, OffsetDateTime.now());
+            } catch (Exception ex) {
+                log.error("Kích hoạt lịch sự kiện {} của khu {} do lượt vào thất bại: {}", scheduleId, areaId, ex.getMessage(), ex);
+            } finally {
+                activationsInFlight.remove(scheduleId);
+            }
+        };
+        Runnable submit = () -> {
+            try {
+                if (eventActivationExecutor != null) {
+                    eventActivationExecutor.execute(task);
+                } else {
+                    java.util.concurrent.CompletableFuture.runAsync(task);
+                }
+            } catch (RuntimeException ex) {
+                activationsInFlight.remove(scheduleId);
+                log.error("Không xếp được tác vụ kích hoạt lịch sự kiện {} do lượt vào: {}", scheduleId, ex.getMessage());
+            }
+        };
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCompletion(int status) {
+                            submit.run();
+                        }
+                    });
+        } else {
+            submit.run();
+        }
+    }
+
     /** Các lịch sự kiện SCHEDULED của area phủ thời điểm at (startAt &lt;= at &lt; endAt). */
     private List<AreaEventSchedule> findCoveringSchedules(UUID areaId, OffsetDateTime at) {
         if (areaEventScheduleRepository == null) {

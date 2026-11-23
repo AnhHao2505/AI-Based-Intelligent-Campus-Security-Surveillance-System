@@ -2,7 +2,7 @@ package com.fa26se040.icss.dto.accessrequest;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import com.fa26se040.icss.validation.ReasonLength;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -18,6 +18,6 @@ public record IndividualAccessRequestCreateRequest(
     OffsetDateTime endTime,
 
     @NotBlank(message = "Mục đích không được để trống")
-    @Size(max = 1000, message = "Mục đích tối đa 1000 ký tự")
+    @ReasonLength(subject = "Mục đích")
     String purpose
 ) {}

@@ -190,6 +190,8 @@ public class UserService {
 
             // 6b. Gửi email thông tin tài khoản và mật khẩu khởi tạo — M-04a: chỉ sau khi transaction commit
             sendAccountSetupEmailAfterCommit(savedUser.getEmail(), savedUser.getFullName(), savedUser.getUserCode(), tempPassword);
+            // Tập khuôn mặt hợp lệ có thêm người: báo AI nạp lại kho khuôn mặt sau commit (rollback thì không báo)
+            notifyAiServiceRefreshCache();
 
             return StaffAccountCreateResponse.builder()
                     .id(savedUser.getId())
@@ -205,8 +207,8 @@ public class UserService {
                     .createdAt(savedUser.getCreatedAt() != null ? savedUser.getCreatedAt().toInstant() : Instant.now())
                     .build();
         } catch (Exception e) {
-            log.error("DB Transaction failed for userCode {}. Deleting uploaded image from MinIO.", normUserCode, e);
-            minioStorageService.deleteFaceImage(normUserCode);
+            // Ảnh vừa tải được FaceDataService xoá sau khi transaction rollback (afterCompletion); không xoá thêm ở đây
+            log.error("DB Transaction failed for userCode {}. Uploaded face image is removed after rollback.", normUserCode, e);
             throw e;
         }
     }

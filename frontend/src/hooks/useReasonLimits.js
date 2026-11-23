@@ -15,6 +15,7 @@ const FALLBACK_LIMITS = { min: 10, max: 500 };
  *   min: number,
  *   max: number,
  *   range: string,
+ *   loaded: boolean,
  *   isValid: (value: string) => boolean,
  *   error: (value: string, subject?: string) => (string|null)
  * }}
@@ -27,6 +28,8 @@ export function useReasonLimits() {
 	});
 	const min = data?.minLength ?? FALLBACK_LIMITS.min;
 	const max = data?.maxLength ?? FALLBACK_LIMITS.max;
+	// true khi đã đọc được giới hạn từ backend (min / max đang là giá trị dự phòng thì false)
+	const loaded = Number.isFinite(data?.minLength) && Number.isFinite(data?.maxLength);
 
 	return useMemo(() => {
 		const lengthOf = (value) => (value || "").trim().length;
@@ -39,12 +42,13 @@ export function useReasonLimits() {
 			max,
 			/** "10–500", dùng trong placeholder */
 			range: `${min}–${max}`,
+			loaded,
 			isValid,
 			/** Câu lỗi khi sai độ dài, null nếu hợp lệ: "<subject> phải từ <min> đến <max> ký tự (hiện có <n>)." */
 			error: (value, subject = "Lý do") =>
 				isValid(value) ? null : `${subject} phải từ ${min} đến ${max} ký tự (hiện có ${lengthOf(value)}).`,
 		};
-	}, [min, max]);
+	}, [min, max, loaded]);
 }
 
 export default useReasonLimits;

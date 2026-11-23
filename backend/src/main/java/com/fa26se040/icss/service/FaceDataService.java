@@ -26,6 +26,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpStatusCodeException;
@@ -186,10 +188,12 @@ public class FaceDataService {
                 throw new FaceDuplicateException(match.adminMessage());
             });
 
+            // Tra trước khi tải ảnh: biết object sắp ghi có đang được face_data đã commit tham chiếu hay không
+            Optional<FaceData> existingOpt = faceDataRepository.findByCode(code);
             String imageUrl = minioStorageService.uploadFaceImage(imageBytes, code);
+            deleteUploadedImageOnRollback(code, imageUrl, existingOpt.isPresent());
             String vecFront = formatVectorString(aiResult.getEmbeddingFront());
 
-            Optional<FaceData> existingOpt = faceDataRepository.findByCode(code);
             User matchedUser = userRepository.findByUserCodeAndDeletedAtIsNull(code).orElse(null);
 
             FaceData faceData;
@@ -220,9 +224,8 @@ public class FaceDataService {
                         auditService.resolveCurrentActor("FACE_REGISTRATION"));
             }
 
-            if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
-                edgeMqttControlService.publishFaceCacheEvent("REFRESH", code);
-            }
+            // Không báo làm mới kho khuôn mặt tại đây (trước đây publish MQTT ngay, trước commit): bên gọi báo
+            // AiFaceCacheRefreshNotifier sau khi commit (tạo tay: mỗi tài khoản; import ZIP: một lần cho cả lô)
 
             return toDto(saved);
 
@@ -253,6 +256,59 @@ public class FaceDataService {
             log.error("Lỗi khi đăng ký khuôn mặt cho [{}]: {}", code, e.getMessage(), e);
             throw new RuntimeException("Lỗi xử lý khuôn mặt: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Không để ảnh khuôn mặt mồ côi trên MinIO (phương án b): ảnh lên kho TRƯỚC khi face_data / audit / tài khoản được lưu,
+     * nên transaction rollback sau lúc tải ảnh thì xoá ảnh vừa tải trong afterCompletion(ROLLED_BACK). Commit thì không
+     * làm gì. Cùng kiểu đăng ký synchronization với mail tài khoản và AiFaceCacheRefreshNotifier. Đăng ký vào transaction
+     * đang chạy: tạo tay là transaction của UserService.createStaffAccount, import ZIP là transaction REQUIRES_NEW của
+     * từng dòng (UserBulkImportHelper) nên dòng nào rollback chỉ xoá ảnh của dòng đó. Không có transaction: giữ hành vi cũ.
+     * <p>
+     * Key ảnh cố định theo mã ({@code <mã>/<mã>_front.jpg}, MinioStorageService). Nếu face_data của mã đã có từ trước
+     * (đăng ký lại mã của tài khoản đã xoá mềm) thì object vừa ghi đè chính ảnh face_data đang tham chiếu: không xoá
+     * (xoá sẽ để lại face_data trỏ tới object không tồn tại), chỉ ghi WARN. Xoá lỗi chỉ ghi ERROR, không ném ra ngoài
+     * (afterCompletion chạy sau rollback; lỗi gốc vẫn là lỗi trả cho người dùng). Không ghi ảnh / URL ký vào log.
+     */
+    private void deleteUploadedImageOnRollback(String code, String imageUrl, boolean referencedBefore) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        String bucket = minioStorageService.getFacesBucket();
+        String key = objectKeyOf(imageUrl, bucket, code);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_ROLLED_BACK) {
+                    return;
+                }
+                if (referencedBefore) {
+                    log.warn("Rollback sau khi tải ảnh khuôn mặt của [{}]: object {}/{} đã ghi đè ảnh face_data cũ đang tham chiếu,"
+                            + " giữ lại, không xoá", code, bucket, key);
+                    return;
+                }
+                log.warn("Rollback sau khi tải ảnh khuôn mặt của [{}]: xoá object {}/{} vừa tải lên", code, bucket, key);
+                try {
+                    if (!minioStorageService.deleteFaceImage(code)) {
+                        log.error("Không xoá được ảnh khuôn mặt mồ côi của [{}] ({}/{})", code, bucket, key);
+                    }
+                } catch (RuntimeException e) {
+                    log.error("Không xoá được ảnh khuôn mặt mồ côi của [{}] ({}/{}): {}", code, bucket, key, e.getMessage());
+                }
+            }
+        });
+    }
+
+    /** Object key lấy từ URL MinioStorageService.uploadFaceImage trả về ({@code <endpoint>/<bucket>/<key>}); chỉ dùng để ghi log. */
+    static String objectKeyOf(String imageUrl, String bucket, String code) {
+        if (imageUrl != null && bucket != null && !bucket.isBlank()) {
+            String marker = "/" + bucket + "/";
+            int idx = imageUrl.indexOf(marker);
+            if (idx >= 0) {
+                return imageUrl.substring(idx + marker.length());
+            }
+        }
+        return code + "/";
     }
 
     private AiFaceRegistrationResponseDto extractEmbeddingViaEdgeMqtt(String code, byte[] imageBytes, String contentType) {
