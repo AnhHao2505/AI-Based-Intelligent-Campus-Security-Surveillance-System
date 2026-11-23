@@ -53,7 +53,12 @@ public class AiFaceCacheRefreshNotifier {
                     .POST(HttpRequest.BodyPublishers.noBody())
                     .timeout(Duration.ofMillis(2000))
                     .build();
-            client.send(request, HttpResponse.BodyHandlers.discarding());
+            HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                // AI trả lỗi: chỉ ghi WARN, AI vẫn tự làm mới định kỳ
+                log.warn("AI Service did not refresh face cache via {}: HTTP {}", url, response.statusCode());
+                return;
+            }
             log.info("Notified AI Service to refresh face cache via {}", url);
         } catch (Exception e) {
             log.warn("Could not notify AI Service to refresh face cache: {}", e.getMessage());
@@ -112,6 +117,10 @@ public class AiFaceCacheRefreshNotifier {
             if (refreshHttpCaller != null) {
                 refreshHttpCaller.accept(targetUrl);
             }
+        }).exceptionally(ex -> {
+            // Không để lỗi chạy nền biến mất im lặng; nghiệp vụ đã commit, chỉ ghi WARN
+            log.warn("Could not notify AI Service to refresh face cache: {}", ex.getMessage());
+            return null;
         });
     }
 }

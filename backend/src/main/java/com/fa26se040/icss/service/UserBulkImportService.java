@@ -57,6 +57,10 @@ public class UserBulkImportService {
     @Autowired(required = false)
     private AuditService auditService;
 
+    /** Field injection như auditService (giữ constructor cho test dựng tay); null thì không báo. */
+    @Autowired(required = false)
+    private AiFaceCacheRefreshNotifier aiFaceCacheRefreshNotifier;
+
     private static class ParsedMetadata {
         final List<String[]> rows;
         final String sourceFileName;
@@ -228,6 +232,7 @@ public class UserBulkImportService {
                     }
                     rowResults.add(result);
                 }
+                notifyFaceCacheAfterImport(successCount);
 
                 log.info("Bulk import normal users batch {} finished: total={}, success={}, failed={}",
                         importBatchId, dataRowCount, successCount, failureCount);
@@ -418,6 +423,7 @@ public class UserBulkImportService {
                     }
                     rowResults.add(result);
                 }
+                notifyFaceCacheAfterImport(successCount);
 
                 log.info("Bulk import staff users batch {} finished: total={}, success={}, failed={}",
                         importBatchId, dataRowCount, successCount, failureCount);
@@ -449,6 +455,18 @@ public class UserBulkImportService {
         if (dataRowCount > maxRows) {
             throw new MaxRecordsExceededException("File dữ liệu chứa " + dataRowCount + " bản ghi, vượt quá số lượng tối đa "
                     + maxRows + " bản ghi cho phép.");
+        }
+    }
+
+    /**
+     * Mỗi dòng import commit trong transaction REQUIRES_NEW riêng (UserBulkImportHelper); luồng nạp bên ngoài không có
+     * transaction. Gọi sau vòng lặp: các dòng thành công đã commit, nên báo AI nạp lại kho khuôn mặt MỘT lần cho cả lô
+     * (không báo theo từng dòng). Không dòng nào thành công thì không báo. Gọi trước khi ghi audit IMPORT để lỗi audit
+     * không chặn việc báo. Nếu nơi gọi có transaction bao ngoài thì notifier tự hoãn tới sau commit của transaction đó.
+     */
+    private void notifyFaceCacheAfterImport(int successCount) {
+        if (successCount > 0 && aiFaceCacheRefreshNotifier != null) {
+            aiFaceCacheRefreshNotifier.notifyAfterCommit();
         }
     }
 

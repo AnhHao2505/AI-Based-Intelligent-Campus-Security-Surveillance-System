@@ -220,9 +220,8 @@ public class FaceDataService {
                         auditService.resolveCurrentActor("FACE_REGISTRATION"));
             }
 
-            if (edgeMqttControlService != null && edgeMqttControlService.isConnected()) {
-                edgeMqttControlService.publishFaceCacheEvent("REFRESH", code);
-            }
+            // Không báo làm mới kho khuôn mặt tại đây (trước đây publish MQTT ngay, trước commit): bên gọi báo
+            // AiFaceCacheRefreshNotifier sau khi commit (tạo tay: mỗi tài khoản; import ZIP: một lần cho cả lô)
 
             return toDto(saved);
 
