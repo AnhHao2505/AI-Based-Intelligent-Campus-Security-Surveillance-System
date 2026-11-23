@@ -17,4 +17,6 @@ public class BulkImportRowResult {
     private String role;
     private String status;
     private String errorMessage;
+    /** B1: mã lỗi ảnh khuôn mặt (ERR_FACE_xxx) của dòng FAILED; null với lỗi khác hoặc dòng SUCCESS. */
+    private String errorCode;
 }

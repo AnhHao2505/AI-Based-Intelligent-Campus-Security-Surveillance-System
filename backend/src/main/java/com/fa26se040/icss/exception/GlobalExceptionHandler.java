@@ -147,9 +147,15 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
     }
 
+    /** B1: lỗi ảnh khuôn mặt tài khoản trước khi gọi AI (ERR_FACE_002 / 003 / 004), 400. Gần hơn handler IllegalArgumentException. */
+    @ExceptionHandler(FaceImageException.class)
+    public ResponseEntity<ApiResponse<Object>> handleFaceImage(FaceImageException ex) {
+        return buildFaceResponse(ex.getErrorCode(), ex.getMessage());
+    }
+
     @ExceptionHandler(FaceDetectionException.class)
     public ResponseEntity<ApiResponse<Object>> handleFaceDetection(FaceDetectionException ex) {
-        return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        return buildFaceResponse(ex.getErrorCode(), ex.getMessage());
     }
 
     @ExceptionHandler(FaceDuplicateException.class)
@@ -162,7 +168,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AiServiceUnavailableException.class)
     public ResponseEntity<ApiResponse<Object>> handleAiServiceUnavailable(AiServiceUnavailableException ex) {
-        return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+        return buildFaceResponse(ex.getErrorCode(), ex.getMessage());
+    }
+
+    /** B1: errorCode / code = ERR_FACE_xxx, HTTP status theo mã (giữ 400 / 422 / 503 như trước), câu báo giữ nguyên. */
+    private ResponseEntity<ApiResponse<Object>> buildFaceResponse(FaceErrorCode code, String message) {
+        HttpStatus status = code.getHttpStatus();
+        ApiResponse<Object> body = ApiResponse.error(status.value(), code.getCode(), message);
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     @ExceptionHandler(InvalidRoleAssignmentException.class)
