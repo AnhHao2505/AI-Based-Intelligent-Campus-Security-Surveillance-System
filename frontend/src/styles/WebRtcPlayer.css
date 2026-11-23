@@ -607,6 +607,14 @@
   pointer-events: auto;
 }
 
+@media (hover: none) {
+  .dvr-scrubber-bar {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 .dvr-scrubber-bar.is-compact {
   padding: 10px 8px 5px 8px;
   gap: 3px;
