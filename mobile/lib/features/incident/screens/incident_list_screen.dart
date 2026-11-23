@@ -547,34 +547,46 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
               children: [
                 // 1. Header: Loại sự cố & Badge trạng thái & Thời gian
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: sevColor.withAlpha(25),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: sevColor.withAlpha(80)),
-                      ),
+                    Expanded(
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.warning_amber_rounded, size: 14, color: sevColor),
-                          const SizedBox(width: 4),
-                          Text(
-                            incident.eventTypeDisplay,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: sevColor,
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: sevColor.withAlpha(25),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: sevColor.withAlpha(80)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, size: 14, color: sevColor),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      incident.eventTypeDisplay,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: sevColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 6),
+                          _buildStatusBadge(incident),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    _buildStatusBadge(incident),
-                    const Spacer(),
+                    const SizedBox(width: 6),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
