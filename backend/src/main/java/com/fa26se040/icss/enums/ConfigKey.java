@@ -63,9 +63,12 @@ public enum ConfigKey {
     // N1 (V120): độ dài mục đích lượt khách (BR-GV-03), kiểm chéo min < max ≤ GuestRules.PURPOSE_STORAGE_MAX_LENGTH
     GUEST_PURPOSE_MIN_LENGTH("GUEST_PURPOSE_MIN_LENGTH", "10"),
     GUEST_PURPOSE_MAX_LENGTH("GUEST_PURPOSE_MAX_LENGTH", "500"),
+    // V141: dung lượng tối đa mỗi ảnh khách (KB): host gửi ảnh khi tạo lượt, host gắn / thay ảnh; thay property
+    // icss.guest.photo-max-kb (đã bỏ). Khoảng 100–10240 ở DB (phép tính trong V141)
+    GUEST_PHOTO_MAX_KB("GUEST_PHOTO_MAX_KB", "2048"),
     // UI-19 (V69): số dòng tối đa mỗi lần nạp tài khoản theo lô (cả luồng người dùng thường và cán bộ)
     USER_BULK_IMPORT_MAX_ROWS("USER_BULK_IMPORT_MAX_ROWS", "200"),
-    // V140: dung lượng tối đa ảnh khuôn mặt tài khoản (KB), đăng ký đơn lẻ + nạp theo lô; ảnh khách dùng icss.guest.photo-max-kb
+    // V140: dung lượng tối đa ảnh khuôn mặt tài khoản (KB), đăng ký đơn lẻ + nạp theo lô; ảnh khách dùng GUEST_PHOTO_MAX_KB (V141)
     USER_FACE_IMAGE_MAX_KB("USER_FACE_IMAGE_MAX_KB", "350"),
     // Nhật ký ra vào tại camera (V77): khoảng chống ghi trùng cùng người + cùng camera, và số ngày giữ log
     ENTRY_LOG_DEBOUNCE_SECONDS("ENTRY_LOG_DEBOUNCE_SECONDS", "30"),

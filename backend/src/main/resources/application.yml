@@ -142,9 +142,6 @@ icss:
     incident-escalation-enabled: ${INCIDENT_ESCALATION_ENABLED:true}
     # Job hết hạn lời mời phân phối sự cố (V93): chu kỳ đọc từ DISPATCH_CHECK_SECONDS, cờ này chỉ bật/tắt job
     incident-dispatch-enabled: ${INCIDENT_DISPATCH_ENABLED:true}
-  guest:
-    # Giới hạn kích thước ảnh khách (KB), tham số vận hành
-    photo-max-kb: ${GUEST_PHOTO_MAX_KB:2048}
   internal:
     # Khoá dùng chung AI service ↔ backend (header X-Service-Key) cho check-entry và /api/internal/**.
     # Bắt buộc, tối thiểu 32 ký tự: thiếu thì backend không khởi động. Giá trị chỉ đặt trong .env, không commit.

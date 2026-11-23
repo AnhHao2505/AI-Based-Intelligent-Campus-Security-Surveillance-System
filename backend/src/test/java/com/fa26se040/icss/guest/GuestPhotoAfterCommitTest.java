@@ -113,7 +113,7 @@ public class GuestPhotoAfterCommitTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("Giới hạn ảnh icss.guest.photo-max-kb = 2048: đúng 2048 KB nhận, 2049 KB từ chối ERR_GUEST_033 (câu nêu 2048)")
+    @DisplayName("Giới hạn ảnh GUEST_PHOTO_MAX_KB mặc định 2048 (V141): đúng 2048 KB nhận, 2049 KB từ chối ERR_GUEST_033 (câu nêu 2048)")
     void photoSizeLimit() throws Exception {
         when(faceClient.extract(any(), any(), any())).thenReturn(new GuestFaceEmbeddingClient.Result(1, vec()));
         GuestVisit v = approved();
