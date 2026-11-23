@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { validateGuestPhotoFile, GUEST_PHOTO_FALLBACK_MAX_KB } from "../../utils/guestHelpers";
+import { validateGuestPhotoFile, guestPhotoLimitText } from "../../utils/guestHelpers";
 
 /**
  * A1: chọn ảnh khuôn mặt của một khách (JPG / PNG, tối đa maxKb, có xem trước) và ô xác nhận khách đã đồng ý chụp ảnh
@@ -10,7 +10,7 @@ import { validateGuestPhotoFile, GUEST_PHOTO_FALLBACK_MAX_KB } from "../../utils
  * @param {string} props.guestLabel - tên hiển thị trong aria-label (vd. "khách 1")
  * @param {{ file: File|null, consent: boolean }} props.value
  * @param {(next: { file: File|null, consent: boolean }) => void} props.onChange
- * @param {number} [props.maxKb]
+ * @param {number|null} [props.maxKb] - GUEST_PHOTO_MAX_KB từ /eligibility; null: chưa đọc được -> không chặn, backend kiểm
  * @param {string|null} props.consentVersion - null: chưa tải được phiên bản thông báo -> khoá ô đồng ý
  * @param {boolean} [props.disabled]
  */
@@ -19,7 +19,7 @@ export default function GuestPhotoPicker({
 	guestLabel,
 	value,
 	onChange,
-	maxKb = GUEST_PHOTO_FALLBACK_MAX_KB,
+	maxKb = null,
 	consentVersion,
 	disabled = false,
 }) {
@@ -52,7 +52,7 @@ export default function GuestPhotoPicker({
 		<div className="guest-visit__photo-picker">
 			<div className="guest-visit__field">
 				<label className="guest-visit__label" htmlFor={`${id}-file`}>
-					Ảnh khuôn mặt * (JPG, PNG, tối đa {maxKb} KB)
+					Ảnh khuôn mặt * (JPG, PNG, {guestPhotoLimitText(maxKb)})
 				</label>
 				<input
 					id={`${id}-file`}
