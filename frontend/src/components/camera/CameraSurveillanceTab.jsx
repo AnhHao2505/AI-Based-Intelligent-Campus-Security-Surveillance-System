@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Scan, Layers } from "lucide-react";
 import WebRtcPlayer from "../video/WebRtcPlayer";
 import {
@@ -10,6 +10,29 @@ export default function CameraSurveillanceTab({ camera, onOpenRoiEditor }) {
 	const playerRef = useRef(null);
 	const [showRoiOverlay, setShowRoiOverlay] = useState(true);
 	const [playerStatus, setPlayerStatus] = useState("connecting");
+	// Kích thước thật của khung hình camera. Player hiển thị video bằng object-fit: contain trong khung 16:9,
+	// nên camera không phải 16:9 sẽ có viền đen; overlay ROI phải co theo đúng vùng ảnh, không kéo giãn cả khung.
+	const [videoDims, setVideoDims] = useState(null);
+
+	useEffect(() => {
+		if (playerStatus !== "live") return undefined;
+		const videoEl = playerRef.current?.getVideoElement?.();
+		if (!videoEl) return undefined;
+		const update = () => {
+			const w = videoEl.videoWidth;
+			const h = videoEl.videoHeight;
+			if (w > 0 && h > 0) {
+				setVideoDims((prev) => (prev && prev.width === w && prev.height === h ? prev : { width: w, height: h }));
+			}
+		};
+		update();
+		videoEl.addEventListener("loadedmetadata", update);
+		videoEl.addEventListener("resize", update);
+		return () => {
+			videoEl.removeEventListener("loadedmetadata", update);
+			videoEl.removeEventListener("resize", update);
+		};
+	}, [playerStatus]);
 
 	const roiPolygons = camera?.roiGeometry?.polygons || [];
 	const totalRoiCount = roiPolygons.length;
@@ -24,10 +47,10 @@ export default function CameraSurveillanceTab({ camera, onOpenRoiEditor }) {
 		onOpenRoiEditor(snapshotMeta);
 	};
 
-	const renderRoiSvgElements = (width = 1920, height = 1080) => (
+	const renderRoiSvgElements = (width = 1920, height = 1080, preserveAspectRatio = "none") => (
 		<svg
 			viewBox={`0 0 ${width} ${height}`}
-			preserveAspectRatio="none"
+			preserveAspectRatio={preserveAspectRatio}
 			className="roi-preview-svg"
 		>
 			{roiPolygons.map((poly, idx) => {
@@ -153,7 +176,9 @@ export default function CameraSurveillanceTab({ camera, onOpenRoiEditor }) {
 											zIndex: 10,
 										}}
 									>
-										{renderRoiSvgElements(1920, 1080)}
+										{videoDims
+											? renderRoiSvgElements(videoDims.width, videoDims.height, "xMidYMid meet")
+											: renderRoiSvgElements(1920, 1080)}
 									</div>
 								)}
 						</div>
