@@ -141,15 +141,16 @@ public class UserService {
         Set<String> existingCodes = userRepository.findExistingUserCodes(Set.of(normUserCode));
         Set<String> existingEmails = userRepository.findExistingEmails(Set.of(normEmail));
 
-        List<String> duplicateReasons = new ArrayList<>();
+        // B1: câu báo theo từng trường (data của 409) để form gán đúng ô; message vẫn là các câu nối bằng ". "
+        Map<String, String> duplicateReasons = new LinkedHashMap<>();
         if (!existingCodes.isEmpty()) {
-            duplicateReasons.add("Mã người dùng đã tồn tại trong hệ thống");
+            duplicateReasons.put("userCode", "Mã người dùng đã tồn tại trong hệ thống");
         }
         if (!existingEmails.isEmpty()) {
-            duplicateReasons.add("Email đã tồn tại trong hệ thống");
+            duplicateReasons.put("email", "Email đã tồn tại trong hệ thống");
         }
         if (!duplicateReasons.isEmpty()) {
-            throw new DuplicateResourceException(String.join(". ", duplicateReasons));
+            throw new DuplicateResourceException(String.join(". ", duplicateReasons.values()), duplicateReasons);
         }
 
         // BR-06: mật khẩu tạm dài max(12, PASSWORD_MIN_LENGTH), có chữ + số (BE-06)

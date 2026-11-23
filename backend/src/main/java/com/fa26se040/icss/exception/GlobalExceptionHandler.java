@@ -133,6 +133,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<ApiResponse<Object>> handleDuplicateResource(DuplicateResourceException ex) {
+        // B1: trùng theo từng trường (tạo tài khoản: userCode / email) -> data = map trường → câu, như VALIDATION_ERROR;
+        // errorCode, message giữ như cũ
+        if (!ex.getFieldErrors().isEmpty()) {
+            ApiResponse<Object> body = ApiResponse.error(HttpStatus.CONFLICT.value(), HttpStatus.CONFLICT.getReasonPhrase(),
+                    ex.getMessage(), ex.getFieldErrors());
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body);
+        }
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
