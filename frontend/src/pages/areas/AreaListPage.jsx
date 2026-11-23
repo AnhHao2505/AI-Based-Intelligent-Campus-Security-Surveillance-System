@@ -136,6 +136,7 @@ export default function AreaListPage() {
 	const [pendingEditLocationDraft, setPendingEditLocationDraft] =
 		useState(null);
 	const [pickedAreaOverride, setPickedAreaOverride] = useState(null);
+	const [cameraRefreshNonce, setCameraRefreshNonce] = useState(0);
 	const [optimisticMapPlacements, setOptimisticMapPlacements] = useState({});
 	const cameraMapPlacements = useMemo(
 		() => buildCameraPlacementsMap(cameras, optimisticMapPlacements),
@@ -709,7 +710,7 @@ export default function AreaListPage() {
 	}, []);
 
 	const handleCameraLocationPicked = useCallback(
-		async ({ lng, lat, building, floorOrder }) => {
+		async ({ lng, lat, building, floorOrder, pickedAreaId = null }) => {
 			if (!selectedCameraId || !isAdmin) return;
 			const targetCam = cameras.find((c) => c.id === selectedCameraId);
 			const activeDraftScope = isCameraGeneralEditing
@@ -723,19 +724,19 @@ export default function AreaListPage() {
 				: null;
 			const effectiveAreaId = isCorridorCam
 				? null
-				: activeDraftScope?.areaId || areaInfo?.areaId || null;
+				: pickedAreaId || activeDraftScope?.areaId || areaInfo?.areaId || null;
 			const matchedArea = effectiveAreaId
 				? areaById.get(effectiveAreaId)
 				: null;
 			const assignedBuilding = isCorridorCam
 				? null
 				: matchedArea?.building ||
-					(!activeDraftScope ? areaInfo?.building : null) ||
+					(!activeDraftScope && !pickedAreaId ? areaInfo?.building : null) ||
 					null;
 			const assignedFloor = isCorridorCam
 				? null
 				: matchedArea?.floor ||
-					(!activeDraftScope ? areaInfo?.floor : null) ||
+					(!activeDraftScope && !pickedAreaId ? areaInfo?.floor : null) ||
 					null;
 			const assignedFloorOrder =
 				assignedBuilding && assignedFloor
@@ -792,6 +793,46 @@ export default function AreaListPage() {
 				[selectedCameraId]: optimistic,
 			}));
 			setPickingCameraLocation(false);
+
+			if (isCameraGeneralEditing && !isCorridorCam && pickedAreaId && matchedArea) {
+				const rawLvl =
+					typeof matchedArea.areaLevel === "string"
+						? matchedArea.areaLevel
+						: matchedArea.areaLevel?.code || "";
+				const upperLvl = String(rawLvl).toUpperCase();
+				const syncedType =
+					upperLvl === "PUBLIC" ? "PUBLIC_AREA" : "RESTRICTED_AREA";
+				const originalAreaId = String(areaInfo?.areaId || "");
+				const originalType =
+					String(targetCam?.cameraType || "").toUpperCase() ||
+					(String(matchedArea.areaLevel || "").toUpperCase() === "PUBLIC"
+						? "PUBLIC_AREA"
+						: "RESTRICTED_AREA");
+				const scopeChanged =
+					String(pickedAreaId) !== originalAreaId || syncedType !== originalType;
+
+				setCameraEditDraftScope(
+					scopeChanged
+						? { cameraType: syncedType, areaId: String(pickedAreaId), scopeChanged: true }
+						: null,
+				);
+				setPendingEditLocationDraft({
+					lng,
+					lat,
+					building: resolvedBuilding,
+					floorOrder: resolvedOrder,
+				});
+				setPickedAreaOverride({
+					id: String(pickedAreaId),
+					name: matchedArea.name || "",
+					areaLevel: upperLvl,
+					skipClearPendingLocation: true,
+				});
+				toast.success(
+					`Đã chọn ${matchedArea.name} và ghim vị trí mới — bấm Lưu thông tin để hoàn tất.`,
+				);
+				return;
+			}
 
 			if (activeDraftScope?.scopeChanged) {
 				setPendingEditLocationDraft({
@@ -931,15 +972,17 @@ export default function AreaListPage() {
 	);
 
 	const handleEditScopeChange = useCallback(
-		({ cameraType, areaId, scopeChanged }) => {
-			setPendingEditLocationDraft(null);
-			if (selectedCameraId) {
-				setOptimisticMapPlacements((prev) => {
-					if (!(selectedCameraId in prev)) return prev;
-					const next = { ...prev };
-					delete next[selectedCameraId];
-					return next;
-				});
+		({ cameraType, areaId, scopeChanged, preservePendingLocation = false }) => {
+			if (!preservePendingLocation) {
+				setPendingEditLocationDraft(null);
+				if (selectedCameraId) {
+					setOptimisticMapPlacements((prev) => {
+						if (!(selectedCameraId in prev)) return prev;
+						const next = { ...prev };
+						delete next[selectedCameraId];
+						return next;
+					});
+				}
 			}
 			if (!scopeChanged) {
 				setCameraEditDraftScope(null);
@@ -958,7 +1001,9 @@ export default function AreaListPage() {
 				setSelectedAreaId(null);
 			}
 			setPickingCameraArea(false);
-			setPickingCameraLocation(true);
+			if (!preservePendingLocation) {
+				setPickingCameraLocation(true);
+			}
 		},
 		[areaById, selectedCameraId],
 	);
@@ -1078,9 +1123,14 @@ export default function AreaListPage() {
 
 	const handleAreaPickedForCamera = useCallback((pickedArea) => {
 		if (!pickedArea?.id) return;
+		const rawLvl =
+			typeof pickedArea.areaLevel === "string"
+				? pickedArea.areaLevel
+				: pickedArea.areaLevel?.code || "";
 		setPickedAreaOverride({
 			id: String(pickedArea.id),
 			name: pickedArea.name || "",
+			areaLevel: String(rawLvl).toUpperCase(),
 		});
 		setPickingCameraArea(false);
 		toast.success(`Đã chọn khu vực "${pickedArea.name}" cho camera.`);
@@ -1189,7 +1239,11 @@ export default function AreaListPage() {
 		try {
 			const updated = await updateArea(targetId, payload);
 			setEditModalOpen(false);
-			await fetchData(updated.id);
+			await Promise.all([
+				fetchData(updated.id),
+				fetchAllCameras({ silent: true }),
+			]);
+			setCameraRefreshNonce((n) => n + 1);
 			return true;
 		} catch (err) {
 			console.error("Update area failed:", err);
@@ -1548,6 +1602,7 @@ export default function AreaListPage() {
 							pickingCameraTargetOverride={
 								isCameraGeneralEditing ? cameraEditDraftScope : null
 							}
+							allowRoomSwitchOnMapPick={isCameraGeneralEditing}
 							onCancelPickCameraLocation={() => setPickingCameraLocation(false)}
 							onCameraLocationPicked={handleCameraLocationPicked}
 							onCameraPlacementRejected={(msg) => toast.error(msg)}
@@ -1561,6 +1616,7 @@ export default function AreaListPage() {
 								isAdmin && selectedCameraId ? (
 									<CameraInspectorDrawer
 										cameraId={selectedCameraId}
+										refreshNonce={cameraRefreshNonce}
 										initialTab={selectedCameraInitialTab}
 										availableAreas={areas}
 										isAdmin={isAdmin}
@@ -1585,7 +1641,7 @@ export default function AreaListPage() {
 										onFocusAreaOnMap={handleFocusAreaOnMap}
 										onRequestPickAreaOnMap={() => {
 											setPickingCameraLocation(false);
-											setPickingCameraArea(true);
+											setPickingCameraArea((prev) => !prev);
 										}}
 										isPickingAreaOnMap={pickingCameraArea}
 										pickedAreaOverride={pickedAreaOverride}

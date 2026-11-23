@@ -61,11 +61,25 @@ export default function Select({
               {placeholder}
             </option>
           )}
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value} disabled={opt.disabled}>
-              {opt.label}
-            </option>
-          ))}
+          {options.map((opt, idx) =>
+            Array.isArray(opt.options) ? (
+              <optgroup key={opt.key || `${opt.label}-${idx}`} label={opt.label}>
+                {opt.options.map((child) => (
+                  <option
+                    key={child.value}
+                    value={child.value}
+                    disabled={child.disabled}
+                  >
+                    {child.label}
+                  </option>
+                ))}
+              </optgroup>
+            ) : (
+              <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                {opt.label}
+              </option>
+            ),
+          )}
         </select>
         <span className="ui-select__arrow">
           <ChevronDown size={16} />

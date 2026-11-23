@@ -5,6 +5,8 @@ import {
 	validateCameraPinPlacement,
 } from "../cameraMapGeometry.js";
 import {
+	countRestrictedAreasByLevel,
+	filterAreasForCameraScope,
 	filterAreasForCameraType,
 	normalizeCorridorCameraName,
 } from "../campusCameraHelpers.js";
@@ -255,5 +257,35 @@ describe("validateCameraPinPlacement (2-tier F-05 UI validation)", () => {
 			normalizeCorridorCameraName("Hành lang   Cánh Tây"),
 			"Hành lang Cánh Tây",
 		);
+	});
+
+	it("Lọc cấp độ phòng hạn chế (CONFIDENTIAL / HIGHLY_CONFIDENTIAL) và đếm số lượng chính xác", () => {
+		const areas = [
+			{ id: "a1", name: "Sảnh", areaLevel: "PUBLIC", areaAccessLevel: 1 },
+			{ id: "a2", name: "Phòng Lab", areaLevel: "CONFIDENTIAL", areaAccessLevel: 2 },
+			{ id: "a3", name: "Server", areaLevel: "HIGHLY_CONFIDENTIAL", areaAccessLevel: 3 },
+			{ id: "a4", name: "KT Điện", areaLevel: { code: "HIGHLY_CONFIDENTIAL" }, areaAccessLevel: 3 },
+		];
+		assert.deepEqual(
+			filterAreasForCameraScope(areas, "RESTRICTED_AREA", "ALL").map((a) => a.id),
+			["a2", "a3", "a4"],
+		);
+		assert.deepEqual(
+			filterAreasForCameraScope(areas, "RESTRICTED_AREA", "CONFIDENTIAL").map((a) => a.id),
+			["a2"],
+		);
+		assert.deepEqual(
+			filterAreasForCameraScope(areas, "RESTRICTED_AREA", "HIGHLY_CONFIDENTIAL").map((a) => a.id),
+			["a3", "a4"],
+		);
+		assert.deepEqual(
+			filterAreasForCameraScope(areas, "PUBLIC_AREA", "HIGHLY_CONFIDENTIAL").map((a) => a.id),
+			["a1"],
+		);
+		assert.deepEqual(countRestrictedAreasByLevel(areas), {
+			ALL: 3,
+			CONFIDENTIAL: 1,
+			HIGHLY_CONFIDENTIAL: 2,
+		});
 	});
 });

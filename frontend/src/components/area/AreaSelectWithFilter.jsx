@@ -1,11 +1,15 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
-import { RotateCcw } from "lucide-react";
+import { Filter, RotateCcw } from "lucide-react";
 import Select from "../ui/Select";
 import {
 	formatBuilding,
 	formatFloor,
 	formatLocation,
 } from "../../utils/formatLocation";
+import {
+	countRestrictedAreasByLevel,
+	extractAreaLevelKey,
+} from "../../utils/campusCameraHelpers";
 import "../../styles/AreaSelectWithFilter.css";
 
 function getFloorSortWeight(floorLabel) {
@@ -29,9 +33,19 @@ function compareFloors(a, b) {
 	return a.localeCompare(b, "vi");
 }
 
+function getLevelShortTag(area) {
+	const key = extractAreaLevelKey(area);
+	if (key === "HIGHLY_CONFIDENTIAL") return "[Cấp 3]";
+	if (key === "CONFIDENTIAL") return "[Cấp 2]";
+	if (key === "PUBLIC") return "[Cấp 1]";
+	return "";
+}
+
 /**
- * AreaSelectWithFilter — Select khu vực có bộ lọc Tòa nhà & Tầng gọn gàng phía trên.
- * Tự động ẩn thanh lọc khi danh sách chỉ có 1 tòa và 1 tầng.
+ * AreaSelectWithFilter — Bộ chọn khu vực thống nhất cho Create & Edit:
+ * - Segmented pill lọc Cấp độ (khi showLevelFilter=true) kèm số lượng thực tế
+ * - Thanh "Lọc nhanh" Tòa & Tầng tách biệt thị giác với ô chọn Khu vực chính
+ * - Nhóm danh sách phòng theo <optgroup> Tòa · Tầng để quét nhanh, không lặp tiền tố
  */
 export default function AreaSelectWithFilter({
 	areas = [],
@@ -49,6 +63,11 @@ export default function AreaSelectWithFilter({
 	defaultBuilding = "ALL",
 	defaultFloor = "ALL",
 	onFilterChange = null,
+	showLevelFilter = false,
+	levelFilter: controlledLevelFilter,
+	onLevelFilterChange = null,
+	showLevelTag = false,
+	groupByLocation = true,
 }) {
 	const [buildingFilter, setBuildingFilter] = useState(() => {
 		if (!defaultBuilding || defaultBuilding === "ALL") return "ALL";
@@ -58,11 +77,21 @@ export default function AreaSelectWithFilter({
 		if (!defaultFloor || defaultFloor === "ALL") return "ALL";
 		return formatFloor(defaultFloor) || defaultFloor;
 	});
+	const [internalLevelFilter, setInternalLevelFilter] = useState("ALL");
+
+	const activeLevelFilter =
+		controlledLevelFilter !== undefined ? controlledLevelFilter : internalLevelFilter;
+
+	const levelCounts = useMemo(
+		() => (showLevelFilter ? countRestrictedAreasByLevel(areas) : null),
+		[areas, showLevelFilter],
+	);
 
 	const normalizedAreas = useMemo(
 		() =>
 			areas.map((area) => ({
 				area,
+				levelKey: extractAreaLevelKey(area),
 				buildingLabel: formatBuilding(area.building),
 				floorLabel: formatFloor(area.floor),
 			})),
@@ -88,10 +117,7 @@ export default function AreaSelectWithFilter({
 	const floorListForBuilding = useMemo(() => {
 		const set = new Set();
 		for (const item of normalizedAreas) {
-			if (
-				buildingFilter !== "ALL" &&
-				item.buildingLabel !== buildingFilter
-			) {
+			if (buildingFilter !== "ALL" && item.buildingLabel !== buildingFilter) {
 				continue;
 			}
 			if (item.floorLabel) set.add(item.floorLabel);
@@ -99,26 +125,18 @@ export default function AreaSelectWithFilter({
 		return Array.from(set).sort(compareFloors);
 	}, [normalizedAreas, buildingFilter]);
 
-	// Đồng bộ khi danh sách areas thay đổi (VD: đổi tab Cá nhân <-> Nhóm)
 	useEffect(() => {
-		if (
-			buildingFilter !== "ALL" &&
-			!buildingList.includes(buildingFilter)
-		) {
+		if (buildingFilter !== "ALL" && !buildingList.includes(buildingFilter)) {
 			setBuildingFilter("ALL");
 		}
 	}, [buildingFilter, buildingList]);
 
 	useEffect(() => {
-		if (
-			floorFilter !== "ALL" &&
-			!floorListForBuilding.includes(floorFilter)
-		) {
+		if (floorFilter !== "ALL" && !floorListForBuilding.includes(floorFilter)) {
 			setFloorFilter("ALL");
 		}
 	}, [floorFilter, floorListForBuilding]);
 
-	// Đồng bộ khi defaultBuilding / defaultFloor từ component cha thay đổi
 	useEffect(() => {
 		if (defaultBuilding && defaultBuilding !== "ALL") {
 			const formatted = formatBuilding(defaultBuilding) || defaultBuilding;
@@ -137,7 +155,7 @@ export default function AreaSelectWithFilter({
 		}
 	}, [defaultFloor, floorListForBuilding]);
 
-	const showBuildingFilter = buildingList.length >= 1;
+	const showBuildingFilter = buildingList.length >= 2;
 	const showFloorFilter = floorListForAll.length >= 2;
 	const showFilterBar = showBuildingFilter || showFloorFilter;
 	const isSingleFilter =
@@ -149,101 +167,120 @@ export default function AreaSelectWithFilter({
 			normalizedAreas
 				.filter((item) => {
 					if (
+						showLevelFilter &&
+						activeLevelFilter !== "ALL" &&
+						item.levelKey !== activeLevelFilter
+					) {
+						return false;
+					}
+					if (
 						buildingFilter !== "ALL" &&
 						item.buildingLabel !== buildingFilter
 					) {
 						return false;
 					}
-					if (
-						floorFilter !== "ALL" &&
-						item.floorLabel !== floorFilter
-					) {
+					if (floorFilter !== "ALL" && item.floorLabel !== floorFilter) {
 						return false;
 					}
 					return true;
 				})
 				.sort((a, b) => {
-					const bCmp = a.buildingLabel.localeCompare(
-						b.buildingLabel,
-						"vi",
-					);
+					const bCmp = a.buildingLabel.localeCompare(b.buildingLabel, "vi");
 					if (bCmp !== 0) return bCmp;
 					const fCmp = compareFloors(a.floorLabel, b.floorLabel);
 					if (fCmp !== 0) return fCmp;
-					return (a.area.name || "").localeCompare(
-						b.area.name || "",
-						"vi",
-					);
+					return (a.area.name || "").localeCompare(b.area.name || "", "vi");
 				}),
-		[normalizedAreas, buildingFilter, floorFilter],
+		[normalizedAreas, showLevelFilter, activeLevelFilter, buildingFilter, floorFilter],
 	);
 
-	const formatOptionLabel = useCallback(
+	const formatFlatLabel = useCallback(
 		(item) => {
 			const { area, buildingLabel, floorLabel } = item;
+			const tag = showLevelTag ? getLevelShortTag(area) : "";
+			const prefix = tag ? `${tag} ` : "";
 			const isBuildingActive = buildingFilter !== "ALL";
 			const isFloorActive = floorFilter !== "ALL";
 
 			if (isBuildingActive && isFloorActive) {
-				return area.name;
+				return `${prefix}${area.name}`;
 			}
 			if (isBuildingActive && !isFloorActive) {
-				return floorLabel ? `${floorLabel} — ${area.name}` : area.name;
+				return floorLabel ? `${prefix}${floorLabel} — ${area.name}` : `${prefix}${area.name}`;
 			}
 			if (!isBuildingActive && isFloorActive) {
 				return buildingLabel
-					? `${buildingLabel} — ${area.name}`
-					: area.name;
+					? `${prefix}${buildingLabel} — ${area.name}`
+					: `${prefix}${area.name}`;
 			}
 			const loc = formatLocation(area.building, area.floor, " · ");
-			return loc ? `${loc} — ${area.name}` : area.name;
+			return loc ? `${prefix}${loc} — ${area.name}` : `${prefix}${area.name}`;
 		},
-		[buildingFilter, floorFilter],
+		[buildingFilter, floorFilter, showLevelTag],
 	);
 
 	const areaOptions = useMemo(() => {
+		const hasValue = value !== "" && value !== null && value !== undefined;
+		const emptyListPlaceholder =
+			filteredItems.length === 0
+				? "Không có phòng phù hợp bộ lọc"
+				: placeholder;
+
 		const opts = [
 			{
 				value: "",
-				label: placeholder,
+				label: emptyListPlaceholder,
 				disabled: placeholderDisabled,
 			},
 		];
 
-		const hasValue =
-			value !== "" && value !== null && value !== undefined;
 		const valueInFiltered =
 			hasValue &&
-			filteredItems.some(
-				(item) => String(item.area.id) === String(value),
-			);
+			filteredItems.some((item) => String(item.area.id) === String(value));
 
 		if (hasValue && !valueInFiltered) {
 			const currentItem = normalizedAreas.find(
 				(item) => String(item.area.id) === String(value),
 			);
 			if (currentItem) {
-				const bothFiltered =
-					buildingFilter !== "ALL" && floorFilter !== "ALL";
-				const loc = bothFiltered
-					? ""
-					: formatLocation(
-							currentItem.area.building,
-							currentItem.area.floor,
-							" · ",
-						);
+				const tag = showLevelTag ? getLevelShortTag(currentItem.area) : "";
+				const loc = formatLocation(
+					currentItem.area.building,
+					currentItem.area.floor,
+					" · ",
+				);
 				opts.push({
 					value: currentItem.area.id,
-					label: `Đang chọn: ${loc ? `${loc} — ` : ""}${currentItem.area.name}`,
+					label: `Đang chọn: ${tag ? `${tag} ` : ""}${loc ? `${loc} — ` : ""}${currentItem.area.name}`,
 				});
 			}
 		}
 
-		for (const item of filteredItems) {
-			opts.push({
-				value: item.area.id,
-				label: formatOptionLabel(item),
-			});
+		if (groupByLocation && filteredItems.length > 0) {
+			const groupsMap = new Map();
+			for (const item of filteredItems) {
+				const groupLabel =
+					formatLocation(item.area.building, item.area.floor, " · ") ||
+					"Khu vực khác";
+				if (!groupsMap.has(groupLabel)) {
+					groupsMap.set(groupLabel, []);
+				}
+				const tag = showLevelTag ? getLevelShortTag(item.area) : "";
+				groupsMap.get(groupLabel).push({
+					value: item.area.id,
+					label: tag ? `${tag} ${item.area.name}` : item.area.name,
+				});
+			}
+			for (const [label, children] of groupsMap.entries()) {
+				opts.push({ label, options: children });
+			}
+		} else {
+			for (const item of filteredItems) {
+				opts.push({
+					value: item.area.id,
+					label: formatFlatLabel(item),
+				});
+			}
 		}
 
 		return opts;
@@ -253,13 +290,22 @@ export default function AreaSelectWithFilter({
 		placeholder,
 		placeholderDisabled,
 		value,
-		formatOptionLabel,
-		buildingFilter,
-		floorFilter,
+		formatFlatLabel,
+		groupByLocation,
+		showLevelTag,
 	]);
 
 	const hasActiveFilter =
-		buildingFilter !== "ALL" || floorFilter !== "ALL";
+		buildingFilter !== "ALL" ||
+		floorFilter !== "ALL" ||
+		(showLevelFilter && activeLevelFilter !== "ALL");
+
+	const handleLevelChange = (nextLevel) => {
+		if (controlledLevelFilter === undefined) {
+			setInternalLevelFilter(nextLevel);
+		}
+		onLevelFilterChange?.(nextLevel);
+	};
 
 	const handleBuildingChange = (e) => {
 		const nextBuilding = e.target.value;
@@ -276,74 +322,126 @@ export default function AreaSelectWithFilter({
 	const handleResetFilters = () => {
 		setBuildingFilter("ALL");
 		setFloorFilter("ALL");
+		if (showLevelFilter) {
+			handleLevelChange("ALL");
+		}
 		onFilterChange?.({ building: "ALL", floor: "ALL" });
 	};
 
 	return (
 		<div className={`area-select-filter ${className}`.trim()}>
-			{showFilterBar && (
-				<>
-					<div
-						className={`area-select-filter__bar ${isSingleFilter ? "area-select-filter__bar--single" : ""}`}
-					>
-						{showBuildingFilter && (
-							<Select
-								className={`area-select-filter__sub ${buildingFilter !== "ALL" ? "area-select-filter__sub--active" : ""}`}
-								aria-label="Lọc theo tòa nhà"
-								value={buildingFilter}
-								onChange={handleBuildingChange}
-								disabled={disabled}
-								options={[
-									{ value: "ALL", label: "Tất cả tòa" },
-									...buildingList.map((b) => ({
-										value: b,
-										label: b,
-									})),
-								]}
-							/>
-						)}
+			{showLevelFilter && (
+				<div
+					className="area-level-segmented"
+					role="group"
+					aria-label="Lọc cấp độ phòng hạn chế"
+				>
+					{[
+						{
+							value: "ALL",
+							label: `Tất cả (${levelCounts?.ALL ?? areas.length})`,
+						},
+						{
+							value: "CONFIDENTIAL",
+							label: `Cấp 2 (${levelCounts?.CONFIDENTIAL ?? 0})`,
+							title: "Cấp 2 · Bảo mật",
+						},
+						{
+							value: "HIGHLY_CONFIDENTIAL",
+							label: `Cấp 3 (${levelCounts?.HIGHLY_CONFIDENTIAL ?? 0})`,
+							title: "Cấp 3 · Bảo mật cao",
+						},
+					].map((opt) => (
+						<button
+							key={opt.value}
+							type="button"
+							title={opt.title || opt.label}
+							className={`area-level-segmented__btn ${
+								activeLevelFilter === opt.value
+									? "area-level-segmented__btn--active"
+									: ""
+							}`}
+							aria-pressed={activeLevelFilter === opt.value}
+							onClick={() => handleLevelChange(opt.value)}
+							disabled={disabled}
+						>
+							{opt.label}
+						</button>
+					))}
+				</div>
+			)}
 
-						{showFloorFilter && (
-							<Select
-								className={`area-select-filter__sub ${floorFilter !== "ALL" ? "area-select-filter__sub--active" : ""}`}
-								aria-label="Lọc theo tầng"
-								value={floorFilter}
-								onChange={handleFloorChange}
-								disabled={disabled}
-								options={[
-									{ value: "ALL", label: "Tất cả tầng" },
-									...floorListForBuilding.map((f) => ({
-										value: f,
-										label: f,
-									})),
-								]}
-							/>
-						)}
-					</div>
-
-					{hasActiveFilter && (
-						<div className="area-select-filter__meta">
-							<span className="area-select-filter__count">
-								Hiển thị {filteredItems.length}/{areas.length}{" "}
-								khu vực
+			{(showFilterBar || hasActiveFilter) && (
+				<div className="area-select-filter__toolbar">
+					{showFilterBar && (
+						<div className="area-select-filter__bar-wrap">
+							<span className="area-select-filter__bar-label">
+								<Filter size={11} />
+								<span>Lọc:</span>
 							</span>
+							<div
+								className={`area-select-filter__bar ${isSingleFilter ? "area-select-filter__bar--single" : ""}`}
+							>
+								{showBuildingFilter && (
+									<Select
+										className={`area-select-filter__sub ${buildingFilter !== "ALL" ? "area-select-filter__sub--active" : ""}`}
+										aria-label="Lọc theo tòa nhà"
+										value={buildingFilter}
+										onChange={handleBuildingChange}
+										disabled={disabled}
+										options={[
+											{ value: "ALL", label: "Mọi tòa nhà" },
+											...buildingList.map((b) => ({
+												value: b,
+												label: b,
+											})),
+										]}
+									/>
+								)}
+
+								{showFloorFilter && (
+									<Select
+										className={`area-select-filter__sub ${floorFilter !== "ALL" ? "area-select-filter__sub--active" : ""}`}
+										aria-label="Lọc theo tầng"
+										value={floorFilter}
+										onChange={handleFloorChange}
+										disabled={disabled}
+										options={[
+											{ value: "ALL", label: "Mọi tầng" },
+											...floorListForBuilding.map((f) => ({
+												value: f,
+												label: f,
+											})),
+										]}
+									/>
+								)}
+							</div>
+						</div>
+					)}
+
+					<div className="area-select-filter__meta">
+						<span className="area-select-filter__count">
+							{filteredItems.length}/{areas.length} phòng phù hợp
+						</span>
+						{hasActiveFilter && (
 							<button
 								type="button"
 								className="area-select-filter__reset"
 								onClick={handleResetFilters}
 								disabled={disabled}
 							>
-								<RotateCcw size={12} />
+								<RotateCcw size={11} />
 								<span>Xóa lọc</span>
 							</button>
-						</div>
-					)}
-				</>
+						)}
+					</div>
+				</div>
 			)}
 
 			<Select
 				id={id}
 				name={name}
+				className="area-select-filter__primary"
 				value={value}
 				onChange={onChange}
 				disabled={disabled}

@@ -2242,26 +2242,96 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
-  gap: 2px;
-  padding: 0.5rem 0.6rem;
-  border-radius: 6px;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0.6rem 0.65rem;
+  border-radius: 8px;
   background: var(--theme-bg-surface);
   border: 1px solid var(--theme-border);
   color: var(--theme-text-primary);
   text-align: left;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.12s ease;
+}
+
+.cam-type-option-btn:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.cam-type-option-btn__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.cam-type-option-btn__icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text-muted);
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.cam-type-option-btn[data-cam-type="RESTRICTED_AREA"] .cam-type-option-btn__icon {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.cam-type-option-btn[data-cam-type="PUBLIC_AREA"] .cam-type-option-btn__icon {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+.cam-type-option-btn[data-cam-type="CORRIDOR"] .cam-type-option-btn__icon {
+  background: rgba(2, 132, 199, 0.12);
+  color: #0284c7;
 }
 
 .cam-type-option-btn:hover:not(:disabled) {
-  border-color: var(--brand-orange, #f97316);
+  border-color: var(--theme-text-muted);
 }
 
-.cam-type-option-btn--active {
-  border-color: var(--brand-orange, #f97316);
-  background: rgba(249, 115, 22, 0.1);
-  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.25);
+.cam-type-option-btn--active,
+.cam-type-option-btn[data-cam-type="RESTRICTED_AREA"].cam-type-option-btn--active {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.22);
+}
+
+.cam-type-option-btn[data-cam-type="RESTRICTED_AREA"].cam-type-option-btn--active .cam-type-option-btn__icon {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.cam-type-option-btn[data-cam-type="PUBLIC_AREA"].cam-type-option-btn--active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.08);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.22);
+}
+
+.cam-type-option-btn[data-cam-type="PUBLIC_AREA"].cam-type-option-btn--active .cam-type-option-btn__icon {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.cam-type-option-btn[data-cam-type="CORRIDOR"].cam-type-option-btn--active {
+  border-color: #0284c7;
+  background: rgba(2, 132, 199, 0.08);
+  box-shadow: 0 0 0 1px rgba(2, 132, 199, 0.22);
+}
+
+.cam-type-option-btn[data-cam-type="CORRIDOR"].cam-type-option-btn--active .cam-type-option-btn__icon {
+  background: #0284c7;
+  color: #ffffff;
 }
 
 .cam-type-option-btn__title {
@@ -2277,8 +2347,123 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--theme-text-muted);
 }
 
-.cam-type-option-btn--active .cam-type-option-btn__sub {
-  color: var(--brand-orange, #f97316);
+.cam-type-option-btn--active .cam-type-option-btn__sub,
+.cam-type-option-btn[data-cam-type="RESTRICTED_AREA"].cam-type-option-btn--active .cam-type-option-btn__sub {
+  color: #b91c1c;
+}
+
+.cam-type-option-btn[data-cam-type="PUBLIC_AREA"].cam-type-option-btn--active .cam-type-option-btn__sub {
+  color: #047857;
+}
+
+.cam-type-option-btn[data-cam-type="CORRIDOR"].cam-type-option-btn--active .cam-type-option-btn__sub {
+  color: #0369a1;
+}
+
+[data-theme="dark"] .cam-type-option-btn[data-cam-type="RESTRICTED_AREA"].cam-type-option-btn--active .cam-type-option-btn__sub {
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .cam-type-option-btn[data-cam-type="PUBLIC_AREA"].cam-type-option-btn--active .cam-type-option-btn__sub {
+  color: #34d399;
+}
+
+[data-theme="dark"] .cam-type-option-btn[data-cam-type="CORRIDOR"].cam-type-option-btn--active .cam-type-option-btn__sub {
+  color: #38bdf8;
+}
+
+.cam-type-rule-callout {
+  margin-top: 6px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  font-weight: 500;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text-secondary);
+}
+
+.cam-type-rule-callout[data-cam-type="RESTRICTED_AREA"] {
+  background: rgba(239, 68, 68, 0.07);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #991b1b;
+}
+
+.cam-type-rule-callout[data-cam-type="PUBLIC_AREA"] {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #065f46;
+}
+
+.cam-type-rule-callout[data-cam-type="CORRIDOR"] {
+  background: rgba(2, 132, 199, 0.08);
+  border-color: rgba(2, 132, 199, 0.25);
+  color: #075985;
+}
+
+[data-theme="dark"] .cam-type-rule-callout[data-cam-type="RESTRICTED_AREA"] {
+  color: #fecaca;
+}
+
+[data-theme="dark"] .cam-type-rule-callout[data-cam-type="PUBLIC_AREA"] {
+  color: #a7f3d0;
+}
+
+[data-theme="dark"] .cam-type-rule-callout[data-cam-type="CORRIDOR"] {
+  color: #bae6fd;
+}
+
+.cam-create-readiness-hint {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--theme-text-muted);
+  text-align: center;
+}
+
+.cam-create-checklist {
+  margin-top: auto;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cam-create-checklist__title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--theme-text-muted);
+  margin-bottom: 2px;
+}
+
+.cam-create-checklist__item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--theme-text-muted);
+}
+
+.cam-create-checklist__item svg {
+  flex-shrink: 0;
+  opacity: 0.35;
+}
+
+.cam-create-checklist__item--done {
+  color: var(--theme-text-primary);
+  font-weight: 600;
+}
+
+.cam-create-checklist__item--done svg {
+  color: #10b981;
+  opacity: 1;
 }
 
 .cam-type-badge {

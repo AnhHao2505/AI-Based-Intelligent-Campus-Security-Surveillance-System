@@ -247,6 +247,9 @@ export default function CameraCreateModal({
 									areas={filteredAreas}
 									value={formData.areaId}
 									onChange={handleChange}
+									showLevelFilter={formData.cameraType === "RESTRICTED_AREA"}
+									showLevelTag={formData.cameraType === "RESTRICTED_AREA"}
+									groupByLocation
 									placeholder="-- Chọn khu vực --"
 									placeholderDisabled
 									required

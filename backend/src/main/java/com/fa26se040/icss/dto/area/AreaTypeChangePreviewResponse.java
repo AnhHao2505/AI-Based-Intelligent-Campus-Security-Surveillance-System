@@ -30,7 +30,9 @@ public record AreaTypeChangePreviewResponse(
         List<BlockingReason> blockingReasons,
         // fix/type-change-guest-visits: số lượt khách PENDING sẽ bị huỷ / APPROVED sẽ bị thu hồi vì loại mới không nhận khách
         int guestVisitsToCancelCount,
-        int guestVisitsToRevokeCount
+        int guestVisitsToRevokeCount,
+        // Số camera trong khu vực sẽ tự động đồng bộ cameraType & chế độ AI theo cấp mới
+        int camerasToSyncTypeCount
 ) {
     /** Một đơn bị ảnh hưởng: người gửi + khung giờ. */
     public record RequestItem(

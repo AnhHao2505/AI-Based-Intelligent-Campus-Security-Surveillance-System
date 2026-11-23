@@ -122,7 +122,7 @@ class CloudEdgeServiceRoutingTest {
     @DisplayName("1. Happy Path (Cloud-Edge Stream Lifecycle): Khi MQTT kết nối và không cấu hình local aiServiceUrl, startStream chỉ dùng MQTT Retained Config (0 gọi HTTP vào Edge)")
     void startStream_inCloudEdgeMode_publishesMqttConfigWithoutHttpCall() {
         CameraStreamLifecycleService lifecycleService = new CameraStreamLifecycleService(
-                cameraRepository, streamConfigRepo, cameraService, mediaMtxService, restTemplate
+                cameraRepository, streamConfigRepo, cameraService, mediaMtxService, restTemplate, null
         );
         ReflectionTestUtils.setField(lifecycleService, "edgeMqttControlService", edgeMqttControlService);
         ReflectionTestUtils.setField(lifecycleService, "edgeStatusService", edgeStatusService);
