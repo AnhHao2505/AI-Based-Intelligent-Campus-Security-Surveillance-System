@@ -2294,6 +2294,7 @@ export default function ManageAccountPage() {
 														<th style={{ width: "130px" }}>Quyền</th>
 													)}
 													<th style={{ width: "110px" }}>Trạng thái</th>
+													<th style={{ width: "120px" }}>Mã lỗi</th>
 													<th>Chi tiết lỗi</th>
 												</tr>
 											</thead>
@@ -2338,6 +2339,11 @@ export default function ManageAccountPage() {
 																		? "Thành công"
 																		: "Thất bại"}
 																</span>
+															</td>
+															<td className="account-bulk-code-cell">
+																{r.status === "SUCCESS"
+																	? ""
+																	: r.errorCode || "-"}
 															</td>
 															<td
 																className="account-bulk-error-cell"
