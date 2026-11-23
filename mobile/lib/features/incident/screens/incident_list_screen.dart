@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/storage_helper.dart';
+import '../../../core/widgets/authorized_network_image.dart';
 import '../../map/providers/map_provider.dart';
 import '../../map/screens/guard_map_screen.dart';
 import '../models/incident_model.dart';
@@ -190,21 +191,10 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
               minScale: 0.8,
               maxScale: 4.0,
               child: Center(
-                child: Image.network(
-                  imageUrl,
+                child: AuthorizedNetworkImage(
+                  imageUrl: imageUrl,
                   fit: BoxFit.contain,
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
-                    return const Center(
-                      child: CircularProgressIndicator(color: AppColors.primaryLight),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) => const Center(
-                    child: Text(
-                      'Không tải được hình ảnh',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ),
+                  enableZoomOnTap: false,
                 ),
               ),
             ),
@@ -661,15 +651,12 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          Image.network(
-                            incident.imageUrl!,
+                          AuthorizedNetworkImage(
+                            imageUrl: incident.imageUrl!,
+                            width: double.infinity,
+                            height: 110,
                             fit: BoxFit.cover,
-                            errorBuilder: (ctx, err, stack) => Center(
-                              child: Text(
-                                'Ảnh bằng chứng không khả dụng',
-                                style: TextStyle(fontSize: 11, color: AppColors.txtSecondary(context)),
-                              ),
-                            ),
+                            enableZoomOnTap: false,
                           ),
                           Positioned(
                             right: 8,
