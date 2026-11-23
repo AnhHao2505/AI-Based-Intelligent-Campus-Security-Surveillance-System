@@ -47,6 +47,7 @@ import {
 	readFaceImageMaxKb,
 	validateFaceImageSize,
 	faceImageLimitText,
+	isAccountFaceErrorCode,
 } from "../../utils/accountFaceImage";
 import useDialogA11y from "../../hooks/useDialogA11y";
 import AccountAuditLogTab from "./AccountAuditLogTab";
@@ -667,6 +668,9 @@ export default function ManageAccountPage() {
 					: "Không thể tạo tài khoản cán bộ");
 			if (err.code === "ERR_AC_014") {
 				setFormErrors({ accessLevel: msg });
+			} else if (isAccountFaceErrorCode(err.code)) {
+				// B1: lỗi ảnh khuôn mặt theo mã ERR_FACE_xxx, hiện dưới ô ảnh
+				setFormErrors({ faceImage: msg });
 			} else if (msg.toLowerCase().includes("email")) {
 				setFormErrors({ email: msg });
 			} else if (
@@ -674,13 +678,6 @@ export default function ManageAccountPage() {
 				msg.toLowerCase().includes("code")
 			) {
 				setFormErrors({ userCode: msg });
-			} else if (
-				msg.toLowerCase().includes("khuôn mặt") ||
-				msg.toLowerCase().includes("ảnh") ||
-				msg.toLowerCase().includes("dung lượng") ||
-				msg.toLowerCase().includes("face")
-			) {
-				setFormErrors({ faceImage: msg });
 			} else {
 				setFormErrors({ general: msg });
 			}
