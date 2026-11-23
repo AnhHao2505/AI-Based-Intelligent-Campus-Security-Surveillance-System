@@ -316,10 +316,28 @@ export default function LoginPage({
 	return (
 		<div className="login-page" ref={pageRef}>
 			{/* Interactive mouse-parallax background */}
-			<div className="login-bg" aria-hidden="true">
+			<div
+				className={`login-bg ${!parallaxEnabled ? "login-bg--static" : ""}`}
+				aria-hidden="true"
+			>
 				<div className="login-bg__mesh" />
 				<div className="login-bg__grid" />
 			</div>
+
+			<button
+				type="button"
+				className={`login-bg-toggle ${parallaxEnabled ? "login-bg-toggle--active" : ""}`}
+				onClick={toggleParallax}
+				aria-pressed={parallaxEnabled}
+				title={
+					parallaxEnabled
+						? "Tắt hiệu ứng chuyển động nền"
+						: "Bật hiệu ứng chuyển động nền"
+				}
+			>
+				<Sparkles size={14} />
+				<span>{parallaxEnabled ? "Nền động: Bật" : "Nền động: Tắt"}</span>
+			</button>
 
 			<div className="login-card">
 				{/* Logo / Icon */}
