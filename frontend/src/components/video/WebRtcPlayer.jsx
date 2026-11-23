@@ -14,6 +14,9 @@ import {
 	RotateCw,
 	Radio,
 	ShieldAlert,
+	Flame,
+	Info,
+	Navigation,
 } from "lucide-react";
 import {
 	buildDvrStreamUrl,
@@ -23,9 +26,11 @@ import {
 } from "../../services/cameraService";
 import {
 	computeDvrWindow,
+	computeRecordedIntervalsPercent,
 	formatClockTime,
 	formatRelativeBehindLive,
 	mapAlertsToScrubberMarkers,
+	resolvePlaybackSeekTarget,
 } from "../../utils/dvrTimeline";
 import {
 	formatWhepHttpError,
@@ -35,7 +40,8 @@ import {
 import "../../styles/WebRtcPlayer.css";
 
 const ENV_CLOUD_WHEP_BASE = import.meta.env.VITE_CLOUD_WHEP_BASE_URL || "";
-const ENV_MEDIAMTX_WHEP_BASE = import.meta.env.VITE_MEDIAMTX_WHEP_BASE_URL || "";
+const ENV_MEDIAMTX_WHEP_BASE =
+	import.meta.env.VITE_MEDIAMTX_WHEP_BASE_URL || "";
 const ENV_AI_STREAM_BASE = import.meta.env.VITE_AI_STREAM_BASE_URL || "";
 
 /**
@@ -43,7 +49,12 @@ const ENV_AI_STREAM_BASE = import.meta.env.VITE_AI_STREAM_BASE_URL || "";
  */
 function resolveWhepEndpoint(hostProp, streamPath) {
 	const cleanPath = String(streamPath || "cam01").replace(/^\/+|\/+$/g, "");
-	const rawBase = (ENV_CLOUD_WHEP_BASE || ENV_MEDIAMTX_WHEP_BASE || hostProp || "localhost:8889")
+	const rawBase = (
+		ENV_CLOUD_WHEP_BASE ||
+		ENV_MEDIAMTX_WHEP_BASE ||
+		hostProp ||
+		"localhost:8889"
+	)
 		.trim()
 		.replace(/\/+$/, "");
 
@@ -87,6 +98,14 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		streamPath = "cam01",
 		cameraCode = "CAM-001",
 		cameraName = "Cổng chính",
+		displayLabel = null,
+		aiModeLabel = null,
+		incidentCount = 0,
+		incidentSeverityClass = "severity-warning",
+		alwaysShowDvr = false,
+		adjacentCameras = [],
+		onSelectAdjacentCamera = null,
+		relationBadge = null,
 		resolution = null,
 		fps = null,
 		isRecording = false,
@@ -119,8 +138,24 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	const dvrTokenRef = useRef({ token: null, expiresAt: 0 });
 	const seekSeqRef = useRef(0);
 	const lastAutoSeekMsRef = useRef(null);
+	const scrubCleanupRef = useRef(null);
+	const playbackNoticeTimerRef = useRef(null);
 
-	const initialIsPlayback = Number.isFinite(Number(initialSeekTimeMs)) && Number(initialSeekTimeMs) > 0;
+	useEffect(() => {
+		return () => {
+			if (scrubCleanupRef.current) {
+				scrubCleanupRef.current();
+				scrubCleanupRef.current = null;
+			}
+			if (playbackNoticeTimerRef.current) {
+				clearTimeout(playbackNoticeTimerRef.current);
+				playbackNoticeTimerRef.current = null;
+			}
+		};
+	}, []);
+
+	const initialIsPlayback =
+		Number.isFinite(Number(initialSeekTimeMs)) && Number(initialSeekTimeMs) > 0;
 	const [mode, setMode] = useState(initialIsPlayback ? "playback" : "live");
 	const [status, setStatus] = useState(enabled ? "connecting" : "offline");
 	const [errorMsg, setErrorMsg] = useState("");
@@ -139,6 +174,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	const [isScrubbing, setIsScrubbing] = useState(false);
 	const [scrubPreviewMs, setScrubPreviewMs] = useState(null);
 	const [hoveredMarker, setHoveredMarker] = useState(null);
+	const [playbackNotice, setPlaybackNotice] = useState("");
 	const [dvrPlayback, setDvrPlayback] = useState({
 		anchorMs: initialIsPlayback ? Number(initialSeekTimeMs) : 0,
 		srcUrl: "",
@@ -158,7 +194,8 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 
 	useImperativeHandle(ref, () => ({
 		captureFrame: () => {
-			const activeEl = mode === "playback" ? dvrVideoRef.current : videoRef.current;
+			const activeEl =
+				mode === "playback" ? dvrVideoRef.current : videoRef.current;
 			if (!activeEl || activeEl.videoWidth === 0) return null;
 			const w = activeEl.videoWidth || 1920;
 			const h = activeEl.videoHeight || 1080;
@@ -173,10 +210,12 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				height: h,
 			};
 		},
-		getVideoElement: () => (mode === "playback" ? dvrVideoRef.current : videoRef.current),
+		getVideoElement: () =>
+			mode === "playback" ? dvrVideoRef.current : videoRef.current,
 		getStatus: () => (mode === "playback" ? "playback" : status),
 		isTrackingActive: () => showTracking,
-		toggleTracking: (val) => setShowTracking(val !== undefined ? val : (p) => !p),
+		toggleTracking: (val) =>
+			setShowTracking(val !== undefined ? val : (p) => !p),
 		seekToTimestamp: (ms) => seekToTimestampRef.current?.(ms),
 		jumpToLive: () => jumpToLiveRef.current?.(),
 	}));
@@ -192,14 +231,20 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 
 	const ensureDvrToken = useCallback(async () => {
 		const cached = dvrTokenRef.current;
-		if (cached?.token && Number(cached.expiresAt) * 1000 > Date.now() + 10_000) {
+		if (
+			cached?.token &&
+			Number(cached.expiresAt) * 1000 > Date.now() + 10_000
+		) {
 			return cached.token;
 		}
 		const res = await getAnnotatedStreamToken(displayCamCode);
 		if (!res?.token) {
 			throw new Error("Không thể cấp token xác thực DVR stream");
 		}
-		dvrTokenRef.current = { token: res.token, expiresAt: res.expiresAt || Math.floor(Date.now() / 1000) + 120 };
+		dvrTokenRef.current = {
+			token: res.token,
+			expiresAt: res.expiresAt || Math.floor(Date.now() / 1000) + 120,
+		};
 		return res.token;
 	}, [displayCamCode]);
 
@@ -232,21 +277,36 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		return () => clearInterval(id);
 	}, [enabled, enableDvr, refreshDvrSegments]);
 
-	// Đồng hồ tick mỗi 1s để thanh scrubber LIVE tịnh tiến mượt theo thời gian thực
+	// Đồng hồ tick mỗi 1s để thanh scrubber LIVE tịnh tiến mượt theo thời gian thực (chỉ chạy khi luồng bật)
 	useEffect(() => {
+		if (!enabled) return undefined;
 		const timer = setInterval(() => {
 			setNowTickMs(Date.now());
 		}, 1000);
 		return () => clearInterval(timer);
-	}, []);
+	}, [enabled]);
 
 	const liveNowMs = nowTickMs + clockOffsetMs;
 	const liveClock = useMemo(() => formatClockTime(liveNowMs), [liveNowMs]);
+
+	const showPlaybackNotice = useCallback((msg) => {
+		setPlaybackNotice(msg || "");
+		if (playbackNoticeTimerRef.current) {
+			clearTimeout(playbackNoticeTimerRef.current);
+		}
+		if (msg) {
+			playbackNoticeTimerRef.current = setTimeout(() => {
+				playbackNoticeTimerRef.current = null;
+				setPlaybackNotice("");
+			}, 4500);
+		}
+	}, []);
 
 	const jumpToLive = useCallback(() => {
 		seekSeqRef.current += 1;
 		setShowTracking(false);
 		setMode("live");
+		showPlaybackNotice("");
 		setDvrPlayback({
 			anchorMs: 0,
 			srcUrl: "",
@@ -269,22 +329,83 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 
 	const seekToTimestamp = useCallback(
 		async (requestedMs) => {
-			if (!enableDvr || !Number.isFinite(requestedMs) || requestedMs <= 0) return;
-			const currentLiveMs = Date.now() + clockOffsetMs;
+			if (!enableDvr || !Number.isFinite(requestedMs) || requestedMs <= 0)
+				return;
+			const seq = ++seekSeqRef.current;
+			let currentLiveMs = Date.now() + clockOffsetMs;
 
-			// Nếu kéo sát mép LIVE (< 2.5s) -> tự động về xem trực tiếp WebRTC
 			if (requestedMs >= currentLiveMs - 2500) {
 				jumpToLive();
 				return;
 			}
 
-			// Kiểm tra nếu video DVR đang mở đã buffer sẵn khoảng sought này -> tua nội bộ ngay tức thì
+			// Nếu state segments chưa có hoặc không phủ mốc vừa bấm, làm mới ngay từ Backend trước khi quyết định
+			const hasDirectCoverage =
+				Array.isArray(segments) &&
+				segments.some(
+					(s) =>
+						Number.isFinite(s?.startMs) &&
+						Number.isFinite(s?.endMs) &&
+						requestedMs >= s.startMs &&
+						requestedMs <= s.endMs,
+				);
+			let activeSegments = segments;
+			if (!hasDirectCoverage) {
+				const fresh = await refreshDvrSegments();
+				if (seekSeqRef.current !== seq) return;
+				if (Array.isArray(fresh) && fresh.length > 0) {
+					activeSegments = fresh;
+				}
+				currentLiveMs = Date.now() + clockOffsetMs;
+			}
+
+			const resolution = resolvePlaybackSeekTarget({
+				requestedMs,
+				segments: activeSegments,
+				liveNowMs: currentLiveMs,
+			});
+
+			if (resolution.action === "live") {
+				jumpToLive();
+				return;
+			}
+
+			if (resolution.action === "unavailable") {
+				setShowTracking(false);
+				setMode("playback");
+				setDvrPlayback((prev) => ({
+					...prev,
+					anchorMs: requestedMs,
+					srcUrl: "",
+					playheadSec: 0,
+					isPaused: true,
+					isBuffering: false,
+					errorMsg: resolution.reason,
+					seq,
+				}));
+				return;
+			}
+
+			const effectiveRequestedMs = resolution.targetMs;
+			if (resolution.snapped && resolution.notice) {
+				showPlaybackNotice(resolution.notice);
+			}
+
+			// Kiểm tra nếu video xem lại đang mở đã buffer sẵn khoảng sought này -> tua nội bộ ngay tức thì
 			const dvrEl = dvrVideoRef.current;
-			if (mode === "playback" && dvrEl && dvrPlayback.srcUrl && dvrPlayback.anchorMs > 0) {
-				const offsetSec = (requestedMs - dvrPlayback.anchorMs) / 1000;
+			if (
+				mode === "playback" &&
+				dvrEl &&
+				dvrPlayback.srcUrl &&
+				dvrPlayback.anchorMs > 0
+			) {
+				const offsetSec = (effectiveRequestedMs - dvrPlayback.anchorMs) / 1000;
 				if (offsetSec >= 0 && dvrEl.seekable && dvrEl.seekable.length > 0) {
 					for (let i = 0; i < dvrEl.seekable.length; i += 1) {
-						if (offsetSec >= dvrEl.seekable.start(i) && offsetSec <= dvrEl.seekable.end(i)) {
+						if (
+							offsetSec >= dvrEl.seekable.start(i) &&
+							offsetSec <= dvrEl.seekable.end(i)
+						) {
 							dvrEl.currentTime = offsetSec;
 							setDvrPlayback((prev) => ({
 								...prev,
@@ -301,12 +422,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				}
 			}
 
-			const seq = ++seekSeqRef.current;
 			setShowTracking(false);
 			setMode("playback");
 			setDvrPlayback((prev) => ({
 				...prev,
-				anchorMs: requestedMs,
+				anchorMs: effectiveRequestedMs,
 				playheadSec: 0,
 				isPaused: false,
 				isBuffering: true,
@@ -317,15 +437,21 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			try {
 				const token = await ensureDvrToken();
 				if (seekSeqRef.current !== seq) return;
-				const sliceDurationSec = Math.min(600, Math.max(30, Math.ceil((currentLiveMs - requestedMs) / 1000) + 15));
+				const sliceDurationSec = Math.min(
+					600,
+					Math.max(
+						30,
+						Math.ceil((currentLiveMs - effectiveRequestedMs) / 1000) + 15,
+					),
+				);
 				const srcUrl = buildDvrStreamUrl(displayCamCode, {
-					startMs: requestedMs,
+					startMs: effectiveRequestedMs,
 					durationSec: sliceDurationSec,
 					path: resolvedStreamPath,
 					token,
 				});
 				setDvrPlayback({
-					anchorMs: requestedMs,
+					anchorMs: effectiveRequestedMs,
 					srcUrl,
 					playheadSec: 0,
 					isPaused: false,
@@ -338,7 +464,8 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				setDvrPlayback((prev) => ({
 					...prev,
 					isBuffering: false,
-					errorMsg: err?.message || "Không thể khởi tạo luồng phát lại DVR",
+					errorMsg:
+						err?.message || "Không thể mở đoạn phát lại, vui lòng thử lại.",
 				}));
 			}
 		},
@@ -351,7 +478,10 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			ensureDvrToken,
 			jumpToLive,
 			mode,
+			refreshDvrSegments,
 			resolvedStreamPath,
+			segments,
+			showPlaybackNotice,
 		],
 	);
 
@@ -427,17 +557,36 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 
 	// Kết nối WebRTC WHEP chỉ chạy khi đang ở chế độ LIVE
 	useEffect(() => {
+		const releaseVideoStream = () => {
+			const videoEl = videoRef.current;
+			if (!videoEl) return;
+			const currentStream = videoEl.srcObject;
+			if (currentStream && typeof currentStream.getTracks === "function") {
+				currentStream.getTracks().forEach((track) => {
+					try {
+						track.onended = null;
+						track.stop();
+					} catch {
+						// Bỏ qua nếu track đã giải phóng
+					}
+				});
+			}
+			videoEl.srcObject = null;
+		};
+
 		if (!enabled || mode !== "live") {
+			releaseVideoStream();
 			if (!enabled) {
 				setStatus("offline");
 				setErrorMsg("");
 				if (onStatusChange) onStatusChange("offline");
 			}
-			return;
+			return undefined;
 		}
 
 		let isMounted = true;
 		let peerConnection = null;
+		let activeTrack = null;
 		let retryTimerId = null;
 		let frameWatchdogTimerId = null;
 		const abortController = new AbortController();
@@ -503,6 +652,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				peerConnection.ontrack = (event) => {
 					if (!isMounted) return;
 					if (event.track) {
+						activeTrack = event.track;
 						event.track.onended = () => {
 							scheduleReconnect("Nguồn phát video từ camera vừa ngừng truyền");
 						};
@@ -532,7 +682,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						frameWatchdogTimerId = null;
 						if (!isMounted) return;
 						if (!hasDecodedVideoFrame(videoRef.current)) {
-							scheduleReconnect("Đã kết nối WebRTC nhưng chưa giải mã được khung hình (kiểm tra codec H.264)");
+							scheduleReconnect(
+								"Đã kết nối WebRTC nhưng chưa giải mã được khung hình (kiểm tra codec H.264)",
+							);
 						} else {
 							markLiveIfDecoded();
 						}
@@ -546,7 +698,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						if (!markLiveIfDecoded()) {
 							startNoFrameWatchdog();
 						}
-					} else if (state === "disconnected" || state === "failed" || state === "closed") {
+					} else if (
+						state === "disconnected" ||
+						state === "failed" ||
+						state === "closed"
+					) {
 						scheduleReconnect("Kết nối WebRTC tới MediaMTX bị gián đoạn");
 					}
 				};
@@ -554,7 +710,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				peerConnection.oniceconnectionstatechange = () => {
 					if (!isMounted) return;
 					if (peerConnection.iceConnectionState === "failed") {
-						scheduleReconnect("Không thể thiết lập kết nối mạng WebRTC (ICE failed)");
+						scheduleReconnect(
+							"Không thể thiết lập kết nối mạng WebRTC (ICE failed)",
+						);
 					}
 				};
 
@@ -607,9 +765,20 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			isMounted = false;
 			clearTimers();
 			abortController.abort();
-			if (peerConnection) {
-				peerConnection.close();
+			if (activeTrack) {
+				activeTrack.onended = null;
+				activeTrack = null;
 			}
+			if (peerConnection) {
+				peerConnection.ontrack = null;
+				peerConnection.onconnectionstatechange = null;
+				peerConnection.oniceconnectionstatechange = null;
+				peerConnection.close();
+				if (pcRef.current === peerConnection) {
+					pcRef.current = null;
+				}
+			}
+			releaseVideoStream();
 		};
 	}, [streamPath, host, connectAttempt, enabled, mode]);
 
@@ -645,7 +814,23 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				liveNowMs,
 				focusedAlertId,
 			}),
-		[alerts, timeline.windowStartMs, timeline.windowEndMs, liveNowMs, focusedAlertId],
+		[
+			alerts,
+			timeline.windowStartMs,
+			timeline.windowEndMs,
+			liveNowMs,
+			focusedAlertId,
+		],
+	);
+
+	const recordedIntervals = useMemo(
+		() =>
+			computeRecordedIntervalsPercent({
+				segments,
+				windowStartMs: timeline.windowStartMs,
+				windowEndMs: timeline.windowEndMs,
+			}),
+		[segments, timeline.windowStartMs, timeline.windowEndMs],
 	);
 
 	const playheadMs = useMemo(() => {
@@ -655,15 +840,30 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		if (mode === "live") {
 			return timeline.windowEndMs;
 		}
-		const computed = dvrPlayback.anchorMs + (Number(dvrPlayback.playheadSec) || 0) * 1000;
-		return Math.min(timeline.windowEndMs, Math.max(timeline.windowStartMs, computed));
-	}, [isScrubbing, scrubPreviewMs, mode, timeline.windowEndMs, timeline.windowStartMs, dvrPlayback.anchorMs, dvrPlayback.playheadSec]);
+		const computed =
+			dvrPlayback.anchorMs + (Number(dvrPlayback.playheadSec) || 0) * 1000;
+		return Math.min(
+			timeline.windowEndMs,
+			Math.max(timeline.windowStartMs, computed),
+		);
+	}, [
+		isScrubbing,
+		scrubPreviewMs,
+		mode,
+		timeline.windowEndMs,
+		timeline.windowStartMs,
+		dvrPlayback.anchorMs,
+		dvrPlayback.playheadSec,
+	]);
 
 	const progressPercent = useMemo(() => {
 		if (mode === "live" && !isScrubbing) return 100;
 		return Math.min(
 			100,
-			Math.max(0, ((playheadMs - timeline.windowStartMs) / timeline.spanMs) * 100),
+			Math.max(
+				0,
+				((playheadMs - timeline.windowStartMs) / timeline.spanMs) * 100,
+			),
 		);
 	}, [mode, isScrubbing, playheadMs, timeline.windowStartMs, timeline.spanMs]);
 
@@ -682,6 +882,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 
 	const handleTrackPointerDown = (e) => {
 		e.stopPropagation();
+		if (scrubCleanupRef.current) {
+			scrubCleanupRef.current();
+		}
 		const targetMs = calcMsFromPointerEvent(e);
 		setIsScrubbing(true);
 		setScrubPreviewMs(targetMs);
@@ -689,16 +892,23 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		const onMove = (moveEvt) => {
 			setScrubPreviewMs(calcMsFromPointerEvent(moveEvt));
 		};
-		const onUp = (upEvt) => {
+		const cleanupListeners = () => {
 			window.removeEventListener("mousemove", onMove);
 			window.removeEventListener("mouseup", onUp);
 			window.removeEventListener("touchmove", onMove);
 			window.removeEventListener("touchend", onUp);
+			if (scrubCleanupRef.current === cleanupListeners) {
+				scrubCleanupRef.current = null;
+			}
+		};
+		const onUp = (upEvt) => {
+			cleanupListeners();
 			const finalMs = calcMsFromPointerEvent(upEvt);
 			setIsScrubbing(false);
 			setScrubPreviewMs(null);
 			seekToTimestamp(finalMs);
 		};
+		scrubCleanupRef.current = cleanupListeners;
 		window.addEventListener("mousemove", onMove);
 		window.addEventListener("mouseup", onUp);
 		window.addEventListener("touchmove", onMove);
@@ -757,7 +967,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				muted={muted}
 				playsInline
 				className={`cctv-video-element ${mode === "live" && status === "live" && !showTracking ? "active" : ""}`}
-				style={{ display: mode !== "live" || showTracking ? "none" : undefined }}
+				style={{
+					display: mode !== "live" || showTracking ? "none" : undefined,
+				}}
 				onPlaying={handleVideoReady}
 				onLoadedData={handleVideoReady}
 				onResize={handleVideoReady}
@@ -779,7 +991,12 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						setDvrPlayback((p) => ({ ...p, isBuffering: false, errorMsg: "" }));
 					}}
 					onPlaying={() => {
-						setDvrPlayback((p) => ({ ...p, isPaused: false, isBuffering: false, errorMsg: "" }));
+						setDvrPlayback((p) => ({
+							...p,
+							isPaused: false,
+							isBuffering: false,
+							errorMsg: "",
+						}));
 					}}
 					onPause={() => {
 						setDvrPlayback((p) => ({ ...p, isPaused: true }));
@@ -789,10 +1006,15 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					}}
 					onTimeUpdate={(e) => {
 						const ct = e.currentTarget?.currentTime || 0;
-						setDvrPlayback((p) => ({ ...p, playheadSec: ct, isBuffering: false }));
+						setDvrPlayback((p) => ({
+							...p,
+							playheadSec: ct,
+							isBuffering: false,
+						}));
 					}}
 					onEnded={() => {
-						const currentEndMs = dvrPlayback.anchorMs + (dvrPlayback.playheadSec || 0) * 1000;
+						const currentEndMs =
+							dvrPlayback.anchorMs + (dvrPlayback.playheadSec || 0) * 1000;
 						if (currentEndMs >= Date.now() + clockOffsetMs - 6000) {
 							jumpToLive();
 						} else {
@@ -804,7 +1026,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 							...p,
 							isBuffering: false,
 							errorMsg:
-								"Chưa có dữ liệu DVR tại mốc thời gian này (camera mới kết nối hoặc đã vượt quá thời hạn lưu trữ).",
+								"Đoạn video này đang được lưu hoặc camera vừa mới kết nối lại.",
 						}));
 					}}
 				/>
@@ -813,7 +1035,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			{/* 3. Luồng AI Tracking Annotation trực tiếp */}
 			{mode === "live" && showTracking && streamToken && !trackingError && (
 				<img
-					src={resolveAiStreamUrl(aiHost, cameraCode || streamPath || "CAM-001", streamToken)}
+					src={resolveAiStreamUrl(
+						aiHost,
+						cameraCode || streamPath || "CAM-001",
+						streamToken,
+					)}
 					alt={`AI Tracking ${cameraCode}`}
 					className="cctv-annotated-stream"
 					onError={() => {
@@ -826,56 +1052,80 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			)}
 
 			{/* Overlay lỗi AI Tracking */}
-			{mode === "live" && showTracking && (trackingError || (!tokenLoading && !streamToken)) && (
-				<div className="cctv-tracking-error-overlay">
-					<div className="cctv-tracking-error-box">
-						<span className="cctv-tracking-error-title">⚠️ AI Tracking Chưa Khả Dụng</span>
-						<span className="cctv-tracking-error-desc">
-							Không thể kết nối luồng phân tích thời gian thực cho [{displayCamCode}]. Vui lòng đảm bảo camera đã kết nối RTSP và AI Service đang chạy.
-						</span>
-						<div className="cctv-tracking-error-actions">
-							<button
-								type="button"
-								onClick={(e) => {
-									e.stopPropagation();
-									setTrackingError(false);
-									setTokenRetryTrigger((prev) => prev + 1);
-								}}
-								className="cctv-tracking-retry-btn"
-							>
-								Thử lại
-							</button>
-							<button
-								type="button"
-								onClick={(e) => {
-									e.stopPropagation();
-									setShowTracking(false);
-									setTrackingError(false);
-									setTokenRetryTrigger((prev) => prev + 1);
-								}}
-								className="cctv-tracking-return-btn"
-							>
-								Quay lại luồng gốc
-							</button>
+			{mode === "live" &&
+				showTracking &&
+				(trackingError || (!tokenLoading && !streamToken)) && (
+					<div className="cctv-tracking-error-overlay">
+						<div className="cctv-tracking-error-box">
+							<span className="cctv-tracking-error-title">
+								⚠️ AI Tracking Chưa Khả Dụng
+							</span>
+							<span className="cctv-tracking-error-desc">
+								Không thể kết nối luồng phân tích thời gian thực cho [
+								{displayCamCode}]. Vui lòng đảm bảo camera đã kết nối RTSP và AI
+								Service đang chạy.
+							</span>
+							<div className="cctv-tracking-error-actions">
+								<button
+									type="button"
+									onClick={(e) => {
+										e.stopPropagation();
+										setTrackingError(false);
+										setTokenRetryTrigger((prev) => prev + 1);
+									}}
+									className="cctv-tracking-retry-btn"
+								>
+									Thử lại
+								</button>
+								<button
+									type="button"
+									onClick={(e) => {
+										e.stopPropagation();
+										setShowTracking(false);
+										setTrackingError(false);
+										setTokenRetryTrigger((prev) => prev + 1);
+									}}
+									className="cctv-tracking-return-btn"
+								>
+									Quay lại luồng gốc
+								</button>
+							</div>
 						</div>
 					</div>
-				</div>
-			)}
+				)}
 
-			{/* Overlay trạng thái DVR Playback (Buffering hoặc Chưa có dữ liệu tại mốc chọn) */}
-			{mode === "playback" && dvrPlayback.isBuffering && !dvrPlayback.errorMsg && (
-				<div className="dvr-status-overlay">
-					<div className="dvr-buffering-pill">
-						Đang tải DVR tại {formatClockTime(dvrPlayback.anchorMs)}...
+			{/* Overlay trạng thái xem lại (Đang tải hoặc Chưa có bản ghi thân thiện, không che đen toàn khung) */}
+			{mode === "playback" &&
+				dvrPlayback.isBuffering &&
+				!dvrPlayback.errorMsg && (
+					<div className="dvr-status-overlay">
+						<div className="dvr-buffering-pill">
+							Đang tải bản ghi lúc {formatClockTime(dvrPlayback.anchorMs)}...
+						</div>
 					</div>
+				)}
+
+			{playbackNotice && (
+				<div
+					className="playback-notice-toast"
+					onClick={(e) => e.stopPropagation()}
+				>
+					<Info size={13} />
+					<span>{playbackNotice}</span>
 				</div>
 			)}
 
 			{mode === "playback" && dvrPlayback.errorMsg && (
-				<div className="cctv-blackout-screen">
-					<div className="cctv-offline-telemetry">
-						<div className="cctv-no-signal-badge">[ DVR KHÔNG KHẢ DỤNG TẠI MỐC NÀY ]</div>
-						<div className="cctv-offline-reason">{dvrPlayback.errorMsg}</div>
+				<div
+					className="playback-friendly-overlay"
+					onClick={(e) => e.stopPropagation()}
+				>
+					<div className="playback-friendly-card">
+						<div className="playback-friendly-title">
+							<Info size={14} />
+							<span>Chưa có bản ghi tại lúc này</span>
+						</div>
+						<div className="playback-friendly-desc">{dvrPlayback.errorMsg}</div>
 						<div className="dvr-error-actions">
 							<button
 								type="button"
@@ -885,7 +1135,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 									jumpToLive();
 								}}
 							>
-								<Radio size={12} /> Xem trực tiếp (LIVE)
+								<Radio size={12} /> Về trực tiếp
 							</button>
 							{timeline.earliestRecordedMs && (
 								<button
@@ -896,7 +1146,8 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 										seekToTimestamp(timeline.earliestRecordedMs);
 									}}
 								>
-									Phát từ đầu bản ghi ({formatClockTime(timeline.earliestRecordedMs)})
+									Từ đầu bản ghi ({formatClockTime(timeline.earliestRecordedMs)}
+									)
 								</button>
 							)}
 						</div>
@@ -907,64 +1158,76 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			{/* Thanh OSD Phía Trên */}
 			<div className="cctv-osd-top-bar">
 				<div className="cctv-osd-top-left">
-					<span className="cctv-spec-code">{displayCamCode}</span>
+					<span
+						className="cctv-spec-code"
+						title={displayLabel || displayCamCode}
+					>
+						{displayLabel || displayCamCode}
+					</span>
+					{incidentCount > 0 && (
+						<span className={`cctv-incident-pill ${incidentSeverityClass}`}>
+							<Flame size={11} />
+							<span>{incidentCount}</span>
+						</span>
+					)}
+					{relationBadge && (
+						<span
+							className="cctv-relation-pill"
+							title="Khoảng cách / tầng lân cận so với ô tiêu điểm"
+						>
+							<Navigation size={10} />
+							<span>{relationBadge}</span>
+						</span>
+					)}
 				</div>
 
 				<div className="cctv-osd-top-right">
-					{(showLiveTag || (isRecording && showRecTag) || enableTrackingToggle || mode === "playback") && (
-						<div className="cctv-indicator-group">
-							{mode === "playback" ? (
-								<button
-									type="button"
-									className="cctv-tag cctv-tag--dvr-back"
-									onClick={(e) => {
-										e.stopPropagation();
-										jumpToLive();
-									}}
-									title="Đang xem lại (DVR Playback). Bấm để quay về trực tiếp LIVE"
-								>
-									<span className="cctv-dot cctv-dot--amber" />
-									DVR • QUAY VỀ LIVE
-								</button>
-							) : (
-								showLiveTag && (
-									<span
-										className={`cctv-tag cctv-tag--live ${status === "live" ? "active" : "idle"}`}
-									>
-										<span className="cctv-dot cctv-dot--green" />
-										LIVE
+					{(enabled || mode === "playback") &&
+						(showLiveTag ||
+							(isRecording && showRecTag) ||
+							enableTrackingToggle ||
+							aiModeLabel ||
+							mode === "playback") && (
+							<div className="cctv-indicator-group">
+								{isRecording && showRecTag && (
+									<span className="cctv-tag cctv-tag--rec">
+										<span className="cctv-dot cctv-dot--red" />
+										REC
 									</span>
-								)
-							)}
+								)}
 
-							{isRecording && showRecTag && (
-								<span className="cctv-tag cctv-tag--rec">
-									<span className="cctv-dot cctv-dot--red" />
-									REC
-								</span>
-							)}
+								{aiModeLabel && enabled && (
+									<span className="cctv-tag cctv-tag--ai-mode">
+										<span className="cctv-dot cctv-dot--green" />
+										{aiModeLabel}
+									</span>
+								)}
 
-							{enableTrackingToggle && (
-								<button
-									type="button"
-									className={`cctv-tag cctv-tag--tracking ${showTracking ? "active" : ""}`}
-									onClick={handleToggleTracking}
-									title={
-										showTracking
-											? "Đang bật AI Tracking (Bounding Box, Track ID, Face & ROI). Bấm để chuyển về luồng gốc."
-											: "Bấm để bật AI Tracking (hiển thị Bounding Box, Track ID, Face & ROI)"
-									}
-								>
-									<span className={`cctv-dot ${showTracking ? "cctv-dot--cyan" : "cctv-dot--idle"}`} />
-									{showTracking ? "TRACKING: ON" : "TRACKING"}
-								</button>
-							)}
-						</div>
+								{enableTrackingToggle && enabled && (
+									<button
+										type="button"
+										className={`cctv-tag cctv-tag--tracking ${showTracking ? "active" : ""}`}
+										onClick={handleToggleTracking}
+										title={
+											showTracking
+												? "Đang bật AI Tracking (Bounding Box, Track ID, Face & ROI). Bấm để chuyển về luồng gốc."
+												: "Bấm để bật AI Tracking (hiển thị Bounding Box, Track ID, Face & ROI)"
+										}
+									>
+										<span
+											className={`cctv-dot ${showTracking ? "cctv-dot--cyan" : "cctv-dot--idle"}`}
+										/>
+										{showTracking ? "TRACKING: ON" : "TRACKING"}
+									</button>
+								)}
+							</div>
+						)}
+
+					{(enabled || mode === "playback") && (
+						<span className="cctv-clock-text">
+							{mode === "playback" ? formatClockTime(playheadMs) : liveClock}
+						</span>
 					)}
-
-					<span className="cctv-clock-text">
-						{mode === "playback" ? formatClockTime(playheadMs) : liveClock}
-					</span>
 
 					{onToggleMaximize && (
 						<button
@@ -1006,10 +1269,45 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				</div>
 			)}
 
-			{/* Thanh DVR YouTube-Live Video Scrubber + Red Dots */}
-			{enableDvr && (
+			{/* Thanh chọn nhanh Camera lân cận (tính theo tọa độ 2D) hiển thị ở ô tiêu điểm */}
+			{alwaysShowDvr &&
+				enabled &&
+				mode === "live" &&
+				adjacentCameras.length > 0 &&
+				typeof onSelectAdjacentCamera === "function" && (
+					<div
+						className="adjacent-cam-bar"
+						onClick={(e) => e.stopPropagation()}
+					>
+						<span
+							className="adjacent-cam-label"
+							title="Các camera lân cận gần nhất theo mặt bằng 2D"
+						>
+							<Navigation size={11} /> Lân cận:
+						</span>
+						{adjacentCameras.map((adj) => (
+							<button
+								key={adj.camera.code}
+								type="button"
+								className="adjacent-cam-pill"
+								onClick={() => onSelectAdjacentCamera(adj.camera.code)}
+								title={`Chuyển sang ${adj.camera.name} (${adj.relationLabel})`}
+							>
+								<span>{adj.camera.name}</span>
+								{adj.distanceMeters != null && adj.distanceMeters <= 500 && (
+									<span className="adjacent-cam-dist">
+										{adj.distanceMeters}m
+									</span>
+								)}
+							</button>
+						))}
+					</div>
+				)}
+
+			{/* Thanh Xem lại Video Scrubber (2 màu: Đã ghi vs Chưa ghi) + Chấm đỏ sự cố */}
+			{enableDvr && (enabled || mode === "playback") && (
 				<div
-					className={`dvr-scrubber-bar ${compactScrubber ? "is-compact" : ""} ${isScrubbing ? "is-scrubbing" : ""}`}
+					className={`dvr-scrubber-bar ${compactScrubber ? "is-compact" : ""} ${alwaysShowDvr || mode === "playback" ? "is-pinned" : ""} ${isScrubbing ? "is-scrubbing" : ""}`}
 					onClick={(e) => e.stopPropagation()}
 				>
 					{/* Hàng 1: Timeline Scrubber Track + Chấm đỏ cảnh báo */}
@@ -1023,9 +1321,19 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 							setHoveredMarker(null);
 							if (!isScrubbing) setScrubPreviewMs(null);
 						}}
-						title="Kéo hoặc bấm bất kỳ điểm nào để xem lại DVR / bấm chấm đỏ để nhảy tới sự cố"
+						title="Kéo hoặc bấm thanh xanh để xem lại • Bấm chấm đỏ để nhảy tới sự cố"
 					>
 						<div className="dvr-track-rail">
+							{recordedIntervals.map((seg, idx) => (
+								<div
+									key={`rec-${idx}`}
+									className="dvr-track-recorded-segment"
+									style={{
+										left: `${seg.leftPercent}%`,
+										width: `${seg.widthPercent}%`,
+									}}
+								/>
+							))}
 							<div
 								className={`dvr-track-fill ${mode === "live" ? "is-live" : "is-dvr"}`}
 								style={{ width: `${progressPercent}%` }}
@@ -1062,22 +1370,30 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						{hoveredMarker && (
 							<div
 								className="dvr-scrubber-tooltip is-alert"
-								style={{ left: `${Math.min(92, Math.max(8, hoveredMarker.percent))}%` }}
+								style={{
+									left: `${Math.min(92, Math.max(8, hoveredMarker.percent))}%`,
+								}}
 							>
 								<span className="dvr-tooltip-dot" />
 								<strong>{hoveredMarker.timestampLabel}</strong>
 								<span>{hoveredMarker.title}</span>
 							</div>
 						)}
-						{!hoveredMarker && isScrubbing && Number.isFinite(scrubPreviewMs) && (
-							<div
-								className="dvr-scrubber-tooltip"
-								style={{ left: `${Math.min(92, Math.max(8, progressPercent))}%` }}
-							>
-								<strong>{formatClockTime(scrubPreviewMs)}</strong>
-								<span>({formatRelativeBehindLive(scrubPreviewMs, liveNowMs)})</span>
-							</div>
-						)}
+						{!hoveredMarker &&
+							isScrubbing &&
+							Number.isFinite(scrubPreviewMs) && (
+								<div
+									className="dvr-scrubber-tooltip"
+									style={{
+										left: `${Math.min(92, Math.max(8, progressPercent))}%`,
+									}}
+								>
+									<strong>{formatClockTime(scrubPreviewMs)}</strong>
+									<span>
+										({formatRelativeBehindLive(scrubPreviewMs, liveNowMs)})
+									</span>
+								</div>
+							)}
 					</div>
 
 					{/* Hàng 2: Nút điều khiển Play/Pause, -10s, +10s, Live, Mốc thời gian */}
@@ -1087,12 +1403,22 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 								type="button"
 								className="dvr-ctrl-btn"
 								onClick={togglePlaybackPause}
-								title={mode === "live" || !dvrPlayback.isPaused ? "Tạm dừng" : "Phát tiếp"}
+								title={
+									mode === "live" || !dvrPlayback.isPaused
+										? "Tạm dừng"
+										: "Phát tiếp"
+								}
 							>
 								{mode === "playback" && dvrPlayback.isPaused ? (
-									<Play size={13} fill="currentColor" />
+									<Play
+										size={13}
+										fill="currentColor"
+									/>
 								) : (
-									<Pause size={13} fill="currentColor" />
+									<Pause
+										size={13}
+										fill="currentColor"
+									/>
 								)}
 							</button>
 
@@ -1123,7 +1449,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 									e.stopPropagation();
 									jumpToLive();
 								}}
-								title={mode === "live" ? "Đang xem trực tiếp" : "Bấm để nhảy ngay về trực tiếp (LIVE)"}
+								title={
+									mode === "live"
+										? "Đang xem trực tiếp"
+										: "Bấm để nhảy ngay về trực tiếp (LIVE)"
+								}
 							>
 								<span className="dvr-live-dot" />
 								<span>TRỰC TIẾP</span>
@@ -1164,7 +1494,10 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 							)}
 
 							{alertMarkers.length > 0 && (
-								<span className="dvr-alert-count-chip" title="Số cảnh báo trên dòng thời gian hiện tại">
+								<span
+									className="dvr-alert-count-chip"
+									title="Số cảnh báo trên dòng thời gian hiện tại"
+								>
 									● {alertMarkers.length}
 								</span>
 							)}

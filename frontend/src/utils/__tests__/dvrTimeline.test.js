@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
 	computeDvrWindow,
+	computeRecordedIntervalsPercent,
 	formatRelativeBehindLive,
 	mapAlertsToScrubberMarkers,
+	resolvePlaybackSeekTarget,
 } from "../dvrTimeline.js";
 
 describe("dvrTimeline", () => {
@@ -66,5 +68,33 @@ describe("dvrTimeline", () => {
 		assert.equal(formatRelativeBehindLive(now - 1000, now), "TRỰC TIẾP");
 		assert.equal(formatRelativeBehindLive(now - 75_000, now), "-01:15");
 		assert.equal(formatRelativeBehindLive(now - 3665_000, now), "-1:01:05");
+	});
+
+	it("tính đúng các khoảng đã ghi hình và tự neo khi bấm vào khoảng trống sát mép LIVE", () => {
+		const now = 1_700_000_100_000;
+		const winStart = now - 100_000;
+		const segments = [
+			{ startMs: winStart + 10_000, endMs: winStart + 50_000 },
+			{ startMs: winStart + 51_000, endMs: now - 12_000 }, // cách LIVE 12s (đang flush)
+		];
+
+		const intervals = computeRecordedIntervalsPercent({
+			segments,
+			windowStartMs: winStart,
+			windowEndMs: now,
+		});
+		assert.equal(intervals.length, 1); // gộp do cách nhau <= 2s
+		assert.equal(intervals[0].leftPercent, 10);
+		assert.equal(intervals[0].widthPercent, 78);
+
+		// Người dùng bấm -9s (sát mép LIVE chưa kịp flush) -> tự neo về cuối segment mới nhất thay vì lỗi 404
+		const snap = resolvePlaybackSeekTarget({
+			requestedMs: now - 9000,
+			segments,
+			liveNowMs: now,
+		});
+		assert.equal(snap.action, "seek");
+		assert.equal(snap.snapped, true);
+		assert.equal(snap.targetMs, now - 15_000);
 	});
 });
