@@ -13,6 +13,7 @@ from ..core.zone_state_machine import ZoneStateMachine, ZoneState
 from ..core.human_detector import HumanDetector
 from ..core.face_detector import FaceDetector
 from ..core.face_matcher import FaceMatcher
+from ..core.access_reasons import is_identity_gone_reason
 from ..core.frame_analysis_engine import FrameAnalysisEngine
 from ..integration.mqtt_client import get_security_mqtt_client
 from ..integration.storage_service import StorageService
@@ -222,8 +223,8 @@ class VideoPipeline:
         if expires_at is not None and is_allowed:
             effective_expires_at = expires_at if expires_at > now_ts else now_ts + WINDOW_RECHECK_RETRY_SECONDS
 
-        reason_lower = (access_reason or "").lower()
-        if "không tồn tại" in reason_lower or "đã bị xoá" in reason_lower:
+        # Chỉ gỡ danh tính khi Backend báo NGƯỜI không còn (không gỡ khi "Camera/Khu vực không tồn tại")
+        if is_identity_gone_reason(access_reason, access_deny_reason):
             face_info.matched_code = None
             face_info.matched_name = None
             face_info.is_authorized = False
