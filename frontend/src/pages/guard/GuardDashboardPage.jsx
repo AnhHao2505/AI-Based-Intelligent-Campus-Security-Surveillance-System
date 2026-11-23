@@ -29,9 +29,26 @@ import {
 	Layers,
 	Filter,
 	ChevronDown,
+	ChevronLeft,
+	ChevronRight,
+	VideoOff,
+	Building2,
+	Pin,
+	PinOff,
+	Compass,
 } from "lucide-react";
 import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 import WebRtcPlayer from "../../components/video/WebRtcPlayer";
+import {
+	computeVisibleGridSlice,
+	extractAreaFilterOptions,
+	filterCamerasByAreaKey,
+	findAdjacentCameras,
+	formatCameraChipLabel,
+	formatCameraLocationSubtitle,
+	formatCameraTileTitle,
+	sortCamerasStableByLocation,
+} from "../../utils/cameraGridHelpers";
 import { fetchCameras } from "../../services/cameraService";
 import {
 	getActiveIncidents,
@@ -280,7 +297,12 @@ const formatIncidentTimestamp = (isoString) => {
 	return getIncidentTimeParts(isoString).full;
 };
 
-const cleanIncidentMessage = (msg, eventType = "", areaName = "", cameraCode = "") => {
+const cleanIncidentMessage = (
+	msg,
+	eventType = "",
+	areaName = "",
+	cameraCode = "",
+) => {
 	const cleanLocStr = (str) => {
 		if (!str) return str;
 		return str.replace(/\s*\([^)]*(?:vùng|roi)[^)]*\)/gi, "").trim();
@@ -290,24 +312,42 @@ const cleanIncidentMessage = (msg, eventType = "", areaName = "", cameraCode = "
 		const loc = cleanLocStr(areaName || cameraCode || "Khu vực giám sát");
 		return `Vị trí: ${loc}`;
 	}
-	let raw = String(msg).replace(/^\[[A-Z0-9_]+\]\s*/g, "").trim();
+	let raw = String(msg)
+		.replace(/^\[[A-Z0-9_]+\]\s*/g, "")
+		.trim();
 
 	// Nếu đã chứa cấu trúc phân dòng chuẩn (Tên: / Lý do: / Vị trí:), chuẩn hóa tối giản dòng Lý do và lọc sạch ROI suffix
 	if (raw.includes("Vị trí:") || raw.includes("Tên:")) {
-		let formatted = raw.replace(/Lý do:\s*([^\n]+)/i, (_, r) => `Lý do: ${minimizeReason(r)}`);
-		formatted = formatted.replace(/Vị trí:\s*([^\n]+)/i, (_, loc) => `Vị trí: ${cleanLocStr(loc)}`);
+		let formatted = raw.replace(
+			/Lý do:\s*([^\n]+)/i,
+			(_, r) => `Lý do: ${minimizeReason(r)}`,
+		);
+		formatted = formatted.replace(
+			/Vị trí:\s*([^\n]+)/i,
+			(_, loc) => `Vị trí: ${cleanLocStr(loc)}`,
+		);
 		return formatted;
 	}
 
 	const evUpper = String(eventType).toUpperCase();
-	const locDefault = cleanLocStr(areaName ? `${areaName}` : (cameraCode ? `Khu vực camera ${cameraCode}` : "Khu vực giám sát"));
+	const locDefault = cleanLocStr(
+		areaName
+			? `${areaName}`
+			: cameraCode
+				? `Khu vực camera ${cameraCode}`
+				: "Khu vực giám sát",
+	);
 
 	if (evUpper.includes("UNAUTHORIZED")) {
-		const nameMatch = raw.match(/(?:truy cập|quy định):\s*([^()\n]+?\s*\([A-Za-z0-9_.-]+\))/i);
+		const nameMatch = raw.match(
+			/(?:truy cập|quy định):\s*([^()\n]+?\s*\([A-Za-z0-9_.-]+\))/i,
+		);
 		const reasonMatch = raw.match(/Lý do:\s*(.*)$/i);
 		const areaMatch = raw.match(/tại\s+([^.\n]+)/i);
 
-		const nameStr = nameMatch ? nameMatch[1].trim() : "Đối tượng chưa cấp quyền";
+		const nameStr = nameMatch
+			? nameMatch[1].trim()
+			: "Đối tượng chưa cấp quyền";
 		const reasonStr = minimizeReason(reasonMatch ? reasonMatch[1] : "");
 		const locStr = cleanLocStr(areaMatch ? areaMatch[1].trim() : locDefault);
 
@@ -315,7 +355,9 @@ const cleanIncidentMessage = (msg, eventType = "", areaName = "", cameraCode = "
 	}
 
 	if (evUpper.includes("INTRUSION")) {
-		const nameMatch = raw.match(/(?:quy định|giờ):\s*([^()\n]+?\s*\([A-Za-z0-9_.-]+\))/i);
+		const nameMatch = raw.match(
+			/(?:quy định|giờ):\s*([^()\n]+?\s*\([A-Za-z0-9_.-]+\))/i,
+		);
 		const areaMatch = raw.match(/tại\s+([^.\n]+)/i);
 		const locStr = cleanLocStr(areaMatch ? areaMatch[1].trim() : locDefault);
 		if (nameMatch) {
@@ -340,8 +382,13 @@ const cleanIncidentMessage = (msg, eventType = "", areaName = "", cameraCode = "
 // Hiển thị nội dung chi tiết sự cố theo dạng danh sách key-value phân cấp trực quan
 const renderIncidentDetails = (msg) => {
 	if (!msg) return null;
-	const lines = String(msg).split("\n").map((l) => l.trim()).filter(Boolean);
-	const hasKeyValue = lines.some((l) => /^(Tên|Lý do|Vị trí|Đối tượng|Khu vực):/i.test(l));
+	const lines = String(msg)
+		.split("\n")
+		.map((l) => l.trim())
+		.filter(Boolean);
+	const hasKeyValue = lines.some((l) =>
+		/^(Tên|Lý do|Vị trí|Đối tượng|Khu vực):/i.test(l),
+	);
 
 	if (!hasKeyValue) {
 		return <p className="soc-incident-msg-text">{msg}</p>;
@@ -357,16 +404,24 @@ const renderIncidentDetails = (msg) => {
 					const isReason = /^lý do/i.test(label);
 					const isName = /^tên/i.test(label);
 					return (
-						<div key={idx} className="soc-incident-detail-row">
+						<div
+							key={idx}
+							className="soc-incident-detail-row"
+						>
 							<span className="soc-detail-label">{label}:</span>
-							<span className={`soc-detail-val ${isReason ? "is-reason" : ""} ${isName ? "is-name" : ""}`}>
+							<span
+								className={`soc-detail-val ${isReason ? "is-reason" : ""} ${isName ? "is-name" : ""}`}
+							>
 								{val}
 							</span>
 						</div>
 					);
 				}
 				return (
-					<div key={idx} className="soc-incident-detail-row">
+					<div
+						key={idx}
+						className="soc-incident-detail-row"
+					>
 						<span className="soc-detail-val">{line}</span>
 					</div>
 				);
@@ -391,7 +446,9 @@ const SERVER_SEVERITY_META = {
 
 function getAlertSeverityMeta(alert) {
 	const base = getSeverityMeta(alert?.eventType);
-	const server = alert?.severity ? SERVER_SEVERITY_META[String(alert.severity).toUpperCase()] : null;
+	const server = alert?.severity
+		? SERVER_SEVERITY_META[String(alert.severity).toUpperCase()]
+		: null;
 	return server ? { ...base, ...server } : base;
 }
 
@@ -441,7 +498,10 @@ export function formatEvidenceImageUrl(rawUrl) {
 		const path = minioMatch[2];
 		return `/api/media/${bucket}/${path}`;
 	}
-	if (url.startsWith("security-evidence/") || url.startsWith("face-profiles/")) {
+	if (
+		url.startsWith("security-evidence/") ||
+		url.startsWith("face-profiles/")
+	) {
 		return `/api/media/${url}`;
 	}
 	return url;
@@ -461,12 +521,21 @@ function EvidenceImage({ src, alt, className }) {
 	if (loading || !url) {
 		return (
 			<div className="soc-evidence-loading">
-				<Loader2 size={24} className="animate-spin" />
+				<Loader2
+					size={24}
+					className="animate-spin"
+				/>
 				<span>Đang tải ảnh bằng chứng...</span>
 			</div>
 		);
 	}
-	return <img src={url} alt={alt || "Ảnh bằng chứng vi phạm"} className={className} />;
+	return (
+		<img
+			src={url}
+			alt={alt || "Ảnh bằng chứng vi phạm"}
+			className={className}
+		/>
+	);
 }
 
 /**
@@ -476,7 +545,11 @@ function EvidenceImage({ src, alt, className }) {
 export function SecuritySurveillancePage() {
 	const navigate = useNavigate();
 	const [selectedCamera, setSelectedCamera] = useState("");
-	const [cameraLayout, setCameraLayout] = useState(1); // 1 | 4 (2x2) | 9 (3x3) | 16 (4x4)
+	const [cameraLayout, setCameraLayout] = useState(1); // 1 | "spotlight" (1+5) | 4 (2x2) | 9 (3x3) | 16 (4x4) | "auto"
+	const [gridPage, setGridPage] = useState(0);
+	const [areaFilter, setAreaFilter] = useState("ALL");
+	const [isSpotlightPinned, setIsSpotlightPinned] = useState(false);
+	const [adjacentModeEnabled, setAdjacentModeEnabled] = useState(true);
 	const [isTheaterMode, setIsTheaterMode] = useState(false); // Chế độ phóng to chỉ view màn hình
 	const [soundEnabled, setSoundEnabled] = useState(true);
 	const [wsConnected, setWsConnected] = useState(false);
@@ -500,7 +573,9 @@ export function SecuritySurveillancePage() {
 	const [evidenceModalTab, setEvidenceModalTab] = useState("image"); // "image" | "video"
 
 	const flashTimeoutRef = useRef(null);
+	const notificationTimeoutRef = useRef(null);
 	const soundEnabledRef = useRef(soundEnabled);
+	const isSpotlightPinnedRef = useRef(isSpotlightPinned);
 	const activeAlertsRef = useRef(activeAlerts);
 	// Hàm tải lại danh sách sự cố, giữ trong ref để callback STOMP (tạo một lần) luôn gọi bản mới nhất
 	const reloadActiveIncidentsRef = useRef(null);
@@ -510,6 +585,10 @@ export function SecuritySurveillancePage() {
 	useEffect(() => {
 		soundEnabledRef.current = soundEnabled;
 	}, [soundEnabled]);
+
+	useEffect(() => {
+		isSpotlightPinnedRef.current = isSpotlightPinned;
+	}, [isSpotlightPinned]);
 
 	// Trình duyệt chỉ cho phát âm thanh sau thao tác đầu tiên của người dùng (autoplay policy)
 	useEffect(() => installAlertSoundUnlock(), []);
@@ -552,10 +631,32 @@ export function SecuritySurveillancePage() {
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isTheaterMode, evidenceModalAlert, isCategoryDropdownOpen]);
 
+	// Đồng bộ class body.soc-theater-active để ẩn chat/menu nổi và khóa nền tối toàn màn hình
+	useEffect(() => {
+		if (typeof document === "undefined") return undefined;
+		document.body.classList.toggle("soc-theater-active", isTheaterMode);
+		return () => document.body.classList.remove("soc-theater-active");
+	}, [isTheaterMode]);
+
+	// Dọn dẹp timeout còn tồn đọng khi unmount khỏi trang Giám sát
+	useEffect(() => {
+		return () => {
+			if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+			if (notificationTimeoutRef.current)
+				clearTimeout(notificationTimeoutRef.current);
+		};
+	}, []);
+
 	// Hiển thị thông báo toast tạm thời
 	const triggerNotification = (msg) => {
 		setStatusNotification(msg);
-		setTimeout(() => setStatusNotification(null), 4500);
+		if (notificationTimeoutRef.current) {
+			clearTimeout(notificationTimeoutRef.current);
+		}
+		notificationTimeoutRef.current = setTimeout(() => {
+			notificationTimeoutRef.current = null;
+			setStatusNotification(null);
+		}, 4500);
 	};
 
 	// Tải danh sách camera đang hoạt động từ Backend CSDL và đồng bộ định kỳ mỗi 15 giây
@@ -581,6 +682,14 @@ export function SecuritySurveillancePage() {
 						.trim(),
 					cameraCode: cam.cameraCode,
 					name: cam.name,
+					areaName: cam.areaName || "",
+					building: cam.building || cam.mapBuilding || "",
+					floor: cam.floor || "",
+					mapBuilding: cam.mapBuilding || "",
+					mapFloorOrder: cam.mapFloorOrder,
+					mapLatitude: cam.mapLatitude,
+					mapLongitude: cam.mapLongitude,
+					cameraType: cam.cameraType || "RESTRICTED_AREA",
 					zone: "Khuôn viên trường",
 					status: cam.operationalStatus || "OFFLINE",
 				}));
@@ -600,12 +709,17 @@ export function SecuritySurveillancePage() {
 							(c, idx) =>
 								c.id === list[idx].id &&
 								c.status === list[idx].status &&
-								c.name === list[idx].name,
+								c.name === list[idx].name &&
+								c.building === list[idx].building &&
+								c.mapFloorOrder === list[idx].mapFloorOrder &&
+								c.mapLatitude === list[idx].mapLatitude &&
+								c.mapLongitude === list[idx].mapLongitude,
 						);
 					return unchanged ? prev : list;
 				});
 				if (list.length > 0) {
-					const firstOnline = list.find((c) => c.status === "ONLINE") || list[0];
+					const firstOnline =
+						list.find((c) => c.status === "ONLINE") || list[0];
 					setSelectedCamera((prev) =>
 						prev && list.some((c) => c.code === prev) ? prev : firstOnline.code,
 					);
@@ -695,42 +809,30 @@ export function SecuritySurveillancePage() {
 		return map;
 	}, [activeAlerts]);
 
-	// Sắp xếp danh sách camera: Mặc định tăng dần, tự động đưa camera có sự cố lên đầu theo mức độ ưu tiên
-	const sortedCameras = useMemo(() => {
-		return [...cameraList].sort((a, b) => {
-			const sA = cameraIncidentSummary[a.code] || {
-				count: 0,
-				maxWeight: 0,
-				latestTimestamp: 0,
-			};
-			const sB = cameraIncidentSummary[b.code] || {
-				count: 0,
-				maxWeight: 0,
-				latestTimestamp: 0,
-			};
+	// Giữ thứ tự camera ổn định theo Tòa / Tầng / Mã để tránh nhảy ô gây rối trí nhớ vị trí
+	const sortedCameras = useMemo(
+		() => sortCamerasStableByLocation(cameraList),
+		[cameraList],
+	);
 
-			// Nếu có sự cố, tự động ưu tiên camera có sự cố lên đầu
-			if (sA.count > 0 && sB.count === 0) return -1;
-			if (sA.count === 0 && sB.count > 0) return 1;
+	const areaFilterOptions = useMemo(
+		() => extractAreaFilterOptions(sortedCameras),
+		[sortedCameras],
+	);
 
-			if (sA.count > 0 && sB.count > 0) {
-				// Cùng có sự cố: So sánh trọng số nghiêm trọng (3 > 2 > 1)
-				if (sA.maxWeight !== sB.maxWeight) {
-					return sB.maxWeight - sA.maxWeight;
-				}
-				// Cùng mức độ: Sự cố mới nhất lên trước
-				if (sA.latestTimestamp !== sB.latestTimestamp) {
-					return sB.latestTimestamp - sA.latestTimestamp;
-				}
-			}
+	const filteredGridCameras = useMemo(
+		() => filterCamerasByAreaKey(sortedCameras, areaFilter),
+		[sortedCameras, areaFilter],
+	);
 
-			// Mặc định hoặc khi cùng mức độ ưu tiên: Sắp xếp tăng dần tự nhiên theo mã camera (CAM-001, CAM-002, CAM-003, ...)
-			return (a.cameraCode || "").localeCompare(b.cameraCode || "", undefined, {
-				numeric: true,
-				sensitivity: "base",
-			});
-		});
-	}, [cameraList, cameraIncidentSummary]);
+	useEffect(() => {
+		if (
+			areaFilter !== "ALL" &&
+			!areaFilterOptions.some((o) => o.key === areaFilter)
+		) {
+			setAreaFilter("ALL");
+		}
+	}, [areaFilter, areaFilterOptions]);
 
 	// Số liệu thống kê hệ thống (System Status Metrics)
 	const onlineCameraCount = cameraList.filter(
@@ -791,12 +893,10 @@ export function SecuritySurveillancePage() {
 			eventType:
 				incident.event_type || incident.eventType || "UNAUTHORIZED_PERSON",
 			message: cleanIncidentMessage(
-				incident.details ||
-				incident.resolutionNotes ||
-				incident.message,
+				incident.details || incident.resolutionNotes || incident.message,
 				incident.event_type || incident.eventType,
 				incident.areaName || incident.area_name,
-				incident.cameraCode || incident.camera_code
+				incident.cameraCode || incident.camera_code,
 			),
 			duration: incident.duration_seconds
 				? `${incident.duration_seconds}s`
@@ -816,19 +916,32 @@ export function SecuritySurveillancePage() {
 		setActiveAlerts((prev) => {
 			const existingIndex = prev.findIndex((a) => {
 				// 1. Trùng ID sự cố (UUID hoặc ID)
-				if (incident.id && (a.id === incident.id || String(a.id) === String(incident.id))) {
+				if (
+					incident.id &&
+					(a.id === incident.id || String(a.id) === String(incident.id))
+				) {
 					return true;
 				}
 				// 2. Trùng Event ID
-				if (eventId && (a.eventId === eventId || a.id === eventId || String(a.id) === String(eventId))) {
+				if (
+					eventId &&
+					(a.eventId === eventId ||
+						a.id === eventId ||
+						String(a.id) === String(eventId))
+				) {
 					return true;
 				}
 				// 3. Khử trùng lặp an toàn: cùng camera + cùng loại sự cố trong vòng 4 giây
 				const isSameCamera =
-					(a.cameraCode && newAlert.cameraCode && a.cameraCode === newAlert.cameraCode) ||
-					(a.camCodeClean && newAlert.camCodeClean && a.camCodeClean === newAlert.camCodeClean);
+					(a.cameraCode &&
+						newAlert.cameraCode &&
+						a.cameraCode === newAlert.cameraCode) ||
+					(a.camCodeClean &&
+						newAlert.camCodeClean &&
+						a.camCodeClean === newAlert.camCodeClean);
 				const isSameType = a.eventType === newAlert.eventType;
-				const isRecent = Math.abs((newAlert.rawTime || Date.now()) - (a.rawTime || 0)) < 4000;
+				const isRecent =
+					Math.abs((newAlert.rawTime || Date.now()) - (a.rawTime || 0)) < 4000;
 				if (isSameCamera && isSameType && isRecent) {
 					return true;
 				}
@@ -855,8 +968,11 @@ export function SecuritySurveillancePage() {
 		}
 		flashCameraAlert(camCodeClean);
 
-		// Tự động chuyển camera đang chọn (cho Layout 1)
-		setSelectedCamera(camCodeClean);
+		// Chỉ tự đưa sự cố mức CRITICAL vào ô tiêu điểm khi người trực không bấm Ghim ô chính
+		const severityMeta = getAlertSeverityMeta(newAlert);
+		if (!isSpotlightPinnedRef.current && severityMeta.weight >= 3) {
+			setSelectedCamera(camCodeClean);
+		}
 	};
 
 	// Lắng nghe sự kiện cảnh báo an ninh qua WebSocket STOMP
@@ -874,7 +990,9 @@ export function SecuritySurveillancePage() {
 			// Đọc token mỗi lần (kết nối lại) để không dùng token cũ
 			beforeConnect: () => {
 				const token = localStorage.getItem("accessToken");
-				stompClient.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+				stompClient.connectHeaders = token
+					? { Authorization: `Bearer ${token}` }
+					: {};
 			},
 			onConnect: () => {
 				setWsConnected(true);
@@ -897,30 +1015,32 @@ export function SecuritySurveillancePage() {
 							setActiveAlerts((prev) =>
 								prev.map((a) =>
 									a.id === update.incidentId ||
-										String(a.id) === String(update.incidentId)
+									String(a.id) === String(update.incidentId)
 										? {
-											...a,
-											status: update.status || a.status,
-											claimedByName: update.claimedByName || a.claimedByName,
-											claimedById: update.claimedById || a.claimedById,
-											severity: update.severity || a.severity,
-											dispatchStage: update.dispatchStage || a.dispatchStage,
-											// V129: AI nhận ra người sau cảnh báo người lạ -> backend cập nhật loại / nội dung sự cố
-											...(update.identityUpdate && update.eventType
-												? { eventType: update.eventType }
-												: {}),
-											...(update.identityUpdate && update.resolutionNotes
-												? {
-														message: cleanIncidentMessage(
-															update.resolutionNotes,
-															update.eventType || a.eventType,
-															a.cameraName,
-															a.cameraCode,
-														),
-													}
-												: {}),
-											...(update.imageUrl ? { imageUrl: update.imageUrl } : {}),
-										}
+												...a,
+												status: update.status || a.status,
+												claimedByName: update.claimedByName || a.claimedByName,
+												claimedById: update.claimedById || a.claimedById,
+												severity: update.severity || a.severity,
+												dispatchStage: update.dispatchStage || a.dispatchStage,
+												// V129: AI nhận ra người sau cảnh báo người lạ -> backend cập nhật loại / nội dung sự cố
+												...(update.identityUpdate && update.eventType
+													? { eventType: update.eventType }
+													: {}),
+												...(update.identityUpdate && update.resolutionNotes
+													? {
+															message: cleanIncidentMessage(
+																update.resolutionNotes,
+																update.eventType || a.eventType,
+																a.cameraName,
+																a.cameraCode,
+															),
+														}
+													: {}),
+												...(update.imageUrl
+													? { imageUrl: update.imageUrl }
+													: {}),
+											}
 										: a,
 								),
 							);
@@ -935,7 +1055,9 @@ export function SecuritySurveillancePage() {
 										status: update.status || prev.status,
 										severity: update.severity || prev.severity,
 										dispatchStage: update.dispatchStage || prev.dispatchStage,
-										...(update.eventType ? { eventType: update.eventType } : {}),
+										...(update.eventType
+											? { eventType: update.eventType }
+											: {}),
 										...(update.resolutionNotes
 											? {
 													message: cleanIncidentMessage(
@@ -1064,11 +1186,11 @@ export function SecuritySurveillancePage() {
 							eventType: incident.eventType || "UNAUTHORIZED_PERSON",
 							message: cleanIncidentMessage(
 								incident.details ||
-								incident.resolutionNotes ||
-								incident.message,
+									incident.resolutionNotes ||
+									incident.message,
 								incident.eventType,
 								incident.areaName,
-								incident.cameraCode
+								incident.cameraCode,
 							),
 							duration: incident.duration_seconds
 								? `${incident.duration_seconds}s`
@@ -1120,7 +1242,8 @@ export function SecuritySurveillancePage() {
 		ackSet.add(strId);
 
 		const targetAlert = activeAlerts.find(
-			(a) => String(a.id) === strId || (a.eventId && String(a.eventId) === strId),
+			(a) =>
+				String(a.id) === strId || (a.eventId && String(a.eventId) === strId),
 		);
 		if (targetAlert?.eventId) {
 			ackSet.add(String(targetAlert.eventId));
@@ -1130,11 +1253,17 @@ export function SecuritySurveillancePage() {
 		}
 		saveStoredSet(SOC_ACK_STORAGE_KEY, ackSet);
 
-		const camCode = targetAlert?.cameraCode || targetAlert?.camCodeClean || targetAlert?.camera_code || "";
+		const camCode =
+			targetAlert?.cameraCode ||
+			targetAlert?.camCodeClean ||
+			targetAlert?.camera_code ||
+			"";
 
 		setActiveAlerts((prev) =>
 			prev.map((a) =>
-				String(a.id) === strId || (targetAlert?.eventId && String(a.eventId) === String(targetAlert.eventId))
+				String(a.id) === strId ||
+				(targetAlert?.eventId &&
+					String(a.eventId) === String(targetAlert.eventId))
 					? { ...a, socAcknowledged: true }
 					: a,
 			),
@@ -1222,24 +1351,94 @@ export function SecuritySurveillancePage() {
 			.trim();
 		setSelectedCamera(clean);
 		flashCameraAlert(clean);
+		const targetList = filteredGridCameras;
+		if (
+			cameraLayout === 4 ||
+			cameraLayout === 9 ||
+			cameraLayout === 16 ||
+			cameraLayout === "auto"
+		) {
+			const idx = targetList.findIndex((c) => c.code === clean);
+			if (idx >= 0) {
+				const size =
+					cameraLayout === "auto"
+						? Math.max(1, targetList.length)
+						: Number(cameraLayout);
+				setGridPage(Math.floor(idx / size));
+			} else if (areaFilter !== "ALL") {
+				setAreaFilter("ALL");
+			}
+		} else if (cameraLayout === "spotlight") {
+			if (!targetList.some((c) => c.code === clean) && areaFilter !== "ALL") {
+				setAreaFilter("ALL");
+			}
+			setGridPage(0);
+		} else if (
+			!targetList.some((c) => c.code === clean) &&
+			areaFilter !== "ALL"
+		) {
+			setAreaFilter("ALL");
+		}
 	};
 
-	// 4 TÙY CHỌN BỐ CỤC LƯỚI CAMERA: 1, 2x2, 3x3, 4x4
+	const activeFocusCamera = useMemo(
+		() =>
+			filteredGridCameras.find((c) => c.code === selectedCamera) ||
+			filteredGridCameras[0] ||
+			null,
+		[filteredGridCameras, selectedCamera],
+	);
+
+	const adjacentCamerasSameFloor = useMemo(
+		() =>
+			findAdjacentCameras(activeFocusCamera, sortedCameras, 3, {
+				sameFloorOnly: true,
+			}),
+		[activeFocusCamera, sortedCameras],
+	);
+
+	const adjacentCamerasForGrid = useMemo(
+		() =>
+			findAdjacentCameras(activeFocusCamera, sortedCameras, 5, {
+				sameFloorOnly: false,
+			}),
+		[activeFocusCamera, sortedCameras],
+	);
+
+	const adjacentRelationMap = useMemo(
+		() =>
+			new Map(adjacentCamerasSameFloor.map((item) => [item.camera.code, item])),
+		[adjacentCamerasSameFloor],
+	);
+
+	// 6 TÙY CHỌN BỐ CỤC LƯỚI CAMERA: 1, 1+5 (Spotlight), 2x2, 3x3, 4x4, Tự vừa (N)
 	const cameraLayoutOptions = [
 		{ value: 1, label: "1" },
+		{ value: "spotlight", label: "1+5" },
 		{ value: 4, label: "2x2" },
 		{ value: 9, label: "3x3" },
 		{ value: 16, label: "4x4" },
+		{ value: "auto", label: `Tự vừa (${filteredGridCameras.length})` },
 	];
 
-	// Danh sách camera hiển thị trên lưới theo layout đã chọn
-	const visibleCameras =
-		cameraLayout === 1
-			? [
-				sortedCameras.find((cam) => cam.code === selectedCamera) ||
-				sortedCameras[0],
-			].filter(Boolean)
-			: sortedCameras.slice(0, cameraLayout);
+	// Danh sách camera hiển thị trên lưới theo layout, lọc khu vực & phân trang hiện tại
+	const {
+		config: gridConfig,
+		visibleCameras,
+		emptySlotCount,
+		totalPages: gridTotalPages,
+		currentPage: safeGridPage,
+	} = computeVisibleGridSlice(
+		filteredGridCameras,
+		cameraLayout,
+		selectedCamera,
+		gridPage,
+		{
+			adjacentPriorityCodes: adjacentModeEnabled
+				? adjacentCamerasForGrid.map((a) => a.camera.code)
+				: null,
+		},
+	);
 
 	const pendingAlertCount = activeAlerts.filter(
 		(a) => !a.socAcknowledged && isAlertPending(a.status),
@@ -1349,7 +1548,7 @@ export function SecuritySurveillancePage() {
 							title="Phóng to chỉ view màn hình camera (ẩn các panel xung quanh)"
 						>
 							<Maximize2 size={15} />
-							<span>Phóng to giám sát</span>
+							<span>Phóng to</span>
 						</button>
 
 						{/* Kho video ghi hình & bằng chứng */}
@@ -1375,7 +1574,6 @@ export function SecuritySurveillancePage() {
 							title={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
 						>
 							{soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
-							<span>{soundEnabled ? "Âm thanh" : "Tắt âm thanh"}</span>
 						</button>
 					</div>
 				</div>
@@ -1397,15 +1595,89 @@ export function SecuritySurveillancePage() {
 										key={opt.value}
 										type="button"
 										className={`camera-layout-option ${cameraLayout === opt.value ? "active" : ""}`}
-										onClick={() => setCameraLayout(opt.value)}
+										onClick={() => {
+											setCameraLayout(opt.value);
+											setGridPage(0);
+										}}
 									>
 										{opt.label}
 									</button>
 								))}
 							</div>
+
+							{areaFilterOptions.length > 0 && (
+								<div
+									className="area-filter-box"
+									title="Lọc lưới camera theo Tòa nhà / Tầng"
+								>
+									<Building2
+										size={13}
+										className="area-filter-icon"
+									/>
+									<select
+										className="area-filter-select"
+										aria-label="Lọc camera theo tòa và tầng"
+										value={areaFilter}
+										onChange={(e) => {
+											setAreaFilter(e.target.value);
+											setGridPage(0);
+										}}
+									>
+										<option value="ALL">
+											Tất cả khu vực ({sortedCameras.length})
+										</option>
+										{areaFilterOptions.map((opt) => (
+											<option
+												key={opt.key}
+												value={opt.key}
+											>
+												{opt.label} ({opt.count})
+											</option>
+										))}
+									</select>
+								</div>
+							)}
+
+							<button
+								type="button"
+								className={`toolbar-icon-btn ${isSpotlightPinned ? "is-pin-active" : ""}`}
+								onClick={() => setIsSpotlightPinned((prev) => !prev)}
+								title={
+									isSpotlightPinned
+										? "Đang ghim ô chính (sự cố mới sẽ không tự đổi camera). Bấm để mở khóa."
+										: "Ghim ô chính (ngăn sự cố CRITICAL mới tự chuyển camera đang xem)"
+								}
+								aria-label={
+									isSpotlightPinned ? "Bỏ ghim ô chính" : "Ghim ô chính"
+								}
+								aria-pressed={isSpotlightPinned}
+							>
+								{isSpotlightPinned ? <Pin size={14} /> : <PinOff size={14} />}
+							</button>
+
+							{cameraLayout === "spotlight" && (
+								<button
+									type="button"
+									className={`toolbar-icon-btn toolbar-icon-btn--labeled ${adjacentModeEnabled ? "is-adjacent-active" : ""}`}
+									onClick={() => {
+										setAdjacentModeEnabled((prev) => !prev);
+										setGridPage(0);
+									}}
+									title={
+										adjacentModeEnabled
+											? "Đang ưu tiên các camera lân cận vào 5 ô phụ (bấm để tắt)"
+											: "Hiển thị các camera lân cận quanh ô chính trong 5 ô phụ"
+									}
+									aria-label="Ưu tiên camera lân cận"
+									aria-pressed={adjacentModeEnabled}
+								>
+									<Compass size={13} />
+									<span>Lân cận</span>
+								</button>
+							)}
 						</div>
 
-						{/* Dải Camera Quick Switcher (Sắp xếp theo thứ tự ưu tiên sự cố với màu sắc tương ứng) */}
+						{/* Dải Camera Quick Switcher (Thứ tự ổn định theo Tòa · Tầng, gắn badge màu theo Severity) */}
 						<div className="camera-quick-switcher">
 							{camerasLoading ? (
 								<span className="switcher-loading">
@@ -1416,7 +1688,7 @@ export function SecuritySurveillancePage() {
 									Đang tải camera...
 								</span>
 							) : (
-								sortedCameras.map((cam) => {
+								filteredGridCameras.map((cam) => {
 									const summary = cameraIncidentSummary[cam.code] || {
 										count: 0,
 									};
@@ -1426,18 +1698,21 @@ export function SecuritySurveillancePage() {
 									const severityClass =
 										summary.highestSeverity?.badgeClass || "severity-warning";
 
+									const locSubtitle = formatCameraLocationSubtitle(cam);
+									const chipLabel = formatCameraChipLabel(cam);
+
 									return (
 										<button
 											key={cam.code}
 											type="button"
 											className={`cam-chip-btn ${isSelected ? "active" : ""} ${hasIncident ? `has-incident ${severityClass}` : ""} ${isFlashing ? `flashing ${severityClass}` : ""}`}
 											onClick={() => handleSelectCamera(cam.code)}
-											title={`Xem Camera ${cam.cameraCode}: ${cam.name}${hasIncident ? ` (${summary.count} sự cố)` : ""}`}
+											title={`${cam.name}${locSubtitle ? ` (${locSubtitle})` : ""}${hasIncident ? ` — ${summary.count} sự cố` : ""}`}
 										>
 											<span
 												className={`status-indicator-dot ${cam.status === "ONLINE" ? "online" : "standby"}`}
 											/>
-											<span className="cam-chip-code">{cam.cameraCode}</span>
+											<span className="cam-chip-name">{chipLabel}</span>
 
 											{/* Priority Incident Badge theo màu sắc mức độ */}
 											{hasIncident && (
@@ -1453,6 +1728,37 @@ export function SecuritySurveillancePage() {
 							)}
 						</div>
 
+						{gridTotalPages > 1 && cameraLayout !== 1 && (
+							<div
+								className="grid-pagination-bar"
+								aria-label="Phân trang lưới camera"
+							>
+								<button
+									type="button"
+									className="grid-page-btn"
+									onClick={() => setGridPage(Math.max(0, safeGridPage - 1))}
+									disabled={safeGridPage <= 0}
+									title="Trang trước"
+								>
+									<ChevronLeft size={14} />
+								</button>
+								<span className="grid-page-readout">
+									{safeGridPage + 1}/{gridTotalPages}
+								</span>
+								<button
+									type="button"
+									className="grid-page-btn"
+									onClick={() =>
+										setGridPage(Math.min(gridTotalPages - 1, safeGridPage + 1))
+									}
+									disabled={safeGridPage >= gridTotalPages - 1}
+									title="Trang sau"
+								>
+									<ChevronRight size={14} />
+								</button>
+							</div>
+						)}
+
 						{/* Nút Thao tác khi ở Theater Mode: Âm thanh & Thu nhỏ */}
 						{isTheaterMode && (
 							<div className="theater-actions-bar">
@@ -1467,7 +1773,6 @@ export function SecuritySurveillancePage() {
 									title={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
 								>
 									{soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
-									<span>{soundEnabled ? "Âm thanh" : "Tắt âm thanh"}</span>
 								</button>
 								<button
 									type="button"
@@ -1476,14 +1781,19 @@ export function SecuritySurveillancePage() {
 									title="Thoát chế độ phóng to màn hình (Phím ESC)"
 								>
 									<Minimize2 size={13} />
-									<span>Thu nhỏ (ESC)</span>
 								</button>
 							</div>
 						)}
 					</div>
 
-					{/* Lưới Khung Hình Video (Hỗ trợ 5 Layouts: 1, 2, 4, 6, 9) */}
-					<div className={`camera-grid camera-grid--${cameraLayout}`}>
+					{/* Lưới Khung Hình Video (1, 1+5 Spotlight, 2x2, 3x3, 4x4, Tự vừa) */}
+					<div
+						className={`camera-grid camera-grid--${gridConfig.mode}`}
+						style={{
+							"--auto-cols": String(gridConfig.cols),
+							"--grid-rows": String(gridConfig.rows),
+						}}
+					>
 						{camerasLoading ? (
 							<div className="camera-grid-placeholder">
 								<Loader2
@@ -1501,66 +1811,101 @@ export function SecuritySurveillancePage() {
 								<span>Không có camera khả dụng</span>
 							</div>
 						) : (
-							visibleCameras.map((camera) => {
-								const summary = cameraIncidentSummary[camera.code] || {
-									count: 0,
-								};
-								const hasIncident = summary.count > 0;
-								const isFlashing = flashAlertCamera === camera.code;
-								const severityClass =
-									summary.highestSeverity?.badgeClass || "severity-warning";
+							<>
+								{visibleCameras.map((camera, idx) => {
+									const summary = cameraIncidentSummary[camera.code] || {
+										count: 0,
+									};
+									const hasIncident = summary.count > 0;
+									const isFlashing = flashAlertCamera === camera.code;
+									const severityClass =
+										summary.highestSeverity?.badgeClass || "severity-warning";
+									const isSpotlightPrimary =
+										gridConfig.mode === "spotlight" && idx === 0;
+									const isFullFocusTile =
+										gridConfig.mode === "1" || isSpotlightPrimary;
 
-								return (
-									<div
-										className={`video-viewport-card ${hasIncident ? `card-has-incident ${severityClass}` : ""} ${isFlashing ? `card-flashing ${severityClass}` : ""}`}
-										key={camera.code}
-									>
-										{/* Banner cảnh báo trên khung video với màu sắc tương ứng mức độ ưu tiên */}
-										{hasIncident && (
-											<div
-												className={`viewport-incident-banner ${severityClass}`}
-											>
-												<Flame
-													size={13}
-													className="banner-flame-icon"
-												/>
-												<span>{summary.count} SỰ CỐ</span>
-											</div>
-										)}
-
-										<WebRtcPlayer
-											streamPath={camera.code}
-											cameraCode={camera.cameraCode}
-											cameraName={camera.name}
-											enabled={camera.status === "ONLINE"}
-											enableDvr={true}
-											alerts={alertsByCamera[camera.code] || []}
-											compactScrubber={cameraLayout > 1}
-											host={
-												import.meta.env.VITE_MEDIAMTX_HOST ||
-												(typeof window !== "undefined" && window.location.hostname
-													? `${window.location.hostname}:8889`
-													: "localhost:8889")
-											}
-											onStatusChange={(playerStatus) => {
-												if (playerStatus === "live") {
-													setCameraList((prev) =>
-														prev.map((c) =>
-															c.code === camera.code
-																? { ...c, status: "ONLINE" }
-																: c,
-														),
-													);
+									return (
+										<div
+											className={`video-viewport-card ${isSpotlightPrimary ? "video-viewport-card--spotlight" : ""} ${hasIncident ? `card-has-incident ${severityClass}` : ""} ${isFlashing ? `card-flashing ${severityClass}` : ""}`}
+											key={camera.code}
+										>
+											<WebRtcPlayer
+												streamPath={camera.code}
+												cameraCode={camera.cameraCode}
+												cameraName={camera.name}
+												displayLabel={formatCameraTileTitle(camera)}
+												incidentCount={summary.count}
+												incidentSeverityClass={severityClass}
+												enabled={camera.status === "ONLINE"}
+												enableDvr={true}
+												alwaysShowDvr={isFullFocusTile}
+												adjacentCameras={
+													isFullFocusTile ? adjacentCamerasSameFloor : []
 												}
-											}}
-											onToggleMaximize={() => {
-												setSelectedCamera(camera.code);
-												setCameraLayout(1);
-											}}
-										/>
+												onSelectAdjacentCamera={
+													isFullFocusTile
+														? (code) => handleSelectCamera(code)
+														: null
+												}
+												relationBadge={(() => {
+													if (
+														isSpotlightPrimary ||
+														cameraLayout !== "spotlight" ||
+														!adjacentModeEnabled
+													) {
+														return null;
+													}
+													const rel = adjacentRelationMap.get(camera.code);
+													if (
+														!rel ||
+														rel.distanceMeters == null ||
+														rel.distanceMeters > 500
+													) {
+														return null;
+													}
+													return `${rel.distanceMeters}m`;
+												})()}
+												alerts={alertsByCamera[camera.code] || []}
+												compactScrubber={!isFullFocusTile}
+												host={
+													import.meta.env.VITE_MEDIAMTX_HOST ||
+													(typeof window !== "undefined" &&
+													window.location.hostname
+														? `${window.location.hostname}:8889`
+														: "localhost:8889")
+												}
+												onStatusChange={(playerStatus) => {
+													if (playerStatus === "live") {
+														setCameraList((prev) =>
+															prev.map((c) =>
+																c.code === camera.code
+																	? { ...c, status: "ONLINE" }
+																	: c,
+															),
+														);
+													}
+												}}
+												onToggleMaximize={() => {
+													setSelectedCamera(camera.code);
+													setCameraLayout(1);
+												}}
+											/>
+										</div>
+									);
+								})}
+
+								{Array.from({ length: emptySlotCount }, (_, idx) => (
+									<div
+										className="camera-grid-empty-slot"
+										key={`empty-slot-${idx}`}
+										aria-hidden="true"
+									>
+										<VideoOff size={20} />
+										<span>Ô trống</span>
 									</div>
-								);
-							})
+								))}
+							</>
 						)}
 					</div>
 				</div>
@@ -1577,7 +1922,9 @@ export function SecuritySurveillancePage() {
 									size={18}
 									className="soc-shield-icon"
 								/>
-								<span title="Danh sách sự cố an ninh (Thời gian mới nhất lên đầu)">SỰ CỐ AN NINH</span>
+								<span title="Danh sách sự cố an ninh (Thời gian mới nhất lên đầu)">
+									SỰ CỐ AN NINH
+								</span>
 							</div>
 							<span
 								className={`soc-header-count ${pendingAlertCount > 0 ? "has-incidents" : ""}`}
@@ -1608,7 +1955,9 @@ export function SecuritySurveillancePage() {
 									title="Sự cố chờ phòng trực ghi nhận (Sắp xếp theo thời gian mới nhất)"
 								>
 									<span>Chờ ghi nhận</span>
-									<span className={`soc-tab-badge ${pendingAlertCount > 0 ? "highlight" : ""}`}>
+									<span
+										className={`soc-tab-badge ${pendingAlertCount > 0 ? "highlight" : ""}`}
+									>
 										{pendingAlertCount}
 									</span>
 								</button>
@@ -1616,7 +1965,10 @@ export function SecuritySurveillancePage() {
 
 							{/* Hộp Dropdown Lọc Phân Loại Sự Cố Tùy Biến (Custom Popover Select) */}
 							{activeAlerts.length > 0 && (
-								<div className="soc-category-select-row" ref={categoryDropdownRef}>
+								<div
+									className="soc-category-select-row"
+									ref={categoryDropdownRef}
+								>
 									<button
 										type="button"
 										className={`soc-category-dropdown-trigger ${isCategoryDropdownOpen ? "is-open" : ""} ${categoryFilter !== "ALL" ? "is-filtered" : ""}`}
@@ -1632,9 +1984,14 @@ export function SecuritySurveillancePage() {
 													className={`soc-trigger-cat-icon ${activeCategoryMeta.chipClass || ""}`}
 												/>
 											) : (
-												<Filter size={14} className="soc-trigger-cat-icon text-muted" />
+												<Filter
+													size={14}
+													className="soc-trigger-cat-icon text-muted"
+												/>
 											)}
-											<span className="soc-trigger-label-prefix">Loại sự cố:</span>
+											<span className="soc-trigger-label-prefix">
+												Loại sự cố:
+											</span>
 											<span className="soc-trigger-selected-title">
 												{categoryFilter === "ALL"
 													? "Tất cả loại sự cố"
@@ -1699,18 +2056,27 @@ export function SecuritySurveillancePage() {
 														}}
 													>
 														<div className="soc-popover-item-left">
-															<span className={`soc-popover-icon-box ${opt.chipClass || ""}`}>
+															<span
+																className={`soc-popover-icon-box ${opt.chipClass || ""}`}
+															>
 																<Icon size={14} />
 															</span>
 															<span className="soc-popover-item-label">
-																{opt.key === "ALL" ? "Tất cả loại sự cố" : opt.label}
+																{opt.key === "ALL"
+																	? "Tất cả loại sự cố"
+																	: opt.label}
 															</span>
 														</div>
 
 														<div className="soc-popover-item-right">
-															<span className="soc-popover-count-pill">{opt.count}</span>
+															<span className="soc-popover-count-pill">
+																{opt.count}
+															</span>
 															{isSelected && (
-																<Check size={14} className="soc-popover-check-icon" />
+																<Check
+																	size={14}
+																	className="soc-popover-check-icon"
+																/>
 															)}
 														</div>
 													</button>
@@ -1721,23 +2087,27 @@ export function SecuritySurveillancePage() {
 								</div>
 							)}
 
-							{(pendingAlertCount > 1 || hasClearedIncidents || activeAlerts.some((a) => a.socAcknowledged || !isAlertPending(a.status))) && (
+							{(pendingAlertCount > 1 ||
+								hasClearedIncidents ||
+								activeAlerts.some(
+									(a) => a.socAcknowledged || !isAlertPending(a.status),
+								)) && (
 								<div className="soc-filter-actions-bar">
 									<div className="soc-filter-actions-left">
 										{activeAlerts.some(
 											(a) => a.socAcknowledged || !isAlertPending(a.status),
 										) && (
-												<button
-													type="button"
-													className="soc-btn-clear"
-													onClick={handleClearResolved}
-													title="Dọn dẹp bảng trực (chỉ ẩn các sự cố đã ghi nhận/đã đóng khỏi màn hình, không xóa dữ liệu lưu trữ)"
-													aria-label="Dọn dẹp bảng trực"
-												>
-													<Broom size={12} />
-													<span>Dọn dẹp</span>
-												</button>
-											)}
+											<button
+												type="button"
+												className="soc-btn-clear"
+												onClick={handleClearResolved}
+												title="Dọn dẹp bảng trực (chỉ ẩn các sự cố đã ghi nhận/đã đóng khỏi màn hình, không xóa dữ liệu lưu trữ)"
+												aria-label="Dọn dẹp bảng trực"
+											>
+												<Broom size={12} />
+												<span>Dọn dẹp</span>
+											</button>
+										)}
 
 										{hasClearedIncidents && (
 											<button
@@ -1778,15 +2148,23 @@ export function SecuritySurveillancePage() {
 									retrying={incidentsLoading}
 								/>
 							)}
-							{filteredAlerts.length === 0 && (incidentsError || incidentsLoading) ? (
-								incidentsError ? null : <LoadingState size="sm" text="Đang tải danh sách sự cố..." />
+							{filteredAlerts.length === 0 &&
+							(incidentsError || incidentsLoading) ? (
+								incidentsError ? null : (
+									<LoadingState
+										size="sm"
+										text="Đang tải danh sách sự cố..."
+									/>
+								)
 							) : filteredAlerts.length === 0 && activeAlerts.length > 0 ? (
 								/* Trạng thái bộ lọc không có sự cố phù hợp */
 								<div className="soc-filter-empty-state">
 									<div className="soc-filter-empty-icon-box">
 										<Filter size={20} />
 									</div>
-									<h4 className="soc-filter-empty-title">Không có sự cố phù hợp</h4>
+									<h4 className="soc-filter-empty-title">
+										Không có sự cố phù hợp
+									</h4>
 									<p className="soc-filter-empty-desc">
 										{categoryFilter !== "ALL"
 											? `Không có sự cố "${categoryFilter}" nào ${alertFilter === "PENDING" ? "đang chờ ghi nhận" : "trong danh sách"}.`
@@ -1843,34 +2221,49 @@ export function SecuritySurveillancePage() {
 														{(() => {
 															const TagIcon = sev.icon || AlertTriangle;
 															return (
-																<div className={`soc-incident-tag ${sev.badgeClass || ""}`}>
-																	<TagIcon size={13} className="soc-tag-incident-icon" />
+																<div
+																	className={`soc-incident-tag ${sev.badgeClass || ""}`}
+																>
+																	<TagIcon
+																		size={13}
+																		className="soc-tag-incident-icon"
+																	/>
 																	<span>{sev.label}</span>
 																</div>
 															);
 														})()}
 														{/* V93 (BR-DSP-11): đang mời một nhóm bảo vệ trên mobile; web chỉ theo dõi */}
-														{isPending && status === "NEW" && String(alert.dispatchStage || "").toUpperCase() === "STEP1" && (
-															<span
-																className="soc-claimed-label"
-																title="Hệ thống đang mời một nhóm bảo vệ tiếp nhận qua ứng dụng di động"
-															>
-																Đang mời bảo vệ
-															</span>
-														)}
+														{isPending &&
+															status === "NEW" &&
+															String(
+																alert.dispatchStage || "",
+															).toUpperCase() === "STEP1" && (
+																<span
+																	className="soc-claimed-label"
+																	title="Hệ thống đang mời một nhóm bảo vệ tiếp nhận qua ứng dụng di động"
+																>
+																	Đang mời bảo vệ
+																</span>
+															)}
 													</div>
 
 													<div
 														className="soc-incident-time-pill"
 														title={`Thời điểm phát hiện: ${alert.timeParts?.full || alert.timestamp}${alert.duration ? ` (${alert.duration})` : ""}`}
 													>
-														<Clock size={11} className="soc-time-clock-icon" />
+														<Clock
+															size={11}
+															className="soc-time-clock-icon"
+														/>
 														<span className="soc-time-clock-text">
 															{alert.timeParts?.time || alert.timestamp}
 														</span>
-														{!alert.timeParts?.isToday && alert.timeParts?.shortDate && (
-															<span className="soc-time-date-badge">{alert.timeParts.shortDate}</span>
-														)}
+														{!alert.timeParts?.isToday &&
+															alert.timeParts?.shortDate && (
+																<span className="soc-time-date-badge">
+																	{alert.timeParts.shortDate}
+																</span>
+															)}
 													</div>
 												</div>
 
@@ -1898,7 +2291,9 @@ export function SecuritySurveillancePage() {
 															<button
 																type="button"
 																className="btn-soc-evidence"
-																onClick={() => handleOpenIncidentMedia(alert, "image")}
+																onClick={() =>
+																	handleOpenIncidentMedia(alert, "image")
+																}
 																title="Xem ảnh chụp bằng chứng quả tang từ AI"
 															>
 																<CameraIcon size={12} />
@@ -1909,7 +2304,9 @@ export function SecuritySurveillancePage() {
 														<button
 															type="button"
 															className="btn-soc-video"
-															onClick={() => handleOpenIncidentMedia(alert, "video")}
+															onClick={() =>
+																handleOpenIncidentMedia(alert, "video")
+															}
 															title="Xem video hiện trường sự cố ngay trong tab này"
 														>
 															<CirclePlay size={12} />
@@ -2007,7 +2404,10 @@ export function SecuritySurveillancePage() {
 									const ModalTagIcon = modalSev.icon || AlertTriangle;
 									return (
 										<span className={`soc-incident-tag ${modalSev.badgeClass}`}>
-											<ModalTagIcon size={14} className="soc-tag-incident-icon" />
+											<ModalTagIcon
+												size={14}
+												className="soc-tag-incident-icon"
+											/>
 											<span>{modalSev.label}</span>
 										</span>
 									);
@@ -2061,7 +2461,9 @@ export function SecuritySurveillancePage() {
 										key={`evidence-dvr-${evidenceModalAlert.camCodeClean || evidenceModalAlert.cameraCode || "cam"}`}
 										streamPath={evidenceModalAlert.camCodeClean || "cam-006"}
 										cameraCode={evidenceModalAlert.cameraCode || "CAM-006"}
-										cameraName={evidenceModalAlert.cameraName || "Camera hiện trường"}
+										cameraName={
+											evidenceModalAlert.cameraName || "Camera hiện trường"
+										}
 										enabled={true}
 										enableDvr={true}
 										enableTrackingToggle={false}
@@ -2072,7 +2474,9 @@ export function SecuritySurveillancePage() {
 												: evidenceModalAlert.rawTime
 										}
 										focusedAlertId={evidenceModalAlert.id}
-										alerts={alertsByCamera[evidenceModalAlert.camCodeClean] || []}
+										alerts={
+											alertsByCamera[evidenceModalAlert.camCodeClean] || []
+										}
 										onAlertMarkerClick={(clickedAlert) => {
 											if (clickedAlert) {
 												setEvidenceModalAlert(clickedAlert);
@@ -2095,11 +2499,15 @@ export function SecuritySurveillancePage() {
 								</div>
 								<div className="soc-evidence-meta-row">
 									<span className="soc-evidence-meta-label">Thời điểm:</span>
-									<span className="soc-evidence-meta-val">{evidenceModalAlert.timestamp}</span>
+									<span className="soc-evidence-meta-val">
+										{evidenceModalAlert.timestamp}
+									</span>
 								</div>
 								<div className="soc-evidence-meta-row">
 									<span className="soc-evidence-meta-label">Nội dung:</span>
-									<span className="soc-evidence-meta-val">{evidenceModalAlert.message}</span>
+									<span className="soc-evidence-meta-val">
+										{evidenceModalAlert.message}
+									</span>
 								</div>
 							</div>
 						</div>
@@ -2151,14 +2559,16 @@ export function SecuritySurveillancePage() {
 									onClick={() => {
 										handleSelectCamera(
 											evidenceModalAlert.camCodeClean ||
-											evidenceModalAlert.cameraCode,
+												evidenceModalAlert.cameraCode,
 										);
 										setEvidenceModalAlert(null);
 									}}
 									title="Chuyển màn hình sang xem trực tiếp camera này"
 								>
 									<Video size={13} />
-									<span>Xem trực tiếp camera {evidenceModalAlert.cameraCode}</span>
+									<span>
+										Xem trực tiếp camera {evidenceModalAlert.cameraCode}
+									</span>
 								</button>
 								<button
 									type="button"
