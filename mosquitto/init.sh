@@ -21,6 +21,44 @@ chmod 0600 /mosquitto/auth/acl
 cp /mosquitto/config/mosquitto.conf /mosquitto/auth/mosquitto.conf
 
 CERT_DIR="/mosquitto/certs"
+
+# Chứng chỉ TLS truyền qua biến môi trường (base64) cho nền tảng không mount được thư mục certs/.
+# Không có biến nào thì giữ nguyên hành vi cũ (dùng chứng chỉ mount sẵn nếu có). Không in giá trị biến ra log.
+if [ -n "${MQTT_TLS_CA_B64:-}" ] || [ -n "${MQTT_TLS_CERT_B64:-}" ] || [ -n "${MQTT_TLS_KEY_B64:-}" ]; then
+    if [ -z "${MQTT_TLS_CA_B64:-}" ] || [ -z "${MQTT_TLS_CERT_B64:-}" ] || [ -z "${MQTT_TLS_KEY_B64:-}" ]; then
+        echo "init.sh: cần đủ cả MQTT_TLS_CA_B64, MQTT_TLS_CERT_B64 và MQTT_TLS_KEY_B64, dừng mosquitto" >&2
+        exit 1
+    fi
+    mkdir -p "$CERT_DIR"
+    # Ghi thử một file: chạy bằng root thì "test -w" không nhận ra thư mục mount read-only
+    if ! (: > "$CERT_DIR/.write-test") 2>/dev/null; then
+        echo "init.sh: không ghi được vào $CERT_DIR (đang mount read-only?). Dùng MQTT_TLS_*_B64 hoặc mount certs/, không dùng cả hai; dừng mosquitto" >&2
+        exit 1
+    fi
+    rm -f "$CERT_DIR/.write-test"
+    # decode_b64 <tên biến> <file đích> <quyền>: ghi ra file tạm rồi đổi tên, tránh để lại file dở dang
+    decode_b64() {
+        eval "_val=\${$1}"
+        _tmp="$2.tmp.$$"
+        if ! printf '%s' "$_val" | base64 -d > "$_tmp" 2>/dev/null || [ ! -s "$_tmp" ]; then
+            rm -f "$_tmp"
+            echo "init.sh: không giải mã được $1 (base64 không hợp lệ hoặc rỗng), dừng mosquitto" >&2
+            exit 1
+        fi
+        chown mosquitto:mosquitto "$_tmp"
+        chmod "$3" "$_tmp"
+        mv -f "$_tmp" "$2"
+        unset _val
+    }
+    old_umask=$(umask)
+    umask 077
+    decode_b64 MQTT_TLS_CA_B64 "$CERT_DIR/ca.crt" 0644
+    decode_b64 MQTT_TLS_CERT_B64 "$CERT_DIR/server.crt" 0644
+    decode_b64 MQTT_TLS_KEY_B64 "$CERT_DIR/server.key" 0600
+    umask "$old_umask"
+    echo "init.sh: Đã ghi chứng chỉ TLS từ biến môi trường MQTT_TLS_*_B64 vào $CERT_DIR"
+fi
+
 if [ -f "$CERT_DIR/server.crt" ] && [ -f "$CERT_DIR/server.key" ] && [ -f "$CERT_DIR/ca.crt" ]; then
     echo "init.sh: Đã tìm thấy chứng chỉ TLS trong $CERT_DIR, kích hoạt listener 8883 (TLS) và listener 8884 (WSS)..."
     cat << 'EOF' >> /mosquitto/auth/mosquitto.conf
