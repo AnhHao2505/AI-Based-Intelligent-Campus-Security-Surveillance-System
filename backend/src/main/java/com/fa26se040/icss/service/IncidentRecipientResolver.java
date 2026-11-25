@@ -1,6 +1,7 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.entity.GuardShift;
+import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.repository.OnDutyGuardQueryRepository;
@@ -28,6 +29,14 @@ import java.util.function.Predicate;
 public class IncidentRecipientResolver {
 
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    /** Các trạng thái ca đang có hiệu lực phân công cho cảnh báo realtime. */
+    static final Set<ShiftStatus> ACTIVE_ASSIGNED_STATUSES =
+            Set.of(ShiftStatus.SCHEDULED, ShiftStatus.CHECKED_IN);
+
+    /** Các trạng thái ca mà bảo vệ được phân công (kể cả đã hoàn thành) dùng để lọc lịch sử sự cố trên mobile. */
+    static final Set<ShiftStatus> ASSIGNED_SHIFT_STATUSES =
+            Set.of(ShiftStatus.SCHEDULED, ShiftStatus.CHECKED_IN, ShiftStatus.COMPLETED);
 
     private final OnDutyGuardQueryRepository onDutyGuardQueryRepository;
 
@@ -110,6 +119,90 @@ public class IncidentRecipientResolver {
             }
         }
         return new ArrayList<>(atDispatchablePost.isEmpty() ? eligible.values() : atDispatchablePost.values());
+    }
+
+    /**
+     * Tìm bảo vệ được phân công vào ca trực (SCHEDULED hoặc CHECKED_IN) có khung giờ chứa thời điểm {@code at}.
+     * Dùng để gửi cảnh báo sự cố tới kênh riêng /topic/guards/{id}/alerts trên app mobile của bảo vệ được phân công.
+     */
+    public List<User> findAssignedGuardsAt(OffsetDateTime at) {
+        if (at == null) {
+            return List.of();
+        }
+        LocalDateTime targetLocal = at.atZoneSameInstant(VN_ZONE).toLocalDateTime();
+        LocalDate today = targetLocal.toLocalDate();
+
+        List<GuardShift> shifts = onDutyGuardQueryRepository.findByStatusInAndShiftDateBetween(
+                ACTIVE_ASSIGNED_STATUSES, today.minusDays(1), today);
+        if (shifts == null || shifts.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, User> guards = new LinkedHashMap<>();
+        for (GuardShift shift : shifts) {
+            User guard = shift.getGuard();
+            if (guard == null || guard.getId() == null || !isActiveAccount(guard) || !isWithinShift(shift, targetLocal)) {
+                continue;
+            }
+            guards.putIfAbsent(guard.getId(), guard);
+        }
+        return new ArrayList<>(guards.values());
+    }
+
+    /**
+     * Lọc danh sách sự cố chỉ giữ lại những sự cố có thời điểm phát hiện nằm trong ca mà bảo vệ {@code guardId}
+     * được phân công (SCHEDULED, CHECKED_IN, COMPLETED). Không khớp ca nào -> trả về danh sách rỗng.
+     */
+    public List<SecurityIncident> filterIncidentsForAssignedShifts(List<SecurityIncident> incidents, UUID guardId) {
+        if (incidents == null || incidents.isEmpty() || guardId == null) {
+            return List.of();
+        }
+        LocalDate minDate = null;
+        LocalDate maxDate = null;
+        for (SecurityIncident incident : incidents) {
+            OffsetDateTime ts = incidentTimestamp(incident);
+            if (ts == null) {
+                continue;
+            }
+            LocalDate d = ts.atZoneSameInstant(VN_ZONE).toLocalDate();
+            if (minDate == null || d.isBefore(minDate)) {
+                minDate = d;
+            }
+            if (maxDate == null || d.isAfter(maxDate)) {
+                maxDate = d;
+            }
+        }
+        if (minDate == null) {
+            return List.of();
+        }
+
+        // Lùi 1 ngày ở minDate để xét cả ca qua đêm bắt đầu từ ngày hôm trước
+        List<GuardShift> shifts = onDutyGuardQueryRepository.findByGuardIdAndStatusInAndShiftDateBetween(
+                guardId, ASSIGNED_SHIFT_STATUSES, minDate.minusDays(1), maxDate);
+        if (shifts == null || shifts.isEmpty()) {
+            return List.of();
+        }
+
+        List<SecurityIncident> matched = new ArrayList<>();
+        for (SecurityIncident incident : incidents) {
+            OffsetDateTime ts = incidentTimestamp(incident);
+            if (ts == null) {
+                continue;
+            }
+            LocalDateTime detectedLocal = ts.atZoneSameInstant(VN_ZONE).toLocalDateTime();
+            boolean inAssignedShift = shifts.stream().anyMatch(shift -> isWithinShift(shift, detectedLocal));
+            if (inAssignedShift) {
+                matched.add(incident);
+            }
+        }
+        return matched;
+    }
+
+    private static OffsetDateTime incidentTimestamp(SecurityIncident incident) {
+        if (incident == null) {
+            return null;
+        }
+        return incident.getDetectedAt() != null ? incident.getDetectedAt() : incident.getCreatedAt();
     }
 
     /**
