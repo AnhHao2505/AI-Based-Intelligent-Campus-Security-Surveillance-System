@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -72,34 +73,61 @@ public class V91ShiftBuildingMigrationIntegrationTest extends AbstractIntegratio
     @Test
     @DisplayName("V91: Kiểm tra logic điền sẵn dữ liệu đội cũ và ca cũ (rollback)")
     void testBackfillLogicScenarios() {
-        // Lấy tòa Alpha và tòa thứ 2 (Tòa Epsilon sau V95_1, trước đó là Tòa Beta) từ DB test
-        UUID alphaId = jdbc.queryForObject("SELECT id FROM buildings WHERE name = 'Tòa Alpha'", UUID.class);
-        UUID secondBuildingId = jdbc.queryForObject(
-                "SELECT id FROM buildings WHERE name IN ('Tòa Epsilon', 'Tòa Beta') ORDER BY created_at ASC LIMIT 1",
-                UUID.class);
-        assertNotNull(alphaId);
-        assertNotNull(secondBuildingId);
-
-        // Tạo đội tạm thời có description = 'Tòa Alpha'
+        // V97_1 đã xóa Tòa Alpha khỏi DB -> test tự tạo Tòa Alpha tạm (nếu chưa có) và dọn sạch trong finally
+        boolean createdAlpha = false;
+        UUID alphaId = null;
+        boolean createdSecond = false;
+        UUID secondBuildingId = null;
         UUID testTeamId = UUID.randomUUID();
-        jdbc.update("INSERT INTO guard_teams (id, team_name, description, is_active) VALUES (?, ?, ?, true)",
-                testTeamId, "Đội Test V91 Alpha", "Tòa Alpha");
+        try {
+            List<UUID> existingAlpha = jdbc.queryForList(
+                    "SELECT id FROM buildings WHERE name = 'Tòa Alpha'", UUID.class);
+            createdAlpha = existingAlpha.isEmpty();
+            alphaId = createdAlpha ? UUID.randomUUID() : existingAlpha.get(0);
+            if (createdAlpha) {
+                jdbc.update("INSERT INTO buildings (id, name, description, total_floors, is_active) VALUES (?, 'Tòa Alpha', 'Tòa test V91', 3, true)",
+                        alphaId);
+            }
 
-        // Chạy lại câu UPDATE của V91 cho đội
-        jdbc.update("""
-            UPDATE guard_teams gt
-            SET building_id = b.id
-            FROM buildings b
-            WHERE gt.id = ?
-              AND gt.description IS NOT NULL
-              AND lower(trim(gt.description)) = lower(trim(b.name))
-        """, testTeamId);
+            List<UUID> existingSecond = jdbc.queryForList(
+                    "SELECT id FROM buildings WHERE name IN ('Tòa Epsilon', 'Tòa Beta') ORDER BY created_at ASC LIMIT 1",
+                    UUID.class);
+            createdSecond = existingSecond.isEmpty();
+            secondBuildingId = createdSecond ? UUID.randomUUID() : existingSecond.get(0);
+            if (createdSecond) {
+                jdbc.update("INSERT INTO buildings (id, name, description, total_floors, is_active) VALUES (?, 'Tòa Epsilon', 'Tòa test V91', 5, true)",
+                        secondBuildingId);
+            }
 
-        UUID assignedBuildingId = jdbc.queryForObject(
-                "SELECT building_id FROM guard_teams WHERE id = ?", UUID.class, testTeamId);
-        assertEquals(alphaId, assignedBuildingId);
+            assertNotNull(alphaId);
+            assertNotNull(secondBuildingId);
 
-        // Dọn dẹp đội test
-        jdbc.update("DELETE FROM guard_teams WHERE id = ?", testTeamId);
+            // Tạo đội tạm thời có description = 'Tòa Alpha'
+            jdbc.update("INSERT INTO guard_teams (id, team_name, description, is_active) VALUES (?, ?, ?, true)",
+                    testTeamId, "Đội Test V91 Alpha " + testTeamId, "Tòa Alpha");
+
+            // Chạy lại câu UPDATE của V91 cho đội
+            jdbc.update("""
+                UPDATE guard_teams gt
+                SET building_id = b.id
+                FROM buildings b
+                WHERE gt.id = ?
+                  AND gt.description IS NOT NULL
+                  AND lower(trim(gt.description)) = lower(trim(b.name))
+            """, testTeamId);
+
+            UUID assignedBuildingId = jdbc.queryForObject(
+                    "SELECT building_id FROM guard_teams WHERE id = ?", UUID.class, testTeamId);
+            assertEquals(alphaId, assignedBuildingId);
+        } finally {
+            // Dọn dẹp đội test và tòa test tạm (đội xóa trước tòa vì FK ON DELETE RESTRICT)
+            jdbc.update("DELETE FROM guard_teams WHERE id = ?", testTeamId);
+            if (createdAlpha && alphaId != null) {
+                jdbc.update("DELETE FROM buildings WHERE id = ?", alphaId);
+            }
+            if (createdSecond && secondBuildingId != null) {
+                jdbc.update("DELETE FROM buildings WHERE id = ?", secondBuildingId);
+            }
+        }
     }
 }
