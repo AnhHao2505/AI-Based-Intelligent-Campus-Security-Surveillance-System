@@ -42,7 +42,7 @@ const CONFIG_SUBGROUPS = {
 	AI_CONFIG: [
 		{
 			title: "Nhận diện & Cảnh báo",
-			prefixes: ["AI_"],
+			prefixes: ["AI_", "INCIDENT_DEDUP_"],
 		},
 		{
 			title: "Ghi hình",
@@ -309,6 +309,8 @@ export default function SystemConfigPage() {
 			// B-02: nhóm tham số khách (V60)
 			case "GUEST":
 				return "Khách";
+			case "GUARD_SCHEDULE":
+				return "Lịch trực bảo vệ";
 			default:
 				return groupKey;
 		}
@@ -340,6 +342,13 @@ export default function SystemConfigPage() {
 			case "GUEST":
 				return (
 					<UserPlus
+						size={18}
+						className="syscfg-group-icon"
+					/>
+				);
+			case "GUARD_SCHEDULE":
+				return (
+					<Clock
 						size={18}
 						className="syscfg-group-icon"
 					/>

@@ -307,16 +307,27 @@ const cleanIncidentMessage = (
 		if (!str) return str;
 		return str.replace(/\s*\([^)]*(?:vùng|roi)[^)]*\)/gi, "").trim();
 	};
+	const isGenericOrRoiLocation = (loc) => {
+		if (!loc) return true;
+		const trimmed = String(loc).trim();
+		if (!trimmed) return true;
+		return /^(?:vùng\s+phát\s+hiện(?:\s+xâm\s+nhập)?(?:\s*\d+)?|vùng\s+giám\s+sát|roi(?:\s*\d+)?|khu\s+vực\s+giám\s+sát|khu\s+vực\s+camera\s+[a-z0-9_-]+)$/i.test(
+			trimmed,
+		);
+	};
+	const preferredAreaLoc = cleanLocStr(areaName || "");
 
 	if (!msg) {
-		const loc = cleanLocStr(areaName || cameraCode || "Khu vực giám sát");
+		const loc = cleanLocStr(
+			preferredAreaLoc || (cameraCode ? `Khu vực camera ${cameraCode}` : "Khu vực giám sát"),
+		);
 		return `Vị trí: ${loc}`;
 	}
 	let raw = String(msg)
 		.replace(/^\[[A-Z0-9_]+\]\s*/g, "")
 		.trim();
 
-	// Nếu đã chứa cấu trúc phân dòng chuẩn (Tên: / Lý do: / Vị trí:), chuẩn hóa tối giản dòng Lý do và lọc sạch ROI suffix
+	// Nếu đã chứa cấu trúc phân dòng chuẩn (Tên: / Lý do: / Vị trí:), chuẩn hóa tối giản dòng Lý do và thay thế vị trí ROI/chung chung bằng tên khu vực thật
 	if (raw.includes("Vị trí:") || raw.includes("Tên:")) {
 		let formatted = raw.replace(
 			/Lý do:\s*([^\n]+)/i,
@@ -324,7 +335,16 @@ const cleanIncidentMessage = (
 		);
 		formatted = formatted.replace(
 			/Vị trí:\s*([^\n]+)/i,
-			(_, loc) => `Vị trí: ${cleanLocStr(loc)}`,
+			(_, loc) => {
+				const cleaned = cleanLocStr(loc);
+				if (isGenericOrRoiLocation(cleaned)) {
+					const fallback =
+						preferredAreaLoc ||
+						(cameraCode ? `Khu vực camera ${cameraCode}` : "Khu vực giám sát");
+					return `Vị trí: ${fallback}`;
+				}
+				return `Vị trí: ${cleaned}`;
+			},
 		);
 		return formatted;
 	}
@@ -571,6 +591,23 @@ export function SecuritySurveillancePage() {
 	const [statusNotification, setStatusNotification] = useState(null);
 	const [evidenceModalAlert, setEvidenceModalAlert] = useState(null);
 	const [evidenceModalTab, setEvidenceModalTab] = useState("image"); // "image" | "video"
+
+	const { cameraAreaByCode, cameraNameByCode } = useMemo(() => {
+		const areaMap = {};
+		const nameMap = {};
+		for (const cam of cameraList) {
+			if (!cam.code) continue;
+			const area = (cam.areaName || "").trim();
+			const name = (cam.name || "").trim();
+			if (area) areaMap[cam.code] = area;
+			if (name) nameMap[cam.code] = name;
+		}
+		return { cameraAreaByCode: areaMap, cameraNameByCode: nameMap };
+	}, [cameraList]);
+	const cameraAreaByCodeRef = useRef(cameraAreaByCode);
+	useEffect(() => {
+		cameraAreaByCodeRef.current = cameraAreaByCode;
+	}, [cameraAreaByCode]);
 
 	const flashTimeoutRef = useRef(null);
 	const notificationTimeoutRef = useRef(null);
@@ -896,7 +933,7 @@ export function SecuritySurveillancePage() {
 			message: cleanIncidentMessage(
 				incident.details || incident.resolutionNotes || incident.message,
 				incident.event_type || incident.eventType,
-				incident.areaName || incident.area_name,
+				incident.areaName || incident.area_name || cameraAreaByCodeRef.current[camCodeClean],
 				incident.cameraCode || incident.camera_code,
 			),
 			duration: incident.duration_seconds
@@ -912,6 +949,7 @@ export function SecuritySurveillancePage() {
 			imageUrl: incident.imageUrl || incident.image_url || null,
 			severity: incident.severity || null,
 			dispatchStage: incident.dispatchStage || null,
+			repeatCount: incident.repeatCount || 1,
 		};
 
 		setActiveAlerts((prev) => {
@@ -1013,8 +1051,15 @@ export function SecuritySurveillancePage() {
 					if (message.body) {
 						try {
 							const update = JSON.parse(message.body);
-							setActiveAlerts((prev) =>
-								prev.map((a) =>
+							setActiveAlerts((prev) => {
+								if (update.mergedIntoIncidentId) {
+									return prev.filter(
+										(a) =>
+											a.id !== update.incidentId &&
+											String(a.id) !== String(update.incidentId),
+									);
+								}
+								return prev.map((a) =>
 									a.id === update.incidentId ||
 									String(a.id) === String(update.incidentId)
 										? {
@@ -1041,10 +1086,36 @@ export function SecuritySurveillancePage() {
 												...(update.imageUrl
 													? { imageUrl: update.imageUrl }
 													: {}),
+												...(update.repeatAlert
+													? {
+															repeatCount:
+																update.repeatCount || (a.repeatCount || 1) + 1,
+															...(update.detectedAt
+																? {
+																		detectedAt: update.detectedAt,
+																		timeParts: getIncidentTimeParts(
+																			update.detectedAt,
+																		),
+																		timestamp: formatIncidentTimestamp(
+																			update.detectedAt,
+																		),
+																		rawTime: new Date(
+																			update.detectedAt,
+																		).getTime(),
+																	}
+																: {}),
+														}
+													: {}),
 											}
 										: a,
-								),
-							);
+								);
+							});
+							if (update.repeatAlert) {
+								playAlertSound([
+									update.repeatEventId ||
+										`${update.incidentId}:repeat:${Date.now()}`,
+								]);
+							}
 							setEvidenceModalAlert((prev) => {
 								if (
 									prev &&
@@ -1196,7 +1267,7 @@ export function SecuritySurveillancePage() {
 									incident.resolutionNotes ||
 									incident.message,
 								incident.eventType,
-								incident.areaName,
+								incident.areaName || cameraAreaByCodeRef.current[camCodeClean],
 								incident.cameraCode,
 							),
 							duration: incident.duration_seconds
@@ -1212,6 +1283,7 @@ export function SecuritySurveillancePage() {
 							imageUrl: incident.imageUrl || incident.image_url || null,
 							severity: incident.severity || null,
 							dispatchStage: incident.dispatchStage || null,
+							repeatCount: incident.repeatCount || 1,
 						};
 					});
 				if (silent) {
@@ -2239,6 +2311,14 @@ export function SecuritySurveillancePage() {
 																</div>
 															);
 														})()}
+														{(alert.repeatCount || 1) > 1 && (
+															<span
+																className="soc-claimed-label"
+																title={`Cùng đối tượng này đã bị cảnh báo ${alert.repeatCount} lần trong sự cố đang mở`}
+															>
+																Lặp {alert.repeatCount} lần
+															</span>
+														)}
 														{/* V93 (BR-DSP-11): đang mời một nhóm bảo vệ trên mobile; web chỉ theo dõi */}
 														{isPending &&
 															status === "NEW" &&
@@ -2274,24 +2354,40 @@ export function SecuritySurveillancePage() {
 													</div>
 												</div>
 
-												{renderIncidentDetails(alert.message)}
+												{renderIncidentDetails(
+													cameraAreaByCode[alert.camCodeClean]
+														? cleanIncidentMessage(
+																alert.message,
+																alert.eventType,
+																cameraAreaByCode[alert.camCodeClean],
+																alert.cameraCode,
+															)
+														: alert.message,
+												)}
 
 												<div className="soc-incident-bottom">
 													<div className="soc-incident-bottom-left">
 														{/* Nút xem nhanh camera */}
-														<button
-															type="button"
-															className="btn-soc-jump-cam"
-															onClick={() =>
-																handleSelectCamera(
-																	alert.camCodeClean || alert.cameraCode,
-																)
-															}
-															title="Chuyển màn hình sang camera này"
-														>
-															<Video size={12} />
-															<span>{alert.cameraCode}</span>
-														</button>
+														{(() => {
+															const camDisplayName =
+																cameraNameByCode[alert.camCodeClean] ||
+																alert.cameraCode;
+															return (
+																<button
+																	type="button"
+																	className="btn-soc-jump-cam"
+																	onClick={() =>
+																		handleSelectCamera(
+																			alert.camCodeClean || alert.cameraCode,
+																		)
+																	}
+																	title={`Chuyển màn hình sang ${camDisplayName} (${alert.cameraCode})`}
+																>
+																	<Video size={12} />
+																	<span>{camDisplayName}</span>
+																</button>
+															);
+														})()}
 
 														{/* Nút xem ảnh bằng chứng quả tang từ AI */}
 														{alert.imageUrl && (

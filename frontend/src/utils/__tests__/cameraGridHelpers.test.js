@@ -35,6 +35,15 @@ describe("cameraGridHelpers", () => {
 			formatCameraTileTitle({ cameraCode: "CAM-020", name: "Hành lang Đông Tầng 2", floor: "Tầng 2" }),
 			"Hành lang Đông Tầng 2",
 		);
+		assert.equal(
+			formatCameraTileTitle({
+				cameraCode: "CAM-007",
+				areaName: "Phòng họp",
+				name: "cam1",
+				floor: "Tầng 2",
+			}),
+			"Phòng họp · cam1",
+		);
 	});
 
 	it("tính đúng lưới Tự vừa (auto) và số ô trống", () => {

@@ -1949,14 +1949,14 @@ body.soc-theater-active .sidebar {
   border-radius: 999px;
   background: rgba(100, 116, 139, 0.08);
   border: 1px solid rgba(148, 163, 184, 0.22);
-  font-family: 'JetBrains Mono', 'IBM Plex Mono', 'Consolas', monospace;
-  font-size: 0.70rem;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.74rem;
   font-weight: 600;
   color: var(--theme-text-secondary, #475569);
   white-space: nowrap;
   flex-shrink: 0;
   line-height: 1;
-  letter-spacing: -0.2px;
+  letter-spacing: 0.01em;
   transition: all 0.15s ease;
   user-select: none;
 }
@@ -1974,10 +1974,10 @@ body.soc-theater-active .sidebar {
 }
 
 .soc-time-clock-text {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--theme-text-primary, #0f172a);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.25px;
+  letter-spacing: 0.02em;
 }
 
 .soc-time-date-badge {
