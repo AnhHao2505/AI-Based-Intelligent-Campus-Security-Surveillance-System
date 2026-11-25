@@ -50,9 +50,14 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -307,8 +312,9 @@ public class SecurityIncidentService {
     }
 
     /**
-     * Mục 2.A của ingest (tách nguyên văn ở V93): gửi sự cố tới kênh riêng của từng bảo vệ đang trực, trong transaction
-     * hiện tại. Trả về số bảo vệ đã gửi được.
+     * Mục 2.A của ingest (tách nguyên văn ở V93): gửi sự cố tới kênh riêng của bảo vệ đang trực (CHECKED_IN)
+     * và bảo vệ được phân công ca tại thời điểm sự cố (SCHEDULED/CHECKED_IN).
+     * guardRecipientCount vẫn chỉ đếm bảo vệ CHECKED_IN có phiên mobile (BR-IE-02 / BR-IE-05).
      */
     private int sendToOnDutyGuards(SecurityIncident saved, IncidentDetailResponse response, String areaName,
                                    String building, OffsetDateTime detectedAt) {
@@ -318,15 +324,41 @@ public class SecurityIncidentService {
         } catch (Exception e) {
             log.error("Lỗi khi tìm bảo vệ đang trực cho sự cố [{}]: {}", saved.getId(), e.getMessage(), e);
         }
-        log.info("Incident [{}] in area [{}] (Building: [{}]): Found [{}] on-duty guards to notify",
-                saved.getId(), areaName, building, onDutyGuards.size());
+        List<User> assignedGuards = List.of();
+        try {
+            assignedGuards = incidentRecipientResolver.findAssignedGuardsAt(detectedAt);
+        } catch (Exception e) {
+            log.error("Lỗi khi tìm bảo vệ được phân công ca cho sự cố [{}]: {}", saved.getId(), e.getMessage(), e);
+        }
+
+        Set<UUID> onDutyIds = onDutyGuards.stream()
+                .map(User::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<UUID, User> recipients = new LinkedHashMap<>();
+        for (User guard : onDutyGuards) {
+            if (guard != null && guard.getId() != null) {
+                recipients.putIfAbsent(guard.getId(), guard);
+            }
+        }
+        if (assignedGuards != null) {
+            for (User guard : assignedGuards) {
+                if (guard != null && guard.getId() != null) {
+                    recipients.putIfAbsent(guard.getId(), guard);
+                }
+            }
+        }
+
+        log.info("Incident [{}] in area [{}] (Building: [{}]): Found [{}] on-duty guards, [{}] total shift-assigned recipients to notify",
+                saved.getId(), areaName, building, onDutyGuards.size(), recipients.size());
 
         int guardRecipientCount = 0;
-        for (User guard : onDutyGuards) {
+        for (User guard : recipients.values()) {
             String guardTopic = "/topic/guards/" + guard.getId() + "/alerts";
             try {
                 messagingTemplate.convertAndSend(guardTopic, response);
-                if (canReceiveGuardAlerts(guard)) {
+                if (onDutyIds.contains(guard.getId()) && canReceiveGuardAlerts(guard)) {
                     guardRecipientCount++;
                 }
                 log.info("Dispatched incident [{}] to guard [{}] ({}) at topic [{}]",
@@ -695,9 +727,32 @@ public class SecurityIncidentService {
     }
 
     @Transactional(readOnly = true)
+    public List<IncidentDetailResponse> getActiveIncidents(String building, boolean assignedShiftOnly, String userEmail) {
+        List<SecurityIncident> list = incidentRepository.findActiveIncidents(building);
+        return mapToDetailResponses(filterForGuardIfRequested(list, assignedShiftOnly, userEmail));
+    }
+
+    @Transactional(readOnly = true)
     public List<IncidentDetailResponse> getIncidents(String building, IncidentStatus status) {
         List<SecurityIncident> list = incidentRepository.findIncidents(building, status);
         return mapToDetailResponses(list);
+    }
+
+    @Transactional(readOnly = true)
+    public List<IncidentDetailResponse> getIncidents(String building, IncidentStatus status, boolean assignedShiftOnly, String userEmail) {
+        List<SecurityIncident> list = incidentRepository.findIncidents(building, status);
+        return mapToDetailResponses(filterForGuardIfRequested(list, assignedShiftOnly, userEmail));
+    }
+
+    private List<SecurityIncident> filterForGuardIfRequested(List<SecurityIncident> list, boolean assignedShiftOnly, String userEmail) {
+        if (!assignedShiftOnly || userEmail == null || userEmail.isBlank() || list == null || list.isEmpty()) {
+            return list;
+        }
+        User user = userRepository.findByEmail(userEmail).orElse(null);
+        if (user == null || user.getRole() != Role.GUARD) {
+            return list;
+        }
+        return incidentRecipientResolver.filterIncidentsForAssignedShifts(list, user.getId());
     }
 
     @Transactional
