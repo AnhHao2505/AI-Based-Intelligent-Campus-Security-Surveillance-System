@@ -1,5 +1,5 @@
 -- ============================================================================
--- V143 (Checklist 6.1): Khung thời gian nhận ca và kết thúc ca trực bảo vệ vào cấu hình hệ thống
+-- V143_1 (Checklist 6.1): Khung thời gian nhận ca và kết thúc ca trực bảo vệ vào cấu hình hệ thống
 -- ============================================================================
 -- Trước đây GuardScheduleService viết cứng ±5 phút trong checkIn, checkOut và autoMarkAbsentIfOverdue.
 -- Nay đọc GUARD_SHIFT_CHECK_IN_WINDOW_MINUTES và GUARD_SHIFT_CHECK_OUT_WINDOW_MINUTES mỗi lần kiểm,

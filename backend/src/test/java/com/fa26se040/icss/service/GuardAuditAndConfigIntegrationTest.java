@@ -33,7 +33,7 @@ class GuardAuditAndConfigIntegrationTest extends AbstractIntegrationTest {
     private AuditService auditService;
 
     @Test
-    @DisplayName("V143: 2 khóa khung nhận/kết thúc ca trực tồn tại trong system_configurations và đọc được qua SystemConfigService")
+    @DisplayName("V143_1: 2 khóa khung nhận/kết thúc ca trực tồn tại trong system_configurations và đọc được qua SystemConfigService")
     void v143ConfigsExistAndReadable() {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM system_configurations WHERE config_key IN (?, ?)",

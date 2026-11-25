@@ -110,7 +110,7 @@ public enum ConfigKey {
     LOGIN_FAILED_WINDOW_MINUTES("LOGIN_FAILED_WINDOW_MINUTES", "15"),
     LOGIN_LOCK_MINUTES("LOGIN_LOCK_MINUTES", "15"),
     LOGIN_IP_RATE_PER_MINUTE("LOGIN_IP_RATE_PER_MINUTE", "20"),
-    // V143 (Checklist 6.1): khung nhận ca / kết thúc ca bảo vệ (±5 phút mặc định)
+    // V143_1 (Checklist 6.1): khung nhận ca / kết thúc ca bảo vệ (±5 phút mặc định)
     GUARD_SHIFT_CHECK_IN_WINDOW_MINUTES("GUARD_SHIFT_CHECK_IN_WINDOW_MINUTES", "5"),
     GUARD_SHIFT_CHECK_OUT_WINDOW_MINUTES("GUARD_SHIFT_CHECK_OUT_WINDOW_MINUTES", "5");
 
