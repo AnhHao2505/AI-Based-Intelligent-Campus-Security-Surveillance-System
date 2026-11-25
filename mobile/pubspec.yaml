@@ -49,6 +49,8 @@ dependencies:
   # P-MAP-1: bản đồ 3D khuôn viên (thay flutter_map)
   maplibre_gl: ^0.28.0
 
+  material_ui: any
+  image_picker: ^1.2.4
 dev_dependencies:
   flutter_test:
     sdk: flutter

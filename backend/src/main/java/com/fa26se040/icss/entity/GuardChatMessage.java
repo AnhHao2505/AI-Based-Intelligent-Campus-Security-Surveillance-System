@@ -28,8 +28,11 @@ public class GuardChatMessage {
     @JoinColumn(name = "receiver_id", nullable = false)
     private User receiver;
 
-    @Column(name = "content", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "content", columnDefinition = "TEXT")
     private String content;
+
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
 
     @Column(name = "is_read", nullable = false)
     @Builder.Default

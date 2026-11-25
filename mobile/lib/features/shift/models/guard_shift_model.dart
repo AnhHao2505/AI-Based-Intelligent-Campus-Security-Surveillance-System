@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../core/constants/app_colors.dart';
 
 class GuardShiftModel {
@@ -7,21 +7,26 @@ class GuardShiftModel {
   final String? guardName;
   final String? guardCode;
   final String shiftDate; // "YYYY-MM-DD"
-  final String shiftType; // "SHIFT_MORNING", "SHIFT_AFTERNOON", "SHIFT_NIGHT", "SHIFT_OFF"
+  final String
+  shiftType; // "SHIFT_MORNING", "SHIFT_AFTERNOON", "SHIFT_NIGHT", "SHIFT_OFF"
   final String startTime; // "HH:mm:ss" or "HH:mm"
-  final String endTime;   // "HH:mm:ss" or "HH:mm"
+  final String endTime; // "HH:mm:ss" or "HH:mm"
   final String? areaId;
   final String? areaName;
   final String? building;
-  final String status; // "SCHEDULED", "CHECKED_IN", "COMPLETED", "ABSENT", "CANCELLED"
+  final String
+  status; // "SCHEDULED", "CHECKED_IN", "COMPLETED", "ABSENT", "CANCELLED"
   final String? checkInAt;
   final String? checkOutAt;
   final String? notes;
   final bool isOvertime;
+
   /// Nhãn vị trí trực (duty post: PATROL / GATE / CAMERA_ROOM) do backend trả; null khi backend chưa có.
   final String? dutyPostLabel;
+
   /// Tên toà của ca theo FK (P1b 4.4); field building giữ cách tính cũ.
   final String? buildingName;
+
   /// Ca luân chuyển: toà của ca khác toà của đội.
   final bool crossBuilding;
 
@@ -201,7 +206,13 @@ class GuardShiftModel {
     try {
       final dateParts = shiftDate.split('-').map(int.parse).toList();
       final timeParts = startTime.split(':').map(int.parse).toList();
-      return DateTime(dateParts[0], dateParts[1], dateParts[2], timeParts[0], timeParts[1]);
+      return DateTime(
+        dateParts[0],
+        dateParts[1],
+        dateParts[2],
+        timeParts[0],
+        timeParts[1],
+      );
     } catch (_) {
       return null;
     }
@@ -213,8 +224,15 @@ class GuardShiftModel {
       final startParts = startTime.split(':').map(int.parse).toList();
       final endParts = endTime.split(':').map(int.parse).toList();
 
-      var dt = DateTime(dateParts[0], dateParts[1], dateParts[2], endParts[0], endParts[1]);
-      if (endParts[0] < startParts[0] || (endParts[0] == startParts[0] && endParts[1] < startParts[1])) {
+      var dt = DateTime(
+        dateParts[0],
+        dateParts[1],
+        dateParts[2],
+        endParts[0],
+        endParts[1],
+      );
+      if (endParts[0] < startParts[0] ||
+          (endParts[0] == startParts[0] && endParts[1] < startParts[1])) {
         dt = dt.add(const Duration(days: 1));
       }
       return dt;

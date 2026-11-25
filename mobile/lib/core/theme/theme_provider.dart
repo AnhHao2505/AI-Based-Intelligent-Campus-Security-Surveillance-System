@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeProvider with ChangeNotifier {
@@ -32,11 +32,16 @@ class ThemeProvider with ChangeNotifier {
   }
 
   Future<void> toggleTheme() async {
-    _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    _themeMode = _themeMode == ThemeMode.dark
+        ? ThemeMode.light
+        : ThemeMode.dark;
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_themeKey, _themeMode == ThemeMode.dark ? 'dark' : 'light');
+      await prefs.setString(
+        _themeKey,
+        _themeMode == ThemeMode.dark ? 'dark' : 'light',
+      );
     } catch (_) {}
   }
 
@@ -46,7 +51,10 @@ class ThemeProvider with ChangeNotifier {
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_themeKey, mode == ThemeMode.dark ? 'dark' : 'light');
+      await prefs.setString(
+        _themeKey,
+        mode == ThemeMode.dark ? 'dark' : 'light',
+      );
     } catch (_) {}
   }
 }

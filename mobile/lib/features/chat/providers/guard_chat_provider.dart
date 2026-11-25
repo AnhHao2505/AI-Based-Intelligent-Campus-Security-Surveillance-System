@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../../../core/utils/storage_helper.dart';
 import '../../incident/services/stomp_service.dart';
@@ -63,6 +64,11 @@ class GuardChatProvider extends ChangeNotifier {
 
   void _initStompHook() {
     stompService.onChatMessage = handleIncomingChatMessage;
+    StorageHelper.getUser().then((user) {
+      if (user != null) {
+        _currentUserId = user.id;
+      }
+    }).catchError((_) {});
   }
 
   Future<void> fetchGuards() async {
@@ -147,17 +153,7 @@ class GuardChatProvider extends ChangeNotifier {
 
     try {
       final sent = await chatService.sendMessage(_activePeerId!, content.trim());
-      _activeMessages.add(sent);
-
-      // Update last message in guard member list
-      final idx = _guards.indexWhere((g) => g.id == _activePeerId);
-      if (idx >= 0) {
-        _guards[idx] = _guards[idx].copyWith(
-          lastMessage: sent.content,
-          lastMessageAt: sent.createdAt,
-        );
-      }
-
+      _appendSentMessage(sent);
       notifyListeners();
       return true;
     } catch (e) {
@@ -167,6 +163,52 @@ class GuardChatProvider extends ChangeNotifier {
       _isSendingMessage = false;
       notifyListeners();
     }
+  }
+
+  Future<bool> sendImageMessage(File imageFile, {String? content}) async {
+    if (_activePeerId == null) return false;
+
+    _isSendingMessage = true;
+    notifyListeners();
+
+    try {
+      final sent = await chatService.sendImageMessage(
+        _activePeerId!,
+        imageFile,
+        content: content,
+      );
+      _appendSentMessage(sent);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('[GuardChatProvider] Error sending image message: $e');
+      return false;
+    } finally {
+      _isSendingMessage = false;
+      notifyListeners();
+    }
+  }
+
+  void _appendSentMessage(GuardChatMessage sent) {
+    final exists = sent.id != null && _activeMessages.any((m) => m.id == sent.id);
+    if (!exists) {
+      _activeMessages.add(sent);
+    }
+
+    final idx = _guards.indexWhere((g) => g.id == _activePeerId);
+    if (idx >= 0) {
+      _guards[idx] = _guards[idx].copyWith(
+        lastMessage: _formatPreview(sent),
+        lastMessageAt: sent.createdAt,
+      );
+    }
+  }
+
+  static String _formatPreview(GuardChatMessage msg) {
+    final text = msg.content.trim();
+    if (msg.hasImage && text.isNotEmpty) return '[Hình ảnh] $text';
+    if (msg.hasImage) return '[Hình ảnh]';
+    return msg.content;
   }
 
   void handleIncomingChatMessage(Map<String, dynamic> json) {
@@ -196,7 +238,7 @@ class GuardChatProvider extends ChangeNotifier {
           if (idx >= 0) {
             _guards[idx] = _guards[idx].copyWith(
               unreadCount: _guards[idx].unreadCount + 1,
-              lastMessage: msg.content,
+              lastMessage: _formatPreview(msg),
               lastMessageAt: msg.createdAt,
             );
           }
@@ -208,7 +250,7 @@ class GuardChatProvider extends ChangeNotifier {
       final targetIdx = _guards.indexWhere((g) => g.id == targetId);
       if (targetIdx >= 0) {
         _guards[targetIdx] = _guards[targetIdx].copyWith(
-          lastMessage: msg.content,
+          lastMessage: _formatPreview(msg),
           lastMessageAt: msg.createdAt,
         );
       }

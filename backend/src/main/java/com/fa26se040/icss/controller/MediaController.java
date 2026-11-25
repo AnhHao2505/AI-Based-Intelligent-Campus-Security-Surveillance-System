@@ -32,6 +32,7 @@ import org.springframework.web.servlet.HandlerMapping;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -118,10 +119,17 @@ public class MediaController {
 
     /** Bucket -> role được xem. Bucket không có trong map -> từ chối. */
     private Map<String, Set<Role>> bucketAccess() {
-        return Map.of(
-                minioStorageService.getFacesBucket(), EnumSet.of(Role.ADMIN),
-                minioStorageService.getEvidenceBucket(), EnumSet.of(Role.ADMIN, Role.GUARD, Role.FACILITY_MANAGER)
-        );
+        Map<String, Set<Role>> access = new HashMap<>();
+        if (minioStorageService.getFacesBucket() != null) {
+            access.put(minioStorageService.getFacesBucket(), EnumSet.of(Role.ADMIN));
+        }
+        if (minioStorageService.getEvidenceBucket() != null) {
+            access.put(minioStorageService.getEvidenceBucket(), EnumSet.of(Role.ADMIN, Role.GUARD, Role.FACILITY_MANAGER));
+        }
+        if (minioStorageService.getChatBucket() != null) {
+            access.put(minioStorageService.getChatBucket(), EnumSet.of(Role.GUARD, Role.FACILITY_MANAGER));
+        }
+        return access;
     }
 
     /** face-profiles -> FACE_PROFILE (targetId = userCode, phần trước dấu / đầu tiên); security-evidence -> SECURITY_EVIDENCE. */

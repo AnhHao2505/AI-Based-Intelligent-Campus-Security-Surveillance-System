@@ -122,6 +122,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND u.isActive = true AND u.role = :role")
     java.util.List<User> findActiveUsersByRole(@Param("role") Role role);
 
+    @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND u.isActive = true AND u.role IN :roles")
+    java.util.List<User> findActiveUsersByRoleIn(@Param("roles") Collection<Role> roles);
+
     @Query(
         value = """
             SELECT u FROM User u

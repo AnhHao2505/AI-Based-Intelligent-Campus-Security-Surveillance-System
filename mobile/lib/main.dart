@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'core/constants/app_colors.dart';
 import 'core/constants/app_theme.dart';
@@ -37,7 +37,12 @@ void openIncidentListScreen() {
     return;
   }
   nav.popUntil((route) => route.isFirst);
-  nav.push(MaterialPageRoute(builder: (_) => const IncidentListScreen(initialTab: IncidentFilterTab.claimed)));
+  nav.push(
+    MaterialPageRoute(
+      builder: (_) =>
+          const IncidentListScreen(initialTab: IncidentFilterTab.claimed),
+    ),
+  );
 }
 
 void main() async {
@@ -73,16 +78,14 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(
-          create: (_) => ThemeProvider(),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => AuthProvider(apiClient, beforeClearAuth: sessionTeardown.call)..restoreSession(),
+          create: (_) =>
+              AuthProvider(apiClient, beforeClearAuth: sessionTeardown.call)
+                ..restoreSession(),
         ),
         ChangeNotifierProvider.value(value: shiftProvider),
-        ChangeNotifierProvider(
-          create: (_) => MapProvider(apiClient),
-        ),
+        ChangeNotifierProvider(create: (_) => MapProvider(apiClient)),
         ChangeNotifierProvider.value(value: incidentProvider),
         ChangeNotifierProvider(
           create: (_) => GuardChatProvider(
@@ -149,7 +152,10 @@ class AuthGate extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 'Khôi phục phiên đăng nhập...',
-                style: TextStyle(fontSize: 13, color: AppColors.txtSecondary(context)),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.txtSecondary(context),
+                ),
               ),
             ],
           ),

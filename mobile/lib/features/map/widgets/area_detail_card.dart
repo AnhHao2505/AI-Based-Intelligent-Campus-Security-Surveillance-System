@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../core/constants/app_colors.dart';
 import '../data/campus_route_planner.dart';
 import '../models/area_pin_model.dart';
@@ -65,7 +65,11 @@ class AreaDetailCard extends StatelessWidget {
                           color: area.levelColor.withAlpha(28),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Icon(area.levelIcon, color: area.levelColor, size: 20),
+                        child: Icon(
+                          area.levelIcon,
+                          color: area.levelColor,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -88,7 +92,10 @@ class AreaDetailCard extends StatelessWidget {
                               children: [
                                 if (!hasActiveRoute) ...[
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 1.5,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: area.levelColor.withAlpha(24),
                                       borderRadius: BorderRadius.circular(4),
@@ -148,7 +155,11 @@ class AreaDetailCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.directions_walk_rounded, color: Color(0xFF0EA5E9), size: 18),
+                          const Icon(
+                            Icons.directions_walk_rounded,
+                            color: Color(0xFF0EA5E9),
+                            size: 18,
+                          ),
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
@@ -156,7 +167,9 @@ class AreaDetailCard extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                fontFeatures: const [FontFeature.tabularFigures()],
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
                                 color: AppColors.txtPrimary(context),
                               ),
                               maxLines: 1,
@@ -165,13 +178,17 @@ class AreaDetailCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      if (currentRoute!.startMode == CampusRouteStartMode.selectedFloor &&
+                      if (currentRoute!.startMode ==
+                              CampusRouteStartMode.selectedFloor &&
                           currentRoute!.startBuilding != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             'Từ ${campusFloorLabel(currentRoute!.startFloorOrder)} (${currentRoute!.startBuilding})',
-                            style: TextStyle(fontSize: 11.5, color: AppColors.txtSecondary(context)),
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppColors.txtSecondary(context),
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -181,7 +198,10 @@ class AreaDetailCard extends StatelessWidget {
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             CampusRoute.directFallbackMessage,
-                            style: TextStyle(fontSize: 11.5, color: AppColors.txtMuted(context)),
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppColors.txtMuted(context),
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -196,10 +216,15 @@ class AreaDetailCard extends StatelessWidget {
                     foregroundColor: AppColors.danger,
                     minimumSize: const Size(68, 36),
                     padding: const EdgeInsets.symmetric(horizontal: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   onPressed: onCancelRoute,
-                  child: const Text('Hủy', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Hủy',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),
@@ -212,19 +237,28 @@ class AreaDetailCard extends StatelessWidget {
                   for (final c in currentRoute!.floorChanges)
                     InkWell(
                       borderRadius: BorderRadius.circular(6),
-                      onTap: onSelectFloorStep == null ? null : () => onSelectFloorStep!(c),
+                      onTap: onSelectFloorStep == null
+                          ? null
+                          : () => onSelectFloorStep!(c),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.warning.withAlpha(24),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.warning.withAlpha(85)),
+                          border: Border.all(
+                            color: AppColors.warning.withAlpha(85),
+                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              c.via == 'ELEVATOR' ? Icons.elevator_rounded : Icons.stairs_rounded,
+                              c.via == 'ELEVATOR'
+                                  ? Icons.elevator_rounded
+                                  : Icons.stairs_rounded,
                               size: 13,
                               color: AppColors.warning,
                             ),
@@ -253,7 +287,9 @@ class AreaDetailCard extends StatelessWidget {
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   minimumSize: const Size(0, 42),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   elevation: 0,
                 ),
                 onPressed: isLoadingRoute ? null : onNavigateTap,
@@ -261,7 +297,10 @@ class AreaDetailCard extends StatelessWidget {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Icon(Icons.navigation_rounded, size: 17),
                 label: Text(

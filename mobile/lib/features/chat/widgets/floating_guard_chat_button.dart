@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../providers/guard_chat_provider.dart';
@@ -24,7 +24,9 @@ class FloatingGuardChatButton extends StatelessWidget {
             FloatingActionButton(
               heroTag: heroTag,
               elevation: 4,
-              backgroundColor: const Color(0xFF0F766E), // Deep teal accent for messenger
+              backgroundColor: const Color(
+                0xFF0F766E,
+              ), // Deep teal accent for messenger
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -40,14 +42,14 @@ class FloatingGuardChatButton extends StatelessWidget {
                 top: -4,
                 right: -4,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.danger,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.crd(context),
-                      width: 2,
-                    ),
+                    border: Border.all(color: AppColors.crd(context), width: 2),
                   ),
                   constraints: const BoxConstraints(
                     minWidth: 20,
@@ -70,4 +72,3 @@ class FloatingGuardChatButton extends StatelessWidget {
     );
   }
 }
-

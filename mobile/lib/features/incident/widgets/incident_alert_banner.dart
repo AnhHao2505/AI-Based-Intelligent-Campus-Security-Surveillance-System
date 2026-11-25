@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../models/incident_model.dart';
 import '../providers/incident_provider.dart';
@@ -32,9 +32,14 @@ class IncidentAlertBanner extends StatelessWidget {
     );
   }
 
-  Widget _buildMiniFloatingBadge(BuildContext context, IncidentProvider provider) {
+  Widget _buildMiniFloatingBadge(
+    BuildContext context,
+    IncidentProvider provider,
+  ) {
     final topAlert = provider.currentAlert;
-    final topTitle = topAlert != null ? topAlert.eventTypeDisplay : 'Sự cố an ninh mới';
+    final topTitle = topAlert != null
+        ? topAlert.eventTypeDisplay
+        : 'Sự cố an ninh mới';
     final topCamera = topAlert?.cameraCode ?? '';
     final moreCount = provider.pendingCount - 1;
     final moreText = moreCount > 0 ? ' (+$moreCount)' : '';
@@ -89,7 +94,11 @@ class IncidentAlertBanner extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  const Icon(Icons.list_alt_rounded, size: 16, color: Color(0xFF38BDF8)),
+                  const Icon(
+                    Icons.list_alt_rounded,
+                    size: 16,
+                    color: Color(0xFF38BDF8),
+                  ),
                 ],
               ),
             ),
@@ -143,7 +152,10 @@ class IncidentAlertBanner extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: severityColor.withAlpha(51),
                         borderRadius: BorderRadius.circular(3),
@@ -152,7 +164,11 @@ class IncidentAlertBanner extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.warning_amber_rounded, size: 14, color: severityColor),
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 14,
+                            color: severityColor,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             alert.severityLabel,
@@ -169,7 +185,10 @@ class IncidentAlertBanner extends StatelessWidget {
                     const Spacer(),
                     if (count > 1)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF334155),
                           borderRadius: BorderRadius.circular(6),
@@ -177,7 +196,11 @@ class IncidentAlertBanner extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.notifications_active, size: 13, color: Colors.amberAccent),
+                            const Icon(
+                              Icons.notifications_active,
+                              size: 13,
+                              color: Colors.amberAccent,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '$count sự cố',
@@ -213,20 +236,37 @@ class IncidentAlertBanner extends StatelessWidget {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.videocam, size: 15, color: Colors.white70),
+                              const Icon(
+                                Icons.videocam,
+                                size: 15,
+                                color: Colors.white70,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 alert.cameraCode,
-                                style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                              if (alert.displayLocationName != 'Chưa rõ khu vực') ...[
-                                const Text(' • ', style: TextStyle(color: Colors.white38)),
+                              if (alert.displayLocationName !=
+                                  'Chưa rõ khu vực') ...[
+                                const Text(
+                                  ' • ',
+                                  style: TextStyle(color: Colors.white38),
+                                ),
                                 Expanded(
                                   child: Text(
-                                    alert.isCorridor && alert.displayBuildingFloor != null
+                                    alert.isCorridor &&
+                                            alert.displayBuildingFloor != null
                                         ? '${alert.displayLocationName} • ${alert.displayBuildingFloor}'
                                         : alert.displayLocationName,
-                                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -234,11 +274,15 @@ class IncidentAlertBanner extends StatelessWidget {
                               ],
                             ],
                           ),
-                          if (alert.resolutionNotes != null && alert.resolutionNotes!.isNotEmpty) ...[
+                          if (alert.resolutionNotes != null &&
+                              alert.resolutionNotes!.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Text(
                               alert.resolutionNotes!,
-                              style: const TextStyle(color: Colors.white60, fontSize: 12),
+                              style: const TextStyle(
+                                color: Colors.white60,
+                                fontSize: 12,
+                              ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -246,7 +290,8 @@ class IncidentAlertBanner extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (alert.imageUrl != null && alert.imageUrl!.trim().isNotEmpty) ...[
+                    if (alert.imageUrl != null &&
+                        alert.imageUrl!.trim().isNotEmpty) ...[
                       const SizedBox(width: 10),
                       AuthorizedNetworkImage(
                         imageUrl: alert.imageUrl,
@@ -279,7 +324,10 @@ class IncidentAlertBanner extends StatelessWidget {
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
-                        child: const Text('Bỏ qua', style: TextStyle(fontSize: 13)),
+                        child: const Text(
+                          'Bỏ qua',
+                          style: TextStyle(fontSize: 13),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -288,24 +336,35 @@ class IncidentAlertBanner extends StatelessWidget {
                     Expanded(
                       flex: 3,
                       child: ElevatedButton.icon(
-                        onPressed: provider.isClaimLoading
+                        onPressed:
+                            provider.isClaimLoading
                                 // K8: đang mời bảo vệ khác (STEP1) → khoá cho tới khi BROADCAST
-                                || isClaimLocked
+                                ||
+                                isClaimLocked
                             ? null
                             : () => onClaim(alert),
                         icon: provider.isClaimLoading
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : isClaimLocked
-                                ? const Icon(Icons.lock_clock_outlined, size: 16)
+                            ? const Icon(Icons.lock_clock_outlined, size: 16)
                             : const Icon(Icons.navigation, size: 16),
                         label: Text(
-                          isClaimLocked ? 'Đang mời bảo vệ khác' :
-                          provider.isClaimLoading ? 'Đang nhận...' : 'Tiếp nhận & Đi',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          isClaimLocked
+                              ? 'Đang mời bảo vệ khác'
+                              : provider.isClaimLoading
+                              ? 'Đang nhận...'
+                              : 'Tiếp nhận & Đi',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: severityColor,

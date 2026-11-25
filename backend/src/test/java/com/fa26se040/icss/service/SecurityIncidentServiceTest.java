@@ -819,4 +819,62 @@ class SecurityIncidentServiceTest {
         assertEquals(10.8412, dto.getMapLatitude());
         assertEquals(106.8099, dto.getMapLongitude());
     }
+
+    @Test
+    @DisplayName("Assigned SCHEDULED guard receives real-time alert on personal topic; unassigned demo guard does not")
+    void ingest_assignedScheduledGuard_receivesAlertOnPersonalTopic() {
+        stubCameraAndSave();
+        User guardAn = guard("Guard An");
+        User guardDemo = guard("Bảo Vệ Trong Ca (Demo)");
+
+        when(incidentRecipientResolver.findOnDutyGuards(any())).thenReturn(List.of());
+        when(incidentRecipientResolver.findAssignedGuardsAt(any())).thenReturn(List.of(guardAn));
+
+        IncidentDetailResponse result = incidentService.ingestIncident(alertEvent());
+
+        verify(messagingTemplate).convertAndSend(eq(guardTopic(guardAn)), same((Object) result));
+        verify(messagingTemplate, never()).convertAndSend(eq(guardTopic(guardDemo)), any(Object.class));
+        verify(messagingTemplate).convertAndSend(eq("/topic/buildings/TOA_ALPHA/alerts"), same((Object) result));
+        verify(messagingTemplate).convertAndSend(eq("/topic/security-alerts"), same((Object) result));
+
+        ArgumentCaptor<IncidentEscalation> captor = ArgumentCaptor.forClass(IncidentEscalation.class);
+        verify(incidentEscalationRepository).save(captor.capture());
+        assertEquals(0, captor.getValue().getGuardRecipientCount());
+    }
+
+    @Test
+    @DisplayName("getActiveIncidents filters by assigned shifts when assignedShiftOnly=true for GUARD and keeps Web unfiltered")
+    void getActiveIncidents_assignedShiftOnly_filtersForGuardAndLeavesWebUnchanged() {
+        SecurityIncident inShift = SecurityIncident.builder()
+                .id(UUID.randomUUID())
+                .cameraCode("CAM-001")
+                .area(area)
+                .building("TOA_ALPHA")
+                .eventType("PERSON_INTRUSION")
+                .status(IncidentStatus.NEW)
+                .detectedAt(OffsetDateTime.now())
+                .build();
+        SecurityIncident outOfShift = SecurityIncident.builder()
+                .id(UUID.randomUUID())
+                .cameraCode("CAM-001")
+                .area(area)
+                .building("TOA_ALPHA")
+                .eventType("PERSON_INTRUSION")
+                .status(IncidentStatus.NEW)
+                .detectedAt(OffsetDateTime.now().minusHours(10))
+                .build();
+
+        when(incidentRepository.findActiveIncidents(null)).thenReturn(List.of(inShift, outOfShift));
+        when(cameraRepository.findByCameraCodeIn(anyCollection())).thenReturn(List.of());
+        when(userRepository.findByEmail("guard.an@fpt.edu.vn")).thenReturn(Optional.of(guardUser));
+        when(incidentRecipientResolver.filterIncidentsForAssignedShifts(List.of(inShift, outOfShift), guardUser.getId()))
+                .thenReturn(List.of(inShift));
+
+        List<IncidentDetailResponse> mobileResult = incidentService.getActiveIncidents(null, true, "guard.an@fpt.edu.vn");
+        List<IncidentDetailResponse> webResult = incidentService.getActiveIncidents(null);
+
+        assertEquals(1, mobileResult.size());
+        assertEquals(inShift.getId(), mobileResult.get(0).getId());
+        assertEquals(2, webResult.size());
+    }
 }

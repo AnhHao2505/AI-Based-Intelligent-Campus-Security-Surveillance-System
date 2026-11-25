@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guard_mobile_app/core/network/api_client.dart';
 import 'package:guard_mobile_app/features/chat/providers/guard_chat_provider.dart';
@@ -30,50 +30,85 @@ class _PendingCampusRepository extends CampusMapRepository {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('OsmAttributionBar hiện đúng dòng ghi công OpenStreetMap', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: OsmAttributionBar())));
+  testWidgets('OsmAttributionBar hiện đúng dòng ghi công OpenStreetMap', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: OsmAttributionBar())),
+    );
     expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
     expect(osmAttributionText, '© OpenStreetMap contributors');
   });
 
-  testWidgets('GuardMapScreen luôn có dòng ghi công ở đáy, không bị nút nổi che', (tester) async {
+  testWidgets(
+    'GuardMapScreen luôn có dòng ghi công ở đáy, không bị nút nổi che',
+    (tester) async {
+      final api = ApiClient();
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider(
+              create: (_) => MapProvider(
+                api,
+                campusRepository: _PendingCampusRepository(),
+              ),
+            ),
+            ChangeNotifierProvider(
+              create: (_) => GuardChatProvider(
+                chatService: GuardChatService(api),
+                stompService: StompService(),
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: GuardMapScreen()),
+        ),
+      );
+      await tester.pump();
+
+      final attribution = find.text('© OpenStreetMap contributors');
+      expect(attribution, findsOneWidget);
+
+      final screen = tester.getRect(find.byType(GuardMapScreen));
+      final bar = tester.getRect(
+        find.byKey(const ValueKey('osm-attribution-bar')),
+      );
+      expect(
+        bar.bottom,
+        closeTo(screen.bottom, 0.01),
+        reason: 'dải ghi công sát đáy màn',
+      );
+
+      // Không nút nổi nào chồng lên dải ghi công
+      for (final fab in tester.widgetList<FloatingActionButton>(
+        find.byType(FloatingActionButton),
+      )) {
+        final r = tester.getRect(find.byWidget(fab));
+        expect(
+          r.overlaps(bar),
+          isFalse,
+          reason: 'nút ${fab.tooltip} che dòng ghi công',
+        );
+      }
+    },
+  );
+
+  testWidgets('Nút chat ẩn khi thẻ khu mở, hiện lại khi đóng thẻ', (
+    tester,
+  ) async {
     final api = ApiClient();
-    await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => MapProvider(api, campusRepository: _PendingCampusRepository())),
-          ChangeNotifierProvider(
-            create: (_) => GuardChatProvider(chatService: GuardChatService(api), stompService: StompService()),
-          ),
-        ],
-        child: const MaterialApp(home: GuardMapScreen()),
-      ),
+    final mapProvider = MapProvider(
+      api,
+      campusRepository: _PendingCampusRepository(),
     );
-    await tester.pump();
-
-    final attribution = find.text('© OpenStreetMap contributors');
-    expect(attribution, findsOneWidget);
-
-    final screen = tester.getRect(find.byType(GuardMapScreen));
-    final bar = tester.getRect(find.byKey(const ValueKey('osm-attribution-bar')));
-    expect(bar.bottom, closeTo(screen.bottom, 0.01), reason: 'dải ghi công sát đáy màn');
-
-    // Không nút nổi nào chồng lên dải ghi công
-    for (final fab in tester.widgetList<FloatingActionButton>(find.byType(FloatingActionButton))) {
-      final r = tester.getRect(find.byWidget(fab));
-      expect(r.overlaps(bar), isFalse, reason: 'nút ${fab.tooltip} che dòng ghi công');
-    }
-  });
-
-  testWidgets('Nút chat ẩn khi thẻ khu mở, hiện lại khi đóng thẻ', (tester) async {
-    final api = ApiClient();
-    final mapProvider = MapProvider(api, campusRepository: _PendingCampusRepository());
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: mapProvider),
           ChangeNotifierProvider(
-            create: (_) => GuardChatProvider(chatService: GuardChatService(api), stompService: StompService()),
+            create: (_) => GuardChatProvider(
+              chatService: GuardChatService(api),
+              stompService: StompService(),
+            ),
           ),
         ],
         child: const MaterialApp(home: GuardMapScreen()),
@@ -82,16 +117,18 @@ void main() {
     await tester.pump();
     expect(find.byType(FloatingGuardChatButton), findsOneWidget);
 
-    mapProvider.selectArea(const AreaPinModel(
-      id: 'a1',
-      name: 'KT Điện',
-      areaLevel: 'HIGHLY_CONFIDENTIAL',
-      building: 'Tòa Epsilon',
-      floor: 'Tầng Trệt',
-      centerLatitude: 10.840506,
-      centerLongitude: 106.811247,
-      isActive: true,
-    ));
+    mapProvider.selectArea(
+      const AreaPinModel(
+        id: 'a1',
+        name: 'KT Điện',
+        areaLevel: 'HIGHLY_CONFIDENTIAL',
+        building: 'Tòa Epsilon',
+        floor: 'Tầng Trệt',
+        centerLatitude: 10.840506,
+        centerLongitude: 106.811247,
+        isActive: true,
+      ),
+    );
     await tester.pump();
     expect(find.byType(AreaDetailCard), findsOneWidget);
     expect(find.byType(FloatingGuardChatButton), findsNothing);

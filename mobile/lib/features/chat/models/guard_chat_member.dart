@@ -2,6 +2,7 @@ class GuardChatMember {
   final String id;
   final String fullName;
   final String? email;
+  final String? role;
   final String? userCode;
   final String? phoneNumber;
   final String? avatarUrl;
@@ -17,6 +18,7 @@ class GuardChatMember {
     required this.id,
     required this.fullName,
     this.email,
+    this.role,
     this.userCode,
     this.phoneNumber,
     this.avatarUrl,
@@ -29,6 +31,8 @@ class GuardChatMember {
     this.lastMessageAt,
   });
 
+  bool get isFacilityManager => role == 'FACILITY_MANAGER';
+
   factory GuardChatMember.fromJson(Map<String, dynamic> json) {
     DateTime? lastMsgTime;
     if (json['lastMessageAt'] != null) {
@@ -38,6 +42,7 @@ class GuardChatMember {
       id: json['id']?.toString() ?? '',
       fullName: json['fullName']?.toString() ?? 'Bảo vệ',
       email: json['email']?.toString(),
+      role: json['role']?.toString(),
       userCode: json['userCode']?.toString(),
       phoneNumber: json['phoneNumber']?.toString(),
       avatarUrl: json['avatarUrl']?.toString(),
@@ -55,6 +60,7 @@ class GuardChatMember {
     String? id,
     String? fullName,
     String? email,
+    String? role,
     String? userCode,
     String? phoneNumber,
     String? avatarUrl,
@@ -70,6 +76,7 @@ class GuardChatMember {
       id: id ?? this.id,
       fullName: fullName ?? this.fullName,
       email: email ?? this.email,
+      role: role ?? this.role,
       userCode: userCode ?? this.userCode,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       avatarUrl: avatarUrl ?? this.avatarUrl,

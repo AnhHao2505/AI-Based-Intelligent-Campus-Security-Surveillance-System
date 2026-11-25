@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../models/guard_shift_model.dart';
@@ -8,10 +8,7 @@ import '../providers/shift_provider.dart';
 class ShiftRequestBottomSheet extends StatefulWidget {
   final GuardShiftModel shift;
 
-  const ShiftRequestBottomSheet({
-    super.key,
-    required this.shift,
-  });
+  const ShiftRequestBottomSheet({super.key, required this.shift});
 
   static Future<void> show(BuildContext context, GuardShiftModel shift) {
     return showModalBottomSheet(
@@ -23,7 +20,8 @@ class ShiftRequestBottomSheet extends StatefulWidget {
   }
 
   @override
-  State<ShiftRequestBottomSheet> createState() => _ShiftRequestBottomSheetState();
+  State<ShiftRequestBottomSheet> createState() =>
+      _ShiftRequestBottomSheetState();
 }
 
 class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
@@ -100,9 +98,12 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
     final inputReason = _reasonController.text.trim();
     final reason = inputReason.isNotEmpty
         ? inputReason
-        : (_requestType == 'SWAP' ? 'Đổi ca trực cùng tuần với đồng nghiệp' : '');
+        : (_requestType == 'SWAP'
+              ? 'Đổi ca trực cùng tuần với đồng nghiệp'
+              : '');
 
-    if (_requestType == 'SWAP' && (_selectedTargetShiftId == null || _selectedTargetShiftId!.isEmpty)) {
+    if (_requestType == 'SWAP' &&
+        (_selectedTargetShiftId == null || _selectedTargetShiftId!.isEmpty)) {
       setState(() {
         _errorMessage = 'Vui lòng chọn một ca trực của đồng nghiệp để hoán đổi';
       });
@@ -154,9 +155,11 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_requestType == 'SWAP'
-              ? 'Đã gửi yêu cầu đổi ca đến Quản lý cơ sở'
-              : 'Đã gửi đơn xin nghỉ ca đến Quản lý cơ sở'),
+          content: Text(
+            _requestType == 'SWAP'
+                ? 'Đã gửi yêu cầu đổi ca đến Quản lý cơ sở'
+                : 'Đã gửi đơn xin nghỉ ca đến Quản lý cơ sở',
+          ),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ),
@@ -259,14 +262,21 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                   ),
                   if (s.isOvertime)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.amber.shade200,
                         borderRadius: BorderRadius.circular(3),
                       ),
                       child: const Text(
                         'OT',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
                       ),
                     ),
                 ],
@@ -292,7 +302,9 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                       decoration: BoxDecoration(
                         color: _requestType == 'SWAP'
                             ? AppColors.primary
-                            : (isDark ? Colors.grey.shade900 : Colors.grey.shade100),
+                            : (isDark
+                                  ? Colors.grey.shade900
+                                  : Colors.grey.shade100),
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: Text(
@@ -300,7 +312,9 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
-                          color: _requestType == 'SWAP' ? Colors.white : AppColors.txtSecondary(context),
+                          color: _requestType == 'SWAP'
+                              ? Colors.white
+                              : AppColors.txtSecondary(context),
                         ),
                       ),
                     ),
@@ -322,7 +336,9 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                       decoration: BoxDecoration(
                         color: _requestType == 'LEAVE'
                             ? AppColors.primary
-                            : (isDark ? Colors.grey.shade900 : Colors.grey.shade100),
+                            : (isDark
+                                  ? Colors.grey.shade900
+                                  : Colors.grey.shade100),
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: Text(
@@ -330,7 +346,9 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
-                          color: _requestType == 'LEAVE' ? Colors.white : AppColors.txtSecondary(context),
+                          color: _requestType == 'LEAVE'
+                              ? Colors.white
+                              : AppColors.txtSecondary(context),
                         ),
                       ),
                     ),
@@ -352,13 +370,17 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                 _requestType == 'SWAP'
                     ? 'Lưu ý: Hoán đổi 2 ca trực giữa bạn và đồng nghiệp. Đơn cần gửi trước giờ ca ít nhất 2 giờ.'
                     : (isEmergency
-                        ? 'Phân loại: [Nghỉ đột xuất] do gửi trong vòng 24h trước ca. Quản lý sẽ chỉ định người trực thay trên hệ thống.'
-                        : 'Phân loại: [Nghỉ phép thường]. Quản lý cơ sở sẽ xem xét và bố trí nhân sự phù hợp.'),
+                          ? 'Phân loại: [Nghỉ đột xuất] do gửi trong vòng 24h trước ca. Quản lý sẽ chỉ định người trực thay trên hệ thống.'
+                          : 'Phân loại: [Nghỉ phép thường]. Quản lý cơ sở sẽ xem xét và bố trí nhân sự phù hợp.'),
                 style: TextStyle(
                   fontSize: 11,
-                  color: _requestType == 'LEAVE' && isEmergency ? AppColors.warning : AppColors.txtMuted(context),
+                  color: _requestType == 'LEAVE' && isEmergency
+                      ? AppColors.warning
+                      : AppColors.txtMuted(context),
                   fontStyle: FontStyle.italic,
-                  fontWeight: _requestType == 'LEAVE' && isEmergency ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: _requestType == 'LEAVE' && isEmergency
+                      ? FontWeight.w600
+                      : FontWeight.normal,
                 ),
               ),
             ),
@@ -409,7 +431,10 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                   ),
                   child: Text(
                     'Hiện không có ca trực của đồng nghiệp nào thỏa mãn điều kiện hoán đổi (không trùng lịch và đạt chuẩn nghỉ ngơi).',
-                    style: TextStyle(fontSize: 12, color: AppColors.txtMuted(context)),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.txtMuted(context),
+                    ),
                   ),
                 )
               else
@@ -490,7 +515,9 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
 
             // SECTION B: REASON INPUT
             Text(
-              _requestType == 'SWAP' ? 'Lý do đổi ca (Tùy chọn):' : 'Lý do xin nghỉ ca (Bắt buộc):',
+              _requestType == 'SWAP'
+                  ? 'Lý do đổi ca (Tùy chọn):'
+                  : 'Lý do xin nghỉ ca (Bắt buộc):',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -501,12 +528,18 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
             TextField(
               controller: _reasonController,
               maxLines: 3,
-              style: TextStyle(fontSize: 13, color: AppColors.txtPrimary(context)),
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.txtPrimary(context),
+              ),
               decoration: InputDecoration(
                 hintText: _requestType == 'SWAP'
                     ? 'Nhập lý do gửi đến Quản lý cơ sở...'
                     : 'Nhập lý do xin nghỉ (việc gia đình, đau ốm đột xuất...)...',
-                hintStyle: TextStyle(fontSize: 12, color: AppColors.txtMuted(context)),
+                hintStyle: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.txtMuted(context),
+                ),
                 filled: true,
                 fillColor: AppColors.surfLight(context),
                 border: OutlineInputBorder(
@@ -519,7 +552,10 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -531,18 +567,28 @@ class _ShiftRequestBottomSheetState extends State<ShiftRequestBottomSheet> {
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
               ),
               onPressed: _submitting ? null : _handleSubmit,
               child: _submitting
                   ? const SizedBox(
                       height: 18,
                       width: 18,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : Text(
-                      _requestType == 'SWAP' ? 'Gửi Yêu Cầu Đổi Ca' : 'Gửi Yêu Cầu Xin Nghỉ',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      _requestType == 'SWAP'
+                          ? 'Gửi Yêu Cầu Đổi Ca'
+                          : 'Gửi Yêu Cầu Xin Nghỉ',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
             ),
           ],

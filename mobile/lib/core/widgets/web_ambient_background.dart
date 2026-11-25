@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../constants/app_colors.dart';
 
 /// Paints subtle translucent FPT-brand color bubbles over the web-matched base background.
@@ -129,10 +129,7 @@ class _ColorBubble extends StatelessWidget {
               color.withAlpha((fillAlpha * 0.35).round()),
             ],
           ),
-          border: Border.all(
-            color: color.withAlpha(edgeAlpha),
-            width: 1.2,
-          ),
+          border: Border.all(color: color.withAlpha(edgeAlpha), width: 1.2),
         ),
       ),
     );

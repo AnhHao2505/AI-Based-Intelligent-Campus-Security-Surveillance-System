@@ -7,6 +7,7 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,4 +32,29 @@ public interface OnDutyGuardQueryRepository extends Repository<GuardShift, UUID>
     List<GuardShift> findByStatusAndShiftDateBetween(@Param("status") ShiftStatus status,
                                                      @Param("fromDate") LocalDate fromDate,
                                                      @Param("toDate") LocalDate toDate);
+
+    /**
+     * Ca thuộc tập trạng thái {@code statuses} với ngày ca trong [fromDate, toDate], kèm bảo vệ.
+     */
+    @Query("SELECT s FROM GuardShift s " +
+           "JOIN FETCH s.guard " +
+           "WHERE s.status IN :statuses " +
+           "AND s.shiftDate BETWEEN :fromDate AND :toDate " +
+           "ORDER BY s.shiftDate ASC, s.startTime ASC")
+    List<GuardShift> findByStatusInAndShiftDateBetween(@Param("statuses") Collection<ShiftStatus> statuses,
+                                                       @Param("fromDate") LocalDate fromDate,
+                                                       @Param("toDate") LocalDate toDate);
+
+    /**
+     * Ca được phân công của một bảo vệ trong [fromDate, toDate] (dùng để lọc danh sách sự cố trên app mobile).
+     */
+    @Query("SELECT s FROM GuardShift s " +
+           "WHERE s.guard.id = :guardId " +
+           "AND s.status IN :statuses " +
+           "AND s.shiftDate BETWEEN :fromDate AND :toDate " +
+           "ORDER BY s.shiftDate ASC, s.startTime ASC")
+    List<GuardShift> findByGuardIdAndStatusInAndShiftDateBetween(@Param("guardId") UUID guardId,
+                                                                 @Param("statuses") Collection<ShiftStatus> statuses,
+                                                                 @Param("fromDate") LocalDate fromDate,
+                                                                 @Param("toDate") LocalDate toDate);
 }

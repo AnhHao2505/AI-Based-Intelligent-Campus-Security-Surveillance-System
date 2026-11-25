@@ -123,6 +123,7 @@ minio:
     faces: face-profiles
     evidence: security-evidence
     recordings: camera-recordings
+    chat: chat-media
 
 icss:
   scheduler:

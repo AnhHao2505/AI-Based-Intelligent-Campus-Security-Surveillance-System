@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -44,16 +44,26 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
         backgroundColor: AppColors.crd(context),
         title: Text(
           'Đăng Xuất',
-          style: TextStyle(fontSize: 16, color: AppColors.txtPrimary(context), fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 16,
+            color: AppColors.txtPrimary(context),
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Text(
           'Bạn có chắc chắn muốn đăng xuất?',
-          style: TextStyle(fontSize: 13, color: AppColors.txtSecondary(context)),
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.txtSecondary(context),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Hủy', style: TextStyle(color: AppColors.txtMuted(context))),
+            child: Text(
+              'Hủy',
+              style: TextStyle(color: AppColors.txtMuted(context)),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -145,11 +155,26 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
               ),
               child: Column(
                 children: [
-                  _buildProfileRow(context, Icons.badge_outlined, 'Mã nhân viên', userCode),
+                  _buildProfileRow(
+                    context,
+                    Icons.badge_outlined,
+                    'Mã nhân viên',
+                    userCode,
+                  ),
                   const Divider(height: 16),
-                  _buildProfileRow(context, Icons.email_outlined, 'Email', email),
+                  _buildProfileRow(
+                    context,
+                    Icons.email_outlined,
+                    'Email',
+                    email,
+                  ),
                   const Divider(height: 16),
-                  _buildProfileRow(context, Icons.business_outlined, 'Cơ sở', 'FPT Campus'),
+                  _buildProfileRow(
+                    context,
+                    Icons.business_outlined,
+                    'Cơ sở',
+                    'FPT Campus',
+                  ),
                 ],
               ),
             ),
@@ -158,14 +183,22 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Đóng', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Đóng',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProfileRow(BuildContext context, IconData icon, String label, String value) {
+  Widget _buildProfileRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) {
     return Row(
       children: [
         Icon(icon, size: 16, color: AppColors.txtMuted(context)),
@@ -236,11 +269,15 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                         padding: const EdgeInsets.all(6),
                         constraints: const BoxConstraints(),
                         icon: Icon(
-                          themeProvider.isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                          themeProvider.isDarkMode
+                              ? Icons.light_mode_outlined
+                              : Icons.dark_mode_outlined,
                           color: AppColors.txtSecondary(context),
                           size: 20,
                         ),
-                        tooltip: themeProvider.isDarkMode ? 'Chuyển sang chế độ Sáng' : 'Chuyển sang chế độ Tối',
+                        tooltip: themeProvider.isDarkMode
+                            ? 'Chuyển sang chế độ Sáng'
+                            : 'Chuyển sang chế độ Tối',
                         onPressed: () => themeProvider.toggleTheme(),
                       ),
                       const SizedBox(width: 2),
@@ -250,7 +287,11 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                         visualDensity: VisualDensity.compact,
                         padding: const EdgeInsets.all(6),
                         constraints: const BoxConstraints(),
-                        icon: Icon(Icons.refresh, color: AppColors.txtSecondary(context), size: 20),
+                        icon: Icon(
+                          Icons.refresh,
+                          color: AppColors.txtSecondary(context),
+                          size: 20,
+                        ),
                         tooltip: 'Làm mới lịch trực',
                         onPressed: () => shiftProvider.fetchWeeklyShifts(),
                       ),
@@ -269,14 +310,19 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                                 constraints: const BoxConstraints(),
                                 icon: Icon(
                                   Icons.shield_outlined,
-                                  color: pendingCount > 0 ? const Color(0xFFEF4444) : AppColors.txtSecondary(context),
+                                  color: pendingCount > 0
+                                      ? const Color(0xFFEF4444)
+                                      : AppColors.txtSecondary(context),
                                   size: 22,
                                 ),
                                 tooltip: 'Sự cố an ninh',
                                 onPressed: () {
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (_) => const IncidentListScreen()),
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const IncidentListScreen(),
+                                    ),
                                   );
                                 },
                               ),
@@ -285,15 +331,26 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                                   right: 2,
                                   top: 2,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 1,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFEF4444),
                                       borderRadius: BorderRadius.circular(5),
-                                      border: Border.all(color: AppColors.bg(context), width: 1.5),
+                                      border: Border.all(
+                                        color: AppColors.bg(context),
+                                        width: 1.5,
+                                      ),
                                     ),
-                                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
+                                    ),
                                     child: Text(
-                                      pendingCount > 99 ? '99+' : '$pendingCount',
+                                      pendingCount > 99
+                                          ? '99+'
+                                          : '$pendingCount',
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -314,7 +371,11 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                         visualDensity: VisualDensity.compact,
                         padding: const EdgeInsets.all(6),
                         constraints: const BoxConstraints(),
-                        icon: Icon(Icons.swap_horiz, color: AppColors.txtSecondary(context), size: 22),
+                        icon: Icon(
+                          Icons.swap_horiz,
+                          color: AppColors.txtSecondary(context),
+                          size: 22,
+                        ),
                         tooltip: 'Lịch sử đổi / xin nghỉ ca',
                         onPressed: () => MyShiftRequestsSheet.show(context),
                       ),
@@ -378,11 +439,18 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                             value: 'profile',
                             child: Row(
                               children: [
-                                Icon(Icons.person_outline, size: 19, color: AppColors.txtPrimary(context)),
+                                Icon(
+                                  Icons.person_outline,
+                                  size: 19,
+                                  color: AppColors.txtPrimary(context),
+                                ),
                                 const SizedBox(width: 10),
                                 Text(
                                   'Hồ sơ cá nhân',
-                                  style: TextStyle(fontSize: 13, color: AppColors.txtPrimary(context)),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.txtPrimary(context),
+                                  ),
                                 ),
                               ],
                             ),
@@ -391,11 +459,18 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                             value: 'requests',
                             child: Row(
                               children: [
-                                Icon(Icons.swap_horiz, size: 19, color: AppColors.txtPrimary(context)),
+                                Icon(
+                                  Icons.swap_horiz,
+                                  size: 19,
+                                  color: AppColors.txtPrimary(context),
+                                ),
                                 const SizedBox(width: 10),
                                 Text(
                                   'Lịch sử đổi / xin nghỉ',
-                                  style: TextStyle(fontSize: 13, color: AppColors.txtPrimary(context)),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.txtPrimary(context),
+                                  ),
                                 ),
                               ],
                             ),
@@ -405,7 +480,11 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                             value: 'logout',
                             child: const Row(
                               children: [
-                                Icon(Icons.logout, size: 19, color: AppColors.dangerLight),
+                                Icon(
+                                  Icons.logout,
+                                  size: 19,
+                                  color: AppColors.dangerLight,
+                                ),
                                 SizedBox(width: 10),
                                 Text(
                                   'Đăng xuất',
@@ -429,26 +508,41 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
               if (shiftProvider.errorMessage != null)
                 SliverToBoxAdapter(
                   child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.danger.withAlpha(30),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.danger.withAlpha(100)),
+                      border: Border.all(
+                        color: AppColors.danger.withAlpha(100),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: AppColors.dangerLight, size: 18),
+                        const Icon(
+                          Icons.error_outline,
+                          color: AppColors.dangerLight,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             shiftProvider.errorMessage!,
-                            style: const TextStyle(fontSize: 12, color: AppColors.dangerLight),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.dangerLight,
+                            ),
                           ),
                         ),
                         TextButton(
                           onPressed: () => shiftProvider.fetchWeeklyShifts(),
-                          child: const Text('Thử lại', style: TextStyle(fontSize: 12, color: Colors.white)),
+                          child: const Text(
+                            'Thử lại',
+                            style: TextStyle(fontSize: 12, color: Colors.white),
+                          ),
                         ),
                       ],
                     ),
@@ -466,7 +560,10 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
               // Active Shift Card(s) for Selected Date
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: shiftProvider.isLoading && allWeekShifts.isEmpty
                       ? Container(
                           height: 180,
@@ -475,52 +572,70 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Center(
-                            child: CircularProgressIndicator(color: AppColors.primaryLight),
+                            child: CircularProgressIndicator(
+                              color: AppColors.primaryLight,
+                            ),
                           ),
                         )
                       : (selectedShifts.isEmpty
-                          ? ActiveShiftCard(
-                              shift: null,
-                              selectedDate: shiftProvider.selectedDate,
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (selectedShifts.length > 1)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8, left: 4),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.layers_outlined, size: 14, color: AppColors.primaryLight),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'Có ${selectedShifts.length} ca trực trong ngày',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
+                            ? ActiveShiftCard(
+                                shift: null,
+                                selectedDate: shiftProvider.selectedDate,
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (selectedShifts.length > 1)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 8,
+                                        left: 4,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.layers_outlined,
+                                            size: 14,
                                             color: AppColors.primaryLight,
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Có ${selectedShifts.length} ca trực trong ngày',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primaryLight,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ...selectedShifts.asMap().entries.map((entry) {
-                                  final idx = entry.key;
-                                  final s = entry.value;
-                                  return Padding(
-                                    padding: EdgeInsets.only(
-                                      bottom: idx < selectedShifts.length - 1 ? 12.0 : 0.0,
-                                    ),
-                                    child: ActiveShiftCard(
-                                      shift: s,
-                                      selectedDate: shiftProvider.selectedDate,
-                                      shiftIndex: selectedShifts.length > 1 ? idx + 1 : null,
-                                      totalShifts: selectedShifts.length > 1 ? selectedShifts.length : null,
-                                    ),
-                                  );
-                                }),
-                              ],
-                            )),
+                                  ...selectedShifts.asMap().entries.map((
+                                    entry,
+                                  ) {
+                                    final idx = entry.key;
+                                    final s = entry.value;
+                                    return Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom: idx < selectedShifts.length - 1
+                                            ? 12.0
+                                            : 0.0,
+                                      ),
+                                      child: ActiveShiftCard(
+                                        shift: s,
+                                        selectedDate:
+                                            shiftProvider.selectedDate,
+                                        shiftIndex: selectedShifts.length > 1
+                                            ? idx + 1
+                                            : null,
+                                        totalShifts: selectedShifts.length > 1
+                                            ? selectedShifts.length
+                                            : null,
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              )),
                 ),
               ),
 
@@ -545,14 +660,21 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.surfLight(context),
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
                           '${allWeekShifts.length} ca trực',
-                          style: const TextStyle(fontSize: 11, color: AppColors.primaryLight, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.primaryLight,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -575,7 +697,10 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                       child: Text(
                         'Chưa có lịch trực cho tuần này.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: AppColors.txtMuted(context)),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.txtMuted(context),
+                        ),
                       ),
                     ),
                   ),
@@ -584,24 +709,22 @@ class _GuardScheduleScreenState extends State<GuardScheduleScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 30),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final s = allWeekShifts[index];
-                        final isSelected = s.shiftDate == shiftProvider.selectedDateFormatted;
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final s = allWeekShifts[index];
+                      final isSelected =
+                          s.shiftDate == shiftProvider.selectedDateFormatted;
 
-                        return ShiftListItem(
-                          shift: s,
-                          isSelected: isSelected,
-                          onTap: () {
-                            try {
-                              final d = DateTime.parse(s.shiftDate);
-                              shiftProvider.setSelectedDate(d);
-                            } catch (_) {}
-                          },
-                        );
-                      },
-                      childCount: allWeekShifts.length,
-                    ),
+                      return ShiftListItem(
+                        shift: s,
+                        isSelected: isSelected,
+                        onTap: () {
+                          try {
+                            final d = DateTime.parse(s.shiftDate);
+                            shiftProvider.setSelectedDate(d);
+                          } catch (_) {}
+                        },
+                      );
+                    }, childCount: allWeekShifts.length),
                   ),
                 ),
             ],
