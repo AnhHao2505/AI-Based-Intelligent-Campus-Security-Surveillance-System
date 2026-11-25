@@ -56,6 +56,9 @@ public class MinioStorageService {
     @Value("${minio.bucket.recordings:camera-recordings}")
     private String bucketRecordings;
 
+    @Value("${minio.bucket.chat:chat-media}")
+    private String bucketChat;
+
     /** Mã lỗi MinIO khi object không tồn tại. */
     private static final Set<String> OBJECT_NOT_FOUND_CODES = Set.of("NoSuchKey", "NoSuchObject");
 
@@ -70,6 +73,9 @@ public class MinioStorageService {
         List<String> buckets = new ArrayList<>(List.of(bucketFaces, bucketEvidence));
         if (bucketRecordings != null && !bucketRecordings.isBlank()) {
             buckets.add(bucketRecordings);
+        }
+        if (bucketChat != null && !bucketChat.isBlank()) {
+            buckets.add(bucketChat);
         }
         try {
             for (String b : buckets) {
@@ -121,6 +127,35 @@ public class MinioStorageService {
     }
 
     public String getRecordingsBucket() { return bucketRecordings; }
+
+    public String getChatBucket() {
+        return (bucketChat != null && !bucketChat.isBlank()) ? bucketChat : "chat-media";
+    }
+
+    /**
+     * Upload picture sent inside Guard Chat into private 'chat-media' bucket.
+     * Returns internal proxy URL '/api/media/{bucket}/{senderId}/{uuid}.{ext}'.
+     */
+    public String uploadChatImage(byte[] imageBytes, UUID senderId, String extension, String contentType) {
+        if (imageBytes == null || imageBytes.length == 0) {
+            throw new IllegalArgumentException("Hình ảnh không được để trống");
+        }
+        String bucket = getChatBucket();
+        String ext = (extension != null && !extension.isBlank()) ? extension.toLowerCase() : "jpg";
+        String objectName = senderId + "/" + UUID.randomUUID() + "." + ext;
+        String mimeType = (contentType != null && !contentType.isBlank()) ? contentType : "image/jpeg";
+
+        try {
+            ensureBucketExists(bucket);
+            putObjectEncrypted(bucket, objectName, imageBytes, mimeType);
+            String mediaUrl = "/api/media/" + bucket + "/" + objectName;
+            log.info("[MINIO] Uploaded guard chat image: {}", mediaUrl);
+            return mediaUrl;
+        } catch (Exception e) {
+            log.error("[MINIO ERROR] Failed to upload guard chat image for sender {}: {}", senderId, e.getMessage(), e);
+            throw new RuntimeException("Không thể tải ảnh tin nhắn lên hệ thống lưu trữ", e);
+        }
+    }
 
     /**
      * Tải tạm thời (staging) dữ liệu nhị phân lên MinIO phục vụ xử lý bất đồng bộ/RPC giữa Cloud và Edge.
