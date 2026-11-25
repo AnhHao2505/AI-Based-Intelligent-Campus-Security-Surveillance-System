@@ -32,6 +32,8 @@ import MemberCodeCombobox from "../../components/accessRequest/MemberCodeCombobo
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import useRevealMessage from "../../hooks/useRevealMessage";
+import { useReasonLimits } from "../../hooks/useReasonLimits";
+import { purposeLimitState } from "../../utils/purposeLimits";
 
 export default function AccessRequestPage() {
 	const { user } = useAuth();
@@ -53,6 +55,9 @@ export default function AccessRequestPage() {
 	const [startHour, setStartHour] = useState("08:00");
 	const [endHour, setEndHour] = useState("11:00");
 	const [purpose, setPurpose] = useState("");
+	// Việc 7: mục đích dùng chung giới hạn với ô lý do (REASON_MIN_LENGTH / REASON_MAX_LENGTH); chưa đọc được thì không chặn
+	const reasonLimits = useReasonLimits();
+	const purposeState = purposeLimitState(purpose, reasonLimits);
 
 	// Group Members state
 	const [memberCodeInput, setMemberCodeInput] = useState("");
@@ -472,6 +477,10 @@ export default function AccessRequestPage() {
 			setFormError("Vui lòng nhập mục đích sử dụng khu vực");
 			return;
 		}
+		if (purposeState.error) {
+			setFormError(purposeState.error);
+			return;
+		}
 
 		setSubmitting(true);
 		try {
@@ -554,6 +563,9 @@ export default function AccessRequestPage() {
 		submitBlockers.push("thêm ít nhất một thành viên nhóm");
 	}
 	if (!purpose.trim()) submitBlockers.push("nhập mục đích sử dụng khu vực");
+	else if (purposeState.error) {
+		submitBlockers.push(`nhập mục đích từ ${reasonLimits.min} đến ${reasonLimits.max} ký tự`);
+	}
 	const isFormValid = submitBlockers.length === 0;
 
 	return (
@@ -901,24 +913,29 @@ export default function AccessRequestPage() {
 							placeholder="Mô tả cụ thể mục đích truy cập (ví dụ: Họp nhóm đồ án Capstone, nghiên cứu phòng Lab Robotics, chuẩn bị sự kiện...)"
 							value={purpose}
 							onChange={(e) => setPurpose(e.target.value)}
-							maxLength={1000}
+							maxLength={purposeState.maxLength}
 							disabled={submitting}
 							required
 						/>
 						<div className="arp-purpose-meta">
-							<span className="arp-hint">Bắt buộc, tối đa 1000 ký tự</span>
+							<span className="arp-hint">{purposeState.hint}</span>
 							<span
 								className="arp-hint"
 								style={{
 									color:
-										purpose.length > 1000
+										purposeState.error
 											? "var(--theme-danger)"
 											: "var(--theme-text-muted)",
 								}}
 							>
-								{purpose.length}/1000 ký tự
+								{purposeState.counter}
 							</span>
 						</div>
+						{purposeState.error && (
+							<div className="arp-field-error" role="alert">
+								{purposeState.error}
+							</div>
+						)}
 					</div>
 
 					{/* 2c. Chân thẻ */}

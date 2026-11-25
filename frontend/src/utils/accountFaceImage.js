@@ -48,3 +48,14 @@ export function faceImageLimitText(maxKb) {
     ? `tối đa ${maxKb} KB/ảnh`
     : 'dung lượng tối đa theo cấu hình hệ thống';
 }
+
+/**
+ * B1: mọi lỗi ảnh khuôn mặt tài khoản backend trả errorCode / code dạng ERR_FACE_xxx (FaceErrorCode: 001 trùng mặt,
+ * 002 rỗng, 003 quá dung lượng, 004 sai định dạng, 005 không có mặt, 006 nhiều mặt, 007 AI không xử lý được ảnh,
+ * 008 dịch vụ AI không khả dụng). Màn tạo tài khoản dựa vào mã để hiện lỗi dưới ô ảnh, không so câu chữ.
+ * @param {string|null|undefined} code err.code từ apiClient
+ * @returns {boolean}
+ */
+export function isAccountFaceErrorCode(code) {
+  return typeof code === 'string' && /^ERR_FACE_\d{3}$/.test(code);
+}

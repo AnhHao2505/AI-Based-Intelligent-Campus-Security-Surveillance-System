@@ -5,6 +5,7 @@ import {
 	readFaceImageMaxKb,
 	validateFaceImageSize,
 	faceImageLimitText,
+	isAccountFaceErrorCode,
 } from "../accountFaceImage.js";
 
 // V140: dòng cấu hình như GET /api/system-configurations trả về (min 100, max 1024)
@@ -76,5 +77,30 @@ describe("faceImageLimitText (hướng dẫn nạp theo lô / ô chọn ảnh)",
 		assert.equal(faceImageLimitText(1024), "tối đa 1024 KB/ảnh");
 		assert.equal(faceImageLimitText(null), "dung lượng tối đa theo cấu hình hệ thống");
 		assert.doesNotMatch(faceImageLimitText(null), /\d/);
+	});
+});
+
+describe("isAccountFaceErrorCode (B1: lỗi ảnh khuôn mặt theo mã ERR_FACE_xxx)", () => {
+	it("nhận mọi mã ERR_FACE_001..008", () => {
+		for (let i = 1; i <= 8; i++) {
+			assert.equal(isAccountFaceErrorCode(`ERR_FACE_00${i}`), true);
+		}
+	});
+
+	it("không nhận mã khác hoặc mã chung của HTTP", () => {
+		for (const code of [
+			"ERR_GUEST_033",
+			"ERR_AC_014",
+			"Bad Request",
+			"Unprocessable Entity",
+			"VALIDATION_ERROR",
+			"ERR_FACE_",
+			"ERR_FACE_01",
+			"",
+			null,
+			undefined,
+		]) {
+			assert.equal(isAccountFaceErrorCode(code), false, String(code));
+		}
 	});
 });

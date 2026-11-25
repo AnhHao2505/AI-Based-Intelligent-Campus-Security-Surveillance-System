@@ -475,7 +475,8 @@ class WorkflowWf01FaceUserEnrollmentE2ETest extends AbstractIntegrationTest {
                 assertThat(userCount(code)).isZero();
                 assertThat(faceCount(code)).isZero();
                 verify(minioStorageService, never()).uploadFaceImage(any(), eq(code));
-                verify(minioStorageService).deleteFaceImage(code);
+                // ảnh chưa lên kho -> không có gì để xoá (xoá ảnh chỉ còn ở afterCompletion khi đã tải lên, việc 6)
+                verify(minioStorageService, never()).deleteFaceImage(code);
                 verify(notificationService, never()).sendStaffAccountSetupEmail(eq(email), anyString(), anyString(), anyString());
                 continue;
             }

@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @ResponseStatus(HttpStatus.CONFLICT)
 public class FaceDuplicateException extends RuntimeException {
 
-    public static final String CODE = "ERR_FACE_001";
+    public static final String CODE = FaceErrorCode.ERR_FACE_001.getCode();
 
     public FaceDuplicateException(String message) {
         super(message);

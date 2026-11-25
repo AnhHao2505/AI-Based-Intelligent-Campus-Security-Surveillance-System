@@ -8,6 +8,9 @@ import {
 	guestPhotoLimitText,
 	getErrorGuestIndex,
 	guestHasPhoto,
+	GUEST_FORM_LIMITS_INITIAL,
+	guestFormLimitsReducer,
+	createGuestFormLimitsLoader,
 } from "../guestHelpers.js";
 
 const NOW = new Date("2026-11-21T09:00:00+07:00");
@@ -134,5 +137,128 @@ describe("guestHasPhoto", () => {
 		assert.equal(guestHasPhoto({ biometricStatus: "PHOTO_ONLY" }), true);
 		assert.equal(guestHasPhoto({ biometricStatus: "NO_PHOTO" }), false);
 		assert.equal(guestHasPhoto({ biometricStatus: "DELETED" }), false);
+	});
+});
+
+/**
+ * TC-F12-S07: form khách đọc lại giới hạn ảnh mỗi lần mở. Mô phỏng useGuestFormLimits: reducer thật + loader thật,
+ * /eligibility giả (mỗi lần gọi trả một promise do test tự resolve / reject).
+ */
+function setupFormLimits() {
+	let state = GUEST_FORM_LIMITS_INITIAL;
+	const dispatch = (action) => {
+		state = guestFormLimitsReducer(state, action);
+	};
+	const pending = [];
+	const fetchEligibility = () =>
+		new Promise((resolve, reject) => {
+			pending.push({ resolve, reject });
+		});
+	const reload = createGuestFormLimitsLoader(fetchEligibility, dispatch);
+	return { reload, pending, get state() { return state; } };
+}
+
+const PHOTO_233_KB = { type: "image/jpeg", size: 233 * 1024 };
+
+describe("guestFormLimitsReducer / createGuestFormLimitsLoader (TC-F12-S07: đọc lại giới hạn mỗi lần mở form)", () => {
+	it("mở form lần 2 sau khi Admin hạ GUEST_PHOTO_MAX_KB 2048 -> 100: dùng 100, chặn ảnh 233 KB", async () => {
+		const f = setupFormLimits();
+
+		const first = f.reload();
+		f.pending[0].resolve({ canHost: true, consentNoticeVersion: "v1", photoMaxKb: 2048 });
+		await first;
+		assert.deepEqual(f.state, { status: "ready", photoMaxKb: 2048, consentVersion: "v1" });
+		assert.equal(guestPhotoLimitText(f.state.photoMaxKb), "tối đa 2048 KB");
+		assert.equal(validateGuestPhotoFile(PHOTO_233_KB, f.state.photoMaxKb), null);
+
+		// đóng form, Admin đổi cấu hình, mở lại form (không tải lại trang)
+		const second = f.reload();
+		assert.equal(f.pending.length, 2, "mở lại form phải gọi lại /eligibility");
+		f.pending[1].resolve({ canHost: true, consentNoticeVersion: "v1", photoMaxKb: 100 });
+		assert.deepEqual(await second, { canHost: true, consentNoticeVersion: "v1", photoMaxKb: 100 });
+		assert.equal(f.state.photoMaxKb, 100);
+		assert.equal(guestPhotoLimitText(f.state.photoMaxKb), "tối đa 100 KB");
+		assert.match(validateGuestPhotoFile(PHOTO_233_KB, f.state.photoMaxKb), /Ảnh tối đa 100 KB \(ảnh đang chọn 233 KB\)/);
+	});
+
+	it("đang tải lại: bỏ giá trị cũ (2048), không chặn dung lượng, khoá ô đồng ý tới khi đọc xong", async () => {
+		const f = setupFormLimits();
+		const first = f.reload();
+		f.pending[0].resolve({ consentNoticeVersion: "v1", photoMaxKb: 2048 });
+		await first;
+
+		f.reload(); // lần mở thứ 2, /eligibility chưa trả về
+		assert.deepEqual(f.state, { status: "loading", photoMaxKb: null, consentVersion: null });
+		assert.equal(guestPhotoLimitText(f.state.photoMaxKb), "dung lượng tối đa theo cấu hình hệ thống");
+		assert.equal(validateGuestPhotoFile({ type: "image/jpeg", size: 50 * 1024 * 1024 }, f.state.photoMaxKb), null);
+		assert.match(validateGuestPhotoFile({ type: "image/gif", size: 10 }, f.state.photoMaxKb), /JPG hoặc PNG/);
+	});
+
+	it("tải lỗi: không chặn dung lượng (không đoán số, không giữ 2048 của lần trước), reload trả null", async () => {
+		const f = setupFormLimits();
+		const first = f.reload();
+		f.pending[0].resolve({ consentNoticeVersion: "v1", photoMaxKb: 2048 });
+		await first;
+
+		const second = f.reload();
+		f.pending[1].reject(new Error("500"));
+		assert.equal(await second, null);
+		assert.deepEqual(f.state, { status: "error", photoMaxKb: null, consentVersion: null });
+		assert.equal(validateGuestPhotoFile(PHOTO_233_KB, f.state.photoMaxKb), null);
+		assert.equal(validateGuestPhotoFile({ type: "image/png", size: 50 * 1024 * 1024 }, f.state.photoMaxKb), null);
+	});
+
+	it("/eligibility trả về không có photoMaxKb hợp lệ -> null, không chặn", async () => {
+		const f = setupFormLimits();
+		const first = f.reload();
+		f.pending[0].resolve({ consentNoticeVersion: "v1", photoMaxKb: 0 });
+		await first;
+		assert.deepEqual(f.state, { status: "ready", photoMaxKb: null, consentVersion: "v1" });
+		assert.equal(validateGuestPhotoFile(PHOTO_233_KB, f.state.photoMaxKb), null);
+
+		const second = f.reload();
+		f.pending[1].resolve(null);
+		await second;
+		assert.deepEqual(f.state, { status: "ready", photoMaxKb: null, consentVersion: null });
+	});
+
+	it("lần mở cũ trả về muộn không ghi đè giá trị của lần mở mới", async () => {
+		const f = setupFormLimits();
+		const stale = f.reload(); // lần 1, chậm
+		const fresh = f.reload(); // lần 2
+		f.pending[1].resolve({ consentNoticeVersion: "v2", photoMaxKb: 100 });
+		await fresh;
+		f.pending[0].resolve({ consentNoticeVersion: "v1", photoMaxKb: 2048 });
+		assert.equal(await stale, null);
+		assert.deepEqual(f.state, { status: "ready", photoMaxKb: 100, consentVersion: "v2" });
+	});
+
+	it("lần mở cũ lỗi muộn không xoá giá trị của lần mở mới", async () => {
+		const f = setupFormLimits();
+		const stale = f.reload();
+		const fresh = f.reload();
+		f.pending[1].resolve({ consentNoticeVersion: "v1", photoMaxKb: 100 });
+		await fresh;
+		f.pending[0].reject(new Error("timeout"));
+		assert.equal(await stale, null);
+		assert.deepEqual(f.state, { status: "ready", photoMaxKb: 100, consentVersion: "v1" });
+	});
+
+	it("phiên bản thông báo đồng ý cũng lấy theo lần mở mới nhất (cùng lời gọi /eligibility)", async () => {
+		const f = setupFormLimits();
+		const first = f.reload();
+		f.pending[0].resolve({ consentNoticeVersion: "v1", photoMaxKb: 2048 });
+		await first;
+		const second = f.reload();
+		f.pending[1].resolve({ consentNoticeVersion: "v2", photoMaxKb: 2048 });
+		await second;
+		assert.equal(f.state.consentVersion, "v2");
+	});
+
+	it("reducer: trạng thái đầu idle / null; action lạ giữ nguyên trạng thái", () => {
+		assert.deepEqual(GUEST_FORM_LIMITS_INITIAL, { status: "idle", photoMaxKb: null, consentVersion: null });
+		const ready = { status: "ready", photoMaxKb: 100, consentVersion: "v1" };
+		assert.equal(guestFormLimitsReducer(ready, { type: "khác" }), ready);
+		assert.equal(guestFormLimitsReducer(ready, undefined), ready);
 	});
 });
