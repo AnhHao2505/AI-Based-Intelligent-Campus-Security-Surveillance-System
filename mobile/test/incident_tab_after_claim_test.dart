@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guard_mobile_app/core/network/api_client.dart';
@@ -11,11 +11,17 @@ import 'package:guard_mobile_app/features/incident/screens/incident_list_screen.
 import 'package:guard_mobile_app/features/incident/services/incident_service.dart';
 import 'package:guard_mobile_app/features/incident/services/stomp_service.dart';
 import 'package:guard_mobile_app/features/incident/widgets/incident_offer_banner.dart';
-import 'package:guard_mobile_app/main.dart' show appNavigatorKey, openIncidentListScreen;
+import 'package:guard_mobile_app/main.dart'
+    show appNavigatorKey, openIncidentListScreen;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _me = {'id': 'guard-me', 'fullName': 'Bảo vệ An', 'email': 'guard.an@fpt.edu.vn', 'role': 'GUARD'};
+const _me = {
+  'id': 'guard-me',
+  'fullName': 'Bảo vệ An',
+  'email': 'guard.an@fpt.edu.vn',
+  'role': 'GUARD',
+};
 
 class FakeIncidentService extends IncidentService {
   final Map<String, IncidentModel> server = {};
@@ -28,7 +34,10 @@ class FakeIncidentService extends IncidentService {
       server.values.where((i) => !i.isResolved).toList();
 
   @override
-  Future<List<IncidentModel>> getIncidents({String? building, String? status}) async => server.values.toList();
+  Future<List<IncidentModel>> getIncidents({
+    String? building,
+    String? status,
+  }) async => server.values.toList();
 
   @override
   Future<Map<String, dynamic>> claimIncident(String incidentId) async {
@@ -36,7 +45,11 @@ class FakeIncidentService extends IncidentService {
       final options = RequestOptions(path: '/api/incidents/$incidentId/claim');
       throw DioException(
         requestOptions: options,
-        response: Response(requestOptions: options, statusCode: 500, data: {'message': 'Lỗi máy chủ'}),
+        response: Response(
+          requestOptions: options,
+          statusCode: 500,
+          data: {'message': 'Lỗi máy chủ'},
+        ),
         type: DioExceptionType.badResponse,
       );
     }
@@ -72,43 +85,56 @@ class FakeStompService extends StompService {
 }
 
 Map<String, dynamic> _offerMessage(String incidentId) => {
-      'type': 'INCIDENT_OFFER',
-      'offerId': 'off-test-1',
-      'incidentId': incidentId,
-      'expiresAt': DateTime.now().add(const Duration(seconds: 30)).toUtc().toIso8601String(),
-      'incident': {
-        'id': incidentId,
-        'cameraCode': 'CAM-TEST',
-        'areaName': 'Khu vực thử nghiệm',
-        'eventType': 'INTRUSION',
-        'status': 'NEW',
-        'severity': 'HIGH',
-        'dispatchStage': 'STEP1',
-      },
-    };
+  'type': 'INCIDENT_OFFER',
+  'offerId': 'off-test-1',
+  'incidentId': incidentId,
+  'expiresAt': DateTime.now()
+      .add(const Duration(seconds: 30))
+      .toUtc()
+      .toIso8601String(),
+  'incident': {
+    'id': incidentId,
+    'cameraCode': 'CAM-TEST',
+    'areaName': 'Khu vực thử nghiệm',
+    'eventType': 'INTRUSION',
+    'status': 'NEW',
+    'severity': 'HIGH',
+    'dispatchStage': 'STEP1',
+  },
+};
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(SystemChannels.platform, (call) async => null);
+        .setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async => null,
+        );
   });
 
   late FakeIncidentService service;
   late IncidentProvider provider;
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({'guard_user_data': jsonEncode(_me)});
+    SharedPreferences.setMockInitialValues({
+      'guard_user_data': jsonEncode(_me),
+    });
     service = FakeIncidentService();
-    provider = IncidentProvider(incidentService: service, stompService: FakeStompService());
+    provider = IncidentProvider(
+      incidentService: service,
+      stompService: FakeStompService(),
+    );
   });
 
   tearDown(() {
     provider.dispose();
   });
 
-  testWidgets('nhận qua nút TIẾP NHẬN → tab "Đang xử lý" được chọn', (tester) async {
+  testWidgets('nhận qua nút TIẾP NHẬN → tab "Đang xử lý" được chọn', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1400, 2000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -127,9 +153,7 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<IncidentProvider>.value(
         value: provider,
-        child: const MaterialApp(
-          home: IncidentListScreen(),
-        ),
+        child: const MaterialApp(home: IncidentListScreen()),
       ),
     );
     await tester.pumpAndSettle();
@@ -148,7 +172,9 @@ void main() {
     expect(find.text('Tiếp nhận sự cố thành công!'), findsOneWidget);
   });
 
-  testWidgets('nhận qua banner → màn danh sách mở ở tab "Đang xử lý"', (tester) async {
+  testWidgets('nhận qua banner → màn danh sách mở ở tab "Đang xử lý"', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1400, 2000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -197,55 +223,58 @@ void main() {
     expect(find.text('TIẾP NHẬN'), findsNothing);
   });
 
-  testWidgets('nhận qua banner khi màn danh sách đang mở sẵn → chuyển tab, không mở thêm màn', (tester) async {
-    tester.view.physicalSize = const Size(1400, 2000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+  testWidgets(
+    'nhận qua banner khi màn danh sách đang mở sẵn → chuyển tab, không mở thêm màn',
+    (tester) async {
+      tester.view.physicalSize = const Size(1400, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
 
-    final inc = IncidentModel(
-      id: 'inc-2b',
-      cameraCode: 'CAM-002',
-      areaName: 'Cổng chính',
-      eventType: 'INTRUSION',
-      status: 'NEW',
-      severity: 'HIGH',
-      dispatchStage: 'STEP1',
-    );
-    service.server['inc-2b'] = inc;
+      final inc = IncidentModel(
+        id: 'inc-2b',
+        cameraCode: 'CAM-002',
+        areaName: 'Cổng chính',
+        eventType: 'INTRUSION',
+        status: 'NEW',
+        severity: 'HIGH',
+        dispatchStage: 'STEP1',
+      );
+      service.server['inc-2b'] = inc;
 
-    await tester.pumpWidget(
-      ChangeNotifierProvider<IncidentProvider>.value(
-        value: provider,
-        child: MaterialApp(
-          navigatorKey: appNavigatorKey,
-          home: const IncidentListScreen(),
-          builder: (context, child) => Stack(
-            children: [
-              child ?? const SizedBox.shrink(),
-              IncidentOfferBanner(onClaimed: (_) => openIncidentListScreen()),
-            ],
+      await tester.pumpWidget(
+        ChangeNotifierProvider<IncidentProvider>.value(
+          value: provider,
+          child: MaterialApp(
+            navigatorKey: appNavigatorKey,
+            home: const IncidentListScreen(),
+            builder: (context, child) => Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                IncidentOfferBanner(onClaimed: (_) => openIncidentListScreen()),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    // Màn danh sách đang mở sẵn ở tab mặc định (Cần xử lý)
-    expect(find.byType(IncidentListScreen), findsOneWidget);
+      // Màn danh sách đang mở sẵn ở tab mặc định (Cần xử lý)
+      expect(find.byType(IncidentListScreen), findsOneWidget);
 
-    // Phát lời mời
-    provider.handleOfferMessage(_offerMessage('inc-2b'));
-    await tester.pump();
+      // Phát lời mời
+      provider.handleOfferMessage(_offerMessage('inc-2b'));
+      await tester.pump();
 
-    // Bấm Nhận trên banner
-    await tester.tap(find.text('Nhận'));
-    await tester.pumpAndSettle();
+      // Bấm Nhận trên banner
+      await tester.tap(find.text('Nhận'));
+      await tester.pumpAndSettle();
 
-    // Vẫn chỉ có đúng 1 widget IncidentListScreen (không mở thêm màn chồng lên)
-    expect(find.byType(IncidentListScreen), findsOneWidget);
-    // Đã chuyển sang tab "Đang xử lý"
-    expect(find.text('GIẢI QUYẾT'), findsOneWidget);
-  });
+      // Vẫn chỉ có đúng 1 widget IncidentListScreen (không mở thêm màn chồng lên)
+      expect(find.byType(IncidentListScreen), findsOneWidget);
+      // Đã chuyển sang tab "Đang xử lý"
+      expect(find.text('GIẢI QUYẾT'), findsOneWidget);
+    },
+  );
 
   testWidgets('nhận thất bại → tab không đổi', (tester) async {
     tester.view.physicalSize = const Size(1400, 2000);
@@ -267,9 +296,7 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<IncidentProvider>.value(
         value: provider,
-        child: const MaterialApp(
-          home: IncidentListScreen(),
-        ),
+        child: const MaterialApp(home: IncidentListScreen()),
       ),
     );
     await tester.pumpAndSettle();
