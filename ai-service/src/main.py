@@ -48,6 +48,7 @@ setup_ai_logging(
 configure_system_threads()
 models_warmed_up: bool = False
 logger = logging.getLogger("ai_service")
+logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 setup_uvicorn_access_log_filter()
 storage_service = StorageService()
 import threading

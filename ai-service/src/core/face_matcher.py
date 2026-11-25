@@ -183,6 +183,7 @@ class FaceMatcher:
             threshold = settings.FACE_MATCH_THRESHOLD
 
         # Trích xuất vector 512 chiều từ ảnh mặt camera qua ArcFace ONNX (kèm 5 điểm mốc căn chỉnh)
+        t0 = time.perf_counter()
         vec_list = self.embedder.extract_embedding(face_crop, landmarks=landmarks)
         cam_vec = np.array(vec_list, dtype=np.float32)
         norm = np.linalg.norm(cam_vec)
@@ -208,20 +209,36 @@ class FaceMatcher:
         scores = np.dot(cached_matrix, cam_vec)
         best_idx = int(np.argmax(scores))
         best_score = float(scores[best_idx])
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
         self.last_best_score = best_score
+        self.last_match_ms = elapsed_ms
         best_match = cached_faces[best_idx]
+
+        now_ts = time.time()
+        last_log_ts = getattr(self, "_last_match_log_time", 0.0)
+        should_log = (now_ts - last_log_ts) >= 2.0
 
         if best_match and best_score >= threshold:
             expires_at = best_match.get("expires_at")
-            if expires_at is not None and (time.time() * 1000.0) > expires_at:
-                logger.info(f"⏳ [FaceMatcher] Khách mời [{best_match.get('code')}] đã hết hạn chuyến thăm -> Bỏ qua.")
+            if expires_at is not None and (now_ts * 1000.0) > expires_at:
+                logger.debug(f"⏳ [FaceMatcher] Khách mời [{best_match.get('code')}] đã hết hạn chuyến thăm -> Bỏ qua.")
                 return None
 
             is_active = bool(best_match.get("is_active", True))
             role = str(best_match.get("role", "NORMAL_USER"))
-            logger.info(f"🎯 [FaceMatcher] NHẬN DIỆN KHUÔN MẶT: {best_match['code']} - {best_match['full_name']} (Khớp: {best_score:.1%}, Hoạt động: {is_active}, Role: {role})")
+            if should_log:
+                self._last_match_log_time = now_ts
+                logger.debug(
+                    f"⏱️ [FaceMatcher] time={elapsed_ms:.1f}ms | best_score={best_score:.3f} >= threshold={threshold:.2f} "
+                    f"-> MATCH {best_match['code']} ({best_match['full_name']}, role={role})"
+                )
             return (best_match["code"], best_match["full_name"], best_score, is_active, role)
 
+        if should_log:
+            self._last_match_log_time = now_ts
+            logger.debug(
+                f"⏱️ [FaceMatcher] time={elapsed_ms:.1f}ms | best_score={best_score:.3f} < threshold={threshold:.2f} -> NO_MATCH"
+            )
         return None
 
     def get_cached_access(

@@ -953,12 +953,23 @@ class VideoPipeline:
         # 2. ĐÁNH THỨC PHÁT HIỆN & THEO DÕI NGƯỜI (YOLO26 + BYTETRACK)
         # ------------------------------------------------------------------
         self._last_heartbeat_time = current_time
+        t_human_start = time.perf_counter()
         detected_tracks = self.human_detector.detect_and_track(frame, persist=True)
-        current_frame_tids = {tid for tid, _ in detected_tracks if tid >= 0}
-        if current_frame_tids or getattr(settings, "AI_LOG_VERBOSE_FRAMES", False):
-            logger.debug(
-                f"👁️ [VideoPipeline:{self.camera_code}] [HumanDetector] YOLO26 + ByteTrack: {len(detected_tracks)} người | Track IDs: {sorted(list(current_frame_tids))}"
-            )
+        human_ms = (time.perf_counter() - t_human_start) * 1000.0
+        perf_by_tid: Dict[int, Dict[str, Any]] = {}
+        for tid, tb in detected_tracks:
+            if tid >= 0:
+                perf_by_tid[tid] = {
+                    "tid": tid,
+                    "h_score": float(getattr(tb, "confidence", 0.0) or 0.0),
+                    "f_ran": False,
+                    "f_score": 0.0,
+                    "f_ms": 0.0,
+                    "m_ran": False,
+                    "m_score": 0.0,
+                    "m_ms": 0.0,
+                    "m_res": "NO_MATCH",
+                }
 
         # 2a. TRIỆT TIÊU MOTION DETECTION TRONG BOUNDING BOX NGƯỜI (HUMAN MASKING)
         # Loại bỏ 100% các bounding box vàng của motion detection nằm bên trong hoặc trùng lên người.
@@ -1193,10 +1204,17 @@ class VideoPipeline:
                     if not is_reverifying:
                         self._track_face_scan_times[track_id] = current_time
 
+                    t_face_start = time.perf_counter()
                     face_result = self.face_detector.detect_best_face_in_crop(
                         person_upper_crop,
                         offset_xy=(x1, y1)
                     )
+                    face_ms = (time.perf_counter() - t_face_start) * 1000.0
+                    if track_id in perf_by_tid:
+                        ps = perf_by_tid[track_id]
+                        ps["f_ran"] = True
+                        ps["f_ms"] = face_ms
+                        ps["f_score"] = float(getattr(face_result, "score", 0.0) or 0.0) if face_result else 0.0
                     # Người khác đứng chồng lên vùng quét mặt của người này: mặt điểm cao nhất có thể là của họ
                     # -> chỉ nhận mặt thuộc về chính người này (quét lại có lọc), không thấy thì bỏ qua frame này.
                     crop_box = BoundingBox(x1=x1, y1=y1, x2=x2, y2=y1 + crop_h)
@@ -1270,6 +1288,12 @@ class VideoPipeline:
                                 threshold=settings.FACE_MATCH_THRESHOLD,
                                 landmarks=align_landmarks
                             )
+                            if track_id in perf_by_tid:
+                                ps = perf_by_tid[track_id]
+                                ps["m_ran"] = True
+                                ps["m_ms"] = float(getattr(self.face_matcher, "last_match_ms", 0.0) or 0.0)
+                                ps["m_score"] = float(getattr(self.face_matcher, "last_best_score", 0.0) or 0.0)
+                                ps["m_res"] = f"{match[0]} ({match[1]})" if match else "NO_MATCH"
                         if match:
                             if len(match) >= 5:
                                 code, name, score, is_active, role = match
@@ -1281,7 +1305,7 @@ class VideoPipeline:
                                 track_stats["first_matched_time"] = current_time
                                 track_stats["matched_code"] = code
 
-                            logger.info(
+                            logger.debug(
                                 f"✅ [VideoPipeline:{self.camera_code}] [FaceMatcher] Track #{track_id} -> Nhận diện: {code} ({name}) "
                                 f"[Khớp: {score:.1%}, Vai trò: {role}, Hoạt động: {is_active}]"
                             )
@@ -1466,6 +1490,70 @@ class VideoPipeline:
             area_name=cam_area_name
         )
 
+        if perf_by_tid:
+            if not hasattr(self, "_perf_logged_face_tids"):
+                self._perf_logged_face_tids = set()
+                self._perf_logged_match_tids = {}
+                self._perf_last_states = {}
+
+            person_state_by_tid = {
+                p.track_id: getattr(p, "security_display_state", "NEUTRAL") or "NEUTRAL"
+                for p in active_persons
+            }
+
+            # Ưu tiên track có sự kiện mới (lần đầu thấy mặt / lần đầu khớp hoặc đổi danh tính / đổi trạng thái)
+            transition_ps = None
+            for tid, ps in perf_by_tid.items():
+                st = person_state_by_tid.get(tid, "NEUTRAL")
+                first_face = ps["f_score"] > 0.0 and tid not in self._perf_logged_face_tids
+                match_changed = ps["m_ran"] and ps["m_res"] != "NO_MATCH" and self._perf_logged_match_tids.get(tid) != ps["m_res"]
+                state_changed = tid in self._perf_last_states and self._perf_last_states[tid] != st
+                if first_face or match_changed or state_changed:
+                    transition_ps = ps
+                    break
+
+            last_perf_log = getattr(self, "_last_perf_summary_log_time", 0.0)
+            perf_interval = float(getattr(settings, "AI_PERF_LOG_INTERVAL_SECONDS", 1.0) or 1.0)
+            if transition_ps is not None or (current_time - last_perf_log) >= perf_interval:
+                chosen_ps = transition_ps
+                if chosen_ps is None:
+                    # Chọn track có chạy Matcher > chạy FaceDetector > track đầu tiên
+                    chosen_ps = max(
+                        perf_by_tid.values(),
+                        key=lambda ps: (2 if ps["m_ran"] else (1 if ps["f_ran"] else 0), -ps["tid"]),
+                    )
+                self._last_perf_summary_log_time = current_time
+                tid = chosen_ps["tid"]
+                st = person_state_by_tid.get(tid, "NEUTRAL")
+                if chosen_ps["f_score"] > 0.0:
+                    self._perf_logged_face_tids.add(tid)
+                if chosen_ps["m_ran"] and chosen_ps["m_res"] != "NO_MATCH":
+                    self._perf_logged_match_tids[tid] = chosen_ps["m_res"]
+                self._perf_last_states[tid] = st
+
+                raw_h_conf = getattr(self.human_detector, "conf_threshold", settings.DEFAULT_DETECTION_CONFIDENCE)
+                human_conf = float(raw_h_conf) if isinstance(raw_h_conf, (int, float)) else float(settings.DEFAULT_DETECTION_CONFIDENCE)
+                raw_f_conf = getattr(self.face_detector, "score_threshold", settings.DEFAULT_FACE_CONFIDENCE)
+                face_conf = float(raw_f_conf) if isinstance(raw_f_conf, (int, float)) else float(settings.DEFAULT_FACE_CONFIDENCE)
+                match_th = float(settings.FACE_MATCH_THRESHOLD)
+                total_ms = human_ms + chosen_ps["f_ms"] + chosen_ps["m_ms"]
+                budget_flag = " ⚠️" if total_ms > 50.0 else ""
+                face_part = (
+                    f"Mặt: {chosen_ps['f_score']:.2f}/{face_conf:.2f} ({chosen_ps['f_ms']:4.1f}ms)"
+                    if chosen_ps["f_ran"]
+                    else "Mặt: -                 "
+                )
+                match_part = (
+                    f"Khớp: {chosen_ps['m_score']:.3f}/{match_th:.2f} ({chosen_ps['m_ms']:4.1f}ms) -> {chosen_ps['m_res']}"
+                    if chosen_ps["m_ran"]
+                    else "Khớp: -"
+                )
+                logger.info(
+                    f"[{self.camera_code}] #{tid:<3} | "
+                    f"Người: {chosen_ps['h_score']:.2f}/{human_conf:.2f} ({human_ms:4.1f}ms) | "
+                    f"{face_part} | {match_part:<34} | {st:<12} | Tổng: {total_ms:5.1f}ms{budget_flag}"
+                )
+
         # Dọn dẹp track cũ trong bộ nhớ đệm throttling (P0-02) và in tóm tắt độ trễ nhận diện (Task 1)
         active_tids = set(self.analysis_engine.active_tracks.keys())
         for tid in list(self._track_face_scan_times.keys()):
@@ -1480,6 +1568,14 @@ class VideoPipeline:
                 with self._identify_stats_lock:
                     if not stats.get("latency_logged", False):
                         self._log_identify_latency(tid, stats, current_time)
+        if hasattr(self, "_perf_logged_face_tids"):
+            self._perf_logged_face_tids.intersection_update(active_tids)
+            for tid in list(self._perf_logged_match_tids.keys()):
+                if tid not in active_tids:
+                    del self._perf_logged_match_tids[tid]
+            for tid in list(self._perf_last_states.keys()):
+                if tid not in active_tids:
+                    del self._perf_last_states[tid]
 
         if early_alerts:
             alerts = early_alerts + alerts
@@ -1705,7 +1801,7 @@ class VideoPipeline:
                                 f"🚨 [VideoPipeline:{self.camera_code}] Ảnh bằng chứng KHÔNG lên được MinIO: {object_key}"
                             )
                             return False
-                        logger.info(
+                        logger.debug(
                             f"☁️ [VideoPipeline:{self.camera_code}] [MinIO] Đã upload ảnh bằng chứng vi phạm: {object_key}"
                         )
                         return True

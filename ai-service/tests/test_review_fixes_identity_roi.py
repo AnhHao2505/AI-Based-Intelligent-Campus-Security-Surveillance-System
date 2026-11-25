@@ -135,3 +135,43 @@ def test_late_identified_without_decision_after_unknown_verdict_does_not_alert_t
     assert alerts[1].identity_outcome == "UNAUTHORIZED"
     assert person.security_display_state == "UNAUTHORIZED"
     assert wait < 4.5 - 2.6, "Khung thời gian test phải dài hơn khoảng chờ"
+
+
+def test_late_identity_update_still_emits_during_user_cooldown():
+    """Đã có UNAUTHORIZED_PERSON cho user trong cooldown 60s -> track mới lỡ báo UNKNOWN_PERSON rồi mới nhận ra mặt vẫn phải gửi IDENTITY_UPDATE."""
+    engine = FrameAnalysisEngine(
+        access_grace_period=1.0,
+        unauthorized_alert_cooldown=60.0,
+        after_hour_start="00:00",
+        after_hour_end="00:00",
+    )
+    engine.identity_hold_seconds = 0.5
+    roi = [[(0, 0), (500, 0), (500, 500), (0, 500)]]
+    bbox = BoundingBox(100, 100, 200, 300, 0.9)
+    face = FaceDetectionResult(
+        bbox=BoundingBox(120, 110, 170, 160, 0.9),
+        score=0.9,
+        matched_code="SE198765",
+        matched_name="Phan Gia Anh",
+        is_authorized=False,
+        access_checked=True,
+        access_reason="Cấp độ không đủ",
+    )
+
+    # Track 1 bị cảnh báo UNAUTHORIZED_PERSON tại t=102 -> kích hoạt user cooldown 60s
+    engine.process_frame([(1, bbox)], None, "CAM-007", 100.0, roi_polygons=roi, frame_size=(640, 480))
+    engine.associate_face(1, face)
+    a1 = engine.process_frame([(1, bbox)], None, "CAM-007", 102.0, roi_polygons=roi, frame_size=(640, 480))[1]
+    assert [a.event_type for a in a1] == ["UNAUTHORIZED_PERSON"]
+
+    # Track 2 (cùng người) vào lại lúc t=120 khi chưa thấy mặt -> chốt UNKNOWN_PERSON lúc t=122
+    engine.process_frame([(2, bbox)], None, "CAM-007", 120.0, roi_polygons=roi, frame_size=(640, 480))
+    a2 = engine.process_frame([(2, bbox)], None, "CAM-007", 122.0, roi_polygons=roi, frame_size=(640, 480))[1]
+    assert [a.event_type for a in a2] == ["UNKNOWN_PERSON"]
+
+    # t=123 nhận ra mặt SE198765 trong thời gian cooldown -> vẫn phải gửi IDENTITY_UPDATE để nâng cấp thẻ UNKNOWN_PERSON
+    engine.associate_face(2, face)
+    a3 = engine.process_frame([(2, bbox)], None, "CAM-007", 123.0, roi_polygons=roi, frame_size=(640, 480))[1]
+    assert [a.event_type for a in a3] == ["IDENTITY_UPDATE"]
+    assert a3[0].identity_outcome == "UNAUTHORIZED"
+    assert a3[0].roi_session_id == a2[0].roi_session_id

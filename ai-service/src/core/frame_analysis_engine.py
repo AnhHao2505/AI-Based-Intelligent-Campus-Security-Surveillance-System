@@ -367,7 +367,7 @@ class FrameAnalysisEngine:
     ) -> None:
         """Chốt cảnh báo KHÔNG danh tính cho người chưa xác thực: UNKNOWN_PERSON (trong giờ) / PERSON_INTRUSION (ngoài giờ)."""
         target_area_name = getattr(person.face_info, "area_name", None) if person.face_info else None
-        raw_loc = target_area_name or area_name or roi_label or "Khu vực giám sát"
+        raw_loc = target_area_name or area_name or (f"Khu vực camera {camera_code}" if camera_code else "Khu vực giám sát")
         if not isinstance(raw_loc, str):
             raw_loc = "Khu vực giám sát"
         location_display = re.sub(r"\s*\([^)]*(?:vùng|roi)[^)]*\)", "", raw_loc, flags=re.IGNORECASE).strip() or raw_loc
@@ -390,7 +390,7 @@ class FrameAnalysisEngine:
             location={"label": roi_label},
             roi_session_id=self._start_unknown_verdict(person, current_time)
         ))
-        logger.warning(
+        logger.debug(
             f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH: [{evt_type}] "
             f"Track #{person.track_id} ({evt_type}), Vị trí: {location_display}"
         )
@@ -585,7 +585,7 @@ class FrameAnalysisEngine:
                 f" ({person.face_info.matched_code})" if (person.face_detected and person.face_info and person.face_info.matched_code) else ""
             )
             reason_part = f" [{reason}]" if reason else ""
-            logger.info(
+            logger.debug(
                 f"🔄 [{camera_code}] Track #{person.track_id}{name_part} đổi trạng thái: {old_state} ➔ {new_state}{reason_part}"
             )
         else:
@@ -855,7 +855,7 @@ class FrameAnalysisEngine:
                 last_unauth_t = self.track_last_unauthorized_alert_time.get(person.track_id, 0.0)
                 if (current_time - last_unauth_t) >= self.unauthorized_alert_cooldown:
                     person.alert_unauthorized_sent = False
-                logger.info(
+                logger.debug(
                     f"📍 [FrameAnalysisEngine:{camera_code}] Track #{person.track_id} BƯỚC VÀO VÙNG ROI: '{person.entered_roi_label}'"
                 )
             elif not in_roi and person.was_in_roi:
@@ -924,7 +924,7 @@ class FrameAnalysisEngine:
 
                 loc_info = {"label": matched_label} if matched_label else None
                 target_area_name = getattr(person.face_info, "area_name", None) if person.face_info else None
-                raw_loc = target_area_name or area_name or "Khu vực giám sát"
+                raw_loc = target_area_name or area_name or (f"Khu vực camera {camera_code}" if camera_code else "Khu vực giám sát")
                 if not isinstance(raw_loc, str):
                     raw_loc = "Khu vực giám sát"
                 location_display = re.sub(r"\s*\([^)]*(?:vùng|roi)[^)]*\)", "", raw_loc, flags=re.IGNORECASE).strip() or raw_loc
@@ -983,9 +983,9 @@ class FrameAnalysisEngine:
                         user_unauth_cooldown_ok = (last_unauth_user_ts is None) or ((current_time - last_unauth_user_ts) >= self.unauthorized_alert_cooldown)
 
                         should_alert_unauth = (not person.alert_unauthorized_sent) if (last_unauth_track_ts is None and last_unauth_user_ts is None) else (track_unauth_cooldown_ok and user_unauth_cooldown_ok)
-                        # Đã chốt cảnh báo người lạ cho người này -> không phát cảnh báo thứ hai, gửi IDENTITY_UPDATE
-                        absorb_now = should_alert_unauth and self._unknown_verdict_active(person, current_time)
-                        if should_alert_unauth:
+                        # Đã chốt cảnh báo người lạ cho người này -> luôn gửi IDENTITY_UPDATE để nâng cấp sự cố cũ (kể cả đang trong cooldown user)
+                        absorb_now = self._unknown_verdict_active(person, current_time)
+                        if should_alert_unauth or absorb_now:
                             clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
                             if is_identity_gone_reason(reason_str, deny_reason_code):
                                 if after_hours:
@@ -1034,7 +1034,7 @@ class FrameAnalysisEngine:
                                 location=loc_info
                             )
                             generated_alerts.append(alert)
-                            logger.warning(
+                            logger.debug(
                                 f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH: [{event_type}] "
                                 f"Người: {matched_name} ({matched_code}), Vị trí: {location_display}"
                             )
@@ -1108,7 +1108,7 @@ class FrameAnalysisEngine:
                                     location=loc_info
                                 )
                                 generated_alerts.append(alert)
-                                logger.warning(
+                                logger.debug(
                                     f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH: [{event_type}] "
                                     f"Track #{person.track_id} ({event_type}), Vị trí: {location_display}"
                                 )
@@ -1155,7 +1155,7 @@ class FrameAnalysisEngine:
                                     reason_str = getattr(person.face_info, "access_reason", None) or "Không có quyền ra vào khu vực này."
                                     clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
                                     target_area_name = getattr(person.face_info, "area_name", None)
-                                    raw_loc = target_area_name or area_name or "Khu vực giám sát"
+                                    raw_loc = target_area_name or area_name or (f"Khu vực camera {camera_code}" if camera_code else "Khu vực giám sát")
                                     location_display = re.sub(r"\s*\([^)]*(?:vùng|roi)[^)]*\)", "", raw_loc, flags=re.IGNORECASE).strip() or raw_loc
 
                                     if after_hours:
@@ -1194,10 +1194,10 @@ class FrameAnalysisEngine:
                                     user_unauth_cooldown_ok = (last_unauth_user_ts is None) or ((current_time - last_unauth_user_ts) >= self.unauthorized_alert_cooldown)
                                     should_alert_unauth = (not person.alert_unauthorized_sent) if (last_unauth_track_ts is None and last_unauth_user_ts is None) else (track_unauth_cooldown_ok and user_unauth_cooldown_ok)
 
-                                    late_absorb = should_alert_unauth and self._unknown_verdict_active(person, current_time)
-                                    if should_alert_unauth:
+                                    late_absorb = self._unknown_verdict_active(person, current_time)
+                                    if should_alert_unauth or late_absorb:
                                         if late_absorb:
-                                            # Đã chốt cảnh báo người lạ -> không phát cảnh báo thứ hai, gửi IDENTITY_UPDATE
+                                            # Đã chốt cảnh báo người lạ -> không phát cảnh báo thứ hai, gửi IDENTITY_UPDATE (kể cả đang trong cooldown user)
                                             self._absorb_late_identity(person, matched_code, camera_code)
                                             self._emit_identity_update(
                                                 person, "UNAUTHORIZED", camera_code, generated_alerts, detail_msg,
@@ -1213,7 +1213,7 @@ class FrameAnalysisEngine:
                                                 location={"label": person.entered_roi_label or "Vùng giám sát"}
                                             )
                                             generated_alerts.append(alert)
-                                            logger.warning(
+                                            logger.debug(
                                                 f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH (Cập nhật danh tính): [{event_type}] "
                                                 f"Người: {matched_name} ({matched_code}), Lý do: {'Ngoài giờ hoạt động' if after_hours else minimal_reason}, Vị trí: {location_display}"
                                             )
@@ -1249,7 +1249,7 @@ class FrameAnalysisEngine:
                         )
                 if inactive_sec > self.max_inactive_seconds:
                     inactive_ids.append(tid)
-                    logger.info(f"👋 [FrameAnalysisEngine:{camera_code}] Track #{tid} rời khỏi tầm nhìn camera")
+                    logger.debug(f"👋 [FrameAnalysisEngine:{camera_code}] Track #{tid} rời khỏi tầm nhìn camera")
 
         for tid in inactive_ids:
             del self.active_tracks[tid]

@@ -133,7 +133,7 @@ class IncidentRecorder:
                         self.fps,
                         (self.target_w, self.target_h),
                     )
-                logger.info(
+                logger.debug(
                     f"🚨 [IncidentRecorder] MỞ FILE GHI HÌNH SỰ CỐ fMP4 camera [{self.camera_code}]: {self.file_path} @ 854x480 ({self.fps}fps)"
                 )
             except Exception as e:
@@ -352,7 +352,7 @@ class IncidentRecorder:
                     get_security_mqtt_client().publish_recording_event(telemetry_payload)
                     try:
                         os.remove(file_path)
-                        logger.info(f"🗑️ [IncidentRecorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")
+                        logger.debug(f"🗑️ [IncidentRecorder Cleanup] Đã xóa file đệm cục bộ sau khi đẩy MinIO: {file_path}")
                     except Exception as ex:
                         logger.warning(f"Không thể xóa file tạm {file_path}: {ex}")
                 else:

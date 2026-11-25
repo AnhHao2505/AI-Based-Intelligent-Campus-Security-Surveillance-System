@@ -131,7 +131,7 @@ class ZoneStateMachine:
                     self._motion_start_time = None
 
         if self._state != old_state:
-            logger.info(
+            logger.debug(
                 f"🔄 [Trạng thái Vùng] Chuyển trạng thái: {old_state.value} ➔ {self._state.value} (motion={has_motion}, in_roi={person_in_roi})"
             )
 

@@ -74,8 +74,11 @@ def parse_runtime_config(data: Dict[str, Any]) -> Tuple[Dict[str, float], List[s
         elif not math.isfinite(val) or val <= 0:
             errors.append(f"{key}={raw} phải là số dương")
             continue
-        if key in ("face_match_threshold", "detection_confidence", "face_confidence") and val > 1.0:
-            errors.append(f"{key}={raw} phải trong (0, 1]")
+        if key == "face_match_threshold" and (val < 0.50 or val > 0.65):
+            errors.append(f"{key}={raw} phải trong [0.50, 0.65]")
+            continue
+        if key in ("detection_confidence", "face_confidence") and (val < 0.30 or val > 0.65):
+            errors.append(f"{key}={raw} phải trong [0.30, 0.65]")
             continue
         values[key] = val
     return values, errors
