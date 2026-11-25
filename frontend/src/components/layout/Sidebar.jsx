@@ -28,8 +28,18 @@ import { ROLES, ROLE_SHORT_LABELS } from "../../constants/roles";
 import { useTheme } from "../../context/ThemeContext";
 import { notificationService } from "../../services/notificationService";
 import { guestVisitService } from "../../services/guestVisitService";
+import {
+	applyTabOrder,
+	buildHeadbarStorageKey,
+	readStoredTabOrder,
+	swapTabKeys,
+	writeStoredTabOrder,
+} from "../../utils/headbarOrder";
 import FptBrandLogo from "../common/FptBrandLogo";
 import "../../styles/Sidebar.css";
+
+const HOLD_DELAY_MS = 220;
+const HOLD_MOVE_CANCEL_PX = 10;
 
 export default function Sidebar({ user, onLogout, onLayoutChange }) {
 	const { theme, toggleTheme } = useTheme();
@@ -39,9 +49,16 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [isPinned, setIsPinned] = useState(false);
 	const [isTwoRow, setIsTwoRow] = useState(false);
+	const [heldKey, setHeldKey] = useState(null);
+	const [dropTargetKey, setDropTargetKey] = useState(null);
 	const closeTimerRef = useRef(null);
 	const headbarRef = useRef(null);
 	const navRef = useRef(null);
+	const holdTimerRef = useRef(null);
+	const pointerStartRef = useRef(null);
+	const heldKeyRef = useRef(null);
+	const dropTargetKeyRef = useRef(null);
+	const suppressClickRef = useRef(false);
 
 	const clearCloseTimer = useCallback(() => {
 		if (closeTimerRef.current) {
@@ -56,7 +73,7 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 	}, [clearCloseTimer]);
 
 	const scheduleClose = useCallback(() => {
-		if (isPinned) return;
+		if (isPinned || heldKeyRef.current) return;
 		clearCloseTimer();
 		closeTimerRef.current = setTimeout(() => {
 			setIsOpen(false);
@@ -200,7 +217,140 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 		return items;
 	}, [isNormalUser, isGuard, isAdmin, isFacilityManager, canHostGuests]);
 
-	const visible = isOpen || isPinned;
+	const storageKey = buildHeadbarStorageKey(user?.id, userRole);
+	const [orderState, setOrderState] = useState(() => ({
+		key: storageKey,
+		order: readStoredTabOrder(storageKey),
+	}));
+
+	const orderedNavItems = useMemo(() => {
+		const activeOrder =
+			orderState.key === storageKey ? orderState.order : readStoredTabOrder(storageKey);
+		return applyTabOrder(navItems, activeOrder);
+	}, [navItems, orderState, storageKey]);
+
+	const orderedNavItemsRef = useRef(orderedNavItems);
+	orderedNavItemsRef.current = orderedNavItems;
+	const storageKeyRef = useRef(storageKey);
+	storageKeyRef.current = storageKey;
+	const pointerCleanupRef = useRef(null);
+
+	useEffect(() => {
+		return () => {
+			if (holdTimerRef.current) {
+				clearTimeout(holdTimerRef.current);
+				holdTimerRef.current = null;
+			}
+			pointerCleanupRef.current?.();
+		};
+	}, []);
+
+	const handleTabPointerDown = useCallback(
+		(event, tabKey) => {
+			if (event.pointerType === "mouse" && event.button !== 0) return;
+
+			if (holdTimerRef.current) {
+				clearTimeout(holdTimerRef.current);
+				holdTimerRef.current = null;
+			}
+			pointerCleanupRef.current?.();
+
+			pointerStartRef.current = { key: tabKey, x: event.clientX, y: event.clientY };
+			suppressClickRef.current = false;
+
+			const findHoveredTabKey = (clientX, clientY) => {
+				const nodes = navRef.current?.querySelectorAll("[data-tab-key]") || [];
+				for (const node of nodes) {
+					const rect = node.getBoundingClientRect();
+					if (
+						clientX >= rect.left &&
+						clientX <= rect.right &&
+						clientY >= rect.top &&
+						clientY <= rect.bottom
+					) {
+						return node.getAttribute("data-tab-key");
+					}
+				}
+				return null;
+			};
+
+			const handlePointerMove = (moveEvent) => {
+				if (!heldKeyRef.current) {
+					const start = pointerStartRef.current;
+					if (start && holdTimerRef.current) {
+						const dx = moveEvent.clientX - start.x;
+						const dy = moveEvent.clientY - start.y;
+						if (Math.hypot(dx, dy) > HOLD_MOVE_CANCEL_PX) {
+							clearTimeout(holdTimerRef.current);
+							holdTimerRef.current = null;
+						}
+					}
+					return;
+				}
+
+				const hovered = findHoveredTabKey(moveEvent.clientX, moveEvent.clientY);
+				const nextTarget = hovered && hovered !== heldKeyRef.current ? hovered : null;
+				if (dropTargetKeyRef.current !== nextTarget) {
+					dropTargetKeyRef.current = nextTarget;
+					setDropTargetKey(nextTarget);
+				}
+			};
+
+			const finishInteraction = (endEvent) => {
+				if (holdTimerRef.current) {
+					clearTimeout(holdTimerRef.current);
+					holdTimerRef.current = null;
+				}
+				pointerCleanupRef.current?.();
+				pointerStartRef.current = null;
+
+				const source = heldKeyRef.current;
+				const target = dropTargetKeyRef.current;
+				if (!source) return;
+
+				heldKeyRef.current = null;
+				dropTargetKeyRef.current = null;
+				setHeldKey(null);
+				setDropTargetKey(null);
+
+				if (endEvent.type === "pointerup" && target && target !== source) {
+					const currentKeys = orderedNavItemsRef.current.map((item) => item.to);
+					const nextOrder = swapTabKeys(currentKeys, source, target);
+					const activeStorageKey = storageKeyRef.current;
+					writeStoredTabOrder(activeStorageKey, nextOrder);
+					setOrderState({ key: activeStorageKey, order: nextOrder });
+				}
+
+				// Reset click suppression on next tick if pointerup happened outside the source link
+				setTimeout(() => {
+					suppressClickRef.current = false;
+				}, 0);
+			};
+
+			window.addEventListener("pointermove", handlePointerMove);
+			window.addEventListener("pointerup", finishInteraction);
+			window.addEventListener("pointercancel", finishInteraction);
+			pointerCleanupRef.current = () => {
+				window.removeEventListener("pointermove", handlePointerMove);
+				window.removeEventListener("pointerup", finishInteraction);
+				window.removeEventListener("pointercancel", finishInteraction);
+				pointerCleanupRef.current = null;
+			};
+
+			holdTimerRef.current = setTimeout(() => {
+				holdTimerRef.current = null;
+				heldKeyRef.current = tabKey;
+				dropTargetKeyRef.current = null;
+				suppressClickRef.current = true;
+				setHeldKey(tabKey);
+				setDropTargetKey(null);
+				openHeadbar();
+			}, HOLD_DELAY_MS);
+		},
+		[openHeadbar],
+	);
+
+	const visible = isOpen || isPinned || Boolean(heldKey);
 
 	// Sync headbar height with AppLayout so content pushes down cleanly when dropped
 	useEffect(() => {
@@ -224,11 +374,11 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 
 		const updateLayout = () => {
 			const links = Array.from(nav.querySelectorAll(".headbar__link"));
-			if (navItems.length <= 4) {
+			if (orderedNavItems.length <= 4) {
 				setIsTwoRow(false);
 			} else {
 				const totalLinksWidth = links.reduce((sum, link) => sum + link.scrollWidth, 0);
-				const minSpacing = Math.max(0, navItems.length - 1) * 10;
+				const minSpacing = Math.max(0, orderedNavItems.length - 1) * 10;
 				const needsTwoRows = nav.clientWidth > 0 && totalLinksWidth + minSpacing > nav.clientWidth;
 				setIsTwoRow(needsTwoRows);
 			}
@@ -252,9 +402,9 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 		const observer = new ResizeObserver(updateLayout);
 		observer.observe(nav);
 		return () => observer.disconnect();
-	}, [navItems, visible, unreadCount]);
+	}, [orderedNavItems, visible, unreadCount]);
 
-	const gridCols = Math.max(1, Math.ceil(navItems.length / 2));
+	const gridCols = Math.max(1, Math.ceil(orderedNavItems.length / 2));
 
 	const linkClass = ({ isActive }) =>
 		`headbar__link ${isActive ? "headbar__link--active" : ""}`;
@@ -384,23 +534,45 @@ export default function Sidebar({ user, onLogout, onLayoutChange }) {
 					{/* Row 2: Evenly Spaced Horizontal Navigation Tabs with Thin Dividers */}
 					<nav
 						ref={navRef}
-						className={`headbar__nav ${isTwoRow ? "headbar__nav--grid" : ""}`}
+						className={`headbar__nav ${isTwoRow ? "headbar__nav--grid" : ""} ${heldKey ? "headbar__nav--reordering" : ""}`}
 						style={isTwoRow ? { "--headbar-cols": gridCols } : undefined}
 						aria-label="Điều hướng chính"
 					>
-						{navItems.map(({ to, label, Icon, hasUnread }) => (
-							<div key={to} className="headbar__item">
-								<NavLink to={to} className={linkClass}>
-									<Icon size={14} />
-									<span>{label}</span>
-									{hasUnread && unreadCount > 0 && (
-										<span className="headbar__unread-badge">
-											{unreadCount > 9 ? "9+" : unreadCount}
-										</span>
-									)}
-								</NavLink>
-							</div>
-						))}
+						{orderedNavItems.map(({ to, label, Icon, hasUnread }) => {
+							const isHeld = heldKey === to;
+							const isDropTarget = dropTargetKey === to;
+							return (
+								<div
+									key={to}
+									data-tab-key={to}
+									className={`headbar__item ${isHeld ? "headbar__item--held" : ""} ${isDropTarget ? "headbar__item--drop-target" : ""}`}
+									onPointerDown={(e) => handleTabPointerDown(e, to)}
+									title="Nhấn giữ để đổi vị trí tab"
+								>
+									<NavLink
+										to={to}
+										className={linkClass}
+										draggable={false}
+										onDragStart={(e) => e.preventDefault()}
+										onClick={(e) => {
+											if (suppressClickRef.current) {
+												e.preventDefault();
+												e.stopPropagation();
+												suppressClickRef.current = false;
+											}
+										}}
+									>
+										<Icon size={14} />
+										<span>{label}</span>
+										{hasUnread && unreadCount > 0 && (
+											<span className="headbar__unread-badge">
+												{unreadCount > 9 ? "9+" : unreadCount}
+											</span>
+										)}
+									</NavLink>
+								</div>
+							);
+						})}
 					</nav>
 				</div>
 			</header>
