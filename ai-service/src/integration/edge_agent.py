@@ -428,7 +428,9 @@ class EdgeMqttAgent:
         # Ngưỡng khớp mặt, giữ track, khoảng cách cảnh báo, timeout / TTL check-entry, chính sách cảnh báo (V125):
         # dùng chung với endpoint REST. Khoảng min/max do Backend kiểm khi admin lưu.
         from ..pipeline.runtime_config import apply_runtime_config
-        apply_runtime_config(data, default_pipe, self.active_workers.values())
+        values, _ = apply_runtime_config(data, default_pipe, self.active_workers.values())
+        if "face_confidence" in values and self.face_detector is not None:
+            self.face_detector.score_threshold = values["face_confidence"]
 
         logger.info("✅ [EdgeAgent] Đã đồng bộ cấu hình hệ thống AI qua MQTT Retained.")
 

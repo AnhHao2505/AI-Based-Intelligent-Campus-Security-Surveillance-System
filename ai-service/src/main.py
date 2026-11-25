@@ -438,6 +438,8 @@ class AIRuntimeConfigRequest(BaseModel):
     max_inactive_seconds: Optional[float] = None
     unknown_alert_cooldown: Optional[float] = None
     face_match_threshold: Optional[float] = None
+    detection_confidence: Optional[float] = None
+    face_confidence: Optional[float] = None
     access_check_timeout_seconds: Optional[float] = None
     access_decision_cache_ttl: Optional[float] = None
     access_deny_cache_ttl: Optional[float] = None
@@ -470,7 +472,9 @@ async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
 
     with active_workers_lock:
         workers = list(active_workers.values())
-    apply_runtime_config(payload, default_pipeline, workers)
+    values, _ = apply_runtime_config(payload, default_pipeline, workers)
+    if "face_confidence" in values and face_detector is not None:
+        face_detector.score_threshold = values["face_confidence"]
     return {"success": True, **current_runtime_config()}
 
 @app.post("/api/v1/cameras/configure", dependencies=[Depends(require_service_key)])

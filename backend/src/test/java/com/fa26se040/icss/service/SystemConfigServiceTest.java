@@ -262,15 +262,17 @@ class SystemConfigServiceTest {
     }
 
     @Test
-    @DisplayName("V142: getAiRuntimeConfigMap chỉ gửi 8 khoá admin chỉnh, giá trị mặc định đúng")
+    @DisplayName("V145-V146: getAiRuntimeConfigMap gửi 10 khoá admin chỉnh, giá trị mặc định đúng")
     void testGetAiRuntimeConfigMap_AdminKeysWithDefaults() {
         when(systemConfigurationRepository.findAll()).thenReturn(List.of());
         systemConfigService.initCache();
 
         var map = systemConfigService.getAiRuntimeConfigMap();
         assertNotNull(map);
-        assertEquals(8, map.size());
+        assertEquals(10, map.size());
         assertEquals(0.50, map.get("face_match_threshold"));
+        assertEquals(0.35, map.get("detection_confidence"));
+        assertEquals(0.45, map.get("face_confidence"));
         assertEquals("22:00", map.get("after_hour_start"));
         assertEquals("06:00", map.get("after_hour_end"));
         assertEquals(30, map.get("unknown_alert_cooldown"));

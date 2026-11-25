@@ -19,10 +19,13 @@ from ..config import settings
 logger = logging.getLogger(__name__)
 
 # Khoá trong payload -> (thuộc tính settings, đích áp lên pipeline đang chạy).
-# Đích: ("engine", tên thuộc tính của FrameAnalysisEngine) | ("pipeline", tên thuộc tính của VideoPipeline) | None
+# Đích: ("engine", tên thuộc tính của FrameAnalysisEngine) | ("pipeline", tên thuộc tính của VideoPipeline)
+#     | ("human_detector", tên thuộc tính của HumanDetector) | ("face_detector", tên thuộc tính của FaceDetector) | None
 # (None: code đọc thẳng settings ở mỗi lần dùng, ví dụ ngưỡng khớp mặt, timeout / TTL check-entry).
 RUNTIME_FIELDS: Dict[str, Tuple[str, Optional[Tuple[str, str]]]] = {
     "face_match_threshold": ("FACE_MATCH_THRESHOLD", None),
+    "detection_confidence": ("DEFAULT_DETECTION_CONFIDENCE", ("human_detector", "conf_threshold")),
+    "face_confidence": ("DEFAULT_FACE_CONFIDENCE", ("face_detector", "score_threshold")),
     "max_inactive_seconds": ("DEFAULT_TRACK_MAX_INACTIVE_SECONDS", ("engine", "max_inactive_seconds")),
     "unknown_alert_cooldown": ("DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS", ("engine", "unknown_alert_cooldown")),
     "access_check_timeout_seconds": ("ACCESS_CHECK_TIMEOUT_SECONDS", None),
@@ -71,7 +74,7 @@ def parse_runtime_config(data: Dict[str, Any]) -> Tuple[Dict[str, float], List[s
         elif not math.isfinite(val) or val <= 0:
             errors.append(f"{key}={raw} phải là số dương")
             continue
-        if key == "face_match_threshold" and val > 1.0:
+        if key in ("face_match_threshold", "detection_confidence", "face_confidence") and val > 1.0:
             errors.append(f"{key}={raw} phải trong (0, 1]")
             continue
         values[key] = val
@@ -80,12 +83,21 @@ def parse_runtime_config(data: Dict[str, Any]) -> Tuple[Dict[str, float], List[s
 
 def _apply_to_pipeline(pipeline: Any, values: Dict[str, float]) -> None:
     engine = getattr(pipeline, "analysis_engine", None)
+    human_detector = getattr(pipeline, "human_detector", None)
+    face_detector = getattr(pipeline, "face_detector", None)
     for key, val in values.items():
         target = RUNTIME_FIELDS[key][1]
         if target is None:
             continue
         kind, attr = target
-        obj = engine if kind == "engine" else pipeline
+        if kind == "engine":
+            obj = engine
+        elif kind == "human_detector":
+            obj = human_detector
+        elif kind == "face_detector":
+            obj = face_detector
+        else:
+            obj = pipeline
         if obj is not None:
             setattr(obj, attr, val)
 

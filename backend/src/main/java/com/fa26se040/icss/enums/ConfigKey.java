@@ -28,6 +28,10 @@ public enum ConfigKey {
     ACCESS_LEVEL_DEFAULT_ADMIN("ACCESS_LEVEL_DEFAULT_ADMIN", "3"),
     // V125: mặc định 0.50 theo đánh giá trên camera thật (0.75 khiến người đã đăng ký gần như không bao giờ được nhận ra)
     AI_FACE_MATCH_THRESHOLD("AI_FACE_MATCH_THRESHOLD", "0.50"),
+    // V145: ngưỡng độ tin cậy phát hiện người YOLO (trước đây cố định 0.35 trong ai-service)
+    AI_DETECTION_CONFIDENCE("AI_DETECTION_CONFIDENCE", "0.35"),
+    // V146: ngưỡng độ tin cậy phát hiện khuôn mặt SCRFD (trước đây cố định 0.45 trong ai-service)
+    AI_FACE_CONFIDENCE("AI_FACE_CONFIDENCE", "0.45"),
     AI_AFTER_HOUR_START("AI_AFTER_HOUR_START", "22:00"),
     AI_AFTER_HOUR_END("AI_AFTER_HOUR_END", "06:00"),
     // V142: bỏ khỏi màn Cấu hình AI_TRACK_MAX_INACTIVE_SECONDS, AI_ACCESS_CHECK_TIMEOUT_SECONDS,
