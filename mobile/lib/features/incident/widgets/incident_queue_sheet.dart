@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../models/incident_model.dart';
 import '../providers/incident_provider.dart';
@@ -23,10 +23,8 @@ class IncidentQueueSheet extends StatelessWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => IncidentQueueSheet(
-        onClaim: onClaim,
-        onPreviewOnMap: onPreviewOnMap,
-      ),
+      builder: (ctx) =>
+          IncidentQueueSheet(onClaim: onClaim, onPreviewOnMap: onPreviewOnMap),
     );
   }
 
@@ -121,7 +119,10 @@ class IncidentQueueSheet extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEF4444),
                       borderRadius: BorderRadius.circular(6),
@@ -170,7 +171,10 @@ class IncidentQueueSheet extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFF1E293B),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: color.withAlpha(120), width: 1.2),
+                        border: Border.all(
+                          color: color.withAlpha(120),
+                          width: 1.2,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -179,11 +183,16 @@ class IncidentQueueSheet extends StatelessWidget {
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
                                 decoration: BoxDecoration(
                                   color: color.withAlpha(40),
                                   borderRadius: BorderRadius.circular(3),
-                                  border: Border.all(color: color.withAlpha(160)),
+                                  border: Border.all(
+                                    color: color.withAlpha(160),
+                                  ),
                                 ),
                                 child: Text(
                                   item.severityLabel,
@@ -195,7 +204,11 @@ class IncidentQueueSheet extends StatelessWidget {
                                 ),
                               ),
                               const Spacer(),
-                              Icon(Icons.access_time_rounded, size: 12, color: Colors.white.withAlpha(130)),
+                              Icon(
+                                Icons.access_time_rounded,
+                                size: 12,
+                                color: Colors.white.withAlpha(130),
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 item.detectedAt != null
@@ -230,7 +243,11 @@ class IncidentQueueSheet extends StatelessWidget {
                                     const SizedBox(height: 4),
                                     Row(
                                       children: [
-                                        const Icon(Icons.videocam_outlined, size: 14, color: Color(0xFF38BDF8)),
+                                        const Icon(
+                                          Icons.videocam_outlined,
+                                          size: 14,
+                                          color: Color(0xFF38BDF8),
+                                        ),
                                         const SizedBox(width: 4),
                                         Text(
                                           item.cameraCode,
@@ -241,13 +258,24 @@ class IncidentQueueSheet extends StatelessWidget {
                                           ),
                                         ),
                                         const SizedBox(width: 8),
-                                        const Text('•', style: TextStyle(color: Colors.white38)),
+                                        const Text(
+                                          '•',
+                                          style: TextStyle(
+                                            color: Colors.white38,
+                                          ),
+                                        ),
                                         const SizedBox(width: 8),
-                                        const Icon(Icons.location_on_outlined, size: 14, color: Colors.white70),
+                                        const Icon(
+                                          Icons.location_on_outlined,
+                                          size: 14,
+                                          color: Colors.white70,
+                                        ),
                                         const SizedBox(width: 4),
                                         Expanded(
                                           child: Text(
-                                            item.isCorridor && item.displayBuildingFloor != null
+                                            item.isCorridor &&
+                                                    item.displayBuildingFloor !=
+                                                        null
                                                 ? '${item.displayLocationName} • ${item.displayBuildingFloor}'
                                                 : item.displayLocationName,
                                             style: const TextStyle(
@@ -262,7 +290,8 @@ class IncidentQueueSheet extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              if (item.imageUrl != null && item.imageUrl!.trim().isNotEmpty) ...[
+                              if (item.imageUrl != null &&
+                                  item.imageUrl!.trim().isNotEmpty) ...[
                                 const SizedBox(width: 10),
                                 AuthorizedNetworkImage(
                                   imageUrl: item.imageUrl,
@@ -276,7 +305,8 @@ class IncidentQueueSheet extends StatelessWidget {
                             ],
                           ),
 
-                          if (item.resolutionNotes != null && item.resolutionNotes!.isNotEmpty) ...[
+                          if (item.resolutionNotes != null &&
+                              item.resolutionNotes!.isNotEmpty) ...[
                             const SizedBox(height: 6),
                             Text(
                               item.resolutionNotes!,
@@ -299,16 +329,28 @@ class IncidentQueueSheet extends StatelessWidget {
                                 child: OutlinedButton.icon(
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.white70,
-                                    side: const BorderSide(color: Color(0xFF475569)),
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                                    side: const BorderSide(
+                                      color: Color(0xFF475569),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
                                   ),
                                   onPressed: () {
                                     Navigator.pop(context);
                                     onPreviewOnMap(item);
                                   },
-                                  icon: const Icon(Icons.location_searching_rounded, size: 15),
-                                  label: const Text('Xem vị trí', style: TextStyle(fontSize: 12)),
+                                  icon: const Icon(
+                                    Icons.location_searching_rounded,
+                                    size: 15,
+                                  ),
+                                  label: const Text(
+                                    'Xem vị trí',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -319,25 +361,41 @@ class IncidentQueueSheet extends StatelessWidget {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF2563EB),
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
                                     elevation: 2,
                                   ),
                                   onPressed: () {
                                     // K8: đang mời bảo vệ khác (STEP1) → không claim, báo lý do
                                     if (isClaimLocked) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text(IncidentProvider.notOfferedMessage)),
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            IncidentProvider.notOfferedMessage,
+                                          ),
+                                        ),
                                       );
                                       return;
                                     }
                                     Navigator.pop(context);
                                     onClaim(item);
                                   },
-                                  icon: const Icon(Icons.navigation_rounded, size: 15),
+                                  icon: const Icon(
+                                    Icons.navigation_rounded,
+                                    size: 15,
+                                  ),
                                   label: const Text(
                                     'Tiếp nhận & Đi',
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -349,12 +407,19 @@ class IncidentQueueSheet extends StatelessWidget {
                               padding: EdgeInsets.only(top: 8),
                               child: Row(
                                 children: [
-                                  Icon(Icons.lock_clock_outlined, size: 14, color: Color(0xFF94A3B8)),
+                                  Icon(
+                                    Icons.lock_clock_outlined,
+                                    size: 14,
+                                    color: Color(0xFF94A3B8),
+                                  ),
                                   SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
                                       IncidentProvider.notOfferedMessage,
-                                      style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: Color(0xFF94A3B8),
+                                      ),
                                     ),
                                   ),
                                 ],

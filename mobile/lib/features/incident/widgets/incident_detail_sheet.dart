@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../models/incident_model.dart';
 import '../providers/incident_provider.dart';
@@ -100,39 +100,39 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
     final provider = context.watch<IncidentProvider>();
 
     return Material(
-        elevation: 16,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-        color: const Color(0xFF0F172A),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-            border: Border.all(color: const Color(0xFF334155), width: 1.5),
-          ),
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 12,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 12,
-          ),
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85,
-          ),
-          child: SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Drag handle
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF64748B),
-                      borderRadius: BorderRadius.circular(1),
-                    ),
+      elevation: 16,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+      color: const Color(0xFF0F172A),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+          border: Border.all(color: const Color(0xFF334155), width: 1.5),
+        ),
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 12,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+        ),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF64748B),
+                    borderRadius: BorderRadius.circular(1),
                   ),
                 ),
+              ),
               const SizedBox(height: 8),
 
               // Title Header & Collapse Toggle
@@ -167,7 +167,9 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
                           widget.incident.isCorridor
                               ? [
                                   widget.incident.displayLocationName,
-                                  if (widget.incident.displayBuildingFloor != null) widget.incident.displayBuildingFloor!,
+                                  if (widget.incident.displayBuildingFloor !=
+                                      null)
+                                    widget.incident.displayBuildingFloor!,
                                 ].join(' • ')
                               : '${widget.incident.cameraCode} • ${widget.incident.displayLocationName}',
                           style: const TextStyle(
@@ -509,6 +511,6 @@ class _IncidentDetailSheetState extends State<IncidentDetailSheet> {
           ),
         ),
       ),
-  );
-}
+    );
+  }
 }
