@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:latlong2/latlong.dart' as ll;
 
 import '../models/area_pin_model.dart';
@@ -7,7 +7,8 @@ import '../models/area_pin_model.dart';
 const String osmAttributionText = '© OpenStreetMap contributors';
 
 /// URL style OpenFreeMap giống bản đồ Web (`OPENFREEMAP_STYLE_URL`), tránh bị rate-limit từ raster `tile.openstreetmap.org`.
-const String openFreeMapBrightStyleUrl = 'https://tiles.openfreemap.org/styles/bright';
+const String openFreeMapBrightStyleUrl =
+    'https://tiles.openfreemap.org/styles/bright';
 
 String campusMapStyleJson({required bool dark}) {
   return openFreeMapBrightStyleUrl;
@@ -75,7 +76,9 @@ const List<String> campusLayerOrder = [
 }) {
   AreaPinModel? incident;
   if (incidentAreaId != null) {
-    if (incidentArea != null && incidentArea.id == incidentAreaId && incidentArea.centerLatitude != 0.0) {
+    if (incidentArea != null &&
+        incidentArea.id == incidentAreaId &&
+        incidentArea.centerLatitude != 0.0) {
       incident = incidentArea;
     } else {
       for (final p in filtered) {
@@ -84,7 +87,10 @@ const List<String> campusLayerOrder = [
           break;
         }
       }
-      if (incident == null && selected != null && selected.id == incidentAreaId && selected.centerLatitude != 0.0) {
+      if (incident == null &&
+          selected != null &&
+          selected.id == incidentAreaId &&
+          selected.centerLatitude != 0.0) {
         incident = selected;
       }
     }
@@ -94,14 +100,19 @@ const List<String> campusLayerOrder = [
       if (p.id != incident?.id) p,
   ];
   final hasSelectedCoords = selected != null && selected.centerLatitude != 0.0;
-  if (hasSelectedCoords && selected.id != incident?.id && !areas.any((x) => x.id == selected.id)) {
+  if (hasSelectedCoords &&
+      selected.id != incident?.id &&
+      !areas.any((x) => x.id == selected.id)) {
     areas.add(selected);
   }
   return (areas: areas, incident: incident);
 }
 
 /// GeoJSON ghim khu: mỗi khu một điểm, thuộc tính màu theo cấp khu (AreaPinModel.levelColor) và cờ đang chọn.
-Map<String, dynamic> pinsGeoJson(List<AreaPinModel> pins, {String? selectedId}) {
+Map<String, dynamic> pinsGeoJson(
+  List<AreaPinModel> pins, {
+  String? selectedId,
+}) {
   return {
     'type': 'FeatureCollection',
     'features': [
@@ -125,16 +136,16 @@ Map<String, dynamic> pinsGeoJson(List<AreaPinModel> pins, {String? selectedId}) 
 }
 
 Map<String, dynamic> pointGeoJson(ll.LatLng? point) => {
-      'type': 'FeatureCollection',
-      'features': [
-        if (point != null)
-          {
-            'type': 'Feature',
-            'properties': <String, dynamic>{},
-            'geometry': {
-              'type': 'Point',
-              'coordinates': [point.longitude, point.latitude],
-            },
-          },
-      ],
-    };
+  'type': 'FeatureCollection',
+  'features': [
+    if (point != null)
+      {
+        'type': 'Feature',
+        'properties': <String, dynamic>{},
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [point.longitude, point.latitude],
+        },
+      },
+  ],
+};
