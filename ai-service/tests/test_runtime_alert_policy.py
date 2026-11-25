@@ -20,7 +20,10 @@ def _fake_pipeline():
     engine = SimpleNamespace(access_grace_period=1.5, unauthorized_alert_cooldown=30.0,
                              max_inactive_seconds=2.0, unknown_alert_cooldown=30.0,
                              after_hour_start="22:00", after_hour_end="06:00")
-    return SimpleNamespace(analysis_engine=engine, _suspicious_motion_cooldown=5.0, suspicious_motion_min_duration=0.5)
+    human_detector = SimpleNamespace(conf_threshold=0.35)
+    face_detector = SimpleNamespace(score_threshold=0.45)
+    return SimpleNamespace(analysis_engine=engine, human_detector=human_detector, face_detector=face_detector,
+                           _suspicious_motion_cooldown=5.0, suspicious_motion_min_duration=0.5)
 
 
 class TestRuntimeConfig(unittest.TestCase):
@@ -53,18 +56,23 @@ class TestRuntimeConfig(unittest.TestCase):
         default_pipe = _fake_pipeline()
         worker = SimpleNamespace(pipeline=_fake_pipeline())
         values, errors = apply_runtime_config(
-            {"face_match_threshold": 0.5, "max_inactive_seconds": 8, "identity_grace_seconds": 1.0,
+            {"face_match_threshold": 0.5, "detection_confidence": 0.42, "face_confidence": 0.52,
+             "max_inactive_seconds": 8, "identity_grace_seconds": 1.0,
              "unauthorized_alert_cooldown": 60, "suspicious_motion_cooldown": 20,
              "suspicious_motion_min_duration": 1.2},
             default_pipe, [worker],
         )
         self.assertEqual(errors, [])
         self.assertEqual(settings.FACE_MATCH_THRESHOLD, 0.5)
+        self.assertEqual(settings.DEFAULT_DETECTION_CONFIDENCE, 0.42)
+        self.assertEqual(settings.DEFAULT_FACE_CONFIDENCE, 0.52)
         self.assertEqual(settings.ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS, 1.0)
         self.assertEqual(settings.DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS, 60.0)
         self.assertEqual(settings.SUSPICIOUS_MOTION_COOLDOWN_SECONDS, 20.0)
         self.assertEqual(settings.SUSPICIOUS_MOTION_MIN_DURATION, 1.2)
         for pipe in (default_pipe, worker.pipeline):
+            self.assertEqual(pipe.human_detector.conf_threshold, 0.42)
+            self.assertEqual(pipe.face_detector.score_threshold, 0.52)
             self.assertEqual(pipe.analysis_engine.max_inactive_seconds, 8.0)
             self.assertEqual(pipe.analysis_engine.access_grace_period, 1.0)
             self.assertEqual(pipe.analysis_engine.unauthorized_alert_cooldown, 60.0)

@@ -266,7 +266,7 @@ class StorageService:
 
         try:
             if self.upload_bytes(self.bucket_evidence, object_name, file_bytes, "image/jpeg"):
-                logger.info(f"[MINIO SSE-S3] Đã lưu ảnh bằng chứng vi phạm: {object_key}")
+                logger.debug(f"[MINIO SSE-S3] Đã lưu ảnh bằng chứng vi phạm: {object_key}")
                 return object_key
             else:
                 logger.error(f"🚨 [StorageService] MinIO upload_bytes trả về False cho {object_key}")
@@ -314,7 +314,7 @@ class StorageService:
                     content_type="video/mp4",
                     sse=SseS3()
                 )
-                logger.info(f"☁️ [MinIO SSE-S3] Đã tải video thành công lên bucket [{bucket_name}]: {object_name}")
+                logger.debug(f"☁️ [MinIO SSE-S3] Đã tải video thành công lên bucket [{bucket_name}]: {object_name}")
                 return True
             except Exception as e:
                 if _is_sse_rejected(e):

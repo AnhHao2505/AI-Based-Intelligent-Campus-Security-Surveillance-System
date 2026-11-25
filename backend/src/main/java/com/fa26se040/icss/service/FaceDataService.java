@@ -374,10 +374,13 @@ public class FaceDataService {
     /**
      * Lỗi RPC EXTRACT_FACE_EMBEDDING của thiết bị biên (ai-service/src/integration/edge_agent.py) -> cùng kết quả với nhánh HTTP:
      * <ul>
-     *   <li>lỗi do ảnh: ERR_NO_FACE_DETECTED -> 422 {@link #NO_FACE_MESSAGE} (như HTTP 400 errorCode ERR_NO_FACE_DETECTED).
-     *       Đây là mã lỗi ảnh duy nhất edge đang dùng: nhiều hơn 1 mặt không phải lỗi RPC (edge trả success, face_count &gt; 1,
-     *       registerFace kiểm chung như nhánh HTTP); ảnh hỏng / không giải mã được không có mã riêng (ValueError rơi vào
-     *       ERR_EDGE_INTERNAL) nên không tách được khỏi lỗi nội bộ;</li>
+     *   <li>lỗi do ảnh:
+     *       <ul>
+     *         <li>{@code ERR_NO_FACE_DETECTED} -> 422 {@link #NO_FACE_MESSAGE} (như HTTP 400 errorCode ERR_NO_FACE_DETECTED).
+     *             Nhiều hơn 1 mặt không phải lỗi RPC (edge trả success, face_count &gt; 1, registerFace kiểm chung như nhánh HTTP);</li>
+     *         <li>{@code ERR_IMAGE_DECODE} -> 422 {@link #IMAGE_UNPROCESSABLE_MESSAGE} (như HTTP 400 khi decode_image_safely lỗi).</li>
+     *       </ul>
+     *   </li>
      *   <li>mọi mã khác (ERR_MODEL_NOT_READY, ERR_FACE_STAGING_NOT_FOUND, ERR_EDGE_INTERNAL, ERR_RPC_UNKNOWN_ACTION), mã lạ,
      *       thiếu mã -> 503 {@link #AI_SERVICE_ERROR_MESSAGE} (như ai-service trả 5xx).</li>
      * </ul>
@@ -387,6 +390,9 @@ public class FaceDataService {
     static RuntimeException edgeExtractionFailure(String errorCode) {
         if (AiFaceRegistrationErrors.EDGE_NO_FACE_ERROR_CODE.equals(errorCode)) {
             return new FaceDetectionException(FaceErrorCode.ERR_FACE_005, NO_FACE_MESSAGE);
+        }
+        if (AiFaceRegistrationErrors.EDGE_IMAGE_DECODE_ERROR_CODE.equals(errorCode)) {
+            return new FaceDetectionException(FaceErrorCode.ERR_FACE_007, IMAGE_UNPROCESSABLE_MESSAGE);
         }
         return new AiServiceUnavailableException(AI_SERVICE_ERROR_MESSAGE);
     }

@@ -22,6 +22,9 @@ from ..utils.security import mask_rtsp_url
 
 logger = logging.getLogger(__name__)
 
+# Mã lỗi cố định khi ảnh không giải mã được (ảnh hỏng, sai định dạng, dữ liệu rỗng) trong RPC EXTRACT_FACE_EMBEDDING.
+ERR_IMAGE_DECODE = "ERR_IMAGE_DECODE"
+
 
 def _format_mediamtx_path(camera_code: str) -> str:
     if not camera_code:
@@ -425,7 +428,9 @@ class EdgeMqttAgent:
         # Ngưỡng khớp mặt, giữ track, khoảng cách cảnh báo, timeout / TTL check-entry, chính sách cảnh báo (V125):
         # dùng chung với endpoint REST. Khoảng min/max do Backend kiểm khi admin lưu.
         from ..pipeline.runtime_config import apply_runtime_config
-        apply_runtime_config(data, default_pipe, self.active_workers.values())
+        values, _ = apply_runtime_config(data, default_pipe, self.active_workers.values())
+        if "face_confidence" in values and self.face_detector is not None:
+            self.face_detector.score_threshold = values["face_confidence"]
 
         logger.info("✅ [EdgeAgent] Đã đồng bộ cấu hình hệ thống AI qua MQTT Retained.")
 
@@ -634,7 +639,7 @@ class EdgeMqttAgent:
         code = str(payload.get("code") or "")
 
         raw_bytes = self.storage.download_bytes(bucket, object_key)
-        if not raw_bytes:
+        if raw_bytes is None:
             return {
                 "correlationId": corr_id,
                 "success": False,
@@ -644,7 +649,16 @@ class EdgeMqttAgent:
             }
 
         from ..utils.image_utils import decode_image_safely
-        img, _ = decode_image_safely(raw_bytes)
+        try:
+            img, _ = decode_image_safely(raw_bytes)
+        except Exception as img_err:
+            return {
+                "correlationId": corr_id,
+                "success": False,
+                "errorCode": ERR_IMAGE_DECODE,
+                "errorMessage": str(img_err) or "Không thể giải mã định dạng ảnh hoặc file bị hỏng",
+                "latencyMs": int((time.time() - t0) * 1000),
+            }
 
         detector = self.face_detector
         if detector is None:

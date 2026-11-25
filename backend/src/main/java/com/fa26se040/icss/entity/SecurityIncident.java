@@ -120,6 +120,10 @@ public class SecurityIncident {
     @Column(name = "ai_session_id", length = 64)
     private String aiSessionId;
 
+    @Column(name = "repeat_count", nullable = false)
+    @Builder.Default
+    private Integer repeatCount = 1;
+
     @Version
     @Column(name = "version", nullable = false)
     @Builder.Default
@@ -144,6 +148,9 @@ public class SecurityIncident {
         }
         if (this.version == null) {
             this.version = 0;
+        }
+        if (this.repeatCount == null || this.repeatCount < 1) {
+            this.repeatCount = 1;
         }
     }
 

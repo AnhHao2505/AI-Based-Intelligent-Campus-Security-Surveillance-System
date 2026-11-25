@@ -230,7 +230,7 @@ class SecurityMqttClient:
         if self.is_connected:
             with self._send_lock:
                 if self._publish_row(event.event_id, topic_name, payload):
-                    logger.info(f"📡 [MQTT] Đã gửi cảnh báo {event.event_type} (Track #{event.track_id}) tới topic {topic_name}")
+                    logger.debug(f"📡 [MQTT] Đã gửi cảnh báo {event.event_type} (Track #{event.track_id}) tới topic {topic_name}")
         else:
             logger.warning(f"⚠️ [MQTT] Chưa kết nối broker: cảnh báo {event.event_type} ({event.event_id}) đã lưu outbox, sẽ gửi khi kết nối lại.")
         return True

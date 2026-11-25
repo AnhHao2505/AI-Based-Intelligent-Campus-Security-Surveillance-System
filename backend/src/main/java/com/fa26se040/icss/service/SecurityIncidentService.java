@@ -90,6 +90,9 @@ public class SecurityIncidentService {
     @Autowired(required = false)
     private com.fa26se040.icss.config.WebSocketSessionRegistry webSocketSessionRegistry;
 
+    @Autowired(required = false)
+    private SystemConfigService systemConfigService;
+
     /** V129: loại sự kiện AI gửi khi nhận ra mặt sau khi đã chốt cảnh báo người lạ (không phải sự cố mới). */
     public static final String IDENTITY_UPDATE_EVENT = "IDENTITY_UPDATE";
     public static final String IDENTITY_AUTHORIZED = "AUTHORIZED";
@@ -213,9 +216,33 @@ public class SecurityIncidentService {
             };
         }
 
+        String camCode = eventDto.getCameraCode() != null ? eventDto.getCameraCode() : "CAM-UNKNOWN";
+        String extractedSubjectCode = subjectUserCodeOf(cleanDetails);
+        if (!isTestEvent && extractedSubjectCode != null && !extractedSubjectCode.isBlank()
+                && ("UNAUTHORIZED_PERSON".equals(normalizedEventType) || "PERSON_INTRUSION".equals(normalizedEventType))) {
+            int dedupMinutes = systemConfigService != null
+                    ? systemConfigService.getIntWithinBounds(com.fa26se040.icss.enums.ConfigKey.INCIDENT_DEDUP_WINDOW_MINUTES)
+                    : 5;
+            java.time.OffsetDateTime dedupWindowStart = detectedAt.minusMinutes(dedupMinutes);
+            java.util.Optional<SecurityIncident> existingOpen = incidentRepository
+                    .findFirstByCameraCodeAndEventTypeAndSubjectUserCodeAndStatusInAndDetectedAtAfterOrderByDetectedAtDesc(
+                            camCode,
+                            normalizedEventType,
+                            extractedSubjectCode,
+                            List.of(IncidentStatus.NEW, IncidentStatus.CLAIMED),
+                            dedupWindowStart);
+            if (existingOpen.isPresent()) {
+                SecurityIncident current = existingOpen.get();
+                mergeIntoOpenIncident(current, detectedAt, imageUrl, eventDto.getEventId());
+                log.info("Gộp cảnh báo [{}] cho [{}] tại camera [{}] vào sự cố đang mở #{} (cửa sổ {} phút).",
+                        normalizedEventType, extractedSubjectCode, camCode, current.getId(), dedupMinutes);
+                return null;
+            }
+        }
+
         SecurityIncident incident = SecurityIncident.builder()
                 .eventId(eventDto.getEventId())
-                .cameraCode(eventDto.getCameraCode() != null ? eventDto.getCameraCode() : "CAM-UNKNOWN")
+                .cameraCode(camCode)
                 .area(area)
                 .building(building)
                 .eventType(normalizedEventType)
@@ -228,10 +255,8 @@ public class SecurityIncidentService {
                 .aiSessionId(truncate(eventDto.getRoiSessionId(), 64))
                 .build();
         incident.setSeverity(resolveSeverity(normalizedEventType, effectiveAreaLevel, locationName, detectedAt));
-        // V93 (BR-DSP-02): mã người bị nhận diện, để loại người đó khỏi danh sách mời. Gọi parser có sẵn, không sửa regex.
-        if (incidentDispatchService != null) {
-            incident.setSubjectUserCode(subjectUserCodeOf(cleanDetails));
-        }
+        // V93 (BR-DSP-02): luôn lưu mã người bị nhận diện để phục vụ điều phối và gộp sự cố 5 phút.
+        incident.setSubjectUserCode(extractedSubjectCode);
 
         SecurityIncident saved = incidentRepository.save(incident);
         // Ghi xuống DB ngay: tin trùng đến cùng lúc vấp unique index event_id tại đây, trước mọi tác dụng phụ bên dưới
@@ -626,17 +651,59 @@ public class SecurityIncidentService {
 
     private IncidentDetailResponse applyUnauthorizedIdentity(SecurityIncident incident, IncidentEventDto dto, String code,
                                                              String who, String areaName, Camera cam) {
-        String cleanDetails = dto.getDetails() != null ? dto.getDetails().replaceAll("\\[[A-Z0-9_]+\\]\\s*", "").trim() : "";
-        if ("UNKNOWN_PERSON".equals(incident.getEventType())) {
-            incident.setEventType("UNAUTHORIZED_PERSON");
+        String targetEventType = "UNKNOWN_PERSON".equals(incident.getEventType())
+                ? "UNAUTHORIZED_PERSON"
+                : incident.getEventType();
+        String cleanCode = code != null && !code.isBlank() ? truncate(code, 50) : null;
+        String newImageUrl = normalizeImageUrl(dto.getImageUrl());
+
+        // Chỉ gộp thẻ tạm (#2) vào thẻ đang mở (#1) khi #2 vẫn ở trạng thái NEW (tránh mất thao tác CLAIMED của bảo vệ).
+        if (incident.getStatus() == IncidentStatus.NEW && cleanCode != null
+                && ("UNAUTHORIZED_PERSON".equals(targetEventType) || "PERSON_INTRUSION".equals(targetEventType))) {
+            int dedupMinutes = systemConfigService != null
+                    ? systemConfigService.getIntWithinBounds(com.fa26se040.icss.enums.ConfigKey.INCIDENT_DEDUP_WINDOW_MINUTES)
+                    : 5;
+            OffsetDateTime refTime = incident.getDetectedAt() != null ? incident.getDetectedAt() : OffsetDateTime.now();
+            OffsetDateTime dedupWindowStart = refTime.minusMinutes(dedupMinutes);
+            Optional<SecurityIncident> existingOpen = incidentRepository
+                    .findFirstByCameraCodeAndEventTypeAndSubjectUserCodeAndStatusInAndDetectedAtAfterOrderByDetectedAtDesc(
+                            incident.getCameraCode(),
+                            targetEventType,
+                            cleanCode,
+                            List.of(IncidentStatus.NEW, IncidentStatus.CLAIMED),
+                            dedupWindowStart)
+                    .filter(open -> !open.getId().equals(incident.getId()));
+            if (existingOpen.isPresent()) {
+                SecurityIncident primary = existingOpen.get();
+                mergeIntoOpenIncident(primary, refTime, newImageUrl, dto.getEventId());
+
+                OffsetDateTime closedAt = OffsetDateTime.now();
+                incident.setStatus(IncidentStatus.RESOLVED_DISMISSED);
+                incident.setResolvedAt(closedAt);
+                incident.setResolutionNotes("Đã gộp vào sự cố #" + primary.getId());
+                SecurityIncident closedTemp = incidentRepository.saveAndFlush(incident);
+
+                if (incidentDispatchService != null) {
+                    incidentDispatchService.cancelPendingOffersForClosedIncident(closedTemp.getId(), closedAt);
+                }
+
+                Map<String, Object> closePayload = baseIdentityPayload(closedTemp);
+                closePayload.put("mergedIntoIncidentId", primary.getId());
+                sendIncidentUpdateAfterCommit(closePayload);
+                log.info("[IDENTITY_UPDATE] Gộp sự cố tạm [{}] ({}) vào sự cố đang mở [{}] ({})",
+                        closedTemp.getId(), targetEventType, primary.getId(), cleanCode);
+                return mapToDetailResponse(primary, cam);
+            }
         }
+
+        String cleanDetails = dto.getDetails() != null ? dto.getDetails().replaceAll("\\[[A-Z0-9_]+\\]\\s*", "").trim() : "";
+        incident.setEventType(targetEventType);
         if (!cleanDetails.isBlank()) {
             incident.setResolutionNotes(cleanDetails);
         }
-        if (code != null) {
-            incident.setSubjectUserCode(truncate(code, 50));
+        if (cleanCode != null) {
+            incident.setSubjectUserCode(cleanCode);
         }
-        String newImageUrl = normalizeImageUrl(dto.getImageUrl());
         if (newImageUrl != null && !newImageUrl.isBlank()) {
             incident.setImageUrl(newImageUrl);
         }
@@ -658,6 +725,25 @@ public class SecurityIncidentService {
         sendIncidentUpdateAfterCommit(payload);
         log.info("[IDENTITY_UPDATE] Cập nhật sự cố [{}] theo danh tính: {} không có quyền", saved.getId(), who);
         return mapToDetailResponse(saved, cam);
+    }
+
+    private void mergeIntoOpenIncident(SecurityIncident primary, OffsetDateTime detectedAt, String imageUrl, String repeatEventId) {
+        int nextCount = (primary.getRepeatCount() != null && primary.getRepeatCount() >= 1 ? primary.getRepeatCount() : 1) + 1;
+        primary.setRepeatCount(nextCount);
+        primary.setDetectedAt(detectedAt);
+        if (imageUrl != null && !imageUrl.isBlank()) {
+            primary.setImageUrl(imageUrl);
+        }
+        SecurityIncident saved = incidentRepository.saveAndFlush(primary);
+        Map<String, Object> repeatPayload = baseIdentityPayload(saved);
+        repeatPayload.put("repeatAlert", true);
+        repeatPayload.put("repeatCount", nextCount);
+        repeatPayload.put("repeatEventId", repeatEventId);
+        repeatPayload.put("detectedAt", detectedAt.toString());
+        if (saved.getImageUrl() != null) {
+            repeatPayload.put("imageUrl", saved.getImageUrl());
+        }
+        sendIncidentUpdateAfterCommit(repeatPayload);
     }
 
     private Map<String, Object> baseIdentityPayload(SecurityIncident incident) {
@@ -951,6 +1037,7 @@ public class SecurityIncidentService {
                 .radioChannel("Kênh " + (i.getBuilding() != null ? i.getBuilding() : "Chính"))
                 .severity(i.getSeverity())
                 .dispatchStage(i.getDispatchStage())
+                .repeatCount(i.getRepeatCount() != null ? i.getRepeatCount() : 1)
                 .build();
     }
 

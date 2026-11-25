@@ -89,6 +89,14 @@ public interface SecurityIncidentRepository extends JpaRepository<SecurityIncide
         /** V129: sự cố mới nhất của một phiên AI trên camera (IDENTITY_UPDATE tìm lại sự cố người lạ đã tạo). */
         Optional<SecurityIncident> findFirstByAiSessionIdAndCameraCodeOrderByDetectedAtDesc(String aiSessionId, String cameraCode);
 
+        /** Gộp sự cố đang mở (NEW / IN_PROGRESS) cho cùng cá nhân có danh tính trên cùng camera trong cửa sổ thời gian ngắn. */
+        Optional<SecurityIncident> findFirstByCameraCodeAndEventTypeAndSubjectUserCodeAndStatusInAndDetectedAtAfterOrderByDetectedAtDesc(
+                        String cameraCode,
+                        String eventType,
+                        String subjectUserCode,
+                        List<IncidentStatus> statuses,
+                        java.time.OffsetDateTime since);
+
         @Query("SELECT i FROM SecurityIncident i " +
                         "LEFT JOIN FETCH i.area a " +
                         "LEFT JOIN FETCH i.claimedBy cb " +

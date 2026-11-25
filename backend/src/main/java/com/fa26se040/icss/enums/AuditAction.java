@@ -41,5 +41,9 @@ public enum AuditAction {
     PASSWORD_RESET_REQUESTED,
     PASSWORD_RESET_COMPLETED,
     // V142: camera stream lifecycle
-    STOP_STREAM
+    STOP_STREAM,
+    // V144: điểm danh ca trực bảo vệ
+    CHECK_IN,
+    CHECK_OUT,
+    MARK_ABSENT
 }

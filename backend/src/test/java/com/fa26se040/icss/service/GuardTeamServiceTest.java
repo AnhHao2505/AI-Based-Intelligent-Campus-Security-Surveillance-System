@@ -1,11 +1,17 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardTeamAuditSnapshot;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.dto.guard.GuardTeamCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardTeamDto;
+import com.fa26se040.icss.dto.guard.GuardTeamMemberAssignRequest;
 import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.GuardTeam;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
+import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.enums.ShiftType;
 import com.fa26se040.icss.repository.BuildingRepository;
@@ -45,6 +51,9 @@ class GuardTeamServiceTest {
     @Mock
     private GuardShiftRepository shiftRepository;
 
+    @Mock
+    private AuditService auditService;
+
     @InjectMocks
     private GuardTeamService guardTeamService;
 
@@ -53,6 +62,8 @@ class GuardTeamServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(auditService.resolveCurrentActor("GUARD_TEAM_SERVICE"))
+                .thenReturn(AuditActor.system("GUARD_TEAM_SERVICE"));
         activeTeam = GuardTeam.builder()
                 .id(UUID.randomUUID())
                 .teamName("Đội 1")
@@ -284,5 +295,88 @@ class GuardTeamServiceTest {
         assertEquals("Đội 1 mới", dto.getTeamName());
         assertEquals(oldBuildingId, dto.getBuildingId());
         assertEquals("Tòa Alpha", dto.getBuildingName());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_TEAM),
+                eq(AuditAction.UPDATE),
+                eq(teamId.toString()),
+                isNull(),
+                isNull(),
+                any(GuardTeamAuditSnapshot.class),
+                any(GuardTeamAuditSnapshot.class),
+                contains("Đội 1 mới"),
+                any(AuditActor.class)
+        );
+    }
+
+    @Test
+    @DisplayName("Audit: Tạo mới, tái kích hoạt, xóa và phân công thành viên đội bảo vệ đều ghi audit GUARD_TEAM")
+    void testGuardTeamLifecycle_RecordsAudit() {
+        // 1. CREATE
+        when(teamRepository.findByTeamNameIgnoreCase("Đội Audit")).thenReturn(Optional.empty());
+        when(teamRepository.save(any(GuardTeam.class))).thenAnswer(inv -> {
+            GuardTeam t = inv.getArgument(0);
+            if (t.getId() == null) t.setId(UUID.randomUUID());
+            return t;
+        });
+        GuardTeamDto created = guardTeamService.createTeam(GuardTeamCreateRequest.builder().teamName("Đội Audit").build());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_TEAM),
+                eq(AuditAction.CREATE),
+                eq(created.getId().toString()),
+                isNull(),
+                isNull(),
+                isNull(),
+                any(GuardTeamAuditSnapshot.class),
+                contains("Đội Audit"),
+                any(AuditActor.class)
+        );
+
+        // 2. REACTIVATE
+        when(teamRepository.findByTeamNameIgnoreCase("Đội 1")).thenReturn(Optional.of(deletedTeam));
+        guardTeamService.createTeam(GuardTeamCreateRequest.builder().teamName("Đội 1").build());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_TEAM),
+                eq(AuditAction.REACTIVATE),
+                eq(deletedTeam.getId().toString()),
+                isNull(),
+                isNull(),
+                any(GuardTeamAuditSnapshot.class),
+                any(GuardTeamAuditSnapshot.class),
+                contains("Đội 1"),
+                any(AuditActor.class)
+        );
+
+        // 3. ASSIGN
+        UUID guardId = UUID.randomUUID();
+        User guard = User.builder().id(guardId).fullName("BV A").role(Role.GUARD).build();
+        when(teamRepository.findById(activeTeam.getId())).thenReturn(Optional.of(activeTeam));
+        when(userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(activeTeam.getId())).thenReturn(List.of());
+        when(userRepository.findAllById(List.of(guardId))).thenReturn(List.of(guard));
+        guardTeamService.assignMembers(activeTeam.getId(), GuardTeamMemberAssignRequest.builder().guardIds(List.of(guardId)).build());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_TEAM),
+                eq(AuditAction.ASSIGN),
+                eq(activeTeam.getId().toString()),
+                isNull(),
+                isNull(),
+                any(GuardTeamAuditSnapshot.class),
+                argThat((GuardTeamAuditSnapshot snap) -> snap != null && snap.memberCount() == 1 && snap.memberIds().contains(guardId)),
+                contains("Đội 1"),
+                any(AuditActor.class)
+        );
+
+        // 4. DELETE
+        guardTeamService.deleteTeam(activeTeam.getId());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_TEAM),
+                eq(AuditAction.DELETE),
+                eq(activeTeam.getId().toString()),
+                isNull(),
+                isNull(),
+                any(GuardTeamAuditSnapshot.class),
+                argThat((GuardTeamAuditSnapshot snap) -> snap != null && Boolean.FALSE.equals(snap.isActive())),
+                contains("Đội 1"),
+                any(AuditActor.class)
+        );
     }
 }

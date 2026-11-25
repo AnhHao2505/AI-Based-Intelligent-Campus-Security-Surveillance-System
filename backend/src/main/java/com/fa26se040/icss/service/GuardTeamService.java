@@ -1,5 +1,6 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardTeamAuditSnapshot;
 import com.fa26se040.icss.dto.guard.GuardTeamCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardTeamDto;
 import com.fa26se040.icss.dto.guard.GuardTeamMemberAssignRequest;
@@ -8,6 +9,8 @@ import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.GuardTeam;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.BuildingRepository;
 import com.fa26se040.icss.repository.GuardShiftRepository;
@@ -33,6 +36,7 @@ public class GuardTeamService {
     private final UserRepository userRepository;
     private final BuildingRepository buildingRepository;
     private final GuardShiftRepository shiftRepository;
+    private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public List<GuardTeamDto> getAllTeams() {
@@ -65,14 +69,19 @@ public class GuardTeamService {
                 throw new IllegalArgumentException("Tên tổ đội đã tồn tại trong hệ thống");
             } else {
                 // Tái kích hoạt đội đã từng bị xóa trước đó
+                GuardTeamAuditSnapshot oldSnap = GuardTeamAuditSnapshot.from(existing, List.of());
                 existing.setIsActive(true);
                 existing.setDescription(request.getDescription());
                 if (building != null) {
                     existing.setBuilding(building);
                 }
                 GuardTeam saved = teamRepository.save(existing);
-                log.info("Re-activated previously deleted guard team [{}] with ID [{}]", saved.getTeamName(), saved.getId());
-                return mapToDto(saved);
+                GuardTeam effective = saved != null ? saved : existing;
+                recordTeamAudit(AuditAction.REACTIVATE, effective, oldSnap,
+                        GuardTeamAuditSnapshot.from(effective, List.of()),
+                        "Tái kích hoạt tổ đội bảo vệ " + effective.getTeamName());
+                log.info("Re-activated previously deleted guard team [{}] with ID [{}]", effective.getTeamName(), effective.getId());
+                return mapToDto(effective);
             }
         }
 
@@ -91,14 +100,20 @@ public class GuardTeamService {
                 .build();
 
         GuardTeam saved = teamRepository.save(team);
-        log.info("Created guard team [{}] with ID [{}]", saved.getTeamName(), saved.getId());
-        return mapToDto(saved);
+        GuardTeam effective = saved != null ? saved : team;
+        recordTeamAudit(AuditAction.CREATE, effective, null,
+                GuardTeamAuditSnapshot.from(effective, List.of()),
+                "Tạo tổ đội bảo vệ " + effective.getTeamName());
+        log.info("Created guard team [{}] with ID [{}]", effective.getTeamName(), effective.getId());
+        return mapToDto(effective);
     }
 
     @Transactional
     public GuardTeamDto updateTeam(UUID id, GuardTeamCreateRequest request) {
         GuardTeam team = teamRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tổ đội bảo vệ"));
+        List<User> members = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(id);
+        GuardTeamAuditSnapshot oldSnap = GuardTeamAuditSnapshot.from(team, members);
 
         String trimmedName = request.getTeamName().trim();
         java.util.Optional<GuardTeam> duplicateOpt = teamRepository.findByTeamNameIgnoreCase(trimmedName);
@@ -139,25 +154,34 @@ public class GuardTeamService {
         if (request.getHasSundayCustom() != null) team.setHasSundayCustom(request.getHasSundayCustom());
 
         GuardTeam saved = teamRepository.save(team);
-        log.info("Updated guard team [{}]", saved.getId());
-        return mapToDto(saved);
+        GuardTeam effective = saved != null ? saved : team;
+        recordTeamAudit(AuditAction.UPDATE, effective, oldSnap,
+                GuardTeamAuditSnapshot.from(effective, members),
+                "Cập nhật tổ đội bảo vệ " + effective.getTeamName());
+        log.info("Updated guard team [{}]", effective.getId());
+        return mapToDto(effective);
     }
 
     @Transactional
     public void deleteTeam(UUID id) {
         GuardTeam team = teamRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tổ đội bảo vệ"));
+        List<User> members = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(id);
+        GuardTeamAuditSnapshot oldSnap = GuardTeamAuditSnapshot.from(team, members);
 
         // Soft delete
         team.setIsActive(false);
-        teamRepository.save(team);
+        GuardTeam saved = teamRepository.save(team);
+        GuardTeam effective = saved != null ? saved : team;
 
         // Clear team for assigned users
-        List<User> members = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(id);
         for (User u : members) {
             u.setTeam(null);
         }
         userRepository.saveAll(members);
+        recordTeamAudit(AuditAction.DELETE, effective, oldSnap,
+                GuardTeamAuditSnapshot.from(effective, List.of()),
+                "Xóa tổ đội bảo vệ " + effective.getTeamName());
         log.info("Soft deleted guard team [{}] and detached {} members", id, members.size());
     }
 
@@ -165,6 +189,8 @@ public class GuardTeamService {
     public GuardTeamDto assignMembers(UUID teamId, GuardTeamMemberAssignRequest request) {
         GuardTeam team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tổ đội bảo vệ"));
+        List<User> currentMembers = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(teamId);
+        GuardTeamAuditSnapshot oldSnap = GuardTeamAuditSnapshot.from(team, currentMembers);
 
         // Update shift demands on team if provided
         if (request.getWeekdayMorningDemand() != null) team.setWeekdayMorningDemand(request.getWeekdayMorningDemand());
@@ -176,16 +202,16 @@ public class GuardTeamService {
         if (request.getHasSundayCustom() != null) team.setHasSundayCustom(request.getHasSundayCustom());
 
         // Detach existing members of this team
-        List<User> currentMembers = userRepository.findByTeamIdAndDeletedAtIsNullAndIsActiveTrue(teamId);
         for (User u : currentMembers) {
             u.setTeam(null);
         }
         userRepository.saveAll(currentMembers);
 
         // Assign new members
+        List<User> newMembers = List.of();
         List<UUID> guardIds = request.getGuardIds();
         if (guardIds != null && !guardIds.isEmpty()) {
-            List<User> newMembers = userRepository.findAllById(guardIds);
+            newMembers = userRepository.findAllById(guardIds);
             for (User u : newMembers) {
                 if (u.getRole() != Role.GUARD) {
                     throw new IllegalArgumentException("Người dùng [" + u.getFullName() + "] không phải là Bảo vệ");
@@ -197,7 +223,30 @@ public class GuardTeamService {
         }
 
         GuardTeam saved = teamRepository.save(team);
-        return mapToDto(saved);
+        GuardTeam effective = saved != null ? saved : team;
+        recordTeamAudit(AuditAction.ASSIGN, effective, oldSnap,
+                GuardTeamAuditSnapshot.from(effective, newMembers),
+                "Phân công thành viên tổ đội bảo vệ " + effective.getTeamName());
+        return mapToDto(effective);
+    }
+
+    private void recordTeamAudit(AuditAction action, GuardTeam team, GuardTeamAuditSnapshot oldSnap,
+                                 GuardTeamAuditSnapshot newSnap, String reason) {
+        if (auditService == null || team == null) {
+            return;
+        }
+        String targetId = team.getId() != null ? team.getId().toString() : "UNKNOWN";
+        auditService.record(
+                AuditTargetType.GUARD_TEAM,
+                action,
+                targetId,
+                null,
+                null,
+                oldSnap,
+                newSnap,
+                reason != null && reason.length() > 500 ? reason.substring(0, 500) : reason,
+                auditService.resolveCurrentActor("GUARD_TEAM_SERVICE")
+        );
     }
 
     @Transactional(readOnly = true)

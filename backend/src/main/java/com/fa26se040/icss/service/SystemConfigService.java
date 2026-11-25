@@ -47,6 +47,8 @@ public class SystemConfigService {
     /** Khoá cấu hình runtime của AI (trừ giờ ngoài giờ): đổi khoá nào trong tập này thì đồng bộ ngay xuống AI. */
     static final Set<String> AI_RUNTIME_KEYS = Set.of(
             ConfigKey.AI_FACE_MATCH_THRESHOLD.getKey(),
+            ConfigKey.AI_DETECTION_CONFIDENCE.getKey(),
+            ConfigKey.AI_FACE_CONFIDENCE.getKey(),
             ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS.getKey(),
             ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS.getKey(),
             ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS.getKey(),
@@ -416,6 +418,8 @@ public class SystemConfigService {
     public Map<String, Object> getAiRuntimeConfigMap() {
         Map<String, Object> map = new HashMap<>();
         map.put("face_match_threshold", getDouble(ConfigKey.AI_FACE_MATCH_THRESHOLD));
+        map.put("detection_confidence", getDouble(ConfigKey.AI_DETECTION_CONFIDENCE));
+        map.put("face_confidence", getDouble(ConfigKey.AI_FACE_CONFIDENCE));
         map.put("after_hour_start", getString(ConfigKey.AI_AFTER_HOUR_START));
         map.put("after_hour_end", getString(ConfigKey.AI_AFTER_HOUR_END));
         map.put("unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS));

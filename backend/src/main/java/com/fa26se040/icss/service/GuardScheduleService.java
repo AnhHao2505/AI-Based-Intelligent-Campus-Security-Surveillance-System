@@ -1,5 +1,9 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardShiftAuditSnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardShiftBatchAuditSnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardTeamAuditSnapshot;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.dto.guard.BuildingRotationReportResponse;
 import com.fa26se040.icss.dto.guard.GuardShiftCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardShiftDto;
@@ -8,6 +12,9 @@ import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.enums.ShiftType;
@@ -63,6 +70,8 @@ public class GuardScheduleService {
     private final GuardTeamDispatchRepository dispatchRepository;
     private final DutyPostTypeRepository dutyPostTypeRepository;
     private final BuildingRepository buildingRepository;
+    private final SystemConfigService systemConfigService;
+    private final AuditService auditService;
 
 
 
@@ -129,16 +138,25 @@ public class GuardScheduleService {
             }
         } else if (request.getNewTeamName() != null && !request.getNewTeamName().isBlank()) {
             String trimmedName = request.getNewTeamName().trim();
+            if (guardIds != null && !guardIds.isEmpty()) {
+                guards = userRepository.findAllById(guardIds);
+            }
             Optional<GuardTeam> existingOpt = teamRepository.findByTeamNameIgnoreCase(trimmedName);
+            boolean createdNewTeam = false;
+            boolean reactivatedTeam = false;
+            GuardTeamAuditSnapshot oldTeamSnap = null;
             if (existingOpt.isPresent()) {
                 team = existingOpt.get();
-                if (Boolean.FALSE.equals(team.getIsActive())) {
+                reactivatedTeam = Boolean.FALSE.equals(team.getIsActive());
+                oldTeamSnap = GuardTeamAuditSnapshot.from(team, List.of());
+                if (reactivatedTeam) {
                     team.setIsActive(true);
                 }
                 if (request.getBuilding() != null && !request.getBuilding().isBlank()) {
                     team.setDescription(request.getBuilding());
                 }
-                team = teamRepository.save(team);
+                GuardTeam savedTeam = teamRepository.save(team);
+                team = savedTeam != null ? savedTeam : team;
             } else {
                 Building defaultTeamBuilding = null;
                 if (request.getBuildingId() != null) {
@@ -152,14 +170,39 @@ public class GuardScheduleService {
                         .building(defaultTeamBuilding)
                         .isActive(true)
                         .build());
+                createdNewTeam = (team != null);
             }
-            if (guardIds != null && !guardIds.isEmpty()) {
-                guards = userRepository.findAllById(guardIds);
-                if (team != null) {
-                    for (User g : guards) {
-                        g.setTeam(team);
-                    }
-                    userRepository.saveAll(guards);
+            if (team != null && !guards.isEmpty()) {
+                for (User g : guards) {
+                    g.setTeam(team);
+                }
+                userRepository.saveAll(guards);
+            }
+            if (team != null && auditService != null) {
+                if (createdNewTeam) {
+                    auditService.record(
+                            AuditTargetType.GUARD_TEAM,
+                            AuditAction.CREATE,
+                            team.getId() != null ? team.getId().toString() : "UNKNOWN",
+                            null,
+                            null,
+                            null,
+                            GuardTeamAuditSnapshot.from(team, guards),
+                            "Tạo nhanh tổ đội bảo vệ từ Wizard: " + team.getTeamName(),
+                            auditService.resolveCurrentActor("GUARD_SCHEDULE_SERVICE")
+                    );
+                } else if (reactivatedTeam) {
+                    auditService.record(
+                            AuditTargetType.GUARD_TEAM,
+                            AuditAction.REACTIVATE,
+                            team.getId() != null ? team.getId().toString() : "UNKNOWN",
+                            null,
+                            null,
+                            oldTeamSnap,
+                            GuardTeamAuditSnapshot.from(team, guards),
+                            "Tái kích hoạt tổ đội bảo vệ từ Wizard: " + team.getTeamName(),
+                            auditService.resolveCurrentActor("GUARD_SCHEDULE_SERVICE")
+                    );
                 }
             }
         } else if (guardIds != null && !guardIds.isEmpty()) {
@@ -558,6 +601,30 @@ public class GuardScheduleService {
         log.info("Wizard generated {} shifts for {} guards across {} days",
                 createdShifts.size(), m, dayIndex);
 
+        if (auditService != null) {
+            String batchTargetId = (team != null && team.getId() != null) ? team.getId().toString() : "WIZARD";
+            String buildingLabel = wizardBuilding != null ? wizardBuilding.getName() : request.getBuilding();
+            auditService.record(
+                    AuditTargetType.GUARD_SHIFT,
+                    AuditAction.CREATE,
+                    batchTargetId,
+                    targetArea,
+                    null,
+                    null,
+                    new GuardShiftBatchAuditSnapshot(
+                            "WIZARD_GENERATE",
+                            team != null ? team.getId() : null,
+                            request.getStartDate(),
+                            effectiveEndDate,
+                            buildingLabel,
+                            createdShifts.size(),
+                            existingScheduledShifts.size()
+                    ),
+                    String.format("Sinh lịch trực tự động (%d ca mới, dọn %d ca cũ)", createdShifts.size(), existingScheduledShifts.size()),
+                    auditService.resolveCurrentActor("GUARD_SCHEDULE_SERVICE")
+            );
+        }
+
         return mapShiftsToDto(createdShifts);
     }
 
@@ -653,13 +720,28 @@ public class GuardScheduleService {
                 .build();
 
         GuardShift saved = shiftRepository.save(shift);
-        return mapShiftToDto(saved);
+        GuardShift effective = saved != null ? saved : shift;
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.GUARD_SHIFT,
+                    AuditAction.CREATE,
+                    effective.getId() != null ? effective.getId().toString() : "UNKNOWN",
+                    effective.getArea(),
+                    effective.getGuard(),
+                    null,
+                    GuardShiftAuditSnapshot.from(effective),
+                    truncateReason(effective.getNotes()),
+                    auditService.resolveCurrentActor("GUARD_SCHEDULE_SERVICE")
+            );
+        }
+        return mapShiftToDto(effective);
     }
 
     @Transactional
     public GuardShiftDto updateShift(UUID id, GuardShiftUpdateRequest request) {
         GuardShift shift = shiftRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ca trực"));
+        GuardShiftAuditSnapshot oldSnap = GuardShiftAuditSnapshot.from(shift);
 
         User guard = userRepository.findById(request.getGuardId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhân viên bảo vệ"));
@@ -736,7 +818,21 @@ public class GuardScheduleService {
         }
 
         GuardShift saved = shiftRepository.save(shift);
-        return mapShiftToDto(saved);
+        GuardShift effective = saved != null ? saved : shift;
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.GUARD_SHIFT,
+                    AuditAction.UPDATE,
+                    effective.getId() != null ? effective.getId().toString() : id.toString(),
+                    effective.getArea(),
+                    effective.getGuard(),
+                    oldSnap,
+                    GuardShiftAuditSnapshot.from(effective),
+                    truncateReason(effective.getNotes()),
+                    auditService.resolveCurrentActor("GUARD_SCHEDULE_SERVICE")
+            );
+        }
+        return mapShiftToDto(effective);
     }
 
     /**
@@ -767,6 +863,9 @@ public class GuardScheduleService {
         if (shift.getStatus() == ShiftStatus.CHECKED_IN || shift.getStatus() == ShiftStatus.COMPLETED) {
             throw new IllegalStateException("Không thể xóa ca trực đang diễn ra hoặc đã hoàn thành");
         }
+        GuardShiftAuditSnapshot oldSnap = GuardShiftAuditSnapshot.from(shift);
+        Area shiftArea = shift.getArea();
+        User shiftGuard = shift.getGuard();
 
         // Nullify foreign key references in shiftRequestRepository before deletion to preserve audit history
         List<GuardShiftRequest> linkedRequests = shiftRequestRepository.findAll().stream()
@@ -789,6 +888,19 @@ public class GuardScheduleService {
         }
 
         shiftRepository.delete(shift);
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.GUARD_SHIFT,
+                    AuditAction.DELETE,
+                    id.toString(),
+                    shiftArea,
+                    shiftGuard,
+                    oldSnap,
+                    null,
+                    "Xóa ca trực",
+                    auditService.resolveCurrentActor("GUARD_SCHEDULE_SERVICE")
+            );
+        }
         log.info("Admin/FM deleted shift [{}]", id);
     }
 
@@ -857,6 +969,33 @@ public class GuardScheduleService {
         int count = shiftsToDelete.size();
         if (count > 0) {
             shiftRepository.deleteAll(shiftsToDelete);
+            if (auditService != null) {
+                String targetId = request.getTeamId() != null
+                        ? request.getTeamId().toString()
+                        : (buildingParam != null ? buildingParam : "ALL");
+                if (targetId.length() > 100) {
+                    targetId = targetId.substring(0, 100);
+                }
+                auditService.record(
+                        AuditTargetType.GUARD_SHIFT,
+                        AuditAction.DELETE,
+                        targetId,
+                        null,
+                        null,
+                        null,
+                        new GuardShiftBatchAuditSnapshot(
+                                "BULK_CLEAR",
+                                request.getTeamId(),
+                                request.getStartDate(),
+                                request.getEndDate(),
+                                buildingParam,
+                                count,
+                                count
+                        ),
+                        String.format("Xóa hàng loạt %d ca trực chưa diễn ra", count),
+                        auditService.resolveCurrentActor("GUARD_SCHEDULE_SERVICE")
+                );
+            }
         }
 
         log.info("Bulk cleared {} scheduled shifts from {} to {} (teamId: {}, building: {})",
@@ -887,7 +1026,9 @@ public class GuardScheduleService {
         return mapShiftsToDto(list);
     }
 
-    @Transactional
+    // Không rollback khi ném IllegalStateException vì nhánh quá hạn nhận ca cần lưu ShiftStatus.ABSENT và audit MARK_ABSENT.
+    // Các lần ném IllegalStateException khác trong checkIn đều xảy ra trước khi ghi DB; AuditWriteException vẫn rollback bình thường.
+    @Transactional(noRollbackFor = IllegalStateException.class)
     public GuardShiftDto checkIn(UUID shiftId, String guardEmail) {
         GuardShift shift = shiftRepository.findById(shiftId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ca trực"));
@@ -926,30 +1067,64 @@ public class GuardScheduleService {
             }
         }
 
-        // Time window check: Only allow check-in from [startTime - 5min, startTime + 5min]
+        // Time window check: Only allow check-in from [startTime - N min, startTime + N min]
+        int checkInWindowMinutes = getCheckInWindowMinutes();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
-        LocalDateTime earliestCheckIn = shiftStart.minusMinutes(5);
-        LocalDateTime latestCheckIn = shiftStart.plusMinutes(5);
+        LocalDateTime earliestCheckIn = shiftStart.minusMinutes(checkInWindowMinutes);
+        LocalDateTime latestCheckIn = shiftStart.plusMinutes(checkInWindowMinutes);
 
         if (now.isBefore(earliestCheckIn)) {
             throw new IllegalStateException(String.format(
-                    "Chưa đến giờ nhận ca. Bạn chỉ có thể nhận ca từ trước giờ bắt đầu 5 phút (từ %s).",
+                    "Chưa đến giờ nhận ca. Bạn chỉ có thể nhận ca từ trước giờ bắt đầu %d phút (từ %s).",
+                    checkInWindowMinutes,
                     earliestCheckIn.toLocalTime().toString()
             ));
         }
 
+        GuardShiftAuditSnapshot oldSnap = GuardShiftAuditSnapshot.from(shift);
         if (now.isAfter(latestCheckIn)) {
             shift.setStatus(ShiftStatus.ABSENT);
-            shiftRepository.save(shift);
-            throw new IllegalStateException("Đã quá thời gian nhận ca cho phép (quá 5 phút sau giờ bắt đầu ca). Ca trực đã bị ghi nhận VẮNG MẶT.");
+            GuardShift savedAbsent = shiftRepository.save(shift);
+            GuardShift effectiveAbsent = savedAbsent != null ? savedAbsent : shift;
+            if (auditService != null) {
+                auditService.record(
+                        AuditTargetType.GUARD_SHIFT,
+                        AuditAction.MARK_ABSENT,
+                        effectiveAbsent.getId() != null ? effectiveAbsent.getId().toString() : shiftId.toString(),
+                        effectiveAbsent.getArea(),
+                        guard,
+                        oldSnap,
+                        GuardShiftAuditSnapshot.from(effectiveAbsent),
+                        String.format("Quá thời gian nhận ca cho phép (%d phút)", checkInWindowMinutes),
+                        AuditActor.user(guard)
+                );
+            }
+            throw new IllegalStateException(String.format(
+                    "Đã quá thời gian nhận ca cho phép (quá %d phút sau giờ bắt đầu ca). Ca trực đã bị ghi nhận VẮNG MẶT.",
+                    checkInWindowMinutes
+            ));
         }
 
         shift.setStatus(ShiftStatus.CHECKED_IN);
         shift.setCheckInAt(OffsetDateTime.now());
         GuardShift saved = shiftRepository.save(shift);
-        log.info("Guard [{}] checked in for shift [{}] on [{}]", guard.getFullName(), shift.getId(), shift.getShiftDate());
-        return mapShiftToDto(saved);
+        GuardShift effective = saved != null ? saved : shift;
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.GUARD_SHIFT,
+                    AuditAction.CHECK_IN,
+                    effective.getId() != null ? effective.getId().toString() : shiftId.toString(),
+                    effective.getArea(),
+                    guard,
+                    oldSnap,
+                    GuardShiftAuditSnapshot.from(effective),
+                    null,
+                    AuditActor.user(guard)
+            );
+        }
+        log.info("Guard [{}] checked in for shift [{}] on [{}]", guard.getFullName(), effective.getId(), effective.getShiftDate());
+        return mapShiftToDto(effective);
     }
 
     @Transactional
@@ -968,48 +1143,103 @@ public class GuardScheduleService {
             throw new IllegalStateException("Ca trực chưa được nhận hoặc đã kết thúc/hủy.");
         }
 
-        // Check-out window check: Only allow checkout from [endTime, endTime + 5min]
+        // Check-out window check: Only allow checkout from [endTime, endTime + N min]
+        int checkOutWindowMinutes = getCheckOutWindowMinutes();
         LocalDateTime now = LocalDateTime.now();
         LocalDate endDate = shift.getEndTime().isBefore(shift.getStartTime())
                 ? shift.getShiftDate().plusDays(1)
                 : shift.getShiftDate();
         LocalDateTime shiftEnd = LocalDateTime.of(endDate, shift.getEndTime());
-        LocalDateTime latestCheckOut = shiftEnd.plusMinutes(5);
+        LocalDateTime latestCheckOut = shiftEnd.plusMinutes(checkOutWindowMinutes);
 
         if (now.isBefore(shiftEnd)) {
             throw new IllegalStateException(String.format(
-                    "Chưa đến giờ kết thúc ca trực (%s). Bạn chỉ có thể hoàn thành ca từ đúng giờ kết thúc đến sau 5 phút.",
-                    shift.getEndTime().toString()
+                    "Chưa đến giờ kết thúc ca trực (%s). Bạn chỉ có thể hoàn thành ca từ đúng giờ kết thúc đến sau %d phút.",
+                    shift.getEndTime().toString(),
+                    checkOutWindowMinutes
             ));
         }
 
         if (now.isAfter(latestCheckOut)) {
             throw new IllegalStateException(String.format(
-                    "Đã quá thời gian kết thúc ca cho phép (quá 5 phút sau giờ kết thúc ca %s). Vui lòng liên hệ Quản trị viên để được hỗ trợ.",
+                    "Đã quá thời gian kết thúc ca cho phép (quá %d phút sau giờ kết thúc ca %s). Vui lòng liên hệ Quản trị viên để được hỗ trợ.",
+                    checkOutWindowMinutes,
                     shift.getEndTime().toString()
             ));
         }
 
+        GuardShiftAuditSnapshot oldSnap = GuardShiftAuditSnapshot.from(shift);
         shift.setStatus(ShiftStatus.COMPLETED);
         shift.setCheckOutAt(OffsetDateTime.now());
         GuardShift saved = shiftRepository.save(shift);
-        log.info("Guard [{}] checked out from shift [{}] on [{}]", guard.getFullName(), shift.getId(), shift.getShiftDate());
-        return mapShiftToDto(saved);
+        GuardShift effective = saved != null ? saved : shift;
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.GUARD_SHIFT,
+                    AuditAction.CHECK_OUT,
+                    effective.getId() != null ? effective.getId().toString() : shiftId.toString(),
+                    effective.getArea(),
+                    guard,
+                    oldSnap,
+                    GuardShiftAuditSnapshot.from(effective),
+                    null,
+                    AuditActor.user(guard)
+            );
+        }
+        log.info("Guard [{}] checked out from shift [{}] on [{}]", guard.getFullName(), effective.getId(), effective.getShiftDate());
+        return mapShiftToDto(effective);
     }
 
     private void autoMarkAbsentIfOverdue(List<GuardShift> shifts) {
         if (shifts == null || shifts.isEmpty()) return;
+        int checkInWindowMinutes = getCheckInWindowMinutes();
         LocalDateTime now = LocalDateTime.now();
         for (GuardShift shift : shifts) {
             if (shift.getStatus() == ShiftStatus.SCHEDULED) {
                 LocalDateTime shiftStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
-                LocalDateTime latestCheckIn = shiftStart.plusMinutes(5);
+                LocalDateTime latestCheckIn = shiftStart.plusMinutes(checkInWindowMinutes);
                 if (now.isAfter(latestCheckIn)) {
+                    GuardShiftAuditSnapshot oldSnap = GuardShiftAuditSnapshot.from(shift);
                     shift.setStatus(ShiftStatus.ABSENT);
-                    shiftRepository.save(shift);
+                    GuardShift saved = shiftRepository.save(shift);
+                    GuardShift effective = saved != null ? saved : shift;
+                    if (auditService != null) {
+                        auditService.record(
+                                AuditTargetType.GUARD_SHIFT,
+                                AuditAction.MARK_ABSENT,
+                                effective.getId() != null ? effective.getId().toString() : "UNKNOWN",
+                                effective.getArea(),
+                                effective.getGuard(),
+                                oldSnap,
+                                GuardShiftAuditSnapshot.from(effective),
+                                "Tự động đánh vắng mặt do quá giờ nhận ca",
+                                AuditActor.system("GUARD_SHIFT_AUTO_ABSENT")
+                        );
+                    }
                 }
             }
         }
+    }
+
+    int getCheckInWindowMinutes() {
+        if (systemConfigService == null) {
+            return Integer.parseInt(ConfigKey.GUARD_SHIFT_CHECK_IN_WINDOW_MINUTES.getDefaultValue());
+        }
+        return systemConfigService.getIntWithinBounds(ConfigKey.GUARD_SHIFT_CHECK_IN_WINDOW_MINUTES);
+    }
+
+    int getCheckOutWindowMinutes() {
+        if (systemConfigService == null) {
+            return Integer.parseInt(ConfigKey.GUARD_SHIFT_CHECK_OUT_WINDOW_MINUTES.getDefaultValue());
+        }
+        return systemConfigService.getIntWithinBounds(ConfigKey.GUARD_SHIFT_CHECK_OUT_WINDOW_MINUTES);
+    }
+
+    private static String truncateReason(String reason) {
+        if (reason == null) {
+            return null;
+        }
+        return reason.length() > 500 ? reason.substring(0, 500) : reason;
     }
 
     @Transactional(readOnly = true)

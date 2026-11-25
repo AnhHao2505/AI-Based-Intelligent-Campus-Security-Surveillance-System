@@ -27,5 +27,10 @@ public enum AuditTargetType {
     AUTH,
     SYSTEM_CONFIG,
     // V142: camera & stream lifecycle
-    CAMERA
+    CAMERA,
+    // V144: đội bảo vệ, điều động tăng cường, ca trực và đơn đổi ca / nghỉ phép
+    GUARD_TEAM,
+    GUARD_TEAM_DISPATCH,
+    GUARD_SHIFT,
+    GUARD_SHIFT_REQUEST
 }

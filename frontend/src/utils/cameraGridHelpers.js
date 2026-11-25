@@ -18,7 +18,12 @@ export function formatCameraLocationSubtitle(cam) {
 
 export function formatCameraTileTitle(cam) {
 	if (!cam || typeof cam !== "object") return "Camera giám sát";
-	const baseName = (cam.name || cam.areaName || "Camera giám sát").trim();
+	const areaName = (cam.areaName || "").trim();
+	const camName = (cam.name || "").trim();
+	if (areaName && camName && areaName.toLowerCase() !== camName.toLowerCase()) {
+		return `${areaName} · ${camName}`;
+	}
+	const baseName = camName || areaName || "Camera giám sát";
 	const floor =
 		cam.floor ||
 		(cam.mapFloorOrder != null && Number.isFinite(Number(cam.mapFloorOrder))

@@ -82,9 +82,9 @@ class Settings(BaseSettings):
     AI_PREFER_GPU: bool = Field(default=True, validation_alias="AI_PREFER_GPU")
     
     # AI Thresholds & Business Rules
-    DEFAULT_DETECTION_CONFIDENCE: float = 0.35
+    DEFAULT_DETECTION_CONFIDENCE: float = Field(default=0.35, validation_alias="DEFAULT_DETECTION_CONFIDENCE")
     DRAW_ONLY_IN_ROI: bool = Field(default=False, validation_alias="DRAW_ONLY_IN_ROI")
-    DEFAULT_FACE_CONFIDENCE: float = 0.45
+    DEFAULT_FACE_CONFIDENCE: float = Field(default=0.45, validation_alias="DEFAULT_FACE_CONFIDENCE")
     DEFAULT_FACE_NMS_THRESHOLD: float = 0.30
     FACE_MATCH_THRESHOLD: float = Field(default=0.50, validation_alias="FACE_MATCH_THRESHOLD")
     FACE_REVERIFY_SCORE_THRESHOLD: float = Field(default=0.82, validation_alias="FACE_REVERIFY_SCORE_THRESHOLD")
@@ -109,6 +109,7 @@ class Settings(BaseSettings):
     FACE_REGISTRATION_COUNT_MAX_DIM: int = Field(default=1280, validation_alias="FACE_REGISTRATION_COUNT_MAX_DIM")
     FACE_MIN_LAPLACIAN_VARIANCE: float = Field(default=15.0, validation_alias="FACE_MIN_LAPLACIAN_VARIANCE")
     ANALYSIS_MAX_FPS: float = Field(default=30.0, validation_alias="ANALYSIS_MAX_FPS")
+    AI_PERF_LOG_INTERVAL_SECONDS: float = Field(default=1.0, validation_alias="AI_PERF_LOG_INTERVAL_SECONDS")
     UPPER_BODY_CROP_RATIO: float = 0.60
     DEFAULT_AFTER_HOUR_START: str = "22:00"
     DEFAULT_AFTER_HOUR_END: str = "06:00"
@@ -130,7 +131,7 @@ class Settings(BaseSettings):
     # để engine còn giữ danh tính khi ByteTrack trả lại đúng ID cũ (motion gating / FPS thực thấp hơn analysis_fps).
     DEFAULT_TRACK_MAX_INACTIVE_SECONDS: float = Field(default=4.0, validation_alias="DEFAULT_TRACK_MAX_INACTIVE_SECONDS")
     DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS: float = 30.0
-    DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS: float = Field(default=30.0, validation_alias="DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS")
+    DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS: float = Field(default=60.0, validation_alias="DEFAULT_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS")
     ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS: float = Field(default=1.5, validation_alias="ACCESS_RESOLUTION_GRACE_PERIOD_SECONDS")
     ACCESS_RESOLUTION_HOLD_SECONDS: float = Field(default=1.0, validation_alias="ACCESS_RESOLUTION_HOLD_SECONDS")
     CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS: float = Field(default=3.0, validation_alias="CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS")

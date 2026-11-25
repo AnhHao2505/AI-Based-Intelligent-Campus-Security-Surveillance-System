@@ -481,7 +481,7 @@ class StreamRecorder:
         self.is_running = True
         self.worker_thread = threading.Thread(target=self._recording_loop, daemon=True)
         self.worker_thread.start()
-        logger.info(f"📹 [Recorder] Bắt đầu luồng ghi hình liên tục (854x480 @ {self.fps}fps) cho camera [{self.camera_code}].")
+        logger.debug(f"📹 [Recorder] Bắt đầu luồng ghi hình liên tục (854x480 @ {self.fps}fps) cho camera [{self.camera_code}].")
 
     def _get_target_file_path(self, now: datetime) -> str:
         year_str = now.strftime("%Y")
@@ -706,7 +706,7 @@ class StreamRecorder:
                             logger.warning(f"⚠️ [Recorder] Không thể lưu thumbnail cục bộ {thumb_path}: {thumb_err}")
 
                     file_size = os.path.getsize(target_path)
-                    logger.info(
+                    logger.debug(
                         f"💾 [Recorder] Đã lưu video định kỳ (854x480): {target_path} "
                         f"({round(file_size / (1024 * 1024), 2)} MB - {frames_written} frames)"
                     )

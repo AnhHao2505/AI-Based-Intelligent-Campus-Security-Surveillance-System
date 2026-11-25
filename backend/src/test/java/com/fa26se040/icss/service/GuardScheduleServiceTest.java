@@ -1,10 +1,18 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardShiftAuditSnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardShiftBatchAuditSnapshot;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.dto.guard.BulkClearShiftsRequest;
 import com.fa26se040.icss.dto.guard.BulkClearShiftsResponse;
+import com.fa26se040.icss.dto.guard.GuardShiftCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardShiftDto;
+import com.fa26se040.icss.dto.guard.GuardShiftUpdateRequest;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
+import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.enums.ShiftType;
@@ -15,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -58,6 +67,12 @@ class GuardScheduleServiceTest {
     @Mock
     private com.fa26se040.icss.repository.BuildingRepository buildingRepository;
 
+    @Mock
+    private SystemConfigService systemConfigService;
+
+    @Mock
+    private AuditService auditService;
+
     @InjectMocks
     private GuardScheduleService guardScheduleService;
 
@@ -65,6 +80,9 @@ class GuardScheduleServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(systemConfigService.getIntWithinBounds(ConfigKey.GUARD_SHIFT_CHECK_IN_WINDOW_MINUTES)).thenReturn(5);
+        lenient().when(systemConfigService.getIntWithinBounds(ConfigKey.GUARD_SHIFT_CHECK_OUT_WINDOW_MINUTES)).thenReturn(5);
+
         guardUser = User.builder()
                 .id(UUID.randomUUID())
                 .fullName("Nguyễn Văn An")
@@ -465,5 +483,337 @@ class GuardScheduleServiceTest {
         // PHẢI CÓ ÍT NHẤT 1 BẢO VỆ ĐỦ ĐIỀU KIỆN TRỰC THAY CA ĐÊM THỨ 3
         assertTrue(eligibleSubstitutesForTuesdayNight.size() >= 1,
                 "Phải có ít nhất 1 người nghỉ Thứ 3 mà sáng Thứ 4 không trực để có thể thế ca Đêm Thứ 3!");
+    }
+
+    @Test
+    @DisplayName("Checklist 6.1: Khung nhận ca lấy từ SystemConfigService (ví dụ 15 phút) cho checkIn, lỗi và autoMarkAbsentIfOverdue")
+    void testCheckInAndAutoAbsent_UseConfiguredWindow() {
+        when(systemConfigService.getIntWithinBounds(ConfigKey.GUARD_SHIFT_CHECK_IN_WINDOW_MINUTES)).thenReturn(15);
+
+        // 1. Check-in trước 10 phút (> 5 phút mặc định nhưng <= 15 phút cấu hình) -> thành công
+        UUID shiftId = UUID.randomUUID();
+        LocalDateTime tenMinutesLater = LocalDateTime.now().plusMinutes(10);
+        GuardShift earlyAllowedShift = GuardShift.builder()
+                .id(shiftId)
+                .guard(guardUser)
+                .shiftDate(tenMinutesLater.toLocalDate())
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .startTime(tenMinutesLater.toLocalTime())
+                .endTime(tenMinutesLater.plusHours(8).toLocalTime())
+                .status(ShiftStatus.SCHEDULED)
+                .build();
+
+        when(shiftRepository.findById(shiftId)).thenReturn(Optional.of(earlyAllowedShift));
+        when(userRepository.findByEmail(guardUser.getEmail())).thenReturn(Optional.of(guardUser));
+        when(shiftRepository.findByGuardIdAndShiftDateAndStartTimeLessThanOrderByStartTimeAsc(any(), any(), any()))
+                .thenReturn(List.of());
+        when(shiftRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GuardShiftDto checkedIn = guardScheduleService.checkIn(shiftId, guardUser.getEmail());
+        assertEquals(ShiftStatus.CHECKED_IN, checkedIn.getStatus());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_SHIFT),
+                eq(AuditAction.CHECK_IN),
+                eq(shiftId.toString()),
+                isNull(),
+                eq(guardUser),
+                any(GuardShiftAuditSnapshot.class),
+                any(GuardShiftAuditSnapshot.class),
+                isNull(),
+                any(AuditActor.class)
+        );
+
+        // 2. Check-in quá sớm (trước 20 phút > 15 phút) -> câu lỗi nêu đúng 15 phút
+        UUID tooEarlyId = UUID.randomUUID();
+        LocalDateTime twentyMinutesLater = LocalDateTime.now().plusMinutes(20);
+        GuardShift tooEarlyShift = GuardShift.builder()
+                .id(tooEarlyId)
+                .guard(guardUser)
+                .shiftDate(twentyMinutesLater.toLocalDate())
+                .shiftType(ShiftType.SHIFT_AFTERNOON)
+                .startTime(twentyMinutesLater.toLocalTime())
+                .endTime(twentyMinutesLater.plusHours(8).toLocalTime())
+                .status(ShiftStatus.SCHEDULED)
+                .build();
+        when(shiftRepository.findById(tooEarlyId)).thenReturn(Optional.of(tooEarlyShift));
+        IllegalStateException earlyEx = assertThrows(IllegalStateException.class,
+                () -> guardScheduleService.checkIn(tooEarlyId, guardUser.getEmail()));
+        assertTrue(earlyEx.getMessage().contains("15 phút"));
+
+        // 3. Check-in quá muộn (sau 20 phút > 15 phút) -> đánh ABSENT, câu lỗi nêu 15 phút và ghi audit MARK_ABSENT
+        UUID overdueId = UUID.randomUUID();
+        LocalDateTime twentyMinutesAgo = LocalDateTime.now().minusMinutes(20);
+        GuardShift overdueShift = GuardShift.builder()
+                .id(overdueId)
+                .guard(guardUser)
+                .shiftDate(twentyMinutesAgo.toLocalDate())
+                .shiftType(ShiftType.SHIFT_NIGHT)
+                .startTime(twentyMinutesAgo.toLocalTime())
+                .endTime(twentyMinutesAgo.plusHours(8).toLocalTime())
+                .status(ShiftStatus.SCHEDULED)
+                .build();
+        when(shiftRepository.findById(overdueId)).thenReturn(Optional.of(overdueShift));
+        IllegalStateException lateEx = assertThrows(IllegalStateException.class,
+                () -> guardScheduleService.checkIn(overdueId, guardUser.getEmail()));
+        assertTrue(lateEx.getMessage().contains("15 phút"));
+        assertEquals(ShiftStatus.ABSENT, overdueShift.getStatus());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_SHIFT),
+                eq(AuditAction.MARK_ABSENT),
+                eq(overdueId.toString()),
+                isNull(),
+                eq(guardUser),
+                any(GuardShiftAuditSnapshot.class),
+                any(GuardShiftAuditSnapshot.class),
+                contains("15 phút"),
+                any(AuditActor.class)
+        );
+
+        // 4. autoMarkAbsentIfOverdue trong getMyShifts: ca trễ 10 phút vẫn SCHEDULED, ca trễ 20 phút thành ABSENT + audit SYSTEM
+        LocalDateTime tenMinutesAgo = LocalDateTime.now().minusMinutes(10);
+        GuardShift graceShift = GuardShift.builder()
+                .id(UUID.randomUUID())
+                .guard(guardUser)
+                .shiftDate(tenMinutesAgo.toLocalDate())
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .startTime(tenMinutesAgo.toLocalTime())
+                .endTime(tenMinutesAgo.plusHours(8).toLocalTime())
+                .status(ShiftStatus.SCHEDULED)
+                .build();
+        GuardShift expiredShift = GuardShift.builder()
+                .id(UUID.randomUUID())
+                .guard(guardUser)
+                .shiftDate(twentyMinutesAgo.toLocalDate())
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .startTime(twentyMinutesAgo.toLocalTime())
+                .endTime(twentyMinutesAgo.plusHours(8).toLocalTime())
+                .status(ShiftStatus.SCHEDULED)
+                .build();
+        when(shiftRepository.findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(any(), any(), any()))
+                .thenReturn(List.of(graceShift, expiredShift));
+
+        guardScheduleService.getMyShifts(guardUser.getEmail(), LocalDate.now().minusDays(1), LocalDate.now().plusDays(1));
+        assertEquals(ShiftStatus.SCHEDULED, graceShift.getStatus());
+        assertEquals(ShiftStatus.ABSENT, expiredShift.getStatus());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_SHIFT),
+                eq(AuditAction.MARK_ABSENT),
+                eq(expiredShift.getId().toString()),
+                isNull(),
+                eq(guardUser),
+                any(GuardShiftAuditSnapshot.class),
+                any(GuardShiftAuditSnapshot.class),
+                anyString(),
+                argThat((AuditActor actor) -> actor != null && "SYSTEM".equals(actor.getActorType()) && "GUARD_SHIFT_AUTO_ABSENT".equals(actor.getActorSource()))
+        );
+    }
+
+    @Test
+    @DisplayName("Checklist 6.1: Khung kết thúc ca lấy từ SystemConfigService (ví dụ 15 phút) cho checkOut và thông báo lỗi")
+    void testCheckOut_UsesConfiguredWindow_AndRecordsAudit() {
+        when(systemConfigService.getIntWithinBounds(ConfigKey.GUARD_SHIFT_CHECK_OUT_WINDOW_MINUTES)).thenReturn(15);
+
+        // 1. Check-out sau giờ kết thúc 10 phút (> 5 phút mặc định nhưng <= 15 phút cấu hình) -> thành công
+        UUID shiftId = UUID.randomUUID();
+        LocalDateTime end10MinAgo = LocalDateTime.now().minusMinutes(10);
+        LocalDateTime start8hEarlier = end10MinAgo.minusHours(8);
+        GuardShift shift = GuardShift.builder()
+                .id(shiftId)
+                .guard(guardUser)
+                .shiftDate(start8hEarlier.toLocalDate())
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .startTime(start8hEarlier.toLocalTime())
+                .endTime(end10MinAgo.toLocalTime())
+                .status(ShiftStatus.CHECKED_IN)
+                .build();
+
+        when(shiftRepository.findById(shiftId)).thenReturn(Optional.of(shift));
+        when(userRepository.findByEmail(guardUser.getEmail())).thenReturn(Optional.of(guardUser));
+        when(shiftRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GuardShiftDto result = guardScheduleService.checkOut(shiftId, guardUser.getEmail());
+        assertEquals(ShiftStatus.COMPLETED, result.getStatus());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_SHIFT),
+                eq(AuditAction.CHECK_OUT),
+                eq(shiftId.toString()),
+                isNull(),
+                eq(guardUser),
+                any(GuardShiftAuditSnapshot.class),
+                any(GuardShiftAuditSnapshot.class),
+                isNull(),
+                any(AuditActor.class)
+        );
+
+        // 2. Check-out trước giờ kết thúc -> câu lỗi nêu 15 phút
+        UUID earlyOutId = UUID.randomUUID();
+        LocalDateTime endIn1h = LocalDateTime.now().plusHours(1);
+        LocalDateTime start7hAgo = endIn1h.minusHours(8);
+        GuardShift earlyOutShift = GuardShift.builder()
+                .id(earlyOutId)
+                .guard(guardUser)
+                .shiftDate(start7hAgo.toLocalDate())
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .startTime(start7hAgo.toLocalTime())
+                .endTime(endIn1h.toLocalTime())
+                .status(ShiftStatus.CHECKED_IN)
+                .build();
+        when(shiftRepository.findById(earlyOutId)).thenReturn(Optional.of(earlyOutShift));
+        IllegalStateException earlyOutEx = assertThrows(IllegalStateException.class,
+                () -> guardScheduleService.checkOut(earlyOutId, guardUser.getEmail()));
+        assertTrue(earlyOutEx.getMessage().contains("15 phút"));
+
+        // 3. Check-out quá 15 phút (20 phút sau giờ kết thúc) -> câu lỗi nêu 15 phút
+        UUID lateOutId = UUID.randomUUID();
+        LocalDateTime end20MinAgo = LocalDateTime.now().minusMinutes(20);
+        LocalDateTime startLateOut = end20MinAgo.minusHours(8);
+        GuardShift lateOutShift = GuardShift.builder()
+                .id(lateOutId)
+                .guard(guardUser)
+                .shiftDate(startLateOut.toLocalDate())
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .startTime(startLateOut.toLocalTime())
+                .endTime(end20MinAgo.toLocalTime())
+                .status(ShiftStatus.CHECKED_IN)
+                .build();
+        when(shiftRepository.findById(lateOutId)).thenReturn(Optional.of(lateOutShift));
+        IllegalStateException lateOutEx = assertThrows(IllegalStateException.class,
+                () -> guardScheduleService.checkOut(lateOutId, guardUser.getEmail()));
+        assertTrue(lateOutEx.getMessage().contains("15 phút"));
+    }
+
+    @Test
+    @DisplayName("Audit: Tạo, cập nhật, xóa và xóa hàng loạt ca trực đều ghi audit GUARD_SHIFT")
+    void testShiftCrudAndBulkClear_RecordAudit() {
+        when(auditService.resolveCurrentActor("GUARD_SCHEDULE_SERVICE"))
+                .thenReturn(AuditActor.system("GUARD_SCHEDULE_SERVICE"));
+
+        UUID shiftId = UUID.randomUUID();
+        LocalDate date = LocalDate.of(2026, 11, 26);
+        GuardShiftCreateRequest createReq = GuardShiftCreateRequest.builder()
+                .guardId(guardUser.getId())
+                .shiftDate(date)
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .startTime(LocalTime.of(6, 0))
+                .endTime(LocalTime.of(14, 0))
+                .notes("Trực cổng chính")
+                .build();
+
+        when(userRepository.findById(guardUser.getId())).thenReturn(Optional.of(guardUser));
+        when(shiftRepository.existsByGuardIdAndShiftDateAndStartTime(any(), any(), any())).thenReturn(false);
+        when(shiftRepository.save(any(GuardShift.class))).thenAnswer(inv -> {
+            GuardShift s = inv.getArgument(0);
+            if (s.getId() == null) s.setId(shiftId);
+            return s;
+        });
+
+        guardScheduleService.createShift(createReq);
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_SHIFT),
+                eq(AuditAction.CREATE),
+                eq(shiftId.toString()),
+                isNull(),
+                eq(guardUser),
+                isNull(),
+                any(GuardShiftAuditSnapshot.class),
+                eq("Trực cổng chính"),
+                any(AuditActor.class)
+        );
+
+        GuardShift existing = GuardShift.builder()
+                .id(shiftId)
+                .guard(guardUser)
+                .shiftDate(date)
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .startTime(LocalTime.of(6, 0))
+                .endTime(LocalTime.of(14, 0))
+                .status(ShiftStatus.SCHEDULED)
+                .notes("Cũ")
+                .build();
+        when(shiftRepository.findById(shiftId)).thenReturn(Optional.of(existing));
+
+        guardScheduleService.updateShift(shiftId, GuardShiftUpdateRequest.builder()
+                .guardId(guardUser.getId())
+                .shiftDate(date)
+                .shiftType(ShiftType.SHIFT_AFTERNOON)
+                .startTime(LocalTime.of(14, 0))
+                .endTime(LocalTime.of(22, 0))
+                .notes("Mới")
+                .build());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_SHIFT),
+                eq(AuditAction.UPDATE),
+                eq(shiftId.toString()),
+                isNull(),
+                eq(guardUser),
+                any(GuardShiftAuditSnapshot.class),
+                any(GuardShiftAuditSnapshot.class),
+                eq("Mới"),
+                any(AuditActor.class)
+        );
+
+        when(shiftRequestRepository.findAll()).thenReturn(List.of());
+        guardScheduleService.deleteShift(shiftId);
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_SHIFT),
+                eq(AuditAction.DELETE),
+                eq(shiftId.toString()),
+                isNull(),
+                eq(guardUser),
+                any(GuardShiftAuditSnapshot.class),
+                isNull(),
+                eq("Xóa ca trực"),
+                any(AuditActor.class)
+        );
+    }
+
+    @Test
+    @DisplayName("checkIn không rollback IllegalStateException để giữ trạng thái ABSENT và audit MARK_ABSENT khi quá hạn")
+    void testCheckIn_NoRollbackOnIllegalStateException() throws NoSuchMethodException {
+        org.springframework.transaction.annotation.Transactional tx = GuardScheduleService.class
+                .getMethod("checkIn", UUID.class, String.class)
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        assertNotNull(tx);
+        assertTrue(java.util.Arrays.asList(tx.noRollbackFor()).contains(IllegalStateException.class));
+    }
+
+    @Test
+    @DisplayName("Audit bulkClearShifts cắt targetId tối đa 100 ký tự khi tên tòa quá dài")
+    void testBulkClearShifts_TruncatesLongBuildingTargetId() {
+        when(auditService.resolveCurrentActor("GUARD_SCHEDULE_SERVICE"))
+                .thenReturn(AuditActor.system("GUARD_SCHEDULE_SERVICE"));
+
+        LocalDate startDate = LocalDate.of(2026, 9, 21);
+        LocalDate endDate = LocalDate.of(2026, 9, 27);
+        String longBuilding = "B".repeat(140);
+        GuardShift scheduledShift = GuardShift.builder()
+                .id(UUID.randomUUID())
+                .guard(guardUser)
+                .shiftDate(startDate)
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .status(ShiftStatus.SCHEDULED)
+                .build();
+        when(shiftRepository.findShifts(startDate, endDate, null, longBuilding, ShiftStatus.SCHEDULED))
+                .thenReturn(List.of(scheduledShift));
+
+        guardScheduleService.bulkClearShifts(BulkClearShiftsRequest.builder()
+                .startDate(startDate)
+                .endDate(endDate)
+                .building(longBuilding)
+                .build());
+
+        ArgumentCaptor<String> targetIdCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_SHIFT),
+                eq(AuditAction.DELETE),
+                targetIdCaptor.capture(),
+                isNull(),
+                isNull(),
+                isNull(),
+                any(GuardShiftBatchAuditSnapshot.class),
+                anyString(),
+                any(AuditActor.class)
+        );
+        assertEquals(100, targetIdCaptor.getValue().length());
     }
 }

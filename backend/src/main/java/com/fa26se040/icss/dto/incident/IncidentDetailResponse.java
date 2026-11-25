@@ -50,4 +50,5 @@ public class IncidentDetailResponse {
     private IncidentSeverity severity;
     // V93 (K6): STEP1 = đang mời một nhóm bảo vệ, chỉ người được mời nhận được; BROADCAST = như trước PR-2
     private IncidentDispatchStage dispatchStage;
+    private Integer repeatCount;
 }

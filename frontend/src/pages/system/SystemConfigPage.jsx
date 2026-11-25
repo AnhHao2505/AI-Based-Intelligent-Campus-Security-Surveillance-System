@@ -42,7 +42,7 @@ const CONFIG_SUBGROUPS = {
 	AI_CONFIG: [
 		{
 			title: "Nhận diện & Cảnh báo",
-			prefixes: ["AI_"],
+			prefixes: ["AI_", "INCIDENT_DEDUP_"],
 		},
 		{
 			title: "Ghi hình",
@@ -57,6 +57,7 @@ const CONFIG_SUBGROUPS = {
 		// V90 (K7): bật mời theo đợt, load score, chu kỳ job lời mời, mức độ mặc định
 		{ title: "Phân phối sự cố", prefixes: ["DISPATCH_", "INCIDENT_SEVERITY_"] },
 		{ title: "Bảo vệ xử lý sự cố", prefixes: ["GUARD_INCIDENT_"] },
+		{ title: "Ca trực bảo vệ", prefixes: ["GUARD_SHIFT_"] },
 		{ title: "Chế độ sự kiện", prefixes: ["EVENT_MODE_"] },
 		{ title: "Nhật ký vào khu vực", prefixes: ["ENTRY_LOG_"] },
 		{ title: "Tra cứu thành viên", prefixes: ["SECURITY_MEMBER_LOOKUP_"] },
@@ -308,6 +309,8 @@ export default function SystemConfigPage() {
 			// B-02: nhóm tham số khách (V60)
 			case "GUEST":
 				return "Khách";
+			case "GUARD_SCHEDULE":
+				return "Lịch trực bảo vệ";
 			default:
 				return groupKey;
 		}
@@ -339,6 +342,13 @@ export default function SystemConfigPage() {
 			case "GUEST":
 				return (
 					<UserPlus
+						size={18}
+						className="syscfg-group-icon"
+					/>
+				);
+			case "GUARD_SCHEDULE":
+				return (
+					<Clock
 						size={18}
 						className="syscfg-group-icon"
 					/>

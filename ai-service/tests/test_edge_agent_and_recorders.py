@@ -116,6 +116,62 @@ class TestEdgeAgentAndRecorders(unittest.TestCase):
         self.assertFalse(reply_body["success"])
         self.assertEqual(reply_body["errorCode"], "ERR_FACE_STAGING_NOT_FOUND")
 
+    def test_3b_domain_error_extract_face_embedding_when_image_corrupted(self):
+        from src.integration.edge_agent import EdgeMqttAgent, ERR_IMAGE_DECODE
+
+        mock_mqtt = MagicMock()
+        mock_storage = MagicMock()
+        mock_storage.download_bytes.return_value = b"not-a-valid-jpeg-or-png-image-bytes"
+
+        agent = EdgeMqttAgent(
+            mqtt_client_wrapper=mock_mqtt,
+            storage=mock_storage,
+            active_workers={},
+        )
+
+        req_payload = {
+            "correlationId": "corr-face-corrupt",
+            "action": "EXTRACT_FACE_EMBEDDING",
+            "cameraCode": None,
+            "payload": {"bucket": "face-profiles", "object_key": "staging/corrupt.jpg", "code": "NV001"},
+        }
+        agent.handle_message("campus/edge/rpc/request", json.dumps(req_payload).encode("utf-8"))
+
+        mock_mqtt.publish_json.assert_called_once()
+        reply_topic, reply_body = mock_mqtt.publish_json.call_args[0][:2]
+        self.assertEqual(reply_topic, "campus/edge/rpc/reply/corr-face-corrupt")
+        self.assertFalse(reply_body["success"])
+        self.assertEqual(reply_body["errorCode"], ERR_IMAGE_DECODE)
+        self.assertNotEqual(reply_body["errorCode"], "ERR_EDGE_INTERNAL")
+
+    def test_3c_domain_error_extract_face_embedding_when_image_empty_bytes(self):
+        from src.integration.edge_agent import EdgeMqttAgent, ERR_IMAGE_DECODE
+
+        mock_mqtt = MagicMock()
+        mock_storage = MagicMock()
+        mock_storage.download_bytes.return_value = b""
+
+        agent = EdgeMqttAgent(
+            mqtt_client_wrapper=mock_mqtt,
+            storage=mock_storage,
+            active_workers={},
+        )
+
+        req_payload = {
+            "correlationId": "corr-face-empty",
+            "action": "EXTRACT_FACE_EMBEDDING",
+            "cameraCode": None,
+            "payload": {"bucket": "face-profiles", "object_key": "staging/empty.jpg", "code": "NV001"},
+        }
+        agent.handle_message("campus/edge/rpc/request", json.dumps(req_payload).encode("utf-8"))
+
+        mock_mqtt.publish_json.assert_called_once()
+        reply_topic, reply_body = mock_mqtt.publish_json.call_args[0][:2]
+        self.assertEqual(reply_topic, "campus/edge/rpc/reply/corr-face-empty")
+        self.assertFalse(reply_body["success"])
+        self.assertEqual(reply_body["errorCode"], ERR_IMAGE_DECODE)
+        self.assertNotEqual(reply_body["errorCode"], "ERR_FACE_STAGING_NOT_FOUND")
+
     def test_4_stream_recorder_osd_timestamp_and_completed_telemetry_payload(self):
         from src.pipeline.stream_recorder import StreamRecorder, build_recording_completed_payload
 

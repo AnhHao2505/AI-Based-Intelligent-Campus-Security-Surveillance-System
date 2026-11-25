@@ -20,6 +20,12 @@ export const SYSTEM_ACTOR_LABELS = {
 	// V142: camera & stream lifecycle
 	CAMERA_SERVICE: "Quản lý camera",
 	CAMERA_STREAM_SERVICE: "Quản lý luồng camera",
+	// V144: đội bảo vệ & ca trực
+	GUARD_TEAM_SERVICE: "Quản lý đội bảo vệ",
+	GUARD_DISPATCH_SERVICE: "Điều động bảo vệ",
+	GUARD_DISPATCH_EXPIRE_JOB: "Tự động hoàn tất điều động bảo vệ",
+	GUARD_SCHEDULE_SERVICE: "Quản lý lịch trực bảo vệ",
+	GUARD_SHIFT_AUTO_ABSENT: "Tự động đánh vắng ca trực quá giờ",
 	// AuditService: ghi nhật ký không xác định được người thực hiện
 	SYSTEM_AUTOMATION: "Tác vụ tự động",
 };
@@ -71,6 +77,11 @@ export const TARGET_TYPE_LABELS = {
 	AUTH: "Đăng nhập",
 	// V142
 	CAMERA: "Camera",
+	// V144
+	GUARD_TEAM: "Đội bảo vệ",
+	GUARD_TEAM_DISPATCH: "Điều động tăng cường",
+	GUARD_SHIFT: "Ca trực bảo vệ",
+	GUARD_SHIFT_REQUEST: "Đơn đổi ca / nghỉ phép",
 };
 
 // PR-AUDIT: lý do nội bộ của LOGIN_FAILED (chỉ ADMIN xem; người đăng nhập luôn nhận câu chung BR-AU-32)
@@ -149,6 +160,9 @@ export const getActionLabel = (targetType, action) => {
 	else if (action === "PASSWORD_RESET_REQUESTED") actionLabel = "Yêu cầu đặt lại mật khẩu";
 	else if (action === "PASSWORD_RESET_COMPLETED") actionLabel = "Đặt lại mật khẩu";
 	else if (action === "STOP_STREAM") actionLabel = "Ngắt kết nối stream";
+	else if (action === "CHECK_IN") actionLabel = "Điểm danh nhận ca";
+	else if (action === "CHECK_OUT") actionLabel = "Điểm danh kết thúc ca";
+	else if (action === "MARK_ABSENT") actionLabel = "Đánh vắng mặt";
 
 	if (targetType === "CAMERA") {
 		if (action === "DEACTIVATE") actionLabel = "Tắt camera";

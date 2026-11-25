@@ -28,6 +28,10 @@ public enum ConfigKey {
     ACCESS_LEVEL_DEFAULT_ADMIN("ACCESS_LEVEL_DEFAULT_ADMIN", "3"),
     // V125: mặc định 0.50 theo đánh giá trên camera thật (0.75 khiến người đã đăng ký gần như không bao giờ được nhận ra)
     AI_FACE_MATCH_THRESHOLD("AI_FACE_MATCH_THRESHOLD", "0.50"),
+    // V145: ngưỡng độ tin cậy phát hiện người YOLO (trước đây cố định 0.35 trong ai-service)
+    AI_DETECTION_CONFIDENCE("AI_DETECTION_CONFIDENCE", "0.35"),
+    // V146: ngưỡng độ tin cậy phát hiện khuôn mặt SCRFD (trước đây cố định 0.45 trong ai-service)
+    AI_FACE_CONFIDENCE("AI_FACE_CONFIDENCE", "0.45"),
     AI_AFTER_HOUR_START("AI_AFTER_HOUR_START", "22:00"),
     AI_AFTER_HOUR_END("AI_AFTER_HOUR_END", "06:00"),
     // V142: bỏ khỏi màn Cấu hình AI_TRACK_MAX_INACTIVE_SECONDS, AI_ACCESS_CHECK_TIMEOUT_SECONDS,
@@ -75,6 +79,7 @@ public enum ConfigKey {
     // chu kỳ job kiểm tra leo thang, đọc lại trước mỗi lần chạy
     INCIDENT_ESCALATE_FM_MINUTES("INCIDENT_ESCALATE_FM_MINUTES", "5"),
     INCIDENT_ESCALATION_CHECK_SECONDS("INCIDENT_ESCALATION_CHECK_SECONDS", "30"),
+    INCIDENT_DEDUP_WINDOW_MINUTES("INCIDENT_DEDUP_WINDOW_MINUTES", "5"),
     // Checklist 6.1 (V82): độ dài lý do thao tác (huỷ, từ chối, hoàn thành đơn, quy tắc khu vực, cấp truy cập...),
     // tính sau khi trim. Kiểm duy nhất ở ReasonValidator, đọc lại mỗi lần gọi
     REASON_MIN_LENGTH("REASON_MIN_LENGTH", "10"),
@@ -104,7 +109,10 @@ public enum ConfigKey {
     LOGIN_MAX_FAILED_ATTEMPTS("LOGIN_MAX_FAILED_ATTEMPTS", "5"),
     LOGIN_FAILED_WINDOW_MINUTES("LOGIN_FAILED_WINDOW_MINUTES", "15"),
     LOGIN_LOCK_MINUTES("LOGIN_LOCK_MINUTES", "15"),
-    LOGIN_IP_RATE_PER_MINUTE("LOGIN_IP_RATE_PER_MINUTE", "20");
+    LOGIN_IP_RATE_PER_MINUTE("LOGIN_IP_RATE_PER_MINUTE", "20"),
+    // V143_1 (Checklist 6.1): khung nhận ca / kết thúc ca bảo vệ (±5 phút mặc định)
+    GUARD_SHIFT_CHECK_IN_WINDOW_MINUTES("GUARD_SHIFT_CHECK_IN_WINDOW_MINUTES", "5"),
+    GUARD_SHIFT_CHECK_OUT_WINDOW_MINUTES("GUARD_SHIFT_CHECK_OUT_WINDOW_MINUTES", "5");
 
     private final String key;
     private final String defaultValue;
