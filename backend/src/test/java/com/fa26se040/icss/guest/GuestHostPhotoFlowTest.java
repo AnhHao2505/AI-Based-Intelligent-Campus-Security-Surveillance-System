@@ -460,19 +460,19 @@ public class GuestHostPhotoFlowTest extends GuestTestSupport {
     }
 
     @Test
-    @DisplayName("D1: ngưỡng đọc từ AI_FACE_MATCH_THRESHOLD — cosine ≈ 0.60: ngưỡng 0.70 cho qua, ngưỡng 0.50 chặn")
+    @DisplayName("D1: ngưỡng đọc từ AI_FACE_MATCH_THRESHOLD — cosine ≈ 0.58: ngưỡng 0.64 cho qua, ngưỡng 0.52 chặn")
     void threshold_fromSystemConfiguration() throws Exception {
         List<Float> face = TestFaces.random();
         userWithFace("thr", face, true);
-        List<Float> similar = withCosine(face, 0.60);
+        List<Float> similar = withCosine(face, 0.58);
 
-        setThreshold("0.70");
+        setThreshold("0.64");
         faces(similar);
         createdId(createVisit(hostL2, createBody(future(0), future(60), List.of(internalArea),
                 List.of(guestInput("Khách hơi giống", null)))).andReturn());
 
-        setThreshold("0.50");
-        faces(withCosine(face, 0.60));
+        setThreshold("0.52");
+        faces(withCosine(face, 0.58));
         MvcResult r = createVisit(hostL2, createBody(future(120), future(180), List.of(internalArea),
                 List.of(guestInput("Khách hơi giống", null)))).andReturn();
         assertEquals(409, status(r), r.getResponse().getContentAsString());

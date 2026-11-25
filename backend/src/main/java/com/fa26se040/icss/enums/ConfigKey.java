@@ -79,6 +79,7 @@ public enum ConfigKey {
     // chu kỳ job kiểm tra leo thang, đọc lại trước mỗi lần chạy
     INCIDENT_ESCALATE_FM_MINUTES("INCIDENT_ESCALATE_FM_MINUTES", "5"),
     INCIDENT_ESCALATION_CHECK_SECONDS("INCIDENT_ESCALATION_CHECK_SECONDS", "30"),
+    INCIDENT_DEDUP_WINDOW_MINUTES("INCIDENT_DEDUP_WINDOW_MINUTES", "5"),
     // Checklist 6.1 (V82): độ dài lý do thao tác (huỷ, từ chối, hoàn thành đơn, quy tắc khu vực, cấp truy cập...),
     // tính sau khi trim. Kiểm duy nhất ở ReasonValidator, đọc lại mỗi lần gọi
     REASON_MIN_LENGTH("REASON_MIN_LENGTH", "10"),
