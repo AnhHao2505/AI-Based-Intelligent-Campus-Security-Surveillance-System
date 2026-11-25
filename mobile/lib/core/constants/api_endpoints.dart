@@ -43,17 +43,17 @@ class ApiEndpoints {
   // WebSocket endpoint
   static String get wsSecurity => '${baseUrl.replaceFirst('http', 'ws')}/ws-security';
 
-  // Incidents endpoints
-  static String get incidentsAll => '$baseUrl/api/incidents';
+  // Incidents endpoints (app mobile chỉ lấy sự cố phát sinh trong ca bảo vệ được phân công)
+  static String get incidentsAll => '$baseUrl/api/incidents?assignedShiftOnly=true';
   static String incidentsFiltered({String? building, String? status}) {
-    final params = <String>[];
+    final params = <String>['assignedShiftOnly=true'];
     if (building != null && building.isNotEmpty) params.add('building=$building');
     if (status != null && status.isNotEmpty) params.add('status=$status');
-    if (params.isEmpty) return incidentsAll;
-    return '$incidentsAll?${params.join('&')}';
+    return '$baseUrl/api/incidents?${params.join('&')}';
   }
-  static String get activeIncidentsAll => '$baseUrl/api/incidents/active';
-  static String activeIncidents(String building) => '$baseUrl/api/incidents/active?building=$building';
+  static String get activeIncidentsAll => '$baseUrl/api/incidents/active?assignedShiftOnly=true';
+  static String activeIncidents(String building) =>
+      '$baseUrl/api/incidents/active?building=$building&assignedShiftOnly=true';
   static String claimIncident(String incidentId) => '$baseUrl/api/incidents/$incidentId/claim';
   static String resolveIncident(String incidentId) => '$baseUrl/api/incidents/$incidentId/resolve';
   static String declineOffer(String incidentId) => '$baseUrl/api/incidents/$incidentId/offers/decline';
@@ -63,8 +63,9 @@ class ApiEndpoints {
   // Guard Chat endpoints
   static String get guardChatGuards => '$baseUrl/api/guard-chat/guards';
   static String guardChatMessages(String peerId, {int limit = 50}) =>
-      '$baseUrl/api/guard-chat/messages?peerId=$peerId&limit=$limit';
+      '$baseUrl/api/guard-chat/messages?peerId=$peerId&size=$limit';
   static String get guardChatSendMessage => '$baseUrl/api/guard-chat/messages';
+  static String get guardChatSendImage => '$baseUrl/api/guard-chat/messages/image';
   static String guardChatMarkRead(String peerId) => '$baseUrl/api/guard-chat/read/$peerId';
   static String get guardChatUnreadCount => '$baseUrl/api/guard-chat/unread-count';
 }
