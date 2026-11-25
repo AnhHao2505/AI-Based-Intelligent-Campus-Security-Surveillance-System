@@ -8,20 +8,49 @@ import {
   Shield,
   Check,
   CheckCheck,
-  Building2,
-  Clock,
-  User,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useStompSubscription } from '../../hooks/useStompSubscription';
+import { useAuthorizedImage } from '../../hooks/useAuthorizedImage';
+import { formatImageUrl } from '../../utils/roiUtils';
 import {
   getGuardsForChat,
   getConversationMessages,
   sendChatMessage,
+  sendChatImageMessage,
   markChatConversationAsRead,
   getUnreadChatCount,
 } from '../../services/guardChatService';
 import '../../styles/GuardChatWidget.css';
+
+function formatMessagePreview(msg) {
+  if (!msg) return '';
+  const text = (msg.content || '').trim();
+  if (msg.imageUrl && text) return `[Hình ảnh] ${text}`;
+  if (msg.imageUrl) return '[Hình ảnh]';
+  return msg.content || '';
+}
+
+function AuthorizedChatImage({ src, alt = 'Ảnh tin nhắn', onClick }) {
+  const { url, loading, error } = useAuthorizedImage(formatImageUrl(src));
+
+  if (loading) {
+    return <div className="guard-chat-image-placeholder">Đang tải ảnh...</div>;
+  }
+  if (error || !url) {
+    return <div className="guard-chat-image-placeholder">Không tải được ảnh</div>;
+  }
+
+  return (
+    <img
+      src={url}
+      alt={alt}
+      className="guard-chat-bubble-image"
+      onClick={() => onClick?.(url)}
+    />
+  );
+}
 
 export default function GuardChatWidget() {
   const { user } = useAuth();
@@ -40,8 +69,12 @@ export default function GuardChatWidget() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImagePreview, setSelectedImagePreview] = useState(null);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Load guards list
   const fetchGuards = useCallback(async () => {
@@ -104,36 +137,75 @@ export default function GuardChatWidget() {
     }
   };
 
+  const clearSelectedImage = useCallback(() => {
+    setSelectedImage(null);
+    setSelectedImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (selectedImagePreview) URL.revokeObjectURL(selectedImagePreview);
+    };
+  }, [selectedImagePreview]);
+
+  const handleSelectImage = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      return;
+    }
+    setSelectedImage(file);
+    setSelectedImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+
   // Close active conversation back to guard list
   const handleBackToList = () => {
     setActivePeer(null);
     setMessages([]);
+    clearSelectedImage();
     fetchGuards();
   };
 
-  // Send message
+  // Send message (text and/or image)
   const handleSendMessage = async (e) => {
     e?.preventDefault();
-    if (!inputText.trim() || !activePeer || isSending) return;
+    if ((!inputText.trim() && !selectedImage) || !activePeer || isSending) return;
 
     const content = inputText.trim();
+    const imageFile = selectedImage;
     setInputText('');
+    clearSelectedImage();
     setIsSending(true);
 
     try {
-      const sent = await sendChatMessage(activePeer.id, content);
-      setMessages((prev) => [...prev, sent]);
+      const sent = imageFile
+        ? await sendChatImageMessage(activePeer.id, imageFile, content)
+        : await sendChatMessage(activePeer.id, content);
+      setMessages((prev) => {
+        if (prev.some((m) => m.id && sent.id && m.id === sent.id)) return prev;
+        return [...prev, sent];
+      });
       // Update last message in guard list
       setGuards((prev) =>
         prev.map((g) =>
           g.id === activePeer.id
-            ? { ...g, lastMessage: content, lastMessageAt: sent.createdAt }
+            ? { ...g, lastMessage: formatMessagePreview(sent), lastMessageAt: sent.createdAt }
             : g
         )
       );
       setTimeout(() => scrollToBottom('smooth'), 50);
     } catch (err) {
       console.error('Lỗi gửi tin nhắn:', err);
+      if (content) setInputText(content);
     } finally {
       setIsSending(false);
     }
@@ -168,7 +240,7 @@ export default function GuardChatWidget() {
                 return {
                   ...g,
                   unreadCount: (g.unreadCount || 0) + 1,
-                  lastMessage: msg.content,
+                  lastMessage: formatMessagePreview(msg),
                   lastMessageAt: msg.createdAt,
                 };
               }
@@ -183,7 +255,7 @@ export default function GuardChatWidget() {
       setGuards((prev) =>
         prev.map((g) =>
           g.id === peerId
-            ? { ...g, lastMessage: msg.content, lastMessageAt: msg.createdAt }
+            ? { ...g, lastMessage: formatMessagePreview(msg), lastMessageAt: msg.createdAt }
             : g
         )
       );
@@ -352,7 +424,11 @@ export default function GuardChatWidget() {
                         </div>
 
                         <div className="guard-chat-item-sub">
-                          {guard.onDuty ? (
+                          {guard.role === 'FACILITY_MANAGER' ? (
+                            <span className="guard-chat-tag-onduty">
+                              Quản lý CSVC
+                            </span>
+                          ) : guard.onDuty ? (
                             <span className="guard-chat-tag-onduty">
                               {guard.currentShiftName
                                 ? `Ca: ${guard.currentShiftName}`
@@ -471,7 +547,15 @@ export default function GuardChatWidget() {
                         key={m.id || Math.random()}
                         className={`guard-chat-bubble-wrap ${isMe ? 'me' : 'peer'}`}
                       >
-                        <div className="guard-chat-bubble">{m.content}</div>
+                        <div className="guard-chat-bubble">
+                          {m.imageUrl && (
+                            <AuthorizedChatImage
+                              src={m.imageUrl}
+                              onClick={(url) => setLightboxUrl(url)}
+                            />
+                          )}
+                          {m.content && <div>{m.content}</div>}
+                        </div>
                         <div className="guard-chat-meta">
                           <span>{timeStr}</span>
                           {isMe && (
@@ -491,11 +575,50 @@ export default function GuardChatWidget() {
                 <div ref={messagesEndRef} />
               </div>
 
+              {/* Selected Image Preview */}
+              {selectedImagePreview && (
+                <div className="guard-chat-image-preview">
+                  <img src={selectedImagePreview} alt="Xem trước ảnh" />
+                  <span className="guard-chat-image-preview-meta">
+                    {selectedImage?.name || 'Ảnh đính kèm'}
+                  </span>
+                  <button
+                    type="button"
+                    className="guard-chat-icon-btn"
+                    onClick={clearSelectedImage}
+                    title="Bỏ chọn ảnh"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+
               {/* Message Input Box */}
               <form className="guard-chat-input-box" onSubmit={handleSendMessage}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleSelectImage}
+                />
+                <button
+                  type="button"
+                  className="guard-chat-attach-btn"
+                  disabled={isSending}
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Chọn hình ảnh"
+                  aria-label="Chọn hình ảnh"
+                >
+                  <ImageIcon size={16} />
+                </button>
                 <textarea
                   className="guard-chat-textarea"
-                  placeholder={`Nhập tin nhắn cho ${activePeer.fullName}...`}
+                  placeholder={
+                    selectedImage
+                      ? 'Thêm chú thích ảnh...'
+                      : `Nhập tin nhắn cho ${activePeer.fullName}...`
+                  }
                   rows={1}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -509,7 +632,7 @@ export default function GuardChatWidget() {
                 <button
                   type="submit"
                   className="guard-chat-send-btn"
-                  disabled={!inputText.trim() || isSending}
+                  disabled={(!inputText.trim() && !selectedImage) || isSending}
                   title="Gửi tin nhắn"
                 >
                   <Send size={15} />
@@ -517,6 +640,28 @@ export default function GuardChatWidget() {
               </form>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Lightbox for full-screen chat image preview */}
+      {lightboxUrl && (
+        <div
+          className="guard-chat-lightbox"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            className="guard-chat-lightbox-close"
+            onClick={() => setLightboxUrl(null)}
+            title="Đóng"
+          >
+            <X size={20} />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Ảnh tin nhắn phóng to"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </>

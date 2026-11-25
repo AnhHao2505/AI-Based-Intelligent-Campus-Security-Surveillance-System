@@ -389,9 +389,118 @@
   background: var(--theme-danger);
 }
 
+/* Dashboard Pills, Breakdown Chips & Compact Lists */
+.dash-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.dash-pill--danger {
+  background: var(--theme-danger-bg);
+  color: var(--theme-danger-text, var(--theme-danger));
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.dash-pill--warning,
+.dash-pill--amber {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.dash-pill--success {
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.dash-pill--neutral {
+  background: var(--theme-bg-surface-elevated);
+  color: var(--theme-text-secondary);
+  border-color: var(--theme-border);
+}
+
+[data-theme="dark"] .dash-pill--warning,
+[data-theme="dark"] .dash-pill--amber {
+  color: #fbbf24;
+}
+
+[data-theme="dark"] .dash-pill--success {
+  color: #34d399;
+}
+
+.dash-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.dash-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 4px;
+  background: var(--theme-bg-surface-elevated);
+  border: 1px solid var(--theme-border);
+  font-size: 0.76rem;
+  color: var(--theme-text-secondary);
+}
+
+.dash-chip strong {
+  color: var(--theme-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.dash-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.dash-card__action-btn {
+  background: none;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dash-card__action-btn:hover {
+  color: var(--theme-primary);
+  border-color: var(--theme-primary-border);
+  background: var(--theme-bg-surface-elevated);
+}
+
+.dash-grid--equal {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
-  .dashboard-grid {
+  .dashboard-grid,
+  .dash-grid--equal {
     grid-template-columns: 1fr;
   }
 }

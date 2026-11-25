@@ -321,6 +321,35 @@
   justify-content: center;
   position: relative;
   min-width: 0;
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+
+.headbar__nav--reordering {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grabbing;
+}
+
+.headbar__item--held {
+  z-index: 2;
+  transform: scale(1.04);
+  cursor: grabbing;
+}
+
+.headbar__item--held .headbar__link {
+  background: var(--brand-subtle);
+  color: var(--brand-text);
+  border-color: var(--theme-primary);
+  box-shadow: 0 6px 16px -4px rgba(243, 112, 33, 0.32);
+  cursor: grabbing;
+}
+
+.headbar__item--drop-target .headbar__link {
+  background: var(--theme-bg-hover);
+  border-color: var(--theme-primary);
+  border-style: dashed;
+  color: var(--theme-primary);
+  transform: scale(1.02);
 }
 
 .headbar__item:not(:last-child)::after {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../models/area_pin_model.dart';
@@ -37,8 +37,18 @@ class CampusMapLegend extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? _darkBackground : Colors.white.withAlpha(235),
         borderRadius: BorderRadius.circular(campusMapLegendRadius),
-        border: Border.all(color: isDark ? Colors.white.withAlpha(31) : AppColors.crdBorder(context)),
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 10, offset: const Offset(0, 2))],
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withAlpha(31)
+              : AppColors.crdBorder(context),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(20),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Wrap(
         spacing: campusMapLegendItemSpacing,
@@ -53,10 +63,19 @@ class CampusMapLegend extends StatelessWidget {
                   key: ValueKey('campus-map-legend-dot-${e.level}'),
                   width: campusMapLegendDotSize,
                   height: campusMapLegendDotSize,
-                  decoration: BoxDecoration(color: AreaPinModel.levelColorOf(e.level), shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: AreaPinModel.levelColorOf(e.level),
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: campusMapLegendDotGap),
-                Text(e.label, style: TextStyle(fontSize: campusMapLegendFontSize, color: textColor)),
+                Text(
+                  e.label,
+                  style: TextStyle(
+                    fontSize: campusMapLegendFontSize,
+                    color: textColor,
+                  ),
+                ),
               ],
             ),
         ],

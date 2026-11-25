@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -109,216 +109,232 @@ class _MyShiftRequestsSheetState extends State<MyShiftRequestsSheet> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _requests.isEmpty
-                    ? Center(
-                        child: Text(
-                          'Bạn chưa có yêu cầu đổi ca hoặc trực thay nào',
-                          style: TextStyle(fontSize: 13, color: AppColors.txtMuted(context)),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _fetch,
-                        child: ListView.separated(
-                          itemCount: _requests.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 10),
-                          itemBuilder: (ctx, index) {
-                            final req = _requests[index];
-                            final isApproved = req.isApproved;
-                            final isRejected = req.isRejected;
+                ? Center(
+                    child: Text(
+                      'Bạn chưa có yêu cầu đổi ca hoặc trực thay nào',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.txtMuted(context),
+                      ),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _fetch,
+                    child: ListView.separated(
+                      itemCount: _requests.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 10),
+                      itemBuilder: (ctx, index) {
+                        final req = _requests[index];
+                        final isApproved = req.isApproved;
+                        final isRejected = req.isRejected;
 
-                            final isSubstitute = currentUserId != null &&
-                                req.targetSubstituteGuardId == currentUserId &&
-                                req.requesterGuardId != currentUserId;
+                        final isSubstitute =
+                            currentUserId != null &&
+                            req.targetSubstituteGuardId == currentUserId &&
+                            req.requesterGuardId != currentUserId;
 
-                            final statusBg = isApproved
-                                ? AppColors.success.withAlpha(25)
-                                : isRejected
-                                    ? AppColors.danger.withAlpha(25)
-                                    : AppColors.warning.withAlpha(25);
+                        final statusBg = isApproved
+                            ? AppColors.success.withAlpha(25)
+                            : isRejected
+                            ? AppColors.danger.withAlpha(25)
+                            : AppColors.warning.withAlpha(25);
 
-                            final statusFg = isApproved
-                                ? AppColors.success
-                                : isRejected
-                                    ? AppColors.danger
-                                    : AppColors.warning;
+                        final statusFg = isApproved
+                            ? AppColors.success
+                            : isRejected
+                            ? AppColors.danger
+                            : AppColors.warning;
 
-                            String badgeTitle;
-                            Color badgeColor;
+                        String badgeTitle;
+                        Color badgeColor;
 
-                            if (isSubstitute) {
-                              if (req.isLeave) {
-                                badgeTitle = '[Phân công trực thay]';
-                                badgeColor = Colors.teal;
-                              } else {
-                                badgeTitle = '[Đổi ca từ đồng nghiệp]';
-                                badgeColor = AppColors.primary;
-                              }
-                            } else {
-                              badgeTitle = req.typeLabel;
-                              badgeColor = AppColors.primaryLight;
-                            }
+                        if (isSubstitute) {
+                          if (req.isLeave) {
+                            badgeTitle = '[Phân công trực thay]';
+                            badgeColor = Colors.teal;
+                          } else {
+                            badgeTitle = '[Đổi ca từ đồng nghiệp]';
+                            badgeColor = AppColors.primary;
+                          }
+                        } else {
+                          badgeTitle = req.typeLabel;
+                          badgeColor = AppColors.primaryLight;
+                        }
 
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: isSubstitute
-                                    ? Colors.teal.withAlpha(15)
-                                    : AppColors.surfLight(context),
-                                borderRadius: BorderRadius.circular(7),
-                                border: Border.all(
-                                  color: isSubstitute
-                                      ? Colors.teal.withAlpha(80)
-                                      : AppColors.crdBorder(context),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: isSubstitute
+                                ? Colors.teal.withAlpha(15)
+                                : AppColors.surfLight(context),
+                            borderRadius: BorderRadius.circular(7),
+                            border: Border.all(
+                              color: isSubstitute
+                                  ? Colors.teal.withAlpha(80)
+                                  : AppColors.crdBorder(context),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          badgeTitle,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: badgeColor,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: statusBg,
-                                          borderRadius: BorderRadius.circular(3),
-                                        ),
-                                        child: Text(
-                                          req.statusLabel,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: statusFg,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-
-                                  if (isSubstitute) ...[
-                                    if (req.isLeave) ...[
-                                      Text(
-                                        'Trực thay cho: ${req.requesterGuardName ?? "Đồng nghiệp"}',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.txtPrimary(context),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Ca tiếp nhận: ${req.formattedShiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.txtSecondary(context),
-                                        ),
-                                      ),
-                                    ] else ...[
-                                      Text(
-                                        'Đề xuất bởi: ${req.requesterGuardName ?? "Đồng nghiệp"}',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.txtPrimary(context),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Ca tiếp nhận: ${req.formattedShiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.primary,
-                                        ),
-                                      ),
-                                      if (req.formattedTargetShiftDate.isNotEmpty) ...[
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          'Ca đổi của bạn: ${req.formattedTargetShiftDate}${req.formattedTargetShiftTimeRange.isNotEmpty ? ", ${req.formattedTargetShiftTimeRange}" : ""}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.txtSecondary(context),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ] else ...[
-                                    if (req.shiftDate != null)
-                                      Text(
-                                        'Ca trực: ${req.formattedShiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.txtPrimary(context),
-                                        ),
-                                      ),
-
-                                    if (req.isSwap && req.targetSubstituteGuardName != null) ...[
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Đổi với: ${req.targetSubstituteGuardName}${req.formattedTargetShiftDate.isNotEmpty ? " (Ca gốc: ${req.formattedTargetShiftDate}${req.formattedTargetShiftTimeRange.isNotEmpty ? ", ${req.formattedTargetShiftTimeRange}" : ""})" : ""}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.primary,
-                                        ),
-                                      ),
-                                    ],
-
-                                    if (req.isLeave && req.targetSubstituteGuardName != null) ...[
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Người trực thay: ${req.targetSubstituteGuardName}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.teal,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-
-                                  if (!isSubstitute && req.reason.isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Lý do: "${req.reason}"',
+                                  Expanded(
+                                    child: Text(
+                                      badgeTitle,
                                       style: TextStyle(
                                         fontSize: 12,
-                                        fontStyle: FontStyle.italic,
-                                        color: AppColors.txtMuted(context),
+                                        fontWeight: FontWeight.bold,
+                                        color: badgeColor,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: statusBg,
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                    child: Text(
+                                      req.statusLabel,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: statusFg,
                                       ),
                                     ),
-                                  ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
 
-                                  if (!isSubstitute && req.reviewNote != null && req.reviewNote!.isNotEmpty) ...[
-                                    const SizedBox(height: 6),
+                              if (isSubstitute) ...[
+                                if (req.isLeave) ...[
+                                  Text(
+                                    'Trực thay cho: ${req.requesterGuardName ?? "Đồng nghiệp"}',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.txtPrimary(context),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Ca tiếp nhận: ${req.formattedShiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.txtSecondary(context),
+                                    ),
+                                  ),
+                                ] else ...[
+                                  Text(
+                                    'Đề xuất bởi: ${req.requesterGuardName ?? "Đồng nghiệp"}',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.txtPrimary(context),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Ca tiếp nhận: ${req.formattedShiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  if (req
+                                      .formattedTargetShiftDate
+                                      .isNotEmpty) ...[
+                                    const SizedBox(height: 2),
                                     Text(
-                                      'Phản hồi từ quản lý: "${req.reviewNote}"',
+                                      'Ca đổi của bạn: ${req.formattedTargetShiftDate}${req.formattedTargetShiftTimeRange.isNotEmpty ? ", ${req.formattedTargetShiftTimeRange}" : ""}',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: isRejected ? AppColors.danger : AppColors.txtSecondary(context),
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.txtSecondary(context),
                                       ),
                                     ),
                                   ],
                                 ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                              ] else ...[
+                                if (req.shiftDate != null)
+                                  Text(
+                                    'Ca trực: ${req.formattedShiftDate} (${req.shiftStartTime?.substring(0, 5)} - ${req.shiftEndTime?.substring(0, 5)})',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.txtPrimary(context),
+                                    ),
+                                  ),
+
+                                if (req.isSwap &&
+                                    req.targetSubstituteGuardName != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Đổi với: ${req.targetSubstituteGuardName}${req.formattedTargetShiftDate.isNotEmpty ? " (Ca gốc: ${req.formattedTargetShiftDate}${req.formattedTargetShiftTimeRange.isNotEmpty ? ", ${req.formattedTargetShiftTimeRange}" : ""})" : ""}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ],
+
+                                if (req.isLeave &&
+                                    req.targetSubstituteGuardName != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Người trực thay: ${req.targetSubstituteGuardName}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.teal,
+                                    ),
+                                  ),
+                                ],
+                              ],
+
+                              if (!isSubstitute && req.reason.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Lý do: "${req.reason}"',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                    color: AppColors.txtMuted(context),
+                                  ),
+                                ),
+                              ],
+
+                              if (!isSubstitute &&
+                                  req.reviewNote != null &&
+                                  req.reviewNote!.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Phản hồi từ quản lý: "${req.reviewNote}"',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isRejected
+                                        ? AppColors.danger
+                                        : AppColors.txtSecondary(context),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
           ),
         ],
       ),

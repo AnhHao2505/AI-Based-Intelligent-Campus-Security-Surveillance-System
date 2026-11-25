@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
@@ -12,17 +12,15 @@ import '../providers/incident_provider.dart';
 import '../widgets/incident_detail_sheet.dart';
 import '../widgets/peer_claim_notice.dart';
 
-enum IncidentFilterTab {
-  pending,
-  claimed,
-  resolved,
-  all,
-}
+enum IncidentFilterTab { pending, claimed, resolved, all }
 
 class IncidentListScreen extends StatefulWidget {
   final IncidentFilterTab initialTab;
 
-  const IncidentListScreen({super.key, this.initialTab = IncidentFilterTab.pending});
+  const IncidentListScreen({
+    super.key,
+    this.initialTab = IncidentFilterTab.pending,
+  });
 
   static bool switchToTab(IncidentFilterTab tab) {
     final state = _IncidentListScreenState.activeInstance;
@@ -41,7 +39,8 @@ class IncidentListScreen extends StatefulWidget {
   State<IncidentListScreen> createState() => _IncidentListScreenState();
 }
 
-class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimNoticeMixin {
+class _IncidentListScreenState extends State<IncidentListScreen>
+    with PeerClaimNoticeMixin {
   static _IncidentListScreenState? activeInstance;
 
   late IncidentFilterTab _selectedTab = widget.initialTab;
@@ -210,7 +209,8 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
 
   void _navigateToMap(IncidentModel incident) {
     final mapProvider = context.read<MapProvider>();
-    final hasCamCoords = incident.mapLatitude != null &&
+    final hasCamCoords =
+        incident.mapLatitude != null &&
         incident.mapLongitude != null &&
         incident.mapLatitude != 0.0 &&
         incident.mapLongitude != 0.0;
@@ -223,7 +223,9 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
       building: incident.building,
       floor: incident.floor,
       floorOrder: incident.mapFloorOrder,
-      targetLatLng: hasCamCoords ? LatLng(incident.mapLatitude!, incident.mapLongitude!) : null,
+      targetLatLng: hasCamCoords
+          ? LatLng(incident.mapLatitude!, incident.mapLongitude!)
+          : null,
     );
 
     Navigator.push(
@@ -247,7 +249,10 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: AppColors.txtPrimary(context)),
+          icon: Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.txtPrimary(context),
+          ),
           onPressed: () => Navigator.pop(context),
           tooltip: 'Quay lại',
         ),
@@ -278,7 +283,9 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  incidentProvider.isStompConnected ? 'Trực tiếp' : 'Mất kết nối',
+                  incidentProvider.isStompConnected
+                      ? 'Trực tiếp'
+                      : 'Mất kết nối',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
@@ -291,14 +298,21 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
             ),
             Text(
               '${filteredList.length} sự cố được ghi nhận',
-              style: TextStyle(fontSize: 11, color: AppColors.txtSecondary(context)),
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.txtSecondary(context),
+              ),
             ),
           ],
         ),
         actions: [
           // Nút mở bản đồ
           IconButton(
-            icon: const Icon(Icons.map_outlined, color: AppColors.primaryLight, size: 22),
+            icon: const Icon(
+              Icons.map_outlined,
+              color: AppColors.primaryLight,
+              size: 22,
+            ),
             tooltip: 'Mở bản đồ tuần tra',
             onPressed: () {
               Navigator.push(
@@ -309,7 +323,11 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
           ),
           // Nút làm mới
           IconButton(
-            icon: Icon(Icons.refresh_rounded, color: AppColors.txtSecondary(context), size: 22),
+            icon: Icon(
+              Icons.refresh_rounded,
+              color: AppColors.txtSecondary(context),
+              size: 22,
+            ),
             tooltip: 'Làm mới danh sách',
             onPressed: () {
               incidentProvider.loadActiveIncidents();
@@ -475,7 +493,9 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
               ),
               const SizedBox(height: 16),
               Text(
-                _selectedTab == IncidentFilterTab.pending ? 'HỆ THỐNG AN TOÀN' : 'Không có sự cố',
+                _selectedTab == IncidentFilterTab.pending
+                    ? 'HỆ THỐNG AN TOÀN'
+                    : 'Không có sự cố',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -486,7 +506,10 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.txtSecondary(context)),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.txtSecondary(context),
+                ),
               ),
             ],
           ),
@@ -510,12 +533,16 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
         color: AppColors.crd(context),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isPending ? sevColor.withAlpha(80) : AppColors.crdBorder(context),
+          color: isPending
+              ? sevColor.withAlpha(80)
+              : AppColors.crdBorder(context),
           width: isPending ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: isPending ? sevColor.withAlpha(20) : Colors.black.withAlpha(15),
+            color: isPending
+                ? sevColor.withAlpha(20)
+                : Colors.black.withAlpha(15),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -554,16 +581,25 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                         children: [
                           Flexible(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: sevColor.withAlpha(25),
                                 borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: sevColor.withAlpha(80)),
+                                border: Border.all(
+                                  color: sevColor.withAlpha(80),
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.warning_amber_rounded, size: 14, color: sevColor),
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    size: 14,
+                                    color: sevColor,
+                                  ),
                                   const SizedBox(width: 4),
                                   Flexible(
                                     child: Text(
@@ -590,7 +626,11 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.access_time_rounded, size: 13, color: AppColors.txtSecondary(context)),
+                        Icon(
+                          Icons.access_time_rounded,
+                          size: 13,
+                          color: AppColors.txtSecondary(context),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           timeStr,
@@ -610,14 +650,19 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                 // 2. Vị trí & Camera
                 Row(
                   children: [
-                    const Icon(Icons.location_on_outlined, size: 16, color: AppColors.primaryLight),
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 16,
+                      color: AppColors.primaryLight,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         incident.isCorridor
                             ? [
                                 incident.displayLocationName,
-                                if (incident.displayBuildingFloor != null) incident.displayBuildingFloor!,
+                                if (incident.displayBuildingFloor != null)
+                                  incident.displayBuildingFloor!,
                               ].join(' • ')
                             : '${incident.displayLocationName} • ${incident.cameraCode}',
                         style: TextStyle(
@@ -646,7 +691,8 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                 ),
 
                 // 4. Ảnh bằng chứng snapshot (nếu có)
-                if (incident.imageUrl != null && incident.imageUrl!.isNotEmpty) ...[
+                if (incident.imageUrl != null &&
+                    incident.imageUrl!.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   InkWell(
                     onTap: () => _showImagePreview(context, incident.imageUrl!),
@@ -674,7 +720,10 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                             right: 8,
                             bottom: 8,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.black.withAlpha(160),
                                 borderRadius: BorderRadius.circular(3),
@@ -682,11 +731,18 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.zoom_in, color: Colors.white, size: 14),
+                                  Icon(
+                                    Icons.zoom_in,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
                                   SizedBox(width: 4),
                                   Text(
                                     'Phóng to ảnh',
-                                    style: TextStyle(color: Colors.white, fontSize: 10.5),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10.5,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -702,15 +758,24 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                 if (isClaimed) ...[
                   const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF3B82F6).withAlpha(15),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: const Color(0xFF3B82F6).withAlpha(40)),
+                      border: Border.all(
+                        color: const Color(0xFF3B82F6).withAlpha(40),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.shield_outlined, size: 14, color: Color(0xFF3B82F6)),
+                        const Icon(
+                          Icons.shield_outlined,
+                          size: 14,
+                          color: Color(0xFF3B82F6),
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -730,15 +795,24 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                 ] else if (isResolved) ...[
                   const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF10B981).withAlpha(15),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: const Color(0xFF10B981).withAlpha(40)),
+                      border: Border.all(
+                        color: const Color(0xFF10B981).withAlpha(40),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF10B981)),
+                        const Icon(
+                          Icons.check_circle_outline,
+                          size: 14,
+                          color: Color(0xFF10B981),
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -764,14 +838,22 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.primaryLight,
-                        side: BorderSide(color: AppColors.primaryLight.withAlpha(120)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        side: BorderSide(
+                          color: AppColors.primaryLight.withAlpha(120),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         minimumSize: const Size(0, 36),
                         shape: RoundedRectangleApp.rounded(8),
                       ),
                       onPressed: () => _navigateToMap(incident),
                       icon: const Icon(Icons.navigation_outlined, size: 15),
-                      label: const Text('Bản đồ', style: TextStyle(fontSize: 12)),
+                      label: const Text(
+                        'Bản đồ',
+                        style: TextStyle(fontSize: 12),
+                      ),
                     ),
 
                     const Spacer(),
@@ -784,12 +866,19 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.lock_clock_outlined, size: 14, color: AppColors.txtSecondary(context)),
+                              Icon(
+                                Icons.lock_clock_outlined,
+                                size: 14,
+                                color: AppColors.txtSecondary(context),
+                              ),
                               const SizedBox(width: 4),
                               Flexible(
                                 child: Text(
                                   'Đang mời bảo vệ khác',
-                                  style: TextStyle(fontSize: 11, color: AppColors.txtSecondary(context)),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.txtSecondary(context),
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -806,21 +895,33 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                           foregroundColor: Colors.white,
                           elevation: 2,
                           minimumSize: const Size(0, 36),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
                           shape: RoundedRectangleApp.rounded(8),
                         ),
-                        onPressed: provider.isClaimLoading
+                        onPressed:
+                            provider.isClaimLoading
                                 // K8: đang mời bảo vệ khác (STEP1) → khoá cho tới khi BROADCAST
-                                || isClaimLocked
+                                ||
+                                isClaimLocked
                             ? null
                             : () async {
-                                final success = await provider.claimIncident(incident.id);
+                                final success = await provider.claimIncident(
+                                  incident.id,
+                                );
                                 if (!mounted) return;
                                 if (success) {
-                                  setState(() => _selectedTab = IncidentFilterTab.claimed);
+                                  setState(
+                                    () => _selectedTab =
+                                        IncidentFilterTab.claimed,
+                                  );
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text('Tiếp nhận sự cố thành công!'),
+                                      content: Text(
+                                        'Tiếp nhận sự cố thành công!',
+                                      ),
                                       backgroundColor: Color(0xFF10B981),
                                       duration: Duration(seconds: 2),
                                     ),
@@ -836,8 +937,17 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                                   );
                                 }
                               },
-                        icon: const Icon(Icons.assignment_turned_in_outlined, size: 15),
-                        label: const Text('TIẾP NHẬN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        icon: const Icon(
+                          Icons.assignment_turned_in_outlined,
+                          size: 15,
+                        ),
+                        label: const Text(
+                          'TIẾP NHẬN',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       )
                     else if (isClaimedByMe)
                       ElevatedButton.icon(
@@ -846,7 +956,10 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                           foregroundColor: Colors.white,
                           elevation: 2,
                           minimumSize: const Size(0, 36),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
                           shape: RoundedRectangleApp.rounded(8),
                         ),
                         onPressed: () {
@@ -860,7 +973,13 @@ class _IncidentListScreenState extends State<IncidentListScreen> with PeerClaimN
                           );
                         },
                         icon: const Icon(Icons.check_circle_outline, size: 15),
-                        label: const Text('GIẢI QUYẾT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          'GIẢI QUYẾT',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                   ],
                 ),

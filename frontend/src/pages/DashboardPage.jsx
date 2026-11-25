@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
@@ -20,6 +20,9 @@ import {
 	ChartColumnStacked,
 	MapPinned,
 	FileText,
+	Film,
+	UserCheck,
+	DoorOpen,
 } from "lucide-react";
 import {
 	Bar,
@@ -36,13 +39,37 @@ import { ROLES } from "../constants/roles";
 import { apiGet } from "../api/apiClient";
 import { getAreas } from "../services/areaService";
 import { getAuditLogs } from "../services/accessControlService";
+import { searchAccessHistory } from "../services/accessHistoryService";
+import { fetchDiskRecordings } from "../services/recordingService";
+import { getGuardsForChat } from "../services/guardChatService";
 import {
 	DEFAULT_SECURITY_STATS_RANGE,
 	SECURITY_STATS_RANGES,
 	getSecurityStats,
 } from "../services/dashboardService";
 import { AREA_LEVEL_OPTIONS } from "../utils/areaHelpers";
-import { ACCESS_RESULT_META, CANONICAL_ACCESS_RESULTS } from "../utils/accessHistoryHelpers";
+import {
+	ACCESS_RESULT_META,
+	CANONICAL_ACCESS_RESULTS,
+	placeholderUserCodeLabel,
+} from "../utils/accessHistoryHelpers";
+import {
+	INCIDENT_EVENT_LABELS,
+	INCIDENT_SEVERITY_META,
+	INCIDENT_STATUS_META,
+	OPERATIONAL_STATUS_META,
+	SOC_CLEARED_STORAGE_KEY,
+	SOC_CLEARED_UPDATED_EVENT,
+	clearSocStoredSets,
+	filterOutClearedIncidents,
+	isIncidentPendingStatus,
+	readSocClearedBefore,
+	readSocStoredSet,
+	summarizeGuardRoster,
+	summarizeIncidents,
+	summarizeRecordings,
+	writeSocClearedBefore,
+} from "../utils/dashboardHelpers";
 import { formatDateTime, formatRange } from "../utils/formatDateTime";
 import { TARGET_TYPE_LABELS, getActionLabel, renderSystemActor } from "../utils/auditLabels";
 import { Button, EmptyState, ErrorState, LoadingState, PageHeader, StatusTabs } from "../components/ui";
@@ -476,6 +503,388 @@ function SecurityStatsSection() {
 	);
 }
 
+function RecentIncidentsPanel({
+	query,
+	summary,
+	canOpenGuardCenter,
+	hasCleared = false,
+	onClearResolved,
+	onRestoreCleared,
+}) {
+	const hasVisibleResolved = summary.recent.some((inc) => !isIncidentPendingStatus(inc?.status));
+	let body;
+	if (query.isLoading) {
+		body = <LoadingState size="sm" text="Đang tải danh sách sự cố..." />;
+	} else if (query.isError) {
+		body = (
+			<ErrorState
+				size="sm"
+				title="Không tải được sự cố gần đây"
+				message={query.error?.message}
+				onRetry={() => query.refetch()}
+				retrying={query.isFetching}
+			/>
+		);
+	} else if (summary.recent.length === 0) {
+		body = <EmptyState size="sm" icon={AlertTriangle} title="Chưa có sự cố an ninh nào" />;
+	} else {
+		body = (
+			<>
+				{summary.byEventType.length > 0 && (
+					<div className="dash-chip-row" aria-label="Phân bổ theo loại sự cố">
+						{summary.byEventType.map((item) => (
+							<span key={item.code} className="dash-chip">
+								<span>{item.label}</span>
+								<strong>{item.count}</strong>
+							</span>
+						))}
+					</div>
+				)}
+				<ul className="activity-list">
+					{summary.recent.map((inc) => {
+						const sev = INCIDENT_SEVERITY_META[inc.severity] || { label: inc.severity || "—", tone: "neutral" };
+						const st = INCIDENT_STATUS_META[inc.status] || { label: inc.status || "—", tone: "neutral" };
+						const locationLabel = [inc.areaName, inc.building, inc.cameraName || inc.cameraCode]
+							.filter(Boolean)
+							.join(" · ");
+						return (
+							<li key={inc.id} className="activity-item">
+								<div className="activity-item__main">
+									<span className="activity-item__action">
+										{INCIDENT_EVENT_LABELS[inc.eventType] || inc.eventType}
+									</span>
+									<span className="activity-item__object">{locationLabel || "Chưa rõ vị trí"}</span>
+									<div className="dash-row-tags">
+										<span className={`dash-pill dash-pill--${sev.tone}`}>{sev.label}</span>
+										<span className={`dash-pill dash-pill--${st.tone}`}>{st.label}</span>
+									</div>
+								</div>
+								<div className="activity-item__meta">
+									<span className="activity-item__actor">
+										{inc.resolvedByName || inc.claimedByName || "Chưa tiếp nhận"}
+									</span>
+									{inc.detectedAt && (
+										<time
+											className="activity-item__time"
+											dateTime={inc.detectedAt}
+											title={formatDateTime(inc.detectedAt)}
+										>
+											{formatDistanceToNow(new Date(inc.detectedAt), { addSuffix: true, locale: vi })}
+										</time>
+									)}
+								</div>
+							</li>
+						);
+					})}
+				</ul>
+			</>
+		);
+	}
+
+	return (
+		<DashboardPanel
+			icon={Siren}
+			title="Sự cố an ninh gần đây"
+			subtitle={
+				summary.total > 0
+					? `${summary.total} sự cố · ${summary.criticalCount} nghiêm trọng · ${summary.pendingCount} chưa xử lý xong`
+					: "Theo dõi cảnh báo mới nhất"
+			}
+			action={
+				canOpenGuardCenter ? (
+					<div className="dash-card__actions">
+						{hasVisibleResolved && onClearResolved && (
+							<button
+								type="button"
+								className="dash-card__action-btn"
+								onClick={onClearResolved}
+								title="Ẩn các sự cố đã xử lý khỏi bảng trực và Tổng quan"
+							>
+								Dọn dẹp
+							</button>
+						)}
+						{hasCleared && onRestoreCleared && (
+							<button
+								type="button"
+								className="dash-card__action-btn"
+								onClick={onRestoreCleared}
+								title="Khôi phục toàn bộ sự cố đã ẩn"
+							>
+								Khôi phục
+							</button>
+						)}
+						<Link to="/guard" className="dash-card__link">
+							Mở trung tâm
+							<ArrowRight size={14} aria-hidden="true" />
+						</Link>
+					</div>
+				) : undefined
+			}
+		>
+			{body}
+		</DashboardPanel>
+	);
+}
+
+function CamerasOverviewPanel({ query, manageLink, manageLabel }) {
+	const cameras = query.data?.content ?? [];
+	const total = totalOf(query.data) ?? cameras.length;
+
+	let body;
+	if (query.isLoading) {
+		body = <LoadingState size="sm" text="Đang tải danh sách camera..." />;
+	} else if (query.isError) {
+		body = (
+			<ErrorState
+				size="sm"
+				title="Không tải được camera"
+				message={query.error?.message}
+				onRetry={() => query.refetch()}
+				retrying={query.isFetching}
+			/>
+		);
+	} else if (cameras.length === 0) {
+		body = <EmptyState size="sm" icon={Camera} title="Chưa có camera đang bật" />;
+	} else {
+		body = (
+			<ul className="activity-list">
+				{cameras.slice(0, 8).map((cam) => {
+					const op = OPERATIONAL_STATUS_META[cam.operationalStatus] || {
+						label: cam.operationalStatus || "Không rõ",
+						tone: "neutral",
+					};
+					const loc = [cam.areaName, cam.building, cam.floor].filter(Boolean).join(" · ");
+					return (
+						<li key={cam.id || cam.cameraCode} className="activity-item">
+							<div className="activity-item__main">
+								<span className="activity-item__action">
+									{cam.cameraCode} {cam.name ? `· ${cam.name}` : ""}
+								</span>
+								<span className="activity-item__object">{loc || "Chưa gắn khu vực"}</span>
+							</div>
+							<div className="activity-item__meta">
+								<span className={`dash-pill dash-pill--${op.tone}`}>{op.label}</span>
+							</div>
+						</li>
+					);
+				})}
+			</ul>
+		);
+	}
+
+	return (
+		<DashboardPanel
+			icon={Camera}
+			title="Camera giám sát"
+			subtitle={`${total} camera đang bật trong cấu hình`}
+			action={
+				manageLink ? (
+					<Link to={manageLink} className="dash-card__link">
+						{manageLabel}
+						<ArrowRight size={14} aria-hidden="true" />
+					</Link>
+				) : undefined
+			}
+		>
+			{body}
+		</DashboardPanel>
+	);
+}
+
+function RecentRecordingsPanel({ query, summary }) {
+	let body;
+	if (query.isLoading) {
+		body = <LoadingState size="sm" text="Đang tải bản ghi video..." />;
+	} else if (query.isError) {
+		body = (
+			<ErrorState
+				size="sm"
+				title="Không tải được kho ghi hình"
+				message={query.error?.message}
+				onRetry={() => query.refetch()}
+				retrying={query.isFetching}
+			/>
+		);
+	} else if (summary.recent.length === 0) {
+		body = <EmptyState size="sm" icon={Film} title="Chưa có video ghi hình" />;
+	} else {
+		body = (
+			<ul className="activity-list">
+				{summary.recent.map((rec) => {
+					const loc = [rec.cameraName || rec.cameraId, rec.areaName || rec.building].filter(Boolean).join(" · ");
+					const metaParts = [rec.duration, rec.fileSize].filter(Boolean).join(" · ");
+					const isSecurity = rec.eventType && rec.eventType !== "NORMAL_RECORDING";
+					return (
+						<li key={rec.id || rec.filename} className="activity-item">
+							<div className="activity-item__main">
+								<span className="activity-item__action">
+									{rec.eventTypeName || INCIDENT_EVENT_LABELS[rec.eventType] || rec.eventType || rec.filename}
+								</span>
+								<span className="activity-item__object">{loc || rec.filename}</span>
+							</div>
+							<div className="activity-item__meta">
+								<span className={`dash-pill dash-pill--${isSecurity ? "danger" : "neutral"}`}>
+									{isSecurity ? "Sự kiện an ninh" : "Định kỳ"}
+								</span>
+								<span className="activity-item__time">
+									{metaParts || (rec.startTime ? formatDateTime(rec.startTime) : "—")}
+								</span>
+							</div>
+						</li>
+					);
+				})}
+			</ul>
+		);
+	}
+
+	return (
+		<DashboardPanel
+			icon={Film}
+			title="Video ghi hình gần đây"
+			subtitle={
+				summary.total > 0
+					? `${summary.total} video · ${summary.securityCount} sự kiện · ${summary.normalCount} định kỳ`
+					: "Kho lưu trữ video ghi hình"
+			}
+			action={
+				<Link to="/recordings" className="dash-card__link">
+					Mở kho lưu trữ
+					<ArrowRight size={14} aria-hidden="true" />
+				</Link>
+			}
+		>
+			{body}
+		</DashboardPanel>
+	);
+}
+
+function RecentAccessHistoryPanel({ query }) {
+	const items = query.data?.content ?? [];
+	const total = totalOf(query.data) ?? items.length;
+
+	let body;
+	if (query.isLoading) {
+		body = <LoadingState size="sm" text="Đang tải nhật ký ra vào..." />;
+	} else if (query.isError) {
+		body = (
+			<ErrorState
+				size="sm"
+				title="Không tải được nhật ký ra vào"
+				message={query.error?.message}
+				onRetry={() => query.refetch()}
+				retrying={query.isFetching}
+			/>
+		);
+	} else if (items.length === 0) {
+		body = <EmptyState size="sm" icon={DoorOpen} title="Chưa có lượt ra vào nào" />;
+	} else {
+		body = (
+			<ul className="activity-list">
+				{items.map((item) => {
+					const meta = ACCESS_RESULT_META[item.accessResult] || { label: item.accessResult || "—", badge: "neutral" };
+					const personLabel =
+						item.fullName || placeholderUserCodeLabel(item.userCode) || item.userCode || "Không xác định";
+					const loc = [item.areaName, item.cameraCode].filter(Boolean).join(" · ");
+					return (
+						<li key={item.id} className="activity-item">
+							<div className="activity-item__main">
+								<span className="activity-item__action">{personLabel}</span>
+								<span className="activity-item__object">{loc || "—"}</span>
+							</div>
+							<div className="activity-item__meta">
+								<span className={`dash-pill dash-pill--${meta.badge}`}>{meta.label}</span>
+								{item.loggedAt && (
+									<time
+										className="activity-item__time"
+										dateTime={item.loggedAt}
+										title={formatDateTime(item.loggedAt)}
+									>
+										{formatDistanceToNow(new Date(item.loggedAt), { addSuffix: true, locale: vi })}
+									</time>
+								)}
+							</div>
+						</li>
+					);
+				})}
+			</ul>
+		);
+	}
+
+	return (
+		<DashboardPanel
+			icon={DoorOpen}
+			title="Nhật ký ra vào gần đây"
+			subtitle={`${total} lượt nhận diện được ghi nhận`}
+			action={
+				<Link to="/admin/access-history" className="dash-card__link">
+					Xem tất cả
+					<ArrowRight size={14} aria-hidden="true" />
+				</Link>
+			}
+		>
+			{body}
+		</DashboardPanel>
+	);
+}
+
+function GuardRosterPanel({ query, summary, canManageTeams }) {
+	let body;
+	if (query.isLoading) {
+		body = <LoadingState size="sm" text="Đang tải danh sách bảo vệ..." />;
+	} else if (query.isError) {
+		body = (
+			<ErrorState
+				size="sm"
+				title="Không tải được nhân sự bảo vệ"
+				message={query.error?.message}
+				onRetry={() => query.refetch()}
+				retrying={query.isFetching}
+			/>
+		);
+	} else if (summary.guards.length === 0) {
+		body = <EmptyState size="sm" icon={UserCheck} title="Chưa có nhân sự bảo vệ" />;
+	} else {
+		body = (
+			<ul className="activity-list">
+				{summary.guards.slice(0, 8).map((g) => {
+					const details = [g.userCode, g.shiftName, g.buildingName, g.dutyPostCode].filter(Boolean).join(" · ");
+					return (
+						<li key={g.id} className="activity-item">
+							<div className="activity-item__main">
+								<span className="activity-item__action">{g.fullName}</span>
+								<span className="activity-item__object">{details || g.email || "—"}</span>
+							</div>
+							<div className="activity-item__meta">
+								<span className={`dash-pill dash-pill--${g.onDuty ? "success" : "neutral"}`}>
+									{g.onDuty ? "Đang trong ca" : "Ngoài ca"}
+								</span>
+							</div>
+						</li>
+					);
+				})}
+			</ul>
+		);
+	}
+
+	return (
+		<DashboardPanel
+			icon={UserCheck}
+			title="Nhân sự bảo vệ & Ca trực"
+			subtitle={`${summary.onDutyCount} / ${summary.totalGuards} bảo vệ đang trong ca trực`}
+			action={
+				canManageTeams ? (
+					<Link to="/admin/guard-teams" className="dash-card__link">
+						Quản lý đội
+						<ArrowRight size={14} aria-hidden="true" />
+					</Link>
+				) : undefined
+			}
+		>
+			{body}
+		</DashboardPanel>
+	);
+}
+
 export default function DashboardPage() {
 	const [isReportFilterOpen, setIsReportFilterOpen] = useState(false);
 	const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false);
@@ -486,7 +895,10 @@ export default function DashboardPage() {
 	// UI-AUDIT #4: phần nào cũng chỉ hiện khi có API sẵn MÀ role được gọi (theo @PreAuthorize backend); không thì ẩn.
 	const isAreaAuthorized = [ROLES.ADMIN, ROLES.FACILITY_MANAGER].includes(role); // GET /api/areas
 	const canCountCameras = [ROLES.ADMIN, ROLES.FACILITY_MANAGER, ROLES.GUARD].includes(role); // GET /api/cameras
-	const canCountIncidents = [ROLES.ADMIN, ROLES.GUARD].includes(role); // GET /api/incidents/active
+	const canCountIncidents = [ROLES.ADMIN, ROLES.GUARD].includes(role); // GET /api/incidents(/active)
+	const canSeeRecordings = [ROLES.ADMIN, ROLES.GUARD].includes(role); // GET /api/cameras/recordings
+	const canSeeAccessHistory = [ROLES.ADMIN, ROLES.FACILITY_MANAGER].includes(role); // GET /api/access-history
+	const canSeeGuardRoster = [ROLES.FACILITY_MANAGER, ROLES.GUARD].includes(role); // GET /api/guard-chat/guards
 	const canCountAccounts = role === ROLES.ADMIN; // GET /api/users (FM chỉ được xem bảo vệ nên không hiện thẻ)
 	const canSeeAudit = [ROLES.ADMIN, ROLES.FACILITY_MANAGER].includes(role); // GET /api/access-control/audit-logs
 	const canSeeSecurityStats = [ROLES.ADMIN, ROLES.FACILITY_MANAGER].includes(role); // GET /api/dashboard/security-stats
@@ -504,10 +916,10 @@ export default function DashboardPage() {
 			enabled: isAreaAuthorized,
 		})),
 	});
-	// status=ACTIVE là camera được bật trong cấu hình, không phải camera đang có hình
+	// status=ACTIVE là camera được bật trong cấu hình; tải tối đa 12 camera để hiện trạng thái vận hành trên Dashboard
 	const cameraQuery = useQuery({
 		queryKey: ["dashboard", "active-camera-count"],
-		queryFn: () => apiGet("/api/cameras?status=ACTIVE&page=0&size=1"),
+		queryFn: () => apiGet("/api/cameras?status=ACTIVE&page=0&size=12"),
 		enabled: canCountCameras,
 	});
 	// Sự cố mới hoặc đã tiếp nhận, chưa xử lý xong
@@ -515,6 +927,30 @@ export default function DashboardPage() {
 		queryKey: ["dashboard", "active-incidents"],
 		queryFn: () => apiGet("/api/incidents/active"),
 		enabled: canCountIncidents,
+	});
+	// Toàn bộ sự cố ghi nhận để hiển thị danh sách gần đây và phân bổ theo loại/mức độ
+	const allIncidentsQuery = useQuery({
+		queryKey: ["dashboard", "all-incidents"],
+		queryFn: () => apiGet("/api/incidents"),
+		enabled: canCountIncidents,
+	});
+	// Kho bản ghi video trên đĩa
+	const recordingsQuery = useQuery({
+		queryKey: ["dashboard", "recordings"],
+		queryFn: () => fetchDiskRecordings(),
+		enabled: canSeeRecordings,
+	});
+	// Nhật ký ra vào toàn hệ thống
+	const accessHistoryQuery = useQuery({
+		queryKey: ["dashboard", "access-history"],
+		queryFn: () => searchAccessHistory({ page: 0, size: 8 }),
+		enabled: canSeeAccessHistory,
+	});
+	// Nhân sự bảo vệ & trạng thái trực ca
+	const guardRosterQuery = useQuery({
+		queryKey: ["dashboard", "guard-roster"],
+		queryFn: () => getGuardsForChat(),
+		enabled: canSeeGuardRoster,
 	});
 	// isActive chỉ có hiệu lực khi kèm accountType: NORMAL = người dùng, SYSTEM = cán bộ (ADMIN, FM, GUARD)
 	const [normalAccountQuery, staffAccountQuery] = useQueries({
@@ -543,6 +979,45 @@ export default function DashboardPage() {
 	const staffCount = totalOf(staffAccountQuery.data?.users);
 	const accountCount = normalCount !== null && staffCount !== null ? normalCount + staffCount : null;
 
+	const [clearedVersion, setClearedVersion] = useState(0);
+	useEffect(() => {
+		const bump = () => setClearedVersion((v) => v + 1);
+		window.addEventListener(SOC_CLEARED_UPDATED_EVENT, bump);
+		window.addEventListener("storage", bump);
+		return () => {
+			window.removeEventListener(SOC_CLEARED_UPDATED_EVENT, bump);
+			window.removeEventListener("storage", bump);
+		};
+	}, []);
+
+	// Khi bảo vệ bấm "Dọn dẹp" ở trang Giám sát, các sự cố đã ẩn cũng không hiện lại trên Tổng quan của bảo vệ đó
+	const clearedIncidentIds =
+		role === ROLES.GUARD
+			? readSocStoredSet(SOC_CLEARED_STORAGE_KEY, user?.id ?? null)
+			: new Set();
+	const clearedResolvedBeforeMs =
+		role === ROLES.GUARD ? readSocClearedBefore(user?.id ?? null) : null;
+	void clearedVersion;
+
+	const visibleActiveIncidents = filterOutClearedIncidents(
+		incidentQuery.data,
+		clearedIncidentIds,
+		clearedResolvedBeforeMs,
+	);
+	const visibleAllIncidents = filterOutClearedIncidents(
+		allIncidentsQuery.data,
+		clearedIncidentIds,
+		clearedResolvedBeforeMs,
+	);
+
+	const incidentSummary = summarizeIncidents(visibleAllIncidents, 8);
+	const recordingSummary = summarizeRecordings(recordingsQuery.data, 6);
+	const guardSummary = summarizeGuardRoster(guardRosterQuery.data);
+	const cameraList = cameraQuery.data?.content ?? [];
+	const onlineCameraCount = cameraList.filter((c) =>
+		["ONLINE", "LIVE", "CONNECTED"].includes(c?.operationalStatus),
+	).length;
+
 	const kpiCards = [
 		{
 			id: "areas",
@@ -560,7 +1035,12 @@ export default function DashboardPage() {
 			badge: "Camera",
 			icon: Camera,
 			value: kpiValue(cameraQuery, cameraQuery.data?.totalElements),
-			subtext: kpiSubtext(cameraQuery, "Đang bật trong cấu hình, chưa tính tín hiệu kết nối"),
+			subtext: kpiSubtext(
+				cameraQuery,
+				cameraList.length > 0
+					? `${onlineCameraCount}/${cameraList.length} trực tuyến · ${cameraList.length - onlineCameraCount} ngoại tuyến`
+					: "Đang bật trong cấu hình",
+			),
 		},
 		{
 			id: "incidents",
@@ -570,9 +1050,51 @@ export default function DashboardPage() {
 			icon: AlertTriangle,
 			value: kpiValue(
 				incidentQuery,
-				Array.isArray(incidentQuery.data) ? incidentQuery.data.length : null,
+				Array.isArray(visibleActiveIncidents) ? visibleActiveIncidents.length : null,
 			),
 			subtext: kpiSubtext(incidentQuery, "Mới hoặc đã tiếp nhận, chưa xử lý xong"),
+		},
+		{
+			id: "total-incidents",
+			visible: canCountIncidents,
+			label: "Tổng sự cố ghi nhận",
+			badge: "Tổng hợp",
+			icon: Siren,
+			value: kpiValue(
+				allIncidentsQuery,
+				Array.isArray(visibleAllIncidents) ? incidentSummary.total : null,
+			),
+			subtext: kpiSubtext(
+				allIncidentsQuery,
+				`${incidentSummary.criticalCount} nghiêm trọng · ${incidentSummary.pendingCount} đang mở`,
+			),
+		},
+		{
+			id: "recordings",
+			visible: canSeeRecordings,
+			label: "Video ghi hình",
+			badge: "Lưu trữ",
+			icon: Film,
+			value: kpiValue(
+				recordingsQuery,
+				Array.isArray(recordingsQuery.data) ? recordingSummary.total : null,
+			),
+			subtext: kpiSubtext(
+				recordingsQuery,
+				`${recordingSummary.securityCount} sự kiện · ${recordingSummary.normalCount} định kỳ`,
+			),
+		},
+		{
+			id: "guard-roster",
+			visible: canSeeGuardRoster,
+			label: "Bảo vệ trong ca",
+			badge: "Nhân sự",
+			icon: UserCheck,
+			value: kpiValue(
+				guardRosterQuery,
+				Array.isArray(guardRosterQuery.data) ? guardSummary.onDutyCount : null,
+			),
+			subtext: kpiSubtext(guardRosterQuery, `Trên tổng số ${guardSummary.totalGuards} bảo vệ đang hoạt động`),
 		},
 		{
 			id: "accounts",
@@ -586,6 +1108,9 @@ export default function DashboardPage() {
 	].filter((card) => card.visible);
 
 	const currentDateStr = format(new Date(), "EEEE, dd/MM/yyyy", { locale: vi });
+	const cameraManageLink =
+		role === ROLES.GUARD ? "/guard" : isAreaAuthorized ? "/admin/areas" : null;
+	const cameraManageLabel = role === ROLES.GUARD ? "Xem trực tiếp" : "Quản lý khu vực";
 
 	return (
 		<div className="dashboard-page">
@@ -637,7 +1162,7 @@ export default function DashboardPage() {
 					})}
 				</section>
 
-				{/* Hàng 2: khu theo loại (trái) + hoạt động gần đây (phải). GUARD không gọi được hai API này nên không có hàng 2 */}
+				{/* Hàng 2: khu theo loại (trái) + hoạt động gần đây (phải) */}
 				{(isAreaAuthorized || canSeeAudit) && (
 					<div className="dashboard-grid">
 						{isAreaAuthorized && <AreaTypePanel queries={areaTypeQueries} />}
@@ -645,7 +1170,60 @@ export default function DashboardPage() {
 					</div>
 				)}
 
-				{/* Hàng 3: thống kê an ninh (FM, ADMIN). GUARD không gọi được API này nên không có hàng 3 */}
+				{/* Hàng 3: sự cố gần đây + camera / nhân sự / nhật ký ra vào / video ghi hình */}
+				{(canCountIncidents || canSeeRecordings) && (
+					<div className="dashboard-grid dash-grid--equal">
+						{canCountIncidents && (
+							<RecentIncidentsPanel
+								query={allIncidentsQuery}
+								summary={incidentSummary}
+								canOpenGuardCenter={role === ROLES.GUARD}
+								hasCleared={
+									role === ROLES.GUARD &&
+									(clearedIncidentIds.size > 0 || clearedResolvedBeforeMs !== null)
+								}
+								onClearResolved={() => writeSocClearedBefore(Date.now(), user?.id ?? null)}
+								onRestoreCleared={() => clearSocStoredSets(user?.id ?? null)}
+							/>
+						)}
+						{canSeeRecordings && (
+							<RecentRecordingsPanel query={recordingsQuery} summary={recordingSummary} />
+						)}
+					</div>
+				)}
+
+				{(canCountCameras || canSeeAccessHistory || canSeeGuardRoster) && (
+					<div className="dashboard-grid dash-grid--equal">
+						{canCountCameras && (
+							<CamerasOverviewPanel
+								query={cameraQuery}
+								manageLink={cameraManageLink}
+								manageLabel={cameraManageLabel}
+							/>
+						)}
+						{canSeeAccessHistory ? (
+							<RecentAccessHistoryPanel query={accessHistoryQuery} />
+						) : (
+							canSeeGuardRoster && (
+								<GuardRosterPanel
+									query={guardRosterQuery}
+									summary={guardSummary}
+									canManageTeams={role === ROLES.FACILITY_MANAGER}
+								/>
+							)
+						)}
+					</div>
+				)}
+
+				{canSeeAccessHistory && canSeeGuardRoster && (
+					<GuardRosterPanel
+						query={guardRosterQuery}
+						summary={guardSummary}
+						canManageTeams={role === ROLES.FACILITY_MANAGER}
+					/>
+				)}
+
+				{/* Hàng 4: thống kê an ninh (FM, ADMIN) */}
 				{canSeeSecurityStats && <SecurityStatsSection />}
 
 				<ReportFilterModal

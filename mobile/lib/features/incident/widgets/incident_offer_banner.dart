@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../models/incident_offer_model.dart';
 import '../providers/incident_provider.dart';
@@ -42,11 +42,18 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
 
   void _showSnack(String message, Color color) {
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color, duration: const Duration(seconds: 3)),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 
-  Future<void> _claim(IncidentProvider provider, IncidentOfferModel offer) async {
+  Future<void> _claim(
+    IncidentProvider provider,
+    IncidentOfferModel offer,
+  ) async {
     final success = await provider.claimIncident(offer.incidentId);
     if (!mounted) return;
     if (success) {
@@ -57,7 +64,10 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
     }
   }
 
-  Future<void> _decline(IncidentProvider provider, IncidentOfferModel offer) async {
+  Future<void> _decline(
+    IncidentProvider provider,
+    IncidentOfferModel offer,
+  ) async {
     final success = await provider.declineOffer(offer.incidentId);
     if (!mounted) return;
     if (!success && provider.errorMessage != null) {
@@ -123,11 +133,17 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
                       padding: const EdgeInsets.only(right: 8),
                       child: Text(
                         '+$moreCount lời mời',
-                        style: const TextStyle(color: Colors.white60, fontSize: 11),
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: severityColor.withAlpha(51),
                       borderRadius: BorderRadius.circular(6),
@@ -135,11 +151,19 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.timer_outlined, size: 13, color: severityColor),
+                        Icon(
+                          Icons.timer_outlined,
+                          size: 13,
+                          color: severityColor,
+                        ),
                         const SizedBox(width: 3),
                         Text(
                           _formatRemaining(remaining),
-                          style: TextStyle(color: severityColor, fontSize: 12, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: severityColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -149,7 +173,11 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
               const SizedBox(height: 8),
               Text(
                 '${incident.severityLabel} · ${incident.eventTypeDisplay}',
-                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -157,7 +185,8 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
                   if (!offer.incident.isCorridor) offer.cameraCode,
                   offer.displayLocationName,
                   if (offer.building != null) offer.building!,
-                  if (offer.floor != null && offer.floor!.trim().isNotEmpty) offer.floor!.trim(),
+                  if (offer.floor != null && offer.floor!.trim().isNotEmpty)
+                    offer.floor!.trim(),
                 ].join(' • '),
                 style: const TextStyle(color: Colors.white70, fontSize: 12.5),
                 maxLines: 1,
@@ -174,10 +203,14 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
                         foregroundColor: Colors.white70,
                         side: const BorderSide(color: Color(0xFF475569)),
                         padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
                       child: Text(
-                        provider.isDeclineLoading ? 'Đang từ chối...' : 'Từ chối',
+                        provider.isDeclineLoading
+                            ? 'Đang từ chối...'
+                            : 'Từ chối',
                         style: const TextStyle(fontSize: 13),
                       ),
                     ),
@@ -191,18 +224,29 @@ class _IncidentOfferBannerState extends State<IncidentOfferBanner> {
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
-                          : const Icon(Icons.assignment_turned_in_outlined, size: 16),
+                          : const Icon(
+                              Icons.assignment_turned_in_outlined,
+                              size: 16,
+                            ),
                       label: Text(
                         provider.isClaimLoading ? 'Đang nhận...' : 'Nhận',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: severityColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
                     ),
                   ),

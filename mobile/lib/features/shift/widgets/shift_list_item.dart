@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../models/guard_shift_model.dart';
@@ -23,18 +23,26 @@ class ShiftListItem extends StatelessWidget {
       date = DateTime.parse(shift.shiftDate);
     } catch (_) {}
 
-    final dateStr = date != null ? DateFormat('dd/MM').format(date) : shift.shiftDate;
-    final weekdayStr = date != null ? const ['', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][date.weekday] : '';
+    final dateStr = date != null
+        ? DateFormat('dd/MM').format(date)
+        : shift.shiftDate;
+    final weekdayStr = date != null
+        ? const ['', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][date.weekday]
+        : '';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       color: isSelected
-          ? (AppColors.isDark(context) ? AppColors.darkSurfaceLight : const Color(0xFFEFF6FF))
+          ? (AppColors.isDark(context)
+                ? AppColors.darkSurfaceLight
+                : const Color(0xFFEFF6FF))
           : AppColors.crd(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(7),
         side: BorderSide(
-          color: isSelected ? AppColors.primaryLight : AppColors.crdBorder(context),
+          color: isSelected
+              ? AppColors.primaryLight
+              : AppColors.crdBorder(context),
           width: isSelected ? 1.5 : 1.0,
         ),
       ),
@@ -59,7 +67,11 @@ class ShiftListItem extends StatelessWidget {
                   children: [
                     Text(
                       weekdayStr,
-                      style: TextStyle(fontSize: 10, color: AppColors.txtSecondary(context), fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.txtSecondary(context),
+                        fontWeight: FontWeight.bold,
+                      ),
                       maxLines: 1,
                     ),
                     const SizedBox(height: 2),
@@ -67,7 +79,11 @@ class ShiftListItem extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       child: Text(
                         dateStr,
-                        style: TextStyle(fontSize: 12, color: AppColors.txtPrimary(context), fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.txtPrimary(context),
+                          fontWeight: FontWeight.bold,
+                        ),
                         maxLines: 1,
                       ),
                     ),
@@ -100,7 +116,10 @@ class ShiftListItem extends StatelessWidget {
                         if (shift.isOvertime) ...[
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1.5,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.amber.withAlpha(40),
                               borderRadius: BorderRadius.circular(2),
@@ -118,7 +137,8 @@ class ShiftListItem extends StatelessWidget {
                         ],
                       ],
                     ),
-                    if (shift.building != null && shift.building!.trim().isNotEmpty) ...[
+                    if (shift.building != null &&
+                        shift.building!.trim().isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Row(
                         children: [

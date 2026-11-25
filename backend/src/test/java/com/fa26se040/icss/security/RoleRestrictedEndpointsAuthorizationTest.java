@@ -70,7 +70,8 @@ class RoleRestrictedEndpointsAuthorizationTest extends AbstractIntegrationTest {
             "POST /api/users/staff/bulk-import",
             "POST /api/users/staff-accounts",
             "POST /api/guest-visits/{visitId}/guests/{guestId}/photo",
-            "POST /api/guest-visits"
+            "POST /api/guest-visits",
+            "POST /api/guard-chat/messages/image"
     );
 
     private static final Set<String> BE03_ENDPOINTS = Set.of("POST /api/cameras/recordings/stream-token");

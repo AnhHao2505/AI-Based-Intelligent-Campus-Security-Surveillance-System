@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
@@ -53,7 +53,7 @@ class _GuardChatBottomSheetState extends State<GuardChatBottomSheet> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.18),
+            color: Colors.black.withValues(alpha: 0.18),
             blurRadius: 16,
             offset: const Offset(0, -4),
           ),
@@ -82,10 +82,14 @@ class _GuardChatBottomSheetState extends State<GuardChatBottomSheet> {
                 Container(
                   padding: const EdgeInsets.all(7),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.12),
+                    color: AppColors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.chat_rounded, color: AppColors.primary, size: 20),
+                  child: const Icon(
+                    Icons.chat_rounded,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -111,7 +115,10 @@ class _GuardChatBottomSheetState extends State<GuardChatBottomSheet> {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.close_rounded, color: AppColors.txtMuted(context)),
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: AppColors.txtMuted(context),
+                  ),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -154,11 +161,17 @@ class _GuardChatBottomSheetState extends State<GuardChatBottomSheet> {
               ),
               child: TextField(
                 controller: _searchCtrl,
-                style: TextStyle(fontSize: 13, color: AppColors.txtPrimary(context)),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.txtPrimary(context),
+                ),
                 onChanged: chatProvider.setSearchKeyword,
                 decoration: InputDecoration(
                   hintText: 'Tìm theo tên, mã số, ca, toà nhà...',
-                  hintStyle: TextStyle(fontSize: 12.5, color: AppColors.txtMuted(context)),
+                  hintStyle: TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.txtMuted(context),
+                  ),
                   prefixIcon: const Icon(Icons.search_rounded, size: 20),
                   prefixIconColor: AppColors.txtMuted(context),
                   suffixIcon: _searchCtrl.text.isNotEmpty
@@ -183,51 +196,65 @@ class _GuardChatBottomSheetState extends State<GuardChatBottomSheet> {
           // Guard List
           Expanded(
             child: chatProvider.isLoadingGuards
-                ? const Center(child: CircularProgressIndicator(strokeWidth: 2.5))
+                ? const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
                 : guards.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.person_search_rounded,
-                                size: 48, color: AppColors.txtMuted(context)),
-                            const SizedBox(height: 8),
-                            Text(
-                              chatProvider.showOnDutyOnly
-                                  ? 'Hiện không có bảo vệ nào đang trong ca trực'
-                                  : 'Không tìm thấy bảo vệ nào phù hợp',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: AppColors.txtSecondary(context),
-                              ),
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.person_search_rounded,
+                          size: 48,
+                          color: AppColors.txtMuted(context),
                         ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        itemCount: guards.length,
-                        separatorBuilder: (_, __) => Divider(
-                          height: 1,
-                          indent: 72,
-                          color: AppColors.crdBorder(context).withOpacity(0.5),
+                        const SizedBox(height: 8),
+                        Text(
+                          chatProvider.showOnDutyOnly
+                              ? 'Hiện không có bảo vệ nào đang trong ca trực'
+                              : 'Không tìm thấy bảo vệ nào phù hợp',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.txtSecondary(context),
+                          ),
                         ),
-                        itemBuilder: (context, index) {
-                          final guard = guards[index];
-                          return _GuardListTile(
-                            guard: guard,
-                            onTap: () {
-                              Navigator.pop(context); // Close bottom sheet
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => GuardChatConversationScreen(guard: guard),
-                                ),
-                              );
-                            },
-                          );
-                        },
+                      ],
+                    ),
+                  )
+                : Material(
+                    type: MaterialType.transparency,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      itemCount: guards.length,
+                      separatorBuilder: (_, _) => Divider(
+                        height: 1,
+                        indent: 72,
+                        color: AppColors.crdBorder(
+                          context,
+                        ).withValues(alpha: 0.5),
                       ),
+                      itemBuilder: (context, index) {
+                        final guard = guards[index];
+                        return _GuardListTile(
+                          guard: guard,
+                          onTap: () async {
+                            final chatProvider = context.read<GuardChatProvider>();
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    GuardChatConversationScreen(guard: guard),
+                              ),
+                            );
+                            if (context.mounted) {
+                              chatProvider.fetchGuards();
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -258,12 +285,12 @@ class _FilterTabButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary
-              : AppColors.surf(context),
+          color: isSelected ? AppColors.primary : AppColors.surf(context),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.crdBorder(context),
+            color: isSelected
+                ? AppColors.primary
+                : AppColors.crdBorder(context),
           ),
         ),
         child: Row(
@@ -285,7 +312,9 @@ class _FilterTabButton extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? Colors.white : AppColors.txtSecondary(context),
+                color: isSelected
+                    ? Colors.white
+                    : AppColors.txtSecondary(context),
               ),
             ),
           ],
@@ -299,10 +328,7 @@ class _GuardListTile extends StatelessWidget {
   final GuardChatMember guard;
   final VoidCallback onTap;
 
-  const _GuardListTile({
-    required this.guard,
-    required this.onTap,
-  });
+  const _GuardListTile({required this.guard, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -317,13 +343,16 @@ class _GuardListTile extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 22,
-            backgroundColor: AppColors.primary.withOpacity(0.12),
-            backgroundImage: guard.avatarUrl != null && guard.avatarUrl!.isNotEmpty
+            backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+            backgroundImage:
+                guard.avatarUrl != null && guard.avatarUrl!.isNotEmpty
                 ? NetworkImage(guard.avatarUrl!)
                 : null,
             child: guard.avatarUrl == null || guard.avatarUrl!.isEmpty
                 ? Text(
-                    guard.fullName.isNotEmpty ? guard.fullName[0].toUpperCase() : 'B',
+                    guard.fullName.isNotEmpty
+                        ? guard.fullName[0].toUpperCase()
+                        : 'B',
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,
@@ -341,10 +370,7 @@ class _GuardListTile extends StatelessWidget {
               decoration: BoxDecoration(
                 color: guard.onDuty ? AppColors.success : Colors.grey.shade400,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.crd(context),
-                  width: 2,
-                ),
+                border: Border.all(color: AppColors.crd(context), width: 2),
               ),
             ),
           ),
@@ -369,8 +395,12 @@ class _GuardListTile extends StatelessWidget {
               timeStr,
               style: TextStyle(
                 fontSize: 11,
-                color: guard.unreadCount > 0 ? AppColors.primary : AppColors.txtMuted(context),
-                fontWeight: guard.unreadCount > 0 ? FontWeight.bold : FontWeight.normal,
+                color: guard.unreadCount > 0
+                    ? AppColors.primary
+                    : AppColors.txtMuted(context),
+                fontWeight: guard.unreadCount > 0
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
             ),
         ],
@@ -382,25 +412,39 @@ class _GuardListTile extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 1.5,
+                ),
                 decoration: BoxDecoration(
-                  color: guard.onDuty
-                      ? AppColors.success.withOpacity(0.12)
-                      : AppColors.surf(context),
+                  color: guard.isFacilityManager
+                      ? AppColors.primary.withValues(alpha: 0.12)
+                      : (guard.onDuty
+                            ? AppColors.success.withValues(alpha: 0.12)
+                            : AppColors.surf(context)),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  guard.onDuty
-                      ? (guard.currentShiftName != null ? 'Ca: ${guard.currentShiftName}' : 'Đang trực')
-                      : 'Ngoại ca',
+                  guard.isFacilityManager
+                      ? 'Quản lý CSVC'
+                      : (guard.onDuty
+                            ? (guard.currentShiftName != null
+                                  ? 'Ca: ${guard.currentShiftName}'
+                                  : 'Đang trực')
+                            : 'Ngoài ca'),
                   style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w600,
-                    color: guard.onDuty ? AppColors.success : AppColors.txtMuted(context),
+                    color: guard.isFacilityManager
+                        ? AppColors.primary
+                        : (guard.onDuty
+                              ? AppColors.success
+                              : AppColors.txtMuted(context)),
                   ),
                 ),
               ),
-              if (guard.assignedBuilding != null && guard.assignedBuilding!.isNotEmpty) ...[
+              if (guard.assignedBuilding != null &&
+                  guard.assignedBuilding!.isNotEmpty) ...[
                 const SizedBox(width: 6),
                 Text(
                   '• ${guard.assignedBuilding}',
@@ -424,7 +468,9 @@ class _GuardListTile extends StatelessWidget {
                       color: guard.unreadCount > 0
                           ? AppColors.txtPrimary(context)
                           : AppColors.txtMuted(context),
-                      fontWeight: guard.unreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: guard.unreadCount > 0
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -433,7 +479,10 @@ class _GuardListTile extends StatelessWidget {
                 if (guard.unreadCount > 0)
                   Container(
                     margin: const EdgeInsets.only(left: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.danger,
                       borderRadius: BorderRadius.circular(10),
@@ -455,4 +504,3 @@ class _GuardListTile extends StatelessWidget {
     );
   }
 }
-

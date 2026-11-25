@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../constants/api_endpoints.dart';
 import '../utils/storage_helper.dart';
 
@@ -16,12 +16,15 @@ String? formatEvidenceImageUrl(String? rawUrl) {
   }
 
   // Nếu là dạng tương đối: security-evidence/... hoặc face-profiles/...
-  if (url.startsWith('security-evidence/') || url.startsWith('face-profiles/')) {
+  if (url.startsWith('security-evidence/') ||
+      url.startsWith('face-profiles/')) {
     return '$base/api/media/$url';
   }
 
   // Nếu là URL MinIO dạng http://...:9000/bucket/path hoặc http://...:9000/security-evidence/...
-  final minioMatch = RegExp(r'^https?://[^/]+(?::\d+)?/([^/]+)/(.+)$').firstMatch(url);
+  final minioMatch = RegExp(
+    r'^https?://[^/]+(?::\d+)?/([^/]+)/(.+)$',
+  ).firstMatch(url);
   if (minioMatch != null) {
     final bucket = minioMatch.group(1);
     final path = minioMatch.group(2);
@@ -105,7 +108,7 @@ class _AuthorizedNetworkImageState extends State<AuthorizedNetworkImage> {
         return _buildLoading(
           progress: loadingProgress.expectedTotalBytes != null
               ? loadingProgress.cumulativeBytesLoaded /
-                  loadingProgress.expectedTotalBytes!
+                    loadingProgress.expectedTotalBytes!
               : null,
         );
       },
@@ -171,10 +174,7 @@ class _AuthorizedNetworkImageState extends State<AuthorizedNetworkImage> {
           const SizedBox(height: 3),
           Text(
             message,
-            style: const TextStyle(
-              color: Color(0xFF64748B),
-              fontSize: 10,
-            ),
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 10),
           ),
         ],
       ),
@@ -218,7 +218,11 @@ class _AuthorizedNetworkImageState extends State<AuthorizedNetworkImage> {
               top: 8,
               right: 8,
               child: IconButton(
-                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
                 onPressed: () => Navigator.of(ctx).pop(),
               ),
             ),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../data/campus_map_style.dart';
@@ -24,7 +24,10 @@ class OsmAttributionBar extends StatelessWidget {
           child: Center(
             child: Text(
               osmAttributionText,
-              style: TextStyle(fontSize: 10.5, color: AppColors.txtSecondary(context)),
+              style: TextStyle(
+                fontSize: 10.5,
+                color: AppColors.txtSecondary(context),
+              ),
             ),
           ),
         ),

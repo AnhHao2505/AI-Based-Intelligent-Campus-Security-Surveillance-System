@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../providers/incident_provider.dart';
 
@@ -32,10 +32,7 @@ mixin PeerClaimNoticeMixin<T extends StatefulWidget> on State<T> {
     if (!mounted || provider == null || notice == null) return;
     provider.clearPeerClaimNotice();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(notice),
-        duration: peerClaimNoticeDuration,
-      ),
+      SnackBar(content: Text(notice), duration: peerClaimNoticeDuration),
     );
   }
 

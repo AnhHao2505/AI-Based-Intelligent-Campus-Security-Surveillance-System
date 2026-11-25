@@ -83,7 +83,9 @@ public final class RoleRestrictedEndpoints {
             rule(HttpMethod.PATCH, "/api/cameras/{id}/map-location", ADMIN),
             rule(HttpMethod.DELETE, "/api/cameras/{id}/map-location", ADMIN),
             rule(HttpMethod.POST, "/api/cameras/stream/cloud-relay", ADMIN, GUARD),
-            rule(HttpMethod.POST, "/api/cameras/{cameraCode}/annotated-stream-token", ADMIN, GUARD)
+            rule(HttpMethod.POST, "/api/cameras/{cameraCode}/annotated-stream-token", ADMIN, GUARD),
+            // GuardChatController: gửi ảnh trong chat (multipart)
+            rule(HttpMethod.POST, "/api/guard-chat/messages/image", GUARD, FM)
     );
 
     private static Rule rule(HttpMethod method, String pattern, String... roles) {

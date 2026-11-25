@@ -12,10 +12,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -60,6 +62,18 @@ public class GuardChatController {
         String email = authentication.getName();
         GuardChatMessageDto message = guardChatService.sendMessage(email, request);
         return new ResponseEntity<>(ApiResponse.created(message, "Gửi tin nhắn thành công"), HttpStatus.CREATED);
+    }
+
+    @PostMapping(value = "/messages/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('GUARD', 'FACILITY_MANAGER')")
+    public ResponseEntity<ApiResponse<GuardChatMessageDto>> sendImageMessage(
+            @RequestParam("receiverId") UUID receiverId,
+            @RequestParam(value = "content", required = false) String content,
+            @RequestPart("file") MultipartFile file,
+            Authentication authentication) {
+        String email = authentication.getName();
+        GuardChatMessageDto message = guardChatService.sendImageMessage(email, receiverId, content, file);
+        return new ResponseEntity<>(ApiResponse.created(message, "Gửi hình ảnh thành công"), HttpStatus.CREATED);
     }
 
     @PostMapping("/read/{peerId}")

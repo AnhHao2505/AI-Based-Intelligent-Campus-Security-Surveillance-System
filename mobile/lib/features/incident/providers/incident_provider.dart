@@ -153,6 +153,12 @@ class IncidentProvider extends ChangeNotifier {
     try {
       final activeList = await incidentService.getActiveIncidents(building: building);
       final currentUser = await StorageHelper.getUser();
+      final returnedIds = activeList.map((e) => e.id).toSet();
+
+      _alertQueue.removeWhere((i) => !returnedIds.contains(i.id));
+      if (_activeIncident != null && !returnedIds.contains(_activeIncident!.id)) {
+        _activeIncident = null;
+      }
 
       for (final incident in activeList) {
         if (incident.isClaimed && currentUser != null && incident.claimedById == currentUser.id) {

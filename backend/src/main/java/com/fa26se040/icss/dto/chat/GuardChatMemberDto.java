@@ -17,6 +17,7 @@ public class GuardChatMemberDto {
     private String fullName;
     private String userCode;
     private String email;
+    private String role;
     private String phoneNumber;
     private String teamName;
     private boolean onDuty;

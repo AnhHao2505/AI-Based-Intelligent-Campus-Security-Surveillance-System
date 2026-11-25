@@ -28,6 +28,7 @@ import {
 	Box,
 	Layers,
 	Filter,
+	Calendar,
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
@@ -37,8 +38,18 @@ import {
 	PinOff,
 	Compass,
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
 import WebRtcPlayer from "../../components/video/WebRtcPlayer";
+import {
+	SOC_ACK_STORAGE_KEY,
+	SOC_CLEARED_STORAGE_KEY,
+	clearSocStoredSets,
+	readSocClearedBefore,
+	readSocStoredSet,
+	writeSocClearedBefore,
+	writeSocStoredSet,
+} from "../../utils/dashboardHelpers";
 import {
 	computeVisibleGridSlice,
 	extractAreaFilterOptions,
@@ -63,6 +74,10 @@ import {
 	playIncidentAlert,
 	unlockAlertSound,
 } from "../../utils/alertSound";
+import {
+	filterAlertsByDateRange,
+	formatDateFilterSummary,
+} from "../../utils/alertFilters";
 
 // Chuẩn hóa 5 nhóm/nhãn sự kiện an ninh theo độ ưu tiên (Priority). Nhãn đầy đủ = AccessResult của backend;
 // badge trên màn hình dùng nhãn ngắn (trong ngoặc):
@@ -464,30 +479,6 @@ function getSeverityMeta(eventType) {
 	);
 }
 
-const SOC_ACK_STORAGE_KEY = "soc_acknowledged_incident_ids";
-const SOC_CLEARED_STORAGE_KEY = "soc_cleared_incident_ids";
-
-const getStoredSet = (key) => {
-	try {
-		const raw = localStorage.getItem(key);
-		if (!raw) return new Set();
-		const arr = JSON.parse(raw);
-		return Array.isArray(arr) ? new Set(arr.map(String)) : new Set();
-	} catch (e) {
-		console.warn(`Lỗi đọc ${key} từ localStorage:`, e);
-		return new Set();
-	}
-};
-
-const saveStoredSet = (key, set) => {
-	try {
-		const arr = Array.from(set).slice(-5000);
-		localStorage.setItem(key, JSON.stringify(arr));
-	} catch (e) {
-		console.warn(`Lỗi lưu ${key} vào localStorage:`, e);
-	}
-};
-
 export function formatEvidenceImageUrl(rawUrl) {
 	if (!rawUrl) return "";
 	const url = String(rawUrl).trim();
@@ -544,6 +535,8 @@ function EvidenceImage({ src, alt, className }) {
  */
 export function SecuritySurveillancePage() {
 	const navigate = useNavigate();
+	const { user } = useAuth();
+	const guardUserId = user?.id ?? null;
 	const [selectedCamera, setSelectedCamera] = useState("");
 	const [cameraLayout, setCameraLayout] = useState(1); // 1 | "spotlight" (1+5) | 4 (2x2) | 9 (3x3) | 16 (4x4) | "auto"
 	const [gridPage, setGridPage] = useState(0);
@@ -562,11 +555,21 @@ export function SecuritySurveillancePage() {
 	const [camerasLoading, setCamerasLoading] = useState(true);
 	const [alertFilter, setAlertFilter] = useState("ALL"); // 'ALL' | 'PENDING'
 	const [categoryFilter, setCategoryFilter] = useState("ALL"); // 'ALL' | 'Vật thể bất thường' | 'Người lạ' | ...
+	const [fromDate, setFromDate] = useState("");
+	const [toDate, setToDate] = useState("");
 	const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
 	const categoryDropdownRef = useRef(null);
 	const [hasClearedIncidents, setHasClearedIncidents] = useState(
-		() => getStoredSet(SOC_CLEARED_STORAGE_KEY).size > 0,
+		() =>
+			readSocStoredSet(SOC_CLEARED_STORAGE_KEY, guardUserId).size > 0 ||
+			readSocClearedBefore(guardUserId) !== null,
 	);
+	useEffect(() => {
+		setHasClearedIncidents(
+			readSocStoredSet(SOC_CLEARED_STORAGE_KEY, guardUserId).size > 0 ||
+				readSocClearedBefore(guardUserId) !== null,
+		);
+	}, [guardUserId]);
 	const [flashAlertCamera, setFlashAlertCamera] = useState(null);
 	const [statusNotification, setStatusNotification] = useState(null);
 	const [evidenceModalAlert, setEvidenceModalAlert] = useState(null);
@@ -861,7 +864,7 @@ export function SecuritySurveillancePage() {
 	const processNewIncident = (incident) => {
 		const incidentId = incident.id || incident.event_id || Date.now();
 		const eventId = incident.eventId || incident.event_id;
-		const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
+		const ackSet = readSocStoredSet(SOC_ACK_STORAGE_KEY, guardUserId);
 		const isAck =
 			ackSet.has(String(incidentId)) ||
 			(eventId && ackSet.has(String(eventId)));
@@ -1158,13 +1161,14 @@ export function SecuritySurveillancePage() {
 			const active = await getActiveIncidents();
 			setIncidentsError(null);
 			if (Array.isArray(active) && active.length > 0) {
-				const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
-				const clearedSet = getStoredSet(SOC_CLEARED_STORAGE_KEY);
+				const ackSet = readSocStoredSet(SOC_ACK_STORAGE_KEY, guardUserId);
+				const clearedSet = readSocStoredSet(SOC_CLEARED_STORAGE_KEY, guardUserId);
 
 				const mapped = active
 					.filter((incident) => {
 						const idStr = String(incident.id || incident.eventId);
-						return !clearedSet.has(idStr);
+						const evtStr = incident.eventId ? String(incident.eventId) : null;
+						return !clearedSet.has(idStr) && !(evtStr && clearedSet.has(evtStr));
 					})
 					.map((incident) => {
 						const incId = incident.id || incident.eventId;
@@ -1182,6 +1186,7 @@ export function SecuritySurveillancePage() {
 
 						return {
 							id: incId,
+							eventId: incident.eventId || incident.event_id || null,
 							cameraCode: (
 								incident.camera_code ||
 								incident.cameraCode ||
@@ -1239,13 +1244,13 @@ export function SecuritySurveillancePage() {
 
 	useEffect(() => {
 		reloadActiveIncidentsRef.current?.();
-	}, [incidentsReloadKey]);
+	}, [incidentsReloadKey, guardUserId]);
 
 	// Nghiệp vụ SOC: Xác nhận đã xem & tắt còi báo động tại phòng trực điều hành
 	// Đồng thời kết thúc ghi hình sự cố an ninh và hoàn tất lưu video vào evidence/
 	const handleAcknowledge = async (id) => {
 		const strId = String(id);
-		const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
+		const ackSet = readSocStoredSet(SOC_ACK_STORAGE_KEY, guardUserId);
 		ackSet.add(strId);
 
 		const targetAlert = activeAlerts.find(
@@ -1258,7 +1263,7 @@ export function SecuritySurveillancePage() {
 		if (targetAlert?.id) {
 			ackSet.add(String(targetAlert.id));
 		}
-		saveStoredSet(SOC_ACK_STORAGE_KEY, ackSet);
+		writeSocStoredSet(SOC_ACK_STORAGE_KEY, ackSet, guardUserId);
 
 		const camCode =
 			targetAlert?.cameraCode ||
@@ -1289,13 +1294,14 @@ export function SecuritySurveillancePage() {
 	// Nghiệp vụ SOC: Ghi nhận toàn bộ sự cố đang chờ
 	// Đồng thời kết thúc toàn bộ video ghi hình sự cố an ninh
 	const handleAcknowledgeAll = async () => {
-		const ackSet = getStoredSet(SOC_ACK_STORAGE_KEY);
+		const ackSet = readSocStoredSet(SOC_ACK_STORAGE_KEY, guardUserId);
 		activeAlerts.forEach((a) => {
 			if (isAlertPending(a.status)) {
 				ackSet.add(String(a.id));
+				if (a.eventId) ackSet.add(String(a.eventId));
 			}
 		});
-		saveStoredSet(SOC_ACK_STORAGE_KEY, ackSet);
+		writeSocStoredSet(SOC_ACK_STORAGE_KEY, ackSet, guardUserId);
 
 		setActiveAlerts((prev) =>
 			prev.map((a) =>
@@ -1315,14 +1321,16 @@ export function SecuritySurveillancePage() {
 
 	// Dọn dẹp các sự cố đã ghi nhận (SOC đã xem) hoặc đã được hiện trường đóng khỏi bảng trực
 	const handleClearResolved = () => {
-		const clearedSet = getStoredSet(SOC_CLEARED_STORAGE_KEY);
+		const clearedSet = readSocStoredSet(SOC_CLEARED_STORAGE_KEY, guardUserId);
 		activeAlerts.forEach((a) => {
 			if (a.socAcknowledged || !isAlertPending(a.status)) {
 				clearedSet.add(String(a.id));
+				if (a.eventId) clearedSet.add(String(a.eventId));
 			}
 		});
-		saveStoredSet(SOC_CLEARED_STORAGE_KEY, clearedSet);
-		setHasClearedIncidents(clearedSet.size > 0);
+		writeSocStoredSet(SOC_CLEARED_STORAGE_KEY, clearedSet, guardUserId);
+		writeSocClearedBefore(Date.now(), guardUserId);
+		setHasClearedIncidents(true);
 
 		setActiveAlerts((prev) =>
 			prev.filter((a) => !a.socAcknowledged && isAlertPending(a.status)),
@@ -1332,8 +1340,7 @@ export function SecuritySurveillancePage() {
 
 	// Khôi phục lại toàn bộ danh sách sự cố đã ẩn khỏi bảng trực
 	const handleRestoreCleared = () => {
-		localStorage.removeItem(SOC_CLEARED_STORAGE_KEY);
-		localStorage.removeItem(SOC_ACK_STORAGE_KEY);
+		clearSocStoredSets(guardUserId);
 		setHasClearedIncidents(false);
 		setIncidentsReloadKey((k) => k + 1);
 		triggerNotification("Đã khôi phục toàn bộ danh sách sự cố an ninh");
@@ -1451,6 +1458,25 @@ export function SecuritySurveillancePage() {
 		(a) => !a.socAcknowledged && isAlertPending(a.status),
 	).length;
 
+	const handleFromDateChange = (nextFrom) => {
+		setFromDate(nextFrom);
+		if (nextFrom && toDate && nextFrom > toDate) {
+			setToDate(nextFrom);
+		}
+	};
+
+	const handleToDateChange = (nextTo) => {
+		setToDate(nextTo);
+		if (nextTo && fromDate && nextTo < fromDate) {
+			setFromDate(nextTo);
+		}
+	};
+
+	const handleClearDateFilter = () => {
+		setFromDate("");
+		setToDate("");
+	};
+
 	// 1. Lọc nền tảng theo trạng thái ('ALL' | 'PENDING')
 	const baseStatusAlerts = useMemo(() => {
 		if (alertFilter === "PENDING") {
@@ -1461,17 +1487,22 @@ export function SecuritySurveillancePage() {
 		return activeAlerts;
 	}, [activeAlerts, alertFilter]);
 
-	// 2. Thống kê số lượng sự cố theo từng nhóm nghiệp vụ dựa trên tab trạng thái đang chọn
+	// 2. Lọc theo khoảng ngày (Từ ngày -> Đến ngày)
+	const dateFilteredAlerts = useMemo(() => {
+		return filterAlertsByDateRange(baseStatusAlerts, fromDate, toDate);
+	}, [baseStatusAlerts, fromDate, toDate]);
+
+	// 3. Thống kê số lượng sự cố theo từng nhóm nghiệp vụ dựa trên tab trạng thái & khoảng ngày đang chọn
 	const categoryCounts = useMemo(() => {
-		const counts = { ALL: baseStatusAlerts.length };
-		baseStatusAlerts.forEach((a) => {
+		const counts = { ALL: dateFilteredAlerts.length };
+		dateFilteredAlerts.forEach((a) => {
 			const label = getAlertSeverityMeta(a).label || "Khác";
 			counts[label] = (counts[label] || 0) + 1;
 		});
 		return counts;
-	}, [baseStatusAlerts]);
+	}, [dateFilteredAlerts]);
 
-	// 3. Danh sách các tùy chọn dropdown phân loại sự cố (kèm số đếm thực tế)
+	// 4. Danh sách các tùy chọn dropdown phân loại sự cố (kèm số đếm thực tế)
 	const categoryFilterOptions = useMemo(() => {
 		const options = CANONICAL_INCIDENT_CATEGORIES.map((cat) => ({
 			...cat,
@@ -1504,7 +1535,7 @@ export function SecuritySurveillancePage() {
 	}, [categoryFilterOptions, categoryFilter]);
 
 	const filteredAlerts = useMemo(() => {
-		let base = baseStatusAlerts;
+		let base = dateFilteredAlerts;
 		if (categoryFilter !== "ALL") {
 			base = base.filter((a) => {
 				const label = getAlertSeverityMeta(a).label;
@@ -1524,7 +1555,7 @@ export function SecuritySurveillancePage() {
 			const weightB = getAlertSeverityMeta(b).weight;
 			return weightB - weightA;
 		});
-	}, [baseStatusAlerts, categoryFilter]);
+	}, [dateFilteredAlerts, categoryFilter]);
 
 	return (
 		<div
@@ -2094,6 +2125,50 @@ export function SecuritySurveillancePage() {
 								</div>
 							)}
 
+							{/* Bộ lọc Từ ngày - Đến ngày (luôn hiển thị để người dùng lọc bất cứ lúc nào) */}
+							<div className="soc-date-filter-row">
+								<label
+									className={`soc-date-field ${fromDate ? "is-active" : ""}`}
+									title="Lọc sự cố từ ngày"
+								>
+									<Calendar size={12} className="soc-date-icon" />
+									<span className="soc-date-label">Từ</span>
+									<input
+										type="date"
+										className="soc-date-input"
+										aria-label="Lọc sự cố từ ngày"
+										value={fromDate}
+										max={toDate || undefined}
+										onChange={(e) => handleFromDateChange(e.target.value)}
+									/>
+								</label>
+								<label
+									className={`soc-date-field ${toDate ? "is-active" : ""}`}
+									title="Lọc sự cố đến ngày"
+								>
+									<span className="soc-date-label">Đến</span>
+									<input
+										type="date"
+										className="soc-date-input"
+										aria-label="Lọc sự cố đến ngày"
+										value={toDate}
+										min={fromDate || undefined}
+										onChange={(e) => handleToDateChange(e.target.value)}
+									/>
+								</label>
+								{(fromDate || toDate) && (
+									<button
+										type="button"
+										className="soc-date-clear-btn"
+										onClick={handleClearDateFilter}
+										title="Xóa lọc ngày"
+										aria-label="Xóa lọc theo ngày"
+									>
+										<X size={12} />
+									</button>
+								)}
+							</div>
+
 							{(pendingAlertCount > 1 ||
 								hasClearedIncidents ||
 								activeAlerts.some(
@@ -2173,9 +2248,21 @@ export function SecuritySurveillancePage() {
 										Không có sự cố phù hợp
 									</h4>
 									<p className="soc-filter-empty-desc">
-										{categoryFilter !== "ALL"
-											? `Không có sự cố "${categoryFilter}" nào ${alertFilter === "PENDING" ? "đang chờ ghi nhận" : "trong danh sách"}.`
-											: "Không có sự cố nào ở trạng thái chờ ghi nhận."}
+										{(() => {
+											const dateDesc = formatDateFilterSummary(fromDate, toDate);
+											const catDesc =
+												categoryFilter !== "ALL"
+													? ` "${categoryFilter}"`
+													: "";
+											const statusDesc =
+												alertFilter === "PENDING"
+													? " đang chờ ghi nhận"
+													: "";
+											if (dateDesc || catDesc) {
+												return `Không có sự cố${catDesc}${statusDesc}${dateDesc ? ` ${dateDesc}` : ""}.`;
+											}
+											return "Không có sự cố nào ở trạng thái chờ ghi nhận.";
+										})()}
 									</p>
 									<button
 										type="button"
@@ -2183,6 +2270,8 @@ export function SecuritySurveillancePage() {
 										onClick={() => {
 											setAlertFilter("ALL");
 											setCategoryFilter("ALL");
+											setFromDate("");
+											setToDate("");
 										}}
 									>
 										<RotateCcw size={12} />

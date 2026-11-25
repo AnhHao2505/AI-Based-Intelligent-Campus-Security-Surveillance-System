@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
@@ -20,7 +20,12 @@ class ActiveShiftCard extends StatelessWidget {
     this.totalShifts,
   });
 
-  void _showResultDialog(BuildContext context, {required String title, required String message, bool isSuccess = false}) {
+  void _showResultDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+    bool isSuccess = false,
+  }) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -46,24 +51,42 @@ class ActiveShiftCard extends StatelessWidget {
         ),
         content: Text(
           message,
-          style: TextStyle(fontSize: 13, color: AppColors.txtSecondary(context), height: 1.4),
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.txtSecondary(context),
+            height: 1.4,
+          ),
         ),
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: isSuccess ? AppColors.success : AppColors.primary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              backgroundColor: isSuccess
+                  ? AppColors.success
+                  : AppColors.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
               minimumSize: const Size(80, 36),
             ),
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _confirmCheckIn(BuildContext context, ShiftProvider provider, GuardShiftModel shift) {
+  void _confirmCheckIn(
+    BuildContext context,
+    ShiftProvider provider,
+    GuardShiftModel shift,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -71,27 +94,43 @@ class ActiveShiftCard extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         title: Row(
           children: [
-            const Icon(Icons.check_circle_outline, color: AppColors.success, size: 24),
+            const Icon(
+              Icons.check_circle_outline,
+              color: AppColors.success,
+              size: 24,
+            ),
             const SizedBox(width: 8),
             Text(
               'Nhận Ca Trực',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.txtPrimary(context)),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.txtPrimary(context),
+              ),
             ),
           ],
         ),
         content: Text(
           'Bạn có chắc chắn muốn nhận ca trực này (${shift.shiftTimeRange})?',
-          style: TextStyle(fontSize: 13, color: AppColors.txtSecondary(context)),
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.txtSecondary(context),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Hủy', style: TextStyle(color: AppColors.txtMuted(context))),
+            child: Text(
+              'Hủy',
+              style: TextStyle(color: AppColors.txtMuted(context)),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
               minimumSize: const Size(90, 38),
             ),
             onPressed: () async {
@@ -122,7 +161,11 @@ class ActiveShiftCard extends StatelessWidget {
     );
   }
 
-  void _confirmCheckOut(BuildContext context, ShiftProvider provider, GuardShiftModel shift) {
+  void _confirmCheckOut(
+    BuildContext context,
+    ShiftProvider provider,
+    GuardShiftModel shift,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -134,23 +177,35 @@ class ActiveShiftCard extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               'Kết Thúc Ca Trực',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.txtPrimary(context)),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.txtPrimary(context),
+              ),
             ),
           ],
         ),
         content: Text(
           'Bạn có chắc chắn muốn kết thúc ca trực này (${shift.shiftTimeRange})?',
-          style: TextStyle(fontSize: 13, color: AppColors.txtSecondary(context)),
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.txtSecondary(context),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Hủy', style: TextStyle(color: AppColors.txtMuted(context))),
+            child: Text(
+              'Hủy',
+              style: TextStyle(color: AppColors.txtMuted(context)),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.danger,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
               minimumSize: const Size(90, 38),
             ),
             onPressed: () async {
@@ -234,7 +289,8 @@ class ActiveShiftCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shiftProvider = context.read<ShiftProvider>();
-    final isToday = DateFormat('yyyy-MM-dd').format(selectedDate) ==
+    final isToday =
+        DateFormat('yyyy-MM-dd').format(selectedDate) ==
         DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     final hasMultiple = totalShifts != null && totalShifts! > 1;
@@ -261,22 +317,37 @@ class ActiveShiftCard extends StatelessWidget {
                 color: AppColors.surfLight(context),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.coffee_outlined, color: AppColors.txtMuted(context), size: 36),
+              child: Icon(
+                Icons.coffee_outlined,
+                color: AppColors.txtMuted(context),
+                size: 36,
+              ),
             ),
             const SizedBox(height: 12),
             Text(
               formattedDateTitle,
-              style: const TextStyle(fontSize: 13, color: AppColors.primaryLight, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.primaryLight,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'Không có ca trực phân công',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.txtPrimary(context)),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.txtPrimary(context),
+              ),
             ),
             const SizedBox(height: 6),
             Text(
               'Bạn không được xếp lịch làm việc vào ngày này.',
-              style: TextStyle(fontSize: 12, color: AppColors.txtSecondary(context)),
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.txtSecondary(context),
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -304,7 +375,7 @@ class ActiveShiftCard extends StatelessWidget {
                   color: AppColors.success.withAlpha(40),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
-                )
+                ),
               ]
             : null,
       ),
@@ -322,7 +393,10 @@ class ActiveShiftCard extends StatelessWidget {
                   if (hasMultiple) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.surfLight(context),
                         borderRadius: BorderRadius.circular(4),
@@ -344,7 +418,10 @@ class ActiveShiftCard extends StatelessWidget {
                 children: [
                   if (s.isOvertime) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
                       margin: const EdgeInsets.only(right: 6),
                       decoration: BoxDecoration(
                         color: Colors.amber.withAlpha(40),
@@ -362,7 +439,10 @@ class ActiveShiftCard extends StatelessWidget {
                     ),
                   ],
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: s.statusColor.withAlpha(35),
                       borderRadius: BorderRadius.circular(10),
@@ -443,11 +523,19 @@ class ActiveShiftCard extends StatelessWidget {
 
           // Khu vực của ca (không ghép toà)
           if (s.areaName != null && s.areaName!.trim().isNotEmpty)
-            _buildShiftInfoChip(context, Icons.place_outlined, 'Khu vực: ${s.areaName!.trim()}'),
+            _buildShiftInfoChip(
+              context,
+              Icons.place_outlined,
+              'Khu vực: ${s.areaName!.trim()}',
+            ),
 
           // Vị trí trực (duty post) — chỉ hiện khi backend trả dutyPostLabel
           if (s.dutyPostLabel != null && s.dutyPostLabel!.trim().isNotEmpty)
-            _buildShiftInfoChip(context, Icons.badge_outlined, 'Vị trí trực: ${s.dutyPostLabel!.trim()}'),
+            _buildShiftInfoChip(
+              context,
+              Icons.badge_outlined,
+              'Vị trí trực: ${s.dutyPostLabel!.trim()}',
+            ),
 
           // Ca luân chuyển sang toà khác toà của đội
           if (s.crossBuilding)
@@ -472,12 +560,19 @@ class ActiveShiftCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, size: 15, color: AppColors.txtMuted(context)),
+                  Icon(
+                    Icons.info_outline,
+                    size: 15,
+                    color: AppColors.txtMuted(context),
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Lưu ý: ${s.notes}',
-                      style: TextStyle(fontSize: 12, color: AppColors.txtSecondary(context)),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.txtSecondary(context),
+                      ),
                     ),
                   ),
                 ],
@@ -493,12 +588,19 @@ class ActiveShiftCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.access_time, size: 14, color: AppColors.warning),
+                    const Icon(
+                      Icons.access_time,
+                      size: 14,
+                      color: AppColors.warning,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Nhận ca từ trước giờ bắt đầu 5 phút (từ ${DateFormat('HH:mm').format(s.shiftStartDateTime!.subtract(const Duration(minutes: 5)))}).',
-                        style: TextStyle(fontSize: 11, color: AppColors.txtSecondary(context)),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.txtSecondary(context),
+                        ),
                       ),
                     ),
                   ],
@@ -506,17 +608,30 @@ class ActiveShiftCard extends StatelessWidget {
               ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: s.isBeforeCheckInWindow ? AppColors.surfLight(context) : AppColors.success,
-                foregroundColor: s.isBeforeCheckInWindow ? AppColors.txtMuted(context) : Colors.white,
-                shadowColor: s.isBeforeCheckInWindow ? Colors.transparent : AppColors.success.withAlpha(100),
+                backgroundColor: s.isBeforeCheckInWindow
+                    ? AppColors.surfLight(context)
+                    : AppColors.success,
+                foregroundColor: s.isBeforeCheckInWindow
+                    ? AppColors.txtMuted(context)
+                    : Colors.white,
+                shadowColor: s.isBeforeCheckInWindow
+                    ? Colors.transparent
+                    : AppColors.success.withAlpha(100),
                 elevation: s.isBeforeCheckInWindow ? 0 : 4,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
               ),
-              onPressed: s.isBeforeCheckInWindow ? null : () => _confirmCheckIn(context, shiftProvider, s),
+              onPressed: s.isBeforeCheckInWindow
+                  ? null
+                  : () => _confirmCheckIn(context, shiftProvider, s),
               icon: Icon(
                 s.isBeforeCheckInWindow ? Icons.schedule : Icons.check_circle,
                 size: 18,
-                color: s.isBeforeCheckInWindow ? AppColors.txtMuted(context) : Colors.white,
+                color: s.isBeforeCheckInWindow
+                    ? AppColors.txtMuted(context)
+                    : Colors.white,
               ),
               label: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -526,7 +641,9 @@ class ActiveShiftCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.bold,
-                    color: s.isBeforeCheckInWindow ? AppColors.txtMuted(context) : Colors.white,
+                    color: s.isBeforeCheckInWindow
+                        ? AppColors.txtMuted(context)
+                        : Colors.white,
                   ),
                 ),
               ),
@@ -537,7 +654,9 @@ class ActiveShiftCard extends StatelessWidget {
                 foregroundColor: AppColors.primaryLight,
                 side: BorderSide(color: AppColors.primary.withAlpha(120)),
                 minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(5),
+                ),
               ),
               onPressed: () => ShiftRequestBottomSheet.show(context, s),
               child: const Text(
@@ -551,12 +670,19 @@ class ActiveShiftCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.info_outline, size: 14, color: AppColors.primaryLight),
+                    const Icon(
+                      Icons.info_outline,
+                      size: 14,
+                      color: AppColors.primaryLight,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Hoàn thành ca từ đúng giờ kết thúc (${s.shortEndTime}) đến sau 5 phút.',
-                        style: TextStyle(fontSize: 11, color: AppColors.txtSecondary(context)),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.txtSecondary(context),
+                        ),
                       ),
                     ),
                   ],
@@ -567,8 +693,13 @@ class ActiveShiftCard extends StatelessWidget {
                 foregroundColor: AppColors.dangerLight,
                 side: const BorderSide(color: AppColors.danger, width: 1.5),
                 minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
               ),
               onPressed: () => _confirmCheckOut(context, shiftProvider, s),
               icon: const Icon(Icons.logout, size: 18),
@@ -597,7 +728,11 @@ class ActiveShiftCard extends StatelessWidget {
                   SizedBox(width: 8),
                   Text(
                     'Ca trực đã hoàn tất thành công',
-                    style: TextStyle(fontSize: 13, color: AppColors.success, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.success,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -614,12 +749,20 @@ class ActiveShiftCard extends StatelessWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.cancel_outlined, color: AppColors.danger, size: 18),
+                  Icon(
+                    Icons.cancel_outlined,
+                    color: AppColors.danger,
+                    size: 18,
+                  ),
                   SizedBox(width: 8),
                   Flexible(
                     child: Text(
                       'Ca trực ghi nhận VẮNG MẶT (quá hạn nhận ca)',
-                      style: TextStyle(fontSize: 12, color: AppColors.danger, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.danger,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

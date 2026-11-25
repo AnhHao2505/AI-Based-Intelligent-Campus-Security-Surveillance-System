@@ -33,20 +33,32 @@ public class SecurityIncidentController {
     @GetMapping("/active")
     @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
     public ResponseEntity<ApiResponse<List<IncidentDetailResponse>>> getActiveIncidents(
-            @RequestParam(required = false) String building
+            @RequestParam(required = false) String building,
+            @RequestParam(required = false, defaultValue = "false") boolean assignedShiftOnly,
+            Authentication authentication
     ) {
-        log.info("Querying active incidents for building [{}]", building);
-        return ResponseEntity.ok(ApiResponse.success(securityIncidentService.getActiveIncidents(building), "Lấy danh sách sự cố đang diễn ra thành công"));
+        log.info("Querying active incidents for building [{}], assignedShiftOnly [{}]", building, assignedShiftOnly);
+        String userEmail = authentication != null ? authentication.getName() : null;
+        List<IncidentDetailResponse> incidents = assignedShiftOnly
+                ? securityIncidentService.getActiveIncidents(building, true, userEmail)
+                : securityIncidentService.getActiveIncidents(building);
+        return ResponseEntity.ok(ApiResponse.success(incidents, "Lấy danh sách sự cố đang diễn ra thành công"));
     }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
     public ResponseEntity<ApiResponse<List<IncidentDetailResponse>>> getIncidents(
             @RequestParam(required = false) String building,
-            @RequestParam(required = false) IncidentStatus status
+            @RequestParam(required = false) IncidentStatus status,
+            @RequestParam(required = false, defaultValue = "false") boolean assignedShiftOnly,
+            Authentication authentication
     ) {
-        log.info("Querying incidents with status [{}], building [{}]", status, building);
-        return ResponseEntity.ok(ApiResponse.success(securityIncidentService.getIncidents(building, status), "Lấy danh sách sự cố an ninh thành công"));
+        log.info("Querying incidents with status [{}], building [{}], assignedShiftOnly [{}]", status, building, assignedShiftOnly);
+        String userEmail = authentication != null ? authentication.getName() : null;
+        List<IncidentDetailResponse> incidents = assignedShiftOnly
+                ? securityIncidentService.getIncidents(building, status, true, userEmail)
+                : securityIncidentService.getIncidents(building, status);
+        return ResponseEntity.ok(ApiResponse.success(incidents, "Lấy danh sách sự cố an ninh thành công"));
     }
 
     @PostMapping("/{id}/claim")
