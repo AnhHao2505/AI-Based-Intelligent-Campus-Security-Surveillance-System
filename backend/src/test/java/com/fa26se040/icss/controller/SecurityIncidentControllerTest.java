@@ -28,7 +28,9 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -136,5 +138,48 @@ class SecurityIncidentControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Sự cố này đã được xử lý"));
+    }
+
+    @Test
+    @DisplayName("GET /api/incidents/active mặc định (web) trả toàn bộ, assignedShiftOnly=true (mobile) lọc theo ca")
+    void getActiveIncidents_webVsMobileShiftFilter() throws Exception {
+        IncidentDetailResponse res = IncidentDetailResponse.builder()
+                .id(UUID.randomUUID())
+                .cameraCode("CAM-001")
+                .eventType("UNKNOWN_PERSON")
+                .status(IncidentStatus.NEW)
+                .build();
+
+        when(securityIncidentService.getActiveIncidents(null)).thenReturn(List.of(res));
+        when(securityIncidentService.getActiveIncidents(null, true, "guard@fpt.edu.vn")).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/incidents/active").principal(mockGuardAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1));
+        verify(securityIncidentService).getActiveIncidents(null);
+
+        mockMvc.perform(get("/api/incidents/active")
+                        .param("assignedShiftOnly", "true")
+                        .principal(mockGuardAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+        verify(securityIncidentService).getActiveIncidents(null, true, "guard@fpt.edu.vn");
+    }
+
+    @Test
+    @DisplayName("GET /api/incidents mặc định (web) trả toàn bộ, assignedShiftOnly=true (mobile) lọc theo ca")
+    void getIncidents_webVsMobileShiftFilter() throws Exception {
+        when(securityIncidentService.getIncidents(null, null)).thenReturn(List.of());
+        when(securityIncidentService.getIncidents(null, null, true, "guard@fpt.edu.vn")).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/incidents").principal(mockGuardAuth))
+                .andExpect(status().isOk());
+        verify(securityIncidentService).getIncidents(null, null);
+
+        mockMvc.perform(get("/api/incidents")
+                        .param("assignedShiftOnly", "true")
+                        .principal(mockGuardAuth))
+                .andExpect(status().isOk());
+        verify(securityIncidentService).getIncidents(null, null, true, "guard@fpt.edu.vn");
     }
 }

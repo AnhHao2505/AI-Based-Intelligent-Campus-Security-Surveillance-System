@@ -1,6 +1,7 @@
 package com.fa26se040.icss.service;
 
 import com.fa26se040.icss.entity.GuardShift;
+import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
@@ -18,6 +19,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -154,5 +156,54 @@ class IncidentRecipientResolverTest {
                 shift(a, TODAY, "09:00", "17:00", ShiftStatus.CHECKED_IN));
 
         assertEquals(List.of(a, b), resolver.findOnDutyGuards(vnTime(TODAY, "10:00")));
+    }
+
+    @Test
+    @DisplayName("findAssignedGuardsAt: chỉ bảo vệ được phân công (SCHEDULED/CHECKED_IN) trong ca mới nhận cảnh báo")
+    void findAssignedGuardsAt_onlyAssignedGuardsWithinShift() {
+        User guardAn = guard("Nguyễn Văn An");
+        when(onDutyGuardQueryRepository.findByStatusInAndShiftDateBetween(
+                eq(Set.of(ShiftStatus.SCHEDULED, ShiftStatus.CHECKED_IN)), any(), any()))
+                .thenReturn(List.of(
+                        shift(guardAn, TODAY, "06:00", "14:00", ShiftStatus.SCHEDULED)));
+
+        assertEquals(List.of(guardAn), resolver.findAssignedGuardsAt(vnTime(TODAY, "09:50")));
+        assertTrue(resolver.findAssignedGuardsAt(vnTime(TODAY, "14:00")).isEmpty());
+        assertTrue(resolver.findAssignedGuardsAt(vnTime(TODAY, "05:59")).isEmpty());
+    }
+
+    @Test
+    @DisplayName("filterIncidentsForAssignedShifts: chỉ giữ sự cố phát sinh trong ca được phân công")
+    void filterIncidentsForAssignedShifts_filtersByShiftWindowAndStatus() {
+        User guardAn = guard("Nguyễn Văn An");
+        User guardDemo = guard("Bảo Vệ Trong Ca (Demo)");
+
+        SecurityIncident insideMorning = SecurityIncident.builder()
+                .id(UUID.randomUUID())
+                .detectedAt(vnTime(TODAY, "09:30"))
+                .build();
+        SecurityIncident outsideAfternoon = SecurityIncident.builder()
+                .id(UUID.randomUUID())
+                .detectedAt(vnTime(TODAY, "15:00"))
+                .build();
+        SecurityIncident overnightAlert = SecurityIncident.builder()
+                .id(UUID.randomUUID())
+                .detectedAt(vnTime(TODAY, "02:00"))
+                .build();
+
+        when(onDutyGuardQueryRepository.findByGuardIdAndStatusInAndShiftDateBetween(
+                eq(guardAn.getId()), eq(IncidentRecipientResolver.ASSIGNED_SHIFT_STATUSES), any(), any()))
+                .thenReturn(List.of(
+                        shift(guardAn, TODAY, "06:00", "14:00", ShiftStatus.SCHEDULED),
+                        shift(guardAn, YESTERDAY, "22:00", "06:00", ShiftStatus.COMPLETED)));
+        when(onDutyGuardQueryRepository.findByGuardIdAndStatusInAndShiftDateBetween(
+                eq(guardDemo.getId()), eq(IncidentRecipientResolver.ASSIGNED_SHIFT_STATUSES), any(), any()))
+                .thenReturn(List.of());
+
+        List<SecurityIncident> all = List.of(insideMorning, outsideAfternoon, overnightAlert);
+
+        assertEquals(List.of(insideMorning, overnightAlert),
+                resolver.filterIncidentsForAssignedShifts(all, guardAn.getId()));
+        assertTrue(resolver.filterIncidentsForAssignedShifts(all, guardDemo.getId()).isEmpty());
     }
 }
