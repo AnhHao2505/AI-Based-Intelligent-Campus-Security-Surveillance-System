@@ -1,5 +1,8 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardShiftAuditSnapshot;
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardShiftRequestAuditSnapshot;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.dto.guard.AvailableSubstituteDto;
 import com.fa26se040.icss.dto.guard.AvailableSwapShiftDto;
 import com.fa26se040.icss.dto.guard.GuardShiftRequestCreateDto;
@@ -43,6 +46,7 @@ public class GuardShiftRequestService {
     private final GuardShiftRepository shiftRepository;
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
+    private final AuditService auditService;
 
     /**
      * Finds guards who have a day off (OFF) on shiftId date and satisfy circadian fatigue.
@@ -437,10 +441,24 @@ public class GuardShiftRequestService {
                 .build();
 
         GuardShiftRequest saved = requestRepository.save(request);
+        GuardShiftRequest effective = saved != null ? saved : request;
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.GUARD_SHIFT_REQUEST,
+                    AuditAction.CREATE,
+                    effective.getId() != null ? effective.getId().toString() : "UNKNOWN",
+                    shift.getArea(),
+                    requester,
+                    null,
+                    GuardShiftRequestAuditSnapshot.from(effective),
+                    truncateReason(effective.getReason()),
+                    AuditActor.user(requester)
+            );
+        }
         log.info("Guard [{}] submitted [{}] request [{}] for shift [{}] on [{}]",
-                requester.getFullName(), saved.getRequestType(), saved.getId(), shift.getId(), shift.getShiftDate());
+                requester.getFullName(), effective.getRequestType(), effective.getId(), shift.getId(), shift.getShiftDate());
 
-        return mapToDto(saved);
+        return mapToDto(effective);
     }
 
     @Transactional(readOnly = true)
@@ -481,6 +499,8 @@ public class GuardShiftRequestService {
             throw new IllegalStateException("Đơn yêu cầu này đã được xử lý trước đó");
         }
 
+        GuardShiftRequestAuditSnapshot oldRequestSnap = GuardShiftRequestAuditSnapshot.from(request);
+        AuditActor reviewerActor = AuditActor.user(reviewer);
         GuardShift shift = request.getShift();
 
         if (request.getRequestType() == GuardShiftRequestType.SWAP_SHIFT) {
@@ -492,15 +512,21 @@ public class GuardShiftRequestService {
             }
 
             // 1. Transfer shift Sa to substitute B
+            GuardShiftAuditSnapshot oldShiftSnap = GuardShiftAuditSnapshot.from(shift);
             shift.setGuard(substitute);
             shift.setNotes(buildNotes(shift.getNotes(), "Đổi ca: Chuyển từ " + request.getRequester().getFullName() + " sang " + substitute.getFullName()));
-            shiftRepository.save(shift);
+            GuardShift savedShift = shiftRepository.save(shift);
+            GuardShift effectiveShift = savedShift != null ? savedShift : shift;
+            recordShiftAudit(AuditAction.UPDATE, effectiveShift, oldShiftSnap, "Chấp thuận đổi ca trực", reviewerActor);
 
             // 2. Transfer target shift Sb to requester A (2-way mutual swap)
             if (target != null) {
+                GuardShiftAuditSnapshot oldTargetSnap = GuardShiftAuditSnapshot.from(target);
                 target.setGuard(request.getRequester());
                 target.setNotes(buildNotes(target.getNotes(), "Đổi ca: Chuyển từ " + substitute.getFullName() + " sang " + request.getRequester().getFullName()));
-                shiftRepository.save(target);
+                GuardShift savedTarget = shiftRepository.save(target);
+                GuardShift effectiveTarget = savedTarget != null ? savedTarget : target;
+                recordShiftAudit(AuditAction.UPDATE, effectiveTarget, oldTargetSnap, "Chấp thuận đổi ca trực", reviewerActor);
 
                 notifyUser(request.getRequester(), "Đổi ca trực thành công",
                         String.format("Yêu cầu đổi ca đã được duyệt. Bạn tiếp nhận %s ngày %s của %s.",
@@ -545,9 +571,12 @@ public class GuardShiftRequestService {
                     }
                 }
 
+                GuardShiftAuditSnapshot oldShiftSnap = GuardShiftAuditSnapshot.from(shift);
                 shift.setGuard(substitute);
                 shift.setNotes(buildNotes(shift.getNotes(), "Trực thay do " + request.getRequester().getFullName() + " nghỉ phép"));
-                shiftRepository.save(shift);
+                GuardShift savedShift = shiftRepository.save(shift);
+                GuardShift effectiveShift = savedShift != null ? savedShift : shift;
+                recordShiftAudit(AuditAction.UPDATE, effectiveShift, oldShiftSnap, "Phân công bảo vệ trực thay đơn nghỉ phép", reviewerActor);
                 request.setSubstituteGuard(substitute);
 
                 notifyUser(substitute, "Phân công trực thay ca trực",
@@ -556,9 +585,12 @@ public class GuardShiftRequestService {
                         request.getId());
             } else {
                 // No substitute assigned -> Cancel shift
+                GuardShiftAuditSnapshot oldShiftSnap = GuardShiftAuditSnapshot.from(shift);
                 shift.setStatus(ShiftStatus.CANCELLED);
                 shift.setNotes(buildNotes(shift.getNotes(), "Ca trực bị hủy do " + request.getRequester().getFullName() + " nghỉ phép"));
-                shiftRepository.save(shift);
+                GuardShift savedShift = shiftRepository.save(shift);
+                GuardShift effectiveShift = savedShift != null ? savedShift : shift;
+                recordShiftAudit(AuditAction.CANCEL, effectiveShift, oldShiftSnap, "Hủy ca trực do nghỉ phép không có người trực thay", reviewerActor);
             }
 
             notifyUser(request.getRequester(), "Đơn xin nghỉ đã được duyệt",
@@ -575,9 +607,23 @@ public class GuardShiftRequestService {
         }
 
         GuardShiftRequest updated = requestRepository.save(request);
+        GuardShiftRequest effectiveUpdated = updated != null ? updated : request;
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.GUARD_SHIFT_REQUEST,
+                    AuditAction.APPROVE,
+                    effectiveUpdated.getId() != null ? effectiveUpdated.getId().toString() : requestId.toString(),
+                    shift != null ? shift.getArea() : null,
+                    request.getRequester(),
+                    oldRequestSnap,
+                    GuardShiftRequestAuditSnapshot.from(effectiveUpdated),
+                    truncateReason(effectiveUpdated.getReviewNotes()),
+                    reviewerActor
+            );
+        }
         log.info("Request [{}] approved by [{}]", requestId, reviewer.getFullName());
 
-        return mapToDto(updated);
+        return mapToDto(effectiveUpdated);
     }
 
     @Transactional
@@ -592,6 +638,7 @@ public class GuardShiftRequestService {
             throw new IllegalStateException("Đơn yêu cầu này đã được xử lý trước đó");
         }
 
+        GuardShiftRequestAuditSnapshot oldRequestSnap = GuardShiftRequestAuditSnapshot.from(request);
         request.setStatus(GuardShiftRequestStatus.REJECTED);
         request.setReviewedBy(reviewer);
         request.setReviewedAt(OffsetDateTime.now());
@@ -600,6 +647,20 @@ public class GuardShiftRequestService {
         }
 
         GuardShiftRequest updated = requestRepository.save(request);
+        GuardShiftRequest effectiveUpdated = updated != null ? updated : request;
+        if (auditService != null) {
+            auditService.record(
+                    AuditTargetType.GUARD_SHIFT_REQUEST,
+                    AuditAction.REJECT,
+                    effectiveUpdated.getId() != null ? effectiveUpdated.getId().toString() : requestId.toString(),
+                    request.getShift() != null ? request.getShift().getArea() : null,
+                    request.getRequester(),
+                    oldRequestSnap,
+                    GuardShiftRequestAuditSnapshot.from(effectiveUpdated),
+                    truncateReason(effectiveUpdated.getReviewNotes()),
+                    AuditActor.user(reviewer)
+            );
+        }
         log.info("Request [{}] rejected by [{}]", requestId, reviewer.getFullName());
 
         notifyUser(request.getRequester(), "Yêu cầu ca trực bị từ chối",
@@ -608,7 +669,32 @@ public class GuardShiftRequestService {
                         formatShiftType(request.getShift().getShiftType()), request.getShift().getShiftDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))),
                 request.getId());
 
-        return mapToDto(updated);
+        return mapToDto(effectiveUpdated);
+    }
+
+    private void recordShiftAudit(AuditAction action, GuardShift shift, GuardShiftAuditSnapshot oldSnap,
+                                  String reason, AuditActor actor) {
+        if (auditService == null || shift == null) {
+            return;
+        }
+        auditService.record(
+                AuditTargetType.GUARD_SHIFT,
+                action,
+                shift.getId() != null ? shift.getId().toString() : "UNKNOWN",
+                shift.getArea(),
+                shift.getGuard(),
+                oldSnap,
+                GuardShiftAuditSnapshot.from(shift),
+                truncateReason(reason),
+                actor
+        );
+    }
+
+    private static String truncateReason(String reason) {
+        if (reason == null) {
+            return null;
+        }
+        return reason.length() > 500 ? reason.substring(0, 500) : reason;
     }
 
     private void notifyUser(User recipient, String title, String message, UUID requestId) {

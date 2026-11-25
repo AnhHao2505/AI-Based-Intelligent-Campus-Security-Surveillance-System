@@ -1,13 +1,21 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardTeamDispatchAuditSnapshot;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.dto.guard.AvailableSubstituteDto;
 import com.fa26se040.icss.dto.guard.GuardTeamDispatchCreateRequest;
+import com.fa26se040.icss.dto.guard.GuardTeamDispatchDto;
 import com.fa26se040.icss.entity.GuardShift;
 import com.fa26se040.icss.entity.GuardTeam;
+import com.fa26se040.icss.entity.GuardTeamDispatch;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
+import com.fa26se040.icss.enums.GuardDispatchStatus;
 import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.enums.ShiftType;
+import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.GuardShiftRepository;
 import com.fa26se040.icss.repository.GuardTeamDispatchRepository;
 import com.fa26se040.icss.repository.GuardTeamRepository;
@@ -44,6 +52,12 @@ class GuardTeamDispatchServiceTest {
 
     @Mock
     private GuardShiftRepository shiftRepository;
+
+    @Mock
+    private AreaRepository areaRepository;
+
+    @Mock
+    private AuditService auditService;
 
     @InjectMocks
     private GuardTeamDispatchService dispatchService;
@@ -246,5 +260,107 @@ class GuardTeamDispatchServiceTest {
         );
 
         assertTrue(ex.getMessage().contains("đã có lịch trực"));
+    }
+
+    @Test
+    @DisplayName("Audit: Tạo, hủy và tự động hoàn tất điều động tăng cường đều ghi audit GUARD_TEAM_DISPATCH")
+    void dispatchLifecycle_RecordsAudit() {
+        User manager = User.builder()
+                .id(UUID.randomUUID())
+                .fullName("Quản lý")
+                .email("manager@icss.com")
+                .role(Role.FACILITY_MANAGER)
+                .build();
+        LocalDate startDate = LocalDate.of(2026, 9, 24);
+        LocalDate endDate = LocalDate.of(2026, 9, 24);
+
+        UUID dispatchId = UUID.randomUUID();
+        when(teamRepository.findById(teamAlpha.getId())).thenReturn(Optional.of(teamAlpha));
+        when(userRepository.findByEmail("manager@icss.com")).thenReturn(Optional.of(manager));
+        when(userRepository.findById(guard1.getId())).thenReturn(Optional.of(guard1));
+        when(dispatchRepository.findOverlappingDispatches(any(), any(), any(), any())).thenReturn(Collections.emptyList());
+        when(shiftRepository.findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(eq(guard1.getId()), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(areaRepository.findAll()).thenReturn(Collections.emptyList());
+        when(dispatchRepository.save(any(GuardTeamDispatch.class))).thenAnswer(inv -> {
+            GuardTeamDispatch d = inv.getArgument(0);
+            if (d.getId() == null) d.setId(dispatchId);
+            return d;
+        });
+
+        GuardTeamDispatchCreateRequest req = GuardTeamDispatchCreateRequest.builder()
+                .toTeamId(teamAlpha.getId())
+                .guardIds(List.of(guard1.getId()))
+                .startDate(startDate)
+                .endDate(endDate)
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .reason("Tăng cường lễ khai giảng")
+                .build();
+
+        List<GuardTeamDispatchDto> created = dispatchService.createDispatches(req, "manager@icss.com");
+        assertEquals(1, created.size());
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_TEAM_DISPATCH),
+                eq(AuditAction.CREATE),
+                eq(dispatchId.toString()),
+                isNull(),
+                eq(guard1),
+                isNull(),
+                any(GuardTeamDispatchAuditSnapshot.class),
+                eq("Tăng cường lễ khai giảng"),
+                argThat((AuditActor actor) -> actor != null && "USER".equals(actor.getActorType()) && manager.equals(actor.getUser()))
+        );
+
+        // CANCEL
+        GuardTeamDispatch activeDispatch = GuardTeamDispatch.builder()
+                .id(dispatchId)
+                .guard(guard1)
+                .fromTeam(teamBeta)
+                .toTeam(teamAlpha)
+                .startDate(startDate)
+                .endDate(endDate)
+                .shiftType(ShiftType.SHIFT_MORNING)
+                .status(GuardDispatchStatus.ACTIVE)
+                .reason("Tăng cường lễ khai giảng")
+                .build();
+        when(dispatchRepository.findById(dispatchId)).thenReturn(Optional.of(activeDispatch));
+        dispatchService.cancelDispatch(dispatchId, "manager@icss.com");
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_TEAM_DISPATCH),
+                eq(AuditAction.CANCEL),
+                eq(dispatchId.toString()),
+                isNull(),
+                eq(guard1),
+                argThat((GuardTeamDispatchAuditSnapshot snap) -> snap != null && snap.status() == GuardDispatchStatus.ACTIVE),
+                argThat((GuardTeamDispatchAuditSnapshot snap) -> snap != null && snap.status() == GuardDispatchStatus.CANCELLED),
+                anyString(),
+                argThat((AuditActor actor) -> actor != null && "USER".equals(actor.getActorType()) && manager.equals(actor.getUser()))
+        );
+
+        // EXPIRE
+        UUID expiredId = UUID.randomUUID();
+        GuardTeamDispatch expiredDispatch = GuardTeamDispatch.builder()
+                .id(expiredId)
+                .guard(guard1)
+                .fromTeam(teamBeta)
+                .toTeam(teamAlpha)
+                .startDate(LocalDate.now().minusDays(2))
+                .endDate(LocalDate.now().minusDays(1))
+                .status(GuardDispatchStatus.ACTIVE)
+                .build();
+        when(dispatchRepository.findAllByStatusAndEndDateBefore(eq(GuardDispatchStatus.ACTIVE), any(LocalDate.class)))
+                .thenReturn(List.of(expiredDispatch));
+        dispatchService.autoExpireDispatches();
+        verify(auditService).record(
+                eq(AuditTargetType.GUARD_TEAM_DISPATCH),
+                eq(AuditAction.EXPIRE),
+                eq(expiredId.toString()),
+                isNull(),
+                eq(guard1),
+                argThat((GuardTeamDispatchAuditSnapshot snap) -> snap != null && snap.status() == GuardDispatchStatus.ACTIVE),
+                argThat((GuardTeamDispatchAuditSnapshot snap) -> snap != null && snap.status() == GuardDispatchStatus.COMPLETED),
+                anyString(),
+                argThat((AuditActor actor) -> actor != null && "SYSTEM".equals(actor.getActorType()) && "GUARD_DISPATCH_EXPIRE_JOB".equals(actor.getActorSource()))
+        );
     }
 }

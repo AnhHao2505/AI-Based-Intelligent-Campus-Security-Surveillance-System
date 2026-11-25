@@ -1,11 +1,16 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.GuardTeamDispatchAuditSnapshot;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.dto.guard.GuardTeamDispatchCreateRequest;
 import com.fa26se040.icss.dto.guard.GuardTeamDispatchDto;
+import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Building;
 import com.fa26se040.icss.entity.GuardTeam;
 import com.fa26se040.icss.entity.GuardTeamDispatch;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.GuardDispatchStatus;
 import com.fa26se040.icss.repository.GuardTeamDispatchRepository;
 import com.fa26se040.icss.repository.GuardTeamRepository;
@@ -32,6 +37,7 @@ public class GuardTeamDispatchService {
     private final UserRepository userRepository;
     private final com.fa26se040.icss.repository.GuardShiftRepository shiftRepository;
     private final com.fa26se040.icss.repository.AreaRepository areaRepository;
+    private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public List<com.fa26se040.icss.dto.guard.AvailableSubstituteDto> getAvailableGuardsForDispatch(
@@ -218,7 +224,9 @@ public class GuardTeamDispatchService {
                     .createdBy(creator)
                     .build();
 
-            createdList.add(dispatchRepository.save(dispatch));
+            GuardTeamDispatch savedDispatch = dispatchRepository.save(dispatch);
+            GuardTeamDispatch effectiveDispatch = savedDispatch != null ? savedDispatch : dispatch;
+            createdList.add(effectiveDispatch);
 
             // Tự động sinh ca trực GuardShift tương ứng cho bảo vệ để hiển thị trên Lịch và Mobile App
             String buildingCode = toTeam.getDescription();
@@ -232,6 +240,26 @@ public class GuardTeamDispatchService {
                 targetArea = areaRepository.findAll().stream()
                         .filter(a -> a.getDeletedAt() == null)
                         .findFirst().orElse(null);
+            }
+
+            if (auditService != null) {
+                AuditActor actor = creator != null
+                        ? AuditActor.user(creator)
+                        : auditService.resolveCurrentActor("GUARD_DISPATCH_SERVICE");
+                String auditReason = (effectiveDispatch.getReason() != null && !effectiveDispatch.getReason().isBlank())
+                        ? effectiveDispatch.getReason()
+                        : ("Điều động tăng cường sang " + toTeam.getTeamName());
+                auditService.record(
+                        AuditTargetType.GUARD_TEAM_DISPATCH,
+                        AuditAction.CREATE,
+                        effectiveDispatch.getId() != null ? effectiveDispatch.getId().toString() : "UNKNOWN",
+                        targetArea,
+                        guard,
+                        null,
+                        GuardTeamDispatchAuditSnapshot.from(effectiveDispatch),
+                        truncateReason(auditReason),
+                        actor
+                );
             }
 
             List<com.fa26se040.icss.enums.ShiftType> shiftTypesToCreate = new ArrayList<>();
@@ -318,10 +346,29 @@ public class GuardTeamDispatchService {
         LocalDate today = LocalDate.now();
         List<GuardTeamDispatch> expired = dispatchRepository.findAllByStatusAndEndDateBefore(GuardDispatchStatus.ACTIVE, today);
         if (!expired.isEmpty()) {
+            List<GuardTeamDispatchAuditSnapshot> oldSnaps = new ArrayList<>(expired.size());
             for (GuardTeamDispatch d : expired) {
+                oldSnaps.add(GuardTeamDispatchAuditSnapshot.from(d));
                 d.setStatus(GuardDispatchStatus.COMPLETED);
             }
             dispatchRepository.saveAll(expired);
+            if (auditService != null) {
+                AuditActor sysActor = AuditActor.system("GUARD_DISPATCH_EXPIRE_JOB");
+                for (int i = 0; i < expired.size(); i++) {
+                    GuardTeamDispatch d = expired.get(i);
+                    auditService.record(
+                            AuditTargetType.GUARD_TEAM_DISPATCH,
+                            AuditAction.EXPIRE,
+                            d.getId() != null ? d.getId().toString() : "UNKNOWN",
+                            null,
+                            d.getGuard(),
+                            oldSnaps.get(i),
+                            GuardTeamDispatchAuditSnapshot.from(d),
+                            "Tự động hoàn tất điều động tăng cường quá ngày kết thúc",
+                            sysActor
+                    );
+                }
+            }
             log.info("Auto-expired [{}] guard team dispatches past end date", expired.size());
         }
     }
@@ -360,9 +407,11 @@ public class GuardTeamDispatchService {
     public GuardTeamDispatchDto cancelDispatch(UUID dispatchId, String userEmail) {
         GuardTeamDispatch dispatch = dispatchRepository.findById(dispatchId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đợt điều động với ID: " + dispatchId));
+        GuardTeamDispatchAuditSnapshot oldSnap = GuardTeamDispatchAuditSnapshot.from(dispatch);
 
         dispatch.setStatus(GuardDispatchStatus.CANCELLED);
         GuardTeamDispatch saved = dispatchRepository.save(dispatch);
+        GuardTeamDispatch effective = saved != null ? saved : dispatch;
 
         // Xóa các ca trực tăng cường đã tạo nếu còn ở trạng thái SCHEDULED
         List<com.fa26se040.icss.entity.GuardShift> candidateShifts = shiftRepository.findByGuardIdAndShiftDateBetweenOrderByShiftDateAscStartTimeAsc(
@@ -376,11 +425,38 @@ public class GuardTeamDispatchService {
             }
         }
 
+        if (auditService != null) {
+            User actorUser = (userEmail != null && !userEmail.isBlank())
+                    ? userRepository.findByEmail(userEmail).orElse(null)
+                    : null;
+            AuditActor actor = actorUser != null
+                    ? AuditActor.user(actorUser)
+                    : auditService.resolveCurrentActor("GUARD_DISPATCH_SERVICE");
+            auditService.record(
+                    AuditTargetType.GUARD_TEAM_DISPATCH,
+                    AuditAction.CANCEL,
+                    effective.getId() != null ? effective.getId().toString() : "UNKNOWN",
+                    null,
+                    dispatch.getGuard(),
+                    oldSnap,
+                    GuardTeamDispatchAuditSnapshot.from(effective),
+                    "Hủy điều động tăng cường bảo vệ",
+                    actor
+            );
+        }
+
         log.info("Cancelled temporary dispatch [{}] of guard [{}] from team [{}] to team [{}] by [{}]",
                 dispatchId, dispatch.getGuard().getFullName(),
                 dispatch.getFromTeam() != null ? dispatch.getFromTeam().getTeamName() : "None",
                 dispatch.getToTeam().getTeamName(), userEmail);
 
-        return GuardTeamDispatchDto.fromEntity(saved);
+        return GuardTeamDispatchDto.fromEntity(effective);
+    }
+
+    private static String truncateReason(String reason) {
+        if (reason == null) {
+            return null;
+        }
+        return reason.length() > 500 ? reason.substring(0, 500) : reason;
     }
 }

@@ -71,6 +71,26 @@ const AUDIT_FIELD_LABELS = {
 	cameraType: "Loại camera",
 	operationalStatus: "Trạng thái kết nối",
 	deleted: "Đã xóa",
+	// V144: đội bảo vệ, điều động, ca trực, đơn đổi ca
+	teamName: "Tên đội",
+	description: "Mô tả",
+	buildingName: "Tòa nhà",
+	memberCount: "Số thành viên",
+	memberIds: "Thành viên",
+	shiftDate: "Ngày trực",
+	shiftType: "Ca trực",
+	dutyPostCode: "Vị trí trực",
+	notes: "Ghi chú",
+	isCrossBuilding: "Luân chuyển tòa nhà",
+	crossBuildingReason: "Lý do luân chuyển",
+	isOvertime: "Tăng cường / OT",
+	fromTeamName: "Đội gốc",
+	toTeamName: "Đội tăng cường",
+	startDate: "Từ ngày",
+	endDate: "Đến ngày",
+	reviewNotes: "Ghi chú duyệt",
+	affectedCount: "Số ca tạo",
+	clearedCount: "Số ca đã xóa",
 };
 
 const isBlankValue = (v) => v === null || v === undefined;
@@ -119,6 +139,8 @@ const MODULE_OPTIONS_ADMIN = [
 	{ value: "SECURITY", label: "An ninh" },
 	// Camera & stream lifecycle — chỉ ADMIN (audit_module_roles, V142)
 	{ value: "CAMERA", label: "Camera" },
+	// Đội bảo vệ, tăng cường, ca trực — ADMIN & FM (audit_module_roles, V144)
+	{ value: "GUARD", label: "Đội & ca bảo vệ" },
 ];
 
 const MODULE_OPTIONS_FM = [
@@ -126,6 +148,7 @@ const MODULE_OPTIONS_FM = [
 	{ value: "AREA", label: "Khu vực" },
 	{ value: "ACCESS_CONTROL", label: "Phân quyền" },
 	{ value: "ACCESS_REQUEST", label: "Yêu cầu truy cập" },
+	{ value: "GUARD", label: "Đội & ca bảo vệ" },
 ];
 
 // Chỉ các giá trị có trong enum AuditTargetType của backend (giá trị khác -> API trả 400)
@@ -140,6 +163,10 @@ const TARGET_TYPE_OPTIONS = [
 	{ value: "REASON_CATALOG", label: "Danh mục lý do" },
 	{ value: "AREA", label: "Khu vực" },
 	{ value: "ACCESS_REQUEST", label: "Yêu cầu truy cập" },
+	{ value: "GUARD_TEAM", label: "Đội bảo vệ" },
+	{ value: "GUARD_TEAM_DISPATCH", label: "Điều động tăng cường" },
+	{ value: "GUARD_SHIFT", label: "Ca trực bảo vệ" },
+	{ value: "GUARD_SHIFT_REQUEST", label: "Đơn đổi ca / nghỉ phép" },
 ];
 
 // Đối tượng của phân hệ GUEST — chỉ ADMIN được đọc (audit_module_roles, V60)
@@ -172,6 +199,10 @@ const TARGET_TYPE_CATEGORY = {
 	AREA_EVENT_MODE: "success",
 	AREA_EVENT_SCHEDULE: "success",
 	ACCESS_REQUEST: "warning",
+	GUARD_TEAM: "purple",
+	GUARD_TEAM_DISPATCH: "warning",
+	GUARD_SHIFT: "success",
+	GUARD_SHIFT_REQUEST: "warning",
 };
 
 // "yyyy-MM-dd" theo giờ máy, dùng cho ô ngày và nút "Hôm nay"
