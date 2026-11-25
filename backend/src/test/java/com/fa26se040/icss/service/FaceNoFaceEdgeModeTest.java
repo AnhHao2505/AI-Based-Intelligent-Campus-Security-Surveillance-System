@@ -219,8 +219,7 @@ class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
 
     /**
      * Các trường hợp edge trả lỗi KHÔNG do ảnh (mã edge_agent.py đang dùng + mã lạ + thiếu mã + thiếu dữ liệu). Mỗi câu
-     * errorMessage có dấu riêng để kiểm: không lọt ra response, có trong log WARN. ERR_EDGE_INTERNAL dùng đúng câu edge gửi
-     * khi ảnh hỏng (decode_image_safely ném ValueError): edge không có mã riêng cho ảnh hỏng nên vẫn là lỗi dịch vụ.
+     * errorMessage có dấu riêng để kiểm: không lọt ra response, có trong log WARN.
      */
     static Stream<Arguments> edgeServiceErrors() {
         return Stream.of(
@@ -228,8 +227,8 @@ class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
                         "Mô hình nhận diện khuôn mặt (ArcFace) chưa được nạp trên thiết bị biên")),
                 Arguments.of("ERR_FACE_STAGING_NOT_FOUND", failureReply("ERR_FACE_STAGING_NOT_FOUND",
                         "Không tải được ảnh staging từ MinIO (face-profiles/staging/x.jpg)")),
-                Arguments.of("ERR_EDGE_INTERNAL (ảnh hỏng)", failureReply("ERR_EDGE_INTERNAL",
-                        "Không thể giải mã định dạng ảnh hoặc file bị hỏng: cannot identify image file")),
+                Arguments.of("ERR_EDGE_INTERNAL", failureReply("ERR_EDGE_INTERNAL",
+                        "Lỗi nội bộ bất ngờ trên thiết bị biên")),
                 Arguments.of("ERR_RPC_UNKNOWN_ACTION", failureReply("ERR_RPC_UNKNOWN_ACTION",
                         "Không hỗ trợ lệnh RPC: EXTRACT_FACE_EMBEDDING")),
                 Arguments.of("mã lạ", failureReply("ERR_SOMETHING_NEW", "edge bản mới báo lỗi chưa biết")),
@@ -370,6 +369,39 @@ class FaceNoFaceEdgeModeTest extends AbstractIntegrationTest {
 
         verify(edge, times(1)).sendRpcRequest(eq("EXTRACT_FACE_EMBEDDING"), isNull(), anyMap(), anyLong());
         verify(minioStorageService, times(1)).uploadStagingObject(eq(FACES_BUCKET), startsWith("staging/"), any(), anyString());
+        verify(minioStorageService, times(1)).removeObjectSafely(eq(FACES_BUCKET), startsWith("staging/"));
+        verify(minioStorageService, never()).uploadFaceImage(any(), anyString());
+        assertThat(userCount(httpCode)).isZero();
+        assertThat(userCount(edgeCode)).isZero();
+    }
+
+    @Test
+    @DisplayName("Tài khoản, Cloud-Edge: edge trả ERR_IMAGE_DECODE (ảnh hỏng) -> 422 IMAGE_UNPROCESSABLE_MESSAGE giống nhánh HTTP, không lọt errorMessage, staging được gỡ")
+    void account_edgeCorruptedImage_sameAsHttp(CapturedOutput output) throws Exception {
+        httpMode();
+        String httpCode = newCode("HDEC");
+        aiServer.expect(requestTo(endsWith(AI_PATH))).andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"detail\":\"Không thể đọc file ảnh chính diện: cannot identify image file\"}"));
+        MvcResult http = createAccount(httpCode);
+        aiServer.verify();
+
+        edgeMode();
+        aiServer.reset();
+        EdgeRpcReplyDto reply = failureReply(AiFaceRegistrationErrors.EDGE_IMAGE_DECODE_ERROR_CODE,
+                "Không thể giải mã định dạng ảnh hoặc file bị hỏng: cannot identify image file");
+        edgeReplies(reply);
+        String edgeCode = newCode("EDEC");
+        MvcResult edgeResult = createAccount(edgeCode);
+        aiServer.verify();
+
+        assertThat(http.getResponse().getStatus()).as(body(http)).isEqualTo(422);
+        assertThat(edgeResult.getResponse().getStatus()).as(body(edgeResult)).isEqualTo(422);
+        assertThat(message(http)).isEqualTo(FaceDataService.IMAGE_UNPROCESSABLE_MESSAGE);
+        assertThat(message(edgeResult)).isEqualTo(message(http));
+        assertThat(body(edgeResult)).doesNotContain(reply.getErrorMessage());
+        assertEdgeFailureLoggedAsWarn(output, reply);
+
         verify(minioStorageService, times(1)).removeObjectSafely(eq(FACES_BUCKET), startsWith("staging/"));
         verify(minioStorageService, never()).uploadFaceImage(any(), anyString());
         assertThat(userCount(httpCode)).isZero();

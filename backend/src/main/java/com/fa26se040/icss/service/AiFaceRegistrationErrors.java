@@ -22,6 +22,12 @@ final class AiFaceRegistrationErrors {
      */
     static final String EDGE_NO_FACE_ERROR_CODE = "ERR_NO_FACE_DETECTED";
 
+    /**
+     * Mã lỗi cố định khi thiết bị biên (RPC EXTRACT_FACE_EMBEDDING, src/integration/edge_agent.py)
+     * không giải mã được ảnh (ảnh hỏng, sai định dạng, dữ liệu rỗng).
+     */
+    static final String EDGE_IMAGE_DECODE_ERROR_CODE = "ERR_IMAGE_DECODE";
+
     /** Khoá chứa mã lỗi trong body HTTP của ai-service (cùng tên khoá với reply RPC của edge). */
     static final String ERROR_CODE_FIELD = "errorCode";
 
