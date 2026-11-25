@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
@@ -8,7 +8,15 @@ import '../providers/shift_provider.dart';
 class WeeklyDateBar extends StatelessWidget {
   const WeeklyDateBar({super.key});
 
-  static const List<String> _dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+  static const List<String> _dayNames = [
+    'T2',
+    'T3',
+    'T4',
+    'T5',
+    'T6',
+    'T7',
+    'CN',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +24,9 @@ class WeeklyDateBar extends StatelessWidget {
     final selectedDate = shiftProvider.selectedDate;
 
     // Determine Monday of the selected week
-    final monday = selectedDate.subtract(Duration(days: selectedDate.weekday - 1));
+    final monday = selectedDate.subtract(
+      Duration(days: selectedDate.weekday - 1),
+    );
     final sunday = monday.add(const Duration(days: 6));
 
     final today = DateTime.now();
@@ -28,7 +38,8 @@ class WeeklyDateBar extends StatelessWidget {
       shiftsByDate[s.shiftDate] = s;
     }
 
-    final weekRangeTitle = 'Tuần ${DateFormat('dd/MM').format(monday)} - ${DateFormat('dd/MM').format(sunday)}';
+    final weekRangeTitle =
+        'Tuần ${DateFormat('dd/MM').format(monday)} - ${DateFormat('dd/MM').format(sunday)}';
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -43,11 +54,17 @@ class WeeklyDateBar extends StatelessWidget {
           Row(
             children: [
               IconButton(
-                icon: Icon(Icons.chevron_left, color: AppColors.txtSecondary(context), size: 22),
+                icon: Icon(
+                  Icons.chevron_left,
+                  color: AppColors.txtSecondary(context),
+                  size: 22,
+                ),
                 padding: const EdgeInsets.all(4),
                 constraints: const BoxConstraints(),
                 onPressed: () {
-                  final prevWeek = selectedDate.subtract(const Duration(days: 7));
+                  final prevWeek = selectedDate.subtract(
+                    const Duration(days: 7),
+                  );
                   shiftProvider.setSelectedDate(prevWeek);
                   shiftProvider.fetchWeeklyShifts(prevWeek);
                 },
@@ -57,7 +74,11 @@ class WeeklyDateBar extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.calendar_month, color: AppColors.primaryLight, size: 15),
+                    const Icon(
+                      Icons.calendar_month,
+                      color: AppColors.primaryLight,
+                      size: 15,
+                    ),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
@@ -75,7 +96,11 @@ class WeeklyDateBar extends StatelessWidget {
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.chevron_right, color: AppColors.txtSecondary(context), size: 22),
+                icon: Icon(
+                  Icons.chevron_right,
+                  color: AppColors.txtSecondary(context),
+                  size: 22,
+                ),
                 padding: const EdgeInsets.all(4),
                 constraints: const BoxConstraints(),
                 onPressed: () {
@@ -93,7 +118,8 @@ class WeeklyDateBar extends StatelessWidget {
             children: List.generate(7, (index) {
               final dayDate = monday.add(Duration(days: index));
               final dayDateStr = DateFormat('yyyy-MM-dd').format(dayDate);
-              final isSelected = DateFormat('yyyy-MM-dd').format(selectedDate) == dayDateStr;
+              final isSelected =
+                  DateFormat('yyyy-MM-dd').format(selectedDate) == dayDateStr;
               final isToday = dayDateStr == todayStr;
               final hasShift = shiftsByDate.containsKey(dayDateStr);
               final shift = shiftsByDate[dayDateStr];
@@ -109,59 +135,72 @@ class WeeklyDateBar extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                        ? AppColors.primary
-                        : (isToday ? AppColors.surfLight(context) : Colors.transparent),
-                    borderRadius: BorderRadius.circular(7),
-                    border: isToday && !isSelected
-                        ? Border.all(color: AppColors.primaryLight, width: 1.2)
-                        : null,
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: AppColors.primary.withAlpha(100),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
+                          ? AppColors.primary
+                          : (isToday
+                                ? AppColors.surfLight(context)
+                                : Colors.transparent),
+                      borderRadius: BorderRadius.circular(7),
+                      border: isToday && !isSelected
+                          ? Border.all(
+                              color: AppColors.primaryLight,
+                              width: 1.2,
                             )
-                          ]
-                        : null,
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        _dayNames[index],
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                          color: isSelected ? Colors.white : AppColors.txtSecondary(context),
+                          : null,
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: AppColors.primary.withAlpha(100),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          _dayNames[index],
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? Colors.white
+                                : AppColors.txtSecondary(context),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${dayDate.day}',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : AppColors.txtPrimary(context),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${dayDate.day}',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected
+                                ? Colors.white
+                                : AppColors.txtPrimary(context),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      // Dot indicator for shift
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: hasShift
-                              ? (isSelected ? Colors.white : shift?.typeColor ?? AppColors.warning)
-                              : Colors.transparent,
+                        const SizedBox(height: 4),
+                        // Dot indicator for shift
+                        Container(
+                          width: 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: hasShift
+                                ? (isSelected
+                                      ? Colors.white
+                                      : shift?.typeColor ?? AppColors.warning)
+                                : Colors.transparent,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
           ),
         ],
       ),
