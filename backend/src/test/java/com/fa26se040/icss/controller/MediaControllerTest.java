@@ -353,4 +353,25 @@ class MediaControllerTest extends AbstractIntegrationTest {
         assertTrue(closed.get(), "stream phải được đóng khi audit lỗi");
         assertEquals(0, auditCountByTargetId(evidence));
     }
+
+    @Test
+    @DisplayName("chat-media: GUARD và FACILITY_MANAGER xem được; ADMIN và NORMAL_USER bị 403")
+    void chatMedia_guardAndFmAllowed_adminAndNormalRejected() throws Exception {
+        String chatBucket = "chat-media";
+        String chatObj = guard.getId() + "/photo.jpg";
+        when(minioStorageService.getChatBucket()).thenReturn(chatBucket);
+
+        givenObject(chatBucket, chatObj, "image/jpeg");
+        mockMvc.perform(getAs(guard, "/api/media/" + chatBucket + "/" + chatObj))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(IMAGE));
+        givenObject(chatBucket, chatObj, "image/jpeg");
+        mockMvc.perform(getAs(fm, "/api/media/" + chatBucket + "/" + chatObj))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(IMAGE));
+        mockMvc.perform(getAs(admin, "/api/media/" + chatBucket + "/" + chatObj))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(getAs(normalUser, "/api/media/" + chatBucket + "/" + chatObj))
+                .andExpect(status().isForbidden());
+    }
 }
