@@ -21,6 +21,7 @@ public class GuardChatMessageDto {
     private String receiverName;
     private String receiverCode;
     private String content;
+    private String imageUrl;
     private boolean isRead;
     private OffsetDateTime createdAt;
 }
