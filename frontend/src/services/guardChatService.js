@@ -13,7 +13,9 @@ export async function getGuardsForChat() {
  * GET /api/guard-chat/messages?peerId=...&limit=...
  */
 export async function getConversationMessages(peerId, limit = 60) {
-  return apiGet(`/api/guard-chat/messages?peerId=${encodeURIComponent(peerId)}&limit=${limit}`);
+  const data = await apiGet(`/api/guard-chat/messages?peerId=${encodeURIComponent(peerId)}&size=${limit}`);
+  const list = Array.isArray(data) ? data : (Array.isArray(data?.content) ? data.content : []);
+  return [...list].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 }
 
 /**
@@ -22,6 +24,20 @@ export async function getConversationMessages(peerId, limit = 60) {
  */
 export async function sendChatMessage(receiverId, content) {
   return apiPost('/api/guard-chat/messages', { receiverId, content });
+}
+
+/**
+ * Gửi tin nhắn hình ảnh (kèm chú thích tùy chọn) tới một bảo vệ
+ * POST /api/guard-chat/messages/image
+ */
+export async function sendChatImageMessage(receiverId, file, content = '') {
+  const formData = new FormData();
+  formData.append('receiverId', receiverId);
+  if (content && content.trim()) {
+    formData.append('content', content.trim());
+  }
+  formData.append('file', file);
+  return apiPost('/api/guard-chat/messages/image', formData);
 }
 
 /**
