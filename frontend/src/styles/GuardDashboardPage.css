@@ -1609,6 +1609,107 @@ body.soc-theater-active .sidebar {
   flex-shrink: 0;
 }
 
+/* Thanh lọc khoảng ngày (Từ ngày - Đến ngày) */
+.soc-date-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 8px 12px;
+}
+
+.soc-date-field {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  background: var(--theme-bg-surface, #ffffff);
+  border: 1px solid var(--theme-border, #cbd5e1);
+  border-radius: 5px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.soc-date-field:focus-within {
+  border-color: var(--theme-primary, #f37021);
+  box-shadow: 0 0 0 2px var(--theme-primary-subtle, rgba(243, 112, 33, 0.15));
+}
+
+.soc-date-field.is-active {
+  border-color: var(--theme-primary-border, #fed7aa);
+  background: var(--theme-primary-subtle, rgba(243, 112, 33, 0.04));
+}
+
+.soc-date-icon {
+  color: var(--theme-text-muted, #64748b);
+  flex-shrink: 0;
+}
+
+.soc-date-field.is-active .soc-date-icon {
+  color: var(--theme-primary, #f37021);
+}
+
+.soc-date-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--theme-text-muted, #64748b);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.soc-date-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-primary, #0f172a);
+  font-size: 0.73rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0;
+  outline: none;
+  color-scheme: light;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .soc-date-input {
+  color-scheme: dark;
+}
+
+.soc-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+.soc-date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.soc-date-clear-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border, #cbd5e1);
+  background: var(--theme-bg-surface, #ffffff);
+  color: var(--theme-text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.soc-date-clear-btn:hover {
+  color: var(--theme-danger, #ef4444);
+  border-color: var(--theme-danger, #ef4444);
+  background: var(--theme-danger-bg, #fef2f2);
+}
+
 /* Thanh Thao Tác Phụ (Ghi nhận tất cả, Khôi phục, Dọn dẹp) */
 .soc-filter-actions-bar {
   display: flex;
