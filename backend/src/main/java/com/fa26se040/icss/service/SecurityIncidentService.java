@@ -1,6 +1,8 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.SecurityIncidentAuditSnapshot;
 import com.fa26se040.icss.dto.accessdecision.CheckCameraEntryResponse;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.dto.incident.IncidentClaimResponse;
 import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
@@ -16,6 +18,8 @@ import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.CameraStatus;
 import com.fa26se040.icss.enums.CameraType;
 import com.fa26se040.icss.enums.IncidentDispatchStage;
@@ -92,6 +96,9 @@ public class SecurityIncidentService {
 
     @Autowired(required = false)
     private SystemConfigService systemConfigService;
+
+    @Autowired(required = false)
+    private AuditService auditService;
 
     /** V129: loại sự kiện AI gửi khi nhận ra mặt sau khi đã chốt cảnh báo người lạ (không phải sự cố mới). */
     public static final String IDENTITY_UPDATE_EVENT = "IDENTITY_UPDATE";
@@ -487,8 +494,19 @@ public class SecurityIncidentService {
         if (incidentDispatchService == null || !incidentDispatchService.decline(incidentId, guard.getId(), now)) {
             throw new IncidentOfferNotPendingException("Không còn lời mời xử lý sự cố này để từ chối");
         }
+        SecurityIncident incident = incidentRepository.findById(incidentId).orElse(null);
+        SecurityIncidentAuditSnapshot oldSnap = SecurityIncidentAuditSnapshot.from(incident);
         log.info("[DISPATCH] incident={}: bảo vệ [{}] từ chối lời mời", incidentId, guard.getFullName());
-        promoteToBroadcastIfNoPendingOffer(incidentId, now);
+        boolean promoted = promoteToBroadcastIfNoPendingOffer(incidentId, now);
+        if (incident != null) {
+            SecurityIncidentAuditSnapshot newSnap = promoted && oldSnap != null
+                    ? oldSnap.withDispatchStage(IncidentDispatchStage.BROADCAST)
+                    : oldSnap;
+            String reason = promoted
+                    ? "Từ chối lời mời xử lý sự cố (chuyển phát toàn bộ)"
+                    : "Từ chối lời mời xử lý sự cố";
+            recordIncidentAudit(AuditAction.DECLINE, incident, oldSnap, newSnap, reason, guard);
+        }
     }
 
     private boolean promoteToBroadcastIfNoPendingOffer(UUID incidentId, OffsetDateTime now) {
@@ -862,6 +880,7 @@ public class SecurityIncidentService {
         }
 
         try {
+            SecurityIncidentAuditSnapshot oldSnap = SecurityIncidentAuditSnapshot.from(incident);
             incident.setStatus(IncidentStatus.CLAIMED);
             incident.setClaimedBy(guard);
             incident.setClaimedAt(OffsetDateTime.now());
@@ -872,6 +891,15 @@ public class SecurityIncidentService {
             if (incidentDispatchService != null) {
                 incidentDispatchService.onClaimed(saved.getId(), guard.getId(), saved.getClaimedAt());
             }
+
+            recordIncidentAudit(
+                    AuditAction.CLAIM,
+                    saved,
+                    oldSnap,
+                    SecurityIncidentAuditSnapshot.from(saved),
+                    "Tiếp nhận xử lý sự cố " + (saved.getCameraCode() != null ? saved.getCameraCode() : ""),
+                    guard
+            );
 
             // Sync with all Web & Mobile clients
             Map<String, Object> updatePayload = new HashMap<>();
@@ -931,6 +959,8 @@ public class SecurityIncidentService {
             throw new AccessDeniedException("Bạn không phải người tiếp nhận sự cố này");
         }
 
+        SecurityIncidentAuditSnapshot oldSnap = SecurityIncidentAuditSnapshot.from(incident);
+
         IncidentStatus newStatus = request.getOutcome() == IncidentOutcome.VERIFIED
                 ? IncidentStatus.RESOLVED_VERIFIED
                 : IncidentStatus.RESOLVED_DISMISSED;
@@ -944,6 +974,18 @@ public class SecurityIncidentService {
         incident.setResolvedAt(OffsetDateTime.now());
 
         SecurityIncident saved = incidentRepository.saveAndFlush(incident);
+
+        String resolveReason = request.getResolutionNotes() != null && !request.getResolutionNotes().isBlank()
+                ? request.getResolutionNotes().trim()
+                : (request.getResolutionCategory() != null ? request.getResolutionCategory().name() : "Đóng sự cố");
+        recordIncidentAudit(
+                AuditAction.RESOLVE,
+                saved,
+                oldSnap,
+                SecurityIncidentAuditSnapshot.from(saved),
+                resolveReason,
+                guard
+        );
 
         // Sync with all Web & Mobile clients
         Map<String, Object> updatePayload = new HashMap<>();
@@ -962,6 +1004,29 @@ public class SecurityIncidentService {
         log.info("Incident [{}] resolved with status [{}] by [{}]", incidentId, newStatus, guard.getFullName());
 
         return mapToDetailResponse(saved);
+    }
+
+    private void recordIncidentAudit(AuditAction action, SecurityIncident incident,
+                                     SecurityIncidentAuditSnapshot oldSnap, SecurityIncidentAuditSnapshot newSnap,
+                                     String reason, User actor) {
+        if (auditService == null || incident == null || incident.getId() == null) {
+            return;
+        }
+        User subjectUser = null;
+        if (incident.getSubjectUserCode() != null && !incident.getSubjectUserCode().isBlank()) {
+            subjectUser = userRepository.findByUserCode(incident.getSubjectUserCode()).orElse(null);
+        }
+        auditService.record(
+                AuditTargetType.SECURITY_INCIDENT,
+                action,
+                incident.getId().toString(),
+                incident.getArea(),
+                subjectUser,
+                oldSnap,
+                newSnap,
+                truncate(reason, 500),
+                actor != null ? AuditActor.user(actor) : null
+        );
     }
 
     private List<IncidentDetailResponse> mapToDetailResponses(List<SecurityIncident> list) {
@@ -1279,7 +1344,11 @@ public class SecurityIncidentService {
         }
         if (incident == null || aiServiceUrl == null || aiServiceUrl.isBlank()) return;
         String incidentIdStr = incident.getId() != null ? incident.getId().toString() : "";
-        String cameraCode = incident.getCameraCode() != null ? incident.getCameraCode() : "CAM-001";
+        String cameraCode = incident.getCameraCode();
+        if (cameraCode == null || cameraCode.isBlank()) {
+            log.warn("⚠️ Bỏ qua kích hoạt ghi hình sự cố [{}] vì thiếu cameraCode", incidentIdStr);
+            return;
+        }
         String eventType = incident.getEventType() != null ? incident.getEventType() : "SECURITY_INCIDENT";
         String details = incident.getResolutionNotes() != null ? incident.getResolutionNotes() : "";
         String url = aiServiceUrl + "/api/v1/incident-recording/start";

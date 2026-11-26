@@ -82,6 +82,8 @@ export const TARGET_TYPE_LABELS = {
 	GUARD_TEAM_DISPATCH: "Điều động tăng cường",
 	GUARD_SHIFT: "Ca trực bảo vệ",
 	GUARD_SHIFT_REQUEST: "Đơn đổi ca / nghỉ phép",
+	// V149
+	SECURITY_INCIDENT: "Sự cố an ninh",
 };
 
 // PR-AUDIT: lý do nội bộ của LOGIN_FAILED (chỉ ADMIN xem; người đăng nhập luôn nhận câu chung BR-AU-32)
@@ -163,6 +165,9 @@ export const getActionLabel = (targetType, action) => {
 	else if (action === "CHECK_IN") actionLabel = "Điểm danh nhận ca";
 	else if (action === "CHECK_OUT") actionLabel = "Điểm danh kết thúc ca";
 	else if (action === "MARK_ABSENT") actionLabel = "Đánh vắng mặt";
+	else if (action === "CLAIM") actionLabel = "Tiếp nhận xử lý";
+	else if (action === "DECLINE") actionLabel = "Từ chối lời mời";
+	else if (action === "RESOLVE") actionLabel = "Xử lý & đóng sự cố";
 
 	if (targetType === "CAMERA") {
 		if (action === "DEACTIVATE") actionLabel = "Tắt camera";

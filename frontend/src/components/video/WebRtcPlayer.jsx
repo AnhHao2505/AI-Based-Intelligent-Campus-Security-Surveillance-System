@@ -48,7 +48,10 @@ const ENV_AI_STREAM_BASE = import.meta.env.VITE_AI_STREAM_BASE_URL || "";
  * Chuẩn hóa URL WHEP hỗ trợ Dual-Endpoint (Local LAN HTTP hoặc Cloud HTTPS Relay không lỗi Mixed Content).
  */
 function resolveWhepEndpoint(hostProp, streamPath) {
-	const cleanPath = String(streamPath || "cam01").replace(/^\/+|\/+$/g, "");
+	const cleanPath = String(streamPath || "").replace(/^\/+|\/+$/g, "");
+	if (!cleanPath) {
+		return "";
+	}
 	const rawBase = (
 		ENV_CLOUD_WHEP_BASE ||
 		ENV_MEDIAMTX_WHEP_BASE ||
@@ -95,9 +98,9 @@ function resolveAiStreamUrl(aiHostProp, cameraCode, streamToken) {
  */
 const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	{
-		streamPath = "cam01",
-		cameraCode = "CAM-001",
-		cameraName = "Cổng chính",
+		streamPath = "",
+		cameraCode = "",
+		cameraName = "",
 		displayLabel = null,
 		aiModeLabel = null,
 		incidentCount = 0,
@@ -189,7 +192,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	const consecutiveFailuresRef = useRef(0);
 	const hadLiveFrameRef = useRef(false);
 
-	const displayCamCode = (cameraCode || streamPath || "CAM-001").toUpperCase();
+	const displayCamCode = String(cameraCode || streamPath || "")
+		.trim()
+		.toUpperCase();
 	const displayCamName = cameraName || "Camera quan sát";
 
 	useImperativeHandle(ref, () => ({
@@ -230,6 +235,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	}, [streamPath, host, cameraCode, enabled]);
 
 	const ensureDvrToken = useCallback(async () => {
+		if (!displayCamCode) {
+			throw new Error("Thiếu mã camera để xác thực DVR stream");
+		}
 		const cached = dvrTokenRef.current;
 		if (
 			cached?.token &&
@@ -249,7 +257,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	}, [displayCamCode]);
 
 	const refreshDvrSegments = useCallback(async () => {
-		if (!enabled || !enableDvr) return [];
+		if (!enabled || !enableDvr || !displayCamCode) return [];
 		try {
 			const data = await fetchDvrSegments(displayCamCode);
 			if (data && typeof data === "object") {
@@ -511,7 +519,13 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		}
 
 		let isMounted = true;
-		const targetCode = cameraCode || streamPath || "CAM-001";
+		const targetCode = String(cameraCode || streamPath || "").trim();
+		if (!targetCode) {
+			setStreamToken(null);
+			setTokenLoading(false);
+			setTrackingError(true);
+			return undefined;
+		}
 		setTokenLoading(true);
 		setTrackingError(false);
 
@@ -548,7 +562,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 
 	// Tự động kích hoạt On-Demand Cloud Relay qua MQTT khi triển khai trên Cloud HTTPS
 	useEffect(() => {
-		if (!enabled || !ENV_CLOUD_WHEP_BASE) return undefined;
+		if (!enabled || !ENV_CLOUD_WHEP_BASE || !displayCamCode) return undefined;
 		toggleCloudRelay(displayCamCode, true).catch(() => {});
 		return () => {
 			toggleCloudRelay(displayCamCode, false).catch(() => {});
@@ -719,7 +733,13 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				const offer = await peerConnection.createOffer();
 				await peerConnection.setLocalDescription(offer);
 
-				const targetCode = cameraCode || streamPath || "CAM-001";
+				const targetCode = String(cameraCode || streamPath || "").trim();
+				const effectiveStreamPath =
+					streamPath || targetCode.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+				const baseWhepUrl = resolveWhepEndpoint(host, effectiveStreamPath);
+				if (!targetCode || !baseWhepUrl) {
+					throw new Error("Thiếu mã camera để kết nối luồng video");
+				}
 				const tokenRes = await getAnnotatedStreamToken(targetCode);
 				if (!isMounted) return;
 				if (!tokenRes || !tokenRes.token) {
@@ -730,7 +750,6 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					expiresAt: tokenRes.expiresAt || Math.floor(Date.now() / 1000) + 120,
 				};
 
-				const baseWhepUrl = resolveWhepEndpoint(host, streamPath);
 				const sep = baseWhepUrl.includes("?") ? "&" : "?";
 				const whepUrl = `${baseWhepUrl}${sep}token=${encodeURIComponent(tokenRes.token)}`;
 				const response = await fetch(whepUrl, {
@@ -780,7 +799,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			}
 			releaseVideoStream();
 		};
-	}, [streamPath, host, connectAttempt, enabled, mode]);
+	}, [streamPath, cameraCode, host, connectAttempt, enabled, mode]);
 
 	const handleVideoReady = () => {
 		if (mode !== "live") return;
@@ -1033,14 +1052,14 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			)}
 
 			{/* 3. Luồng AI Tracking Annotation trực tiếp */}
-			{mode === "live" && showTracking && streamToken && !trackingError && (
+			{mode === "live" && showTracking && streamToken && !trackingError && displayCamCode && (
 				<img
 					src={resolveAiStreamUrl(
 						aiHost,
-						cameraCode || streamPath || "CAM-001",
+						String(cameraCode || streamPath || "").trim(),
 						streamToken,
 					)}
-					alt={`AI Tracking ${cameraCode}`}
+					alt={`AI Tracking ${displayCamCode}`}
 					className="cctv-annotated-stream"
 					onError={() => {
 						setTrackingError(true);
@@ -1160,9 +1179,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				<div className="cctv-osd-top-left">
 					<span
 						className="cctv-spec-code"
-						title={displayLabel || displayCamCode}
+						title={displayLabel || displayCamCode || "Camera"}
 					>
-						{displayLabel || displayCamCode}
+						{displayLabel || displayCamCode || "—"}
 					</span>
 					{incidentCount > 0 && (
 						<span className={`cctv-incident-pill ${incidentSeverityClass}`}>
@@ -1246,7 +1265,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			{!enableDvr && (
 				<div className="cctv-osd-bottom-bar">
 					<div className="cctv-osd-bottom-left">
-						<span className="cctv-spec-code">{displayCamCode}</span>
+						<span className="cctv-spec-code">{displayCamCode || "—"}</span>
 						{resolution && (
 							<>
 								<span className="cctv-spec-divider">•</span>

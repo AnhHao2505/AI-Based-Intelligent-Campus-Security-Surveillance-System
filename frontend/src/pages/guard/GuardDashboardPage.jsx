@@ -905,11 +905,10 @@ export function SecuritySurveillancePage() {
 		const isAck =
 			ackSet.has(String(incidentId)) ||
 			(eventId && ackSet.has(String(eventId)));
-		const camCodeClean = (
-			incident.camera_code ||
-			incident.cameraCode ||
-			"cam-006"
-		)
+		const rawCamCode = String(
+			incident.camera_code || incident.cameraCode || "",
+		).trim();
+		const camCodeClean = rawCamCode
 			.toLowerCase()
 			.replace(/[^a-z0-9_-]/g, "")
 			.trim();
@@ -920,11 +919,7 @@ export function SecuritySurveillancePage() {
 		const newAlert = {
 			id: incidentId,
 			eventId: eventId,
-			cameraCode: (
-				incident.camera_code ||
-				incident.cameraCode ||
-				"CAM-006"
-			).toUpperCase(),
+			cameraCode: rawCamCode.toUpperCase(),
 			camCodeClean,
 			cameraName:
 				incident.areaName ||
@@ -1243,11 +1238,10 @@ export function SecuritySurveillancePage() {
 					})
 					.map((incident) => {
 						const incId = incident.id || incident.eventId;
-						const camCodeClean = (
-							incident.camera_code ||
-							incident.cameraCode ||
-							"CAM-001"
-						)
+						const rawCamCode = String(
+							incident.camera_code || incident.cameraCode || "",
+						).trim();
+						const camCodeClean = rawCamCode
 							.toLowerCase()
 							.replace(/[^a-z0-9_-]/g, "")
 							.trim();
@@ -1258,11 +1252,7 @@ export function SecuritySurveillancePage() {
 						return {
 							id: incId,
 							eventId: incident.eventId || incident.event_id || null,
-							cameraCode: (
-								incident.camera_code ||
-								incident.cameraCode ||
-								"CAM-001"
-							).toUpperCase(),
+							cameraCode: rawCamCode.toUpperCase(),
 							camCodeClean,
 							cameraName:
 								incident.areaName || incident.cameraName || "Khu vực camera",
@@ -2651,12 +2641,15 @@ export function SecuritySurveillancePage() {
 								<div className="soc-evidence-video-container">
 									<WebRtcPlayer
 										key={`evidence-dvr-${evidenceModalAlert.camCodeClean || evidenceModalAlert.cameraCode || "cam"}`}
-										streamPath={evidenceModalAlert.camCodeClean || "cam-006"}
-										cameraCode={evidenceModalAlert.cameraCode || "CAM-006"}
+										streamPath={evidenceModalAlert.camCodeClean || ""}
+										cameraCode={evidenceModalAlert.cameraCode || ""}
 										cameraName={
 											evidenceModalAlert.cameraName || "Camera hiện trường"
 										}
-										enabled={true}
+										enabled={Boolean(
+											evidenceModalAlert.camCodeClean ||
+												evidenceModalAlert.cameraCode,
+										)}
 										enableDvr={true}
 										enableTrackingToggle={false}
 										showLiveTag={true}
