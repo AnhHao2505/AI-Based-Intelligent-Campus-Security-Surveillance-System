@@ -1,7 +1,10 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.accesscontrol.snapshot.SecurityIncidentAuditSnapshot;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
+import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.entity.Area;
 import com.fa26se040.icss.entity.Camera;
 import com.fa26se040.icss.entity.IncidentDispatchOffer;
@@ -10,7 +13,11 @@ import com.fa26se040.icss.entity.IncidentEscalation;
 import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AreaLevel;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.IncidentDispatchStage;
+import com.fa26se040.icss.enums.IncidentOutcome;
+import com.fa26se040.icss.enums.IncidentResolutionCategory;
 import com.fa26se040.icss.enums.IncidentSeverity;
 import com.fa26se040.icss.enums.IncidentStatus;
 import com.fa26se040.icss.enums.Role;
@@ -61,6 +68,7 @@ class SecurityIncidentServiceDispatchTest {
     @Mock private IncidentSeverityResolver incidentSeverityResolver;
     @Mock private IncidentDispatchService incidentDispatchService;
     @Mock private IncidentDispatchQueryRepository incidentDispatchQueryRepository;
+    @Mock private AuditService auditService;
 
     private SecurityIncidentService service;
     private Area area;
@@ -74,6 +82,7 @@ class SecurityIncidentServiceDispatchTest {
                 incidentSeverityResolver, null);
         ReflectionTestUtils.setField(service, "incidentDispatchService", incidentDispatchService);
         ReflectionTestUtils.setField(service, "incidentDispatchQueryRepository", incidentDispatchQueryRepository);
+        ReflectionTestUtils.setField(service, "auditService", auditService);
         ReflectionTestUtils.setField(service, "aiServiceUrl", "");
 
         area = Area.builder().id(UUID.randomUUID()).name("Phòng server").building("TOA_ALPHA")
@@ -259,5 +268,73 @@ class SecurityIncidentServiceDispatchTest {
         when(incidentDispatchService.decline(any(), any(), any())).thenReturn(false);
 
         assertThrows(IncidentOfferNotPendingException.class, () -> service.declineOffer(saved.getId(), "g@fpt.edu.vn"));
+    }
+
+    @Test
+    @DisplayName("V149: claim, decline (chuyển broadcast) và resolve đều ghi audit log SECURITY_INCIDENT")
+    void manualIncidentActions_recordAuditLogs() {
+        when(userRepository.findByEmail("g@fpt.edu.vn")).thenReturn(Optional.of(onDutyGuard));
+
+        // 1. Decline & promote to BROADCAST
+        saved.setDispatchStage(IncidentDispatchStage.STEP1);
+        when(incidentRepository.findById(saved.getId())).thenReturn(Optional.of(saved));
+        when(incidentDispatchService.decline(eq(saved.getId()), eq(onDutyGuard.getId()), any())).thenReturn(true);
+        when(incidentDispatchService.hasPendingOffers(saved.getId())).thenReturn(false);
+        when(incidentDispatchQueryRepository.promoteToBroadcast(eq(saved.getId()), any())).thenReturn(1);
+
+        service.declineOffer(saved.getId(), "g@fpt.edu.vn");
+
+        ArgumentCaptor<SecurityIncidentAuditSnapshot> oldCap = ArgumentCaptor.forClass(SecurityIncidentAuditSnapshot.class);
+        ArgumentCaptor<SecurityIncidentAuditSnapshot> newCap = ArgumentCaptor.forClass(SecurityIncidentAuditSnapshot.class);
+        verify(auditService).record(
+                eq(AuditTargetType.SECURITY_INCIDENT),
+                eq(AuditAction.DECLINE),
+                eq(saved.getId().toString()),
+                eq(area),
+                isNull(),
+                oldCap.capture(),
+                newCap.capture(),
+                contains("chuyển phát toàn bộ"),
+                argThat((AuditActor a) -> a != null && a.getUser() != null && onDutyGuard.getId().equals(a.getUser().getId()))
+        );
+        assertEquals(IncidentDispatchStage.STEP1, oldCap.getValue().dispatchStage());
+        assertEquals(IncidentDispatchStage.BROADCAST, newCap.getValue().dispatchStage());
+
+        // 2. Claim
+        saved.setDispatchStage(IncidentDispatchStage.BROADCAST);
+        when(incidentRepository.saveAndFlush(saved)).thenReturn(saved);
+        service.claimIncident(saved.getId(), "g@fpt.edu.vn");
+
+        verify(auditService).record(
+                eq(AuditTargetType.SECURITY_INCIDENT),
+                eq(AuditAction.CLAIM),
+                eq(saved.getId().toString()),
+                eq(area),
+                isNull(),
+                argThat((SecurityIncidentAuditSnapshot s) -> s.status() == IncidentStatus.NEW),
+                argThat((SecurityIncidentAuditSnapshot s) -> s.status() == IncidentStatus.CLAIMED && "Bảo vệ trực".equals(s.claimedByName())),
+                contains("CAM-001"),
+                any(AuditActor.class)
+        );
+
+        // 3. Resolve
+        IncidentResolveRequest resolveReq = IncidentResolveRequest.builder()
+                .outcome(IncidentOutcome.VERIFIED)
+                .resolutionCategory(IncidentResolutionCategory.REMINDED_DISPERSED)
+                .resolutionNotes("Đã nhắc nhở và giải tán")
+                .build();
+        service.resolveIncident(saved.getId(), resolveReq, "g@fpt.edu.vn");
+
+        verify(auditService).record(
+                eq(AuditTargetType.SECURITY_INCIDENT),
+                eq(AuditAction.RESOLVE),
+                eq(saved.getId().toString()),
+                eq(area),
+                isNull(),
+                argThat((SecurityIncidentAuditSnapshot s) -> s.status() == IncidentStatus.CLAIMED),
+                argThat((SecurityIncidentAuditSnapshot s) -> s.status() == IncidentStatus.RESOLVED_VERIFIED && s.outcome() == IncidentOutcome.VERIFIED),
+                eq("Đã nhắc nhở và giải tán"),
+                any(AuditActor.class)
+        );
     }
 }

@@ -33,20 +33,6 @@ async function request(url, options = {}) {
   return json;
 }
 
-export async function triggerTestAlert(eventData) {
-  return request('/api/incidents/test-alert', {
-    method: 'POST',
-    body: JSON.stringify(eventData),
-  });
-}
-
-export async function triggerBatchTestAlerts(eventsList) {
-  return request('/api/incidents/test-alert/batch', {
-    method: 'POST',
-    body: JSON.stringify(eventsList),
-  });
-}
-
 export async function getActiveIncidents(building) {
   const query = building ? `?building=${encodeURIComponent(building)}` : '';
   return request(`/api/incidents/active${query}`);

@@ -58,7 +58,6 @@ export default function StaffingWizardModal({
     });
 
     if (bSet.size === 0) {
-      bSet.add('Tòa Alpha');
       bSet.add('Tòa Epsilon');
     }
 
@@ -67,7 +66,7 @@ export default function StaffingWizardModal({
 
   useEffect(() => {
     if (!building && availableBuildings.length > 0) {
-      const defaultB = availableBuildings.find(b => b === 'Tòa Alpha') || availableBuildings[0];
+      const defaultB = availableBuildings.find(b => b === 'Tòa Epsilon') || availableBuildings[0];
       setBuilding(defaultB);
     }
   }, [availableBuildings, building]);
@@ -272,7 +271,7 @@ export default function StaffingWizardModal({
         buildingId: matchedBld?.id || undefined,
         confirmCrossBuilding: confirmCross ? true : undefined,
         crossBuildingReason: confirmCross && reason && reason.trim() ? reason.trim() : undefined,
-        building: building || 'Tòa Alpha'
+        building: building || availableBuildings[0] || 'Tòa Epsilon'
       };
 
       const res = await guardScheduleApi.generateShiftsFromWizard(payload);

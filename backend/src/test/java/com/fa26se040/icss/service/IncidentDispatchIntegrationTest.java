@@ -189,6 +189,15 @@ class IncidentDispatchIntegrationTest extends AbstractIntegrationTest {
         // Bản ghi leo thang xoá theo ON DELETE CASCADE (V80)
         jdbc.update("DELETE FROM security_incidents WHERE area_id = ?", area.getId());
         jdbc.update("DELETE FROM camera_access_logs WHERE camera_code = ?", camera.getCameraCode());
+        jdbc.execute("ALTER TABLE audit_logs DISABLE TRIGGER trg_audit_logs_append_only");
+        try {
+            jdbc.update("DELETE FROM audit_logs WHERE area_id = ?", area.getId());
+            for (UUID userId : userIds) {
+                jdbc.update("DELETE FROM audit_logs WHERE changed_by = ? OR subject_user_id = ?", userId, userId);
+            }
+        } finally {
+            jdbc.execute("ALTER TABLE audit_logs ENABLE TRIGGER trg_audit_logs_append_only");
+        }
         cameraRepository.deleteById(camera.getId());
         areaRepository.deleteById(area.getId());
         floorRepository.deleteById(floor.getId());

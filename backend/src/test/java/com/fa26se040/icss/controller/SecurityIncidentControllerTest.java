@@ -1,7 +1,6 @@
 package com.fa26se040.icss.controller;
 
 import com.fa26se040.icss.dto.incident.IncidentDetailResponse;
-import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.dto.incident.IncidentResolveRequest;
 import com.fa26se040.icss.enums.IncidentOutcome;
 import com.fa26se040.icss.enums.IncidentResolutionCategory;
@@ -22,7 +21,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -55,55 +53,6 @@ class SecurityIncidentControllerTest {
                 .build();
         objectMapper = new ObjectMapper();
         mockGuardAuth = new UsernamePasswordAuthenticationToken("guard@fpt.edu.vn", "password");
-    }
-
-    @Test
-    @DisplayName("POST /api/incidents/test-alert - Kích hoạt 1 cảnh báo test thành công")
-    void triggerTestAlert_Success() throws Exception {
-        UUID incidentId = UUID.randomUUID();
-        IncidentEventDto eventDto = IncidentEventDto.builder()
-                .cameraCode("CAM-001")
-                .eventType("UNAUTHORIZED_ACCESS")
-                .eventId("EVT-100")
-                .build();
-
-        IncidentDetailResponse detailResponse = IncidentDetailResponse.builder()
-                .id(incidentId)
-                .cameraCode("CAM-001")
-                .eventType("UNAUTHORIZED_ACCESS")
-                .status(IncidentStatus.NEW)
-                .detectedAt(OffsetDateTime.now())
-                .build();
-
-        when(securityIncidentService.ingestIncident(any(IncidentEventDto.class))).thenReturn(detailResponse);
-
-        mockMvc.perform(post("/api/incidents/test-alert")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(eventDto)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.id").value(incidentId.toString()))
-                .andExpect(jsonPath("$.data.cameraCode").value("CAM-001"))
-                .andExpect(jsonPath("$.data.status").value("NEW"));
-    }
-
-    @Test
-    @DisplayName("POST /api/incidents/test-alert/batch - Kích hoạt batch đa sự cố thành công")
-    void triggerBatchTestAlerts_Success() throws Exception {
-        IncidentEventDto evt1 = IncidentEventDto.builder().cameraCode("CAM-001").eventType("UNAUTHORIZED_ACCESS").build();
-        IncidentEventDto evt2 = IncidentEventDto.builder().cameraCode("CAM-002").eventType("UNKNOWN_PERSON").build();
-
-        IncidentDetailResponse res1 = IncidentDetailResponse.builder().id(UUID.randomUUID()).cameraCode("CAM-001").eventType("UNAUTHORIZED_ACCESS").status(IncidentStatus.NEW).build();
-        IncidentDetailResponse res2 = IncidentDetailResponse.builder().id(UUID.randomUUID()).cameraCode("CAM-002").eventType("UNKNOWN_PERSON").status(IncidentStatus.NEW).build();
-
-        when(securityIncidentService.ingestIncident(any(IncidentEventDto.class)))
-                .thenReturn(res1)
-                .thenReturn(res2);
-
-        mockMvc.perform(post("/api/incidents/test-alert/batch")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(List.of(evt1, evt2))))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.length()").value(2));
     }
 
     @Test

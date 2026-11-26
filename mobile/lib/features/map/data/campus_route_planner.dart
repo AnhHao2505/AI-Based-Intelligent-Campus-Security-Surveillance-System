@@ -5,9 +5,8 @@ import 'campus_map_data.dart';
 
 /// GPS cách nút ngoài trời gần nhất của đồ thị quá ngưỡng này (m) thì coi là ở xa khuôn viên (hoặc GPS sai):
 /// không gắn vị trí GPS vào đồ thị mà xuất phát từ toà / tầng người dùng đang chọn.
-/// HẰNG KỸ THUẬT (về độ tin cậy GPS, không phải quy tắc nghiệp vụ): sai số GPS điện thoại ngoài trời thường dưới
-/// 20 m; 150 m vẫn đủ rộng cho mọi điểm trong sân trường (các nút ngoài trời cách nhau dưới 100 m).
-const double kGpsFarFromCampusMeters = 150;
+/// 450 m bao trọn toàn bộ khuôn viên, cổng và bãi xe quanh các nút ngoài trời hiện có của campus.
+const double kGpsFarFromCampusMeters = 450;
 
 /// Bỏ đoạn nối toạ độ → nút khi hai điểm gần như trùng (m) — tránh đoạn thẳng 0 m trên bản đồ.
 const double _attachEpsilonMeters = 0.5;
@@ -146,6 +145,37 @@ class CampusRoute {
   String get formattedDuration => '${etaMinutes < 1 ? 1 : etaMinutes} phút đi bộ';
 
   String? get message => isDirectFallback ? directFallbackMessage : warningMessage;
+
+  bool _isHorizontalSegment(CampusRoutePoint a, CampusRoutePoint b) =>
+      a.floorOrder == b.floorOrder &&
+      haversineMeters(a.latLng.latitude, a.latLng.longitude, b.latLng.latitude, b.latLng.longitude) >
+          _attachEpsilonMeters;
+
+  /// Kiểm tra tuyến có ít nhất một đoạn đi ngang dài hơn epsilon trên [floorOrder].
+  bool hasHorizontalSegmentOnFloor(int floorOrder) {
+    if (isDirectFallback || points.length < 2) return points.any((p) => p.floorOrder == floorOrder);
+    for (var i = 1; i < points.length; i++) {
+      final a = points[i - 1];
+      final b = points[i];
+      if (a.floorOrder == floorOrder && _isHorizontalSegment(a, b)) return true;
+    }
+    return false;
+  }
+
+  /// Tầng nên hiển thị ngay khi mở dẫn đường: ưu tiên tầng xuất phát nếu có đoạn đi ngang trên đó,
+  /// ngược lại chọn tầng đầu tiên có đoạn đi ngang (tránh mở màn hình trống khi vừa vào là lên/xuống cầu thang).
+  int get preferredDisplayFloorOrder {
+    final fallbackStartFloor = startMode == CampusRouteStartMode.outdoorGps ? 0 : startFloorOrder;
+    if (isDirectFallback || points.length < 2 || hasHorizontalSegmentOnFloor(fallbackStartFloor)) {
+      return fallbackStartFloor;
+    }
+    for (var i = 1; i < points.length; i++) {
+      final a = points[i - 1];
+      final b = points[i];
+      if (_isHorizontalSegment(a, b)) return a.floorOrder;
+    }
+    return points.last.floorOrder;
+  }
 }
 
 /// Không dựng được tuyến (thiếu toạ độ, chưa biết điểm xuất phát).
@@ -237,10 +267,16 @@ CampusRoute planCampusRoute({
   // ---- điểm xuất phát
   final gpsBuilding = gps == null ? null : campus?.buildingAt(latitude: gps.latitude, longitude: gps.longitude);
   CampusGraphNode? outdoorStart;
+  double? nearestOutdoorDistanceMeters;
   final wantOutdoor = forceOutdoorStart || (gpsBuilding == null && (guardFloorOrder == null || guardFloorOrder == 0));
-  if (graph != null && gps != null && wantOutdoor) {
+  if (graph != null && gps != null) {
     final n = _nearest(graph.nodes.where((x) => x.isOutdoor), gps.latitude, gps.longitude);
-    if (n != null && _dist(gps.latitude, gps.longitude, n) <= kGpsFarFromCampusMeters) outdoorStart = n;
+    if (n != null) {
+      nearestOutdoorDistanceMeters = _dist(gps.latitude, gps.longitude, n);
+      if (wantOutdoor && nearestOutdoorDistanceMeters <= kGpsFarFromCampusMeters) {
+        outdoorStart = n;
+      }
+    }
   }
 
   final CampusRouteStartMode mode;
@@ -277,6 +313,11 @@ CampusRoute planCampusRoute({
         if (nearest != null && (gpsBuilding != null || _dist(gps.latitude, gps.longitude, nearest) <= 10.0)) {
           startCandidates = [nearest];
           attachGpsToIndoorStart = true;
+        } else if (gpsBuilding == null &&
+            nearestOutdoorDistanceMeters != null &&
+            nearestOutdoorDistanceMeters > kGpsFarFromCampusMeters) {
+          routeWarning =
+              'GPS đang ở ngoài khuôn viên (> ${kGpsFarFromCampusMeters.round()}m), lộ trình tạm xuất phát từ cầu thang / thang máy ${campusFloorLabel(startFloor)}.';
         } else if (guardFloorOrder != null && gpsBuilding == null) {
           routeWarning =
               'GPS đang ở ngoài tòa nhà, lộ trình tạm xuất phát từ cầu thang / thang máy ${campusFloorLabel(startFloor)}.';

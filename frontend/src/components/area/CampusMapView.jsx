@@ -906,7 +906,7 @@ export default function CampusMapView({
 				? activeBuilding3d
 				: selectedBuilding && selectedBuilding !== "ALL"
 					? selectedBuilding
-					: buildingsList[0]?.name || "Tòa Alpha";
+					: buildingsList[0]?.name || "Tòa Epsilon";
 		const bObj = buildingsList.find((b) =>
 			matchesBuilding(b.name, initialBuilding),
 		);
