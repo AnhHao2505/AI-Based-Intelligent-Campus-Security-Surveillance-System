@@ -16,8 +16,6 @@ import {
 	ShieldAlert,
 	Flame,
 	Info,
-	Navigation,
-	Pin,
 } from "lucide-react";
 import {
 	buildDvrStreamUrl,
@@ -103,13 +101,12 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		cameraCode = "",
 		cameraName = "",
 		displayLabel = null,
+		floorCode = "",
+		cameraSubLabel = "",
 		aiModeLabel = null,
 		incidentCount = 0,
 		incidentSeverityClass = "severity-warning",
 		alwaysShowDvr = false,
-		adjacentCameras = [],
-		onSelectAdjacentCamera = null,
-		relationBadge = null,
 		resolution = null,
 		fps = null,
 		isRecording = false,
@@ -120,6 +117,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			? `${window.location.hostname}:8000`
 			: "localhost:8000",
 		enableTrackingToggle = true,
+		enableDvrToggle = true,
 		enableDvr = true,
 		alerts = [],
 		initialSeekTimeMs = null,
@@ -130,8 +128,6 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		enabled = true,
 		onStatusChange = null,
 		onToggleMaximize = null,
-		isPinned = false,
-		onTogglePin = null,
 		onAlertMarkerClick = null,
 	},
 	ref,
@@ -163,6 +159,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	const initialIsPlayback =
 		Number.isFinite(Number(initialSeekTimeMs)) && Number(initialSeekTimeMs) > 0;
 	const [mode, setMode] = useState(initialIsPlayback ? "playback" : "live");
+	const [showDvrBar, setShowDvrBar] = useState(
+		Boolean(initialIsPlayback || (!enableDvrToggle && alwaysShowDvr)),
+	);
 	const [status, setStatus] = useState(enabled ? "connecting" : "offline");
 	const [errorMsg, setErrorMsg] = useState("");
 	const [showTracking, setShowTracking] = useState(false);
@@ -556,11 +555,23 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 
 	const handleToggleTracking = (e) => {
 		if (e) e.stopPropagation();
+		if (!enabled) return;
 		if (mode === "playback") {
 			jumpToLive();
 		}
 		setTrackingError(false);
 		setShowTracking((prev) => !prev);
+	};
+
+	const handleToggleDvrBar = (e) => {
+		if (e) e.stopPropagation();
+		setShowDvrBar((prev) => {
+			const next = !prev;
+			if (!next && mode === "playback") {
+				jumpToLive();
+			}
+			return next;
+		});
 	};
 
 	// Tự động kích hoạt On-Demand Cloud Relay qua MQTT khi triển khai trên Cloud HTTPS
@@ -977,6 +988,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	);
 
 	const showLiveBlackout = mode === "live" && status !== "live";
+	const hasActiveDvrBar = enableDvr && (enabled || mode === "playback");
+	const dvrVisible = Boolean(
+		hasActiveDvrBar &&
+		(showDvrBar || mode === "playback" || (!enableDvrToggle && alwaysShowDvr)),
+	);
 
 	return (
 		<div
@@ -1094,17 +1110,6 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 									type="button"
 									onClick={(e) => {
 										e.stopPropagation();
-										setTrackingError(false);
-										setTokenRetryTrigger((prev) => prev + 1);
-									}}
-									className="cctv-tracking-retry-btn"
-								>
-									Thử lại
-								</button>
-								<button
-									type="button"
-									onClick={(e) => {
-										e.stopPropagation();
 										setShowTracking(false);
 										setTrackingError(false);
 										setTokenRetryTrigger((prev) => prev + 1);
@@ -1188,30 +1193,25 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					>
 						{displayLabel || displayCamCode || "—"}
 					</span>
+					{floorCode && (
+						<span
+							className="cctv-floor-badge"
+							title={`Tầng ${floorCode === "G" ? "Trệt" : floorCode.replace(/^T/i, "")}`}
+						>
+							{floorCode}
+						</span>
+					)}
 					{incidentCount > 0 && (
 						<span className={`cctv-incident-pill ${incidentSeverityClass}`}>
 							<Flame size={11} />
 							<span>{incidentCount}</span>
 						</span>
 					)}
-					{relationBadge && (
-						<span
-							className="cctv-relation-pill"
-							title="Khoảng cách / tầng lân cận so với ô tiêu điểm"
-						>
-							<Navigation size={10} />
-							<span>{relationBadge}</span>
-						</span>
-					)}
 				</div>
 
 				<div className="cctv-osd-top-right">
 					{(enabled || mode === "playback") &&
-						(showLiveTag ||
-							(isRecording && showRecTag) ||
-							enableTrackingToggle ||
-							aiModeLabel ||
-							mode === "playback") && (
+						((isRecording && showRecTag) || aiModeLabel) && (
 							<div className="cctv-indicator-group">
 								{isRecording && showRecTag && (
 									<span className="cctv-tag cctv-tag--rec">
@@ -1226,24 +1226,6 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 										{aiModeLabel}
 									</span>
 								)}
-
-								{enableTrackingToggle && enabled && (
-									<button
-										type="button"
-										className={`cctv-tag cctv-tag--tracking ${showTracking ? "active" : ""}`}
-										onClick={handleToggleTracking}
-										title={
-											showTracking
-												? "Đang bật AI View (Bounding Box, Track ID, Face & ROI). Bấm để chuyển về luồng gốc."
-												: "Bấm để bật AI View (hiển thị Bounding Box, Track ID, Face & ROI)"
-										}
-									>
-										<span
-											className={`cctv-dot ${showTracking ? "cctv-dot--cyan" : "cctv-dot--idle"}`}
-										/>
-										{showTracking ? "AI View: ON" : "AI View"}
-									</button>
-								)}
 							</div>
 						)}
 
@@ -1253,30 +1235,14 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						</span>
 					)}
 
-					{onTogglePin && (
-						<button
-							type="button"
-							className={`cctv-quick-pin-btn ${isPinned ? "is-pinned" : ""}`}
-							onClick={(e) => {
-								e.stopPropagation();
-								onTogglePin();
-							}}
-							title={
-								isPinned
-									? "Đang ghim màn hình này (giữ cố định trên lưới & không bị sự cố khác đẩy). Bấm để bỏ ghim."
-									: "Ghim màn hình này cố định trên lưới"
-							}
-							aria-pressed={isPinned}
-						>
-							<Pin size={12} />
-						</button>
-					)}
-
 					{onToggleMaximize && (
 						<button
 							type="button"
 							className="cctv-quick-expand-btn"
-							onClick={onToggleMaximize}
+							onClick={(e) => {
+								e.stopPropagation();
+								onToggleMaximize();
+							}}
 							title="Phóng to chỉ xem camera này"
 						>
 							⛶
@@ -1312,45 +1278,75 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				</div>
 			)}
 
-			{/* Thanh chọn nhanh Camera lân cận (tính theo tọa độ 2D) hiển thị ở ô tiêu điểm */}
-			{alwaysShowDvr &&
-				enabled &&
-				mode === "live" &&
-				adjacentCameras.length > 0 &&
-				typeof onSelectAdjacentCamera === "function" && (
-					<div
-						className="adjacent-cam-bar"
-						onClick={(e) => e.stopPropagation()}
-					>
+			{/* Mã camera ở góc dưới trái & bộ toggle Bản ghi / AI View ở góc dưới phải */}
+			{(cameraSubLabel ||
+				((enabled || mode === "playback") &&
+					((enableDvr && enableDvrToggle) || enableTrackingToggle))) && (
+				<div
+					className={`cctv-bottom-corners ${dvrVisible ? "is-above-dvr" : ""}`}
+				>
+					{cameraSubLabel ? (
 						<span
-							className="adjacent-cam-label"
-							title="Các camera lân cận gần nhất theo mặt bằng 2D"
+							className="cctv-bottom-cam-label"
+							title={cameraSubLabel}
 						>
-							<Navigation size={11} /> Lân cận:
+							{cameraSubLabel}
 						</span>
-						{adjacentCameras.map((adj) => (
+					) : (
+						<span />
+					)}
+
+					<div className="cctv-bottom-actions">
+						{enableDvr &&
+							enableDvrToggle &&
+							(enabled || mode === "playback") && (
+								<button
+									type="button"
+									className={`cctv-tag cctv-tag--dvr ${dvrVisible ? "active" : ""}`}
+									onClick={handleToggleDvrBar}
+									aria-pressed={dvrVisible}
+									title={
+										dvrVisible
+											? "Ẩn thanh tua xem lại bản ghi (quay về chế độ Live gọn)"
+											: "Mở thanh tua xem lại bản ghi DVR"
+									}
+								>
+									<span
+										className={`cctv-dot ${dvrVisible ? "cctv-dot--amber" : "cctv-dot--idle"}`}
+									/>
+									Rec View
+								</button>
+							)}
+
+						{enableTrackingToggle && enabled && (
 							<button
-								key={adj.camera.code}
 								type="button"
-								className="adjacent-cam-pill"
-								onClick={() => onSelectAdjacentCamera(adj.camera.code)}
-								title={`Chuyển sang ${adj.camera.name} (${adj.relationLabel})`}
+								className={`cctv-tag cctv-tag--tracking ${showTracking ? "active" : ""}`}
+								onClick={(e) => {
+									e.stopPropagation();
+									handleToggleTracking();
+								}}
+								aria-pressed={showTracking}
+								title={
+									showTracking
+										? "Đang bật AI View (Bounding Box, Track ID, Face & ROI). Bấm để chuyển về luồng gốc."
+										: "Bấm để bật AI View (hiển thị Bounding Box, Track ID, Face & ROI)"
+								}
 							>
-								<span>{adj.camera.name}</span>
-								{adj.distanceMeters != null && adj.distanceMeters <= 500 && (
-									<span className="adjacent-cam-dist">
-										{adj.distanceMeters}m
-									</span>
-								)}
+								<span
+									className={`cctv-dot ${showTracking ? "cctv-dot--cyan" : "cctv-dot--idle"}`}
+								/>
+								AI View
 							</button>
-						))}
+						)}
 					</div>
-				)}
+				</div>
+			)}
 
 			{/* Thanh Xem lại Video Scrubber (2 màu: Đã ghi vs Chưa ghi) + Chấm đỏ sự cố */}
-			{enableDvr && (enabled || mode === "playback") && (
+			{hasActiveDvrBar && (
 				<div
-					className={`dvr-scrubber-bar ${compactScrubber ? "is-compact" : ""} ${alwaysShowDvr || mode === "playback" ? "is-pinned" : ""} ${isScrubbing ? "is-scrubbing" : ""}`}
+					className={`dvr-scrubber-bar ${compactScrubber ? "is-compact" : ""} ${dvrVisible ? "is-pinned" : ""} ${isScrubbing ? "is-scrubbing" : ""}`}
 					onClick={(e) => e.stopPropagation()}
 				>
 					{/* Hàng 1: Timeline Scrubber Track + Chấm đỏ cảnh báo */}
@@ -1555,7 +1551,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						<div
 							className={
 								!enabled
-									? "cctv-no-signal-badge"
+									? "cctv-standby-badge is-admin-off"
 									: status === "connecting"
 										? "cctv-connecting-badge"
 										: "cctv-no-signal-badge"

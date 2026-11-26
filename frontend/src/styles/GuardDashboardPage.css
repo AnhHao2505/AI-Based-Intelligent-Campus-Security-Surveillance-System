@@ -495,24 +495,45 @@ body.soc-theater-active .sidebar {
   box-sizing: border-box;
 }
 
-/* Thanh điều khiển tích hợp trên video */
+/* Thanh điều khiển tích hợp trên video: Hàng 1 Bố cục/Khu vực, Hàng 2 Dải chip */
 .camera-control-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   padding: 6px 10px;
   background: #111827;
   border: 1px solid #1e293b;
   border-radius: 6px;
+}
+
+.camera-control-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   flex-wrap: wrap;
+}
+
+.camera-control-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
 }
 
 .camera-layout-group {
   display: flex;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.camera-hierarchy-filters {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .control-bar-label {
@@ -624,18 +645,6 @@ body.soc-theater-active .sidebar {
   border-color: rgba(148, 163, 184, 0.4);
 }
 
-.toolbar-icon-btn.is-pin-active {
-  background: rgba(245, 158, 11, 0.18);
-  border-color: rgba(245, 158, 11, 0.65);
-  color: #fbbf24;
-}
-
-.toolbar-icon-btn.is-adjacent-active {
-  background: rgba(14, 165, 233, 0.18);
-  border-color: rgba(56, 189, 248, 0.65);
-  color: #38bdf8;
-}
-
 /* Nút chuyển đổi sắp xếp Camera Tăng dần hoặc Ưu tiên sự cố */
 .cam-sort-toggle-btn {
   display: inline-flex;
@@ -664,16 +673,17 @@ body.soc-theater-active .sidebar {
   color: var(--theme-danger);
 }
 
-/* Dải Camera Quick Switcher */
+/* Dải Camera Quick Switcher (1 dòng dưới Bố cục) */
 .camera-quick-switcher {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 2px;
+  padding: 6px 2px 2px;
+  border-top: 1px solid rgba(30, 41, 59, 0.85);
   scrollbar-width: thin;
-  flex: 1;
+  width: 100%;
 }
 
 .camera-quick-switcher::-webkit-scrollbar {
@@ -1002,10 +1012,6 @@ body.soc-theater-active .sidebar {
   align-items: center;
   justify-content: center;
   transition: all 0.25s ease;
-}
-
-.video-viewport-card.is-pinned {
-  border-color: rgba(245, 158, 11, 0.7);
 }
 
 /* 1. Mức độ NGUY CẤP (Critical - Đỏ: viền đỏ xung nổi bật nhất) */
