@@ -282,7 +282,7 @@ class SystemConfigServiceTest {
     }
 
     @Test
-    @DisplayName("V149: getAiRuntimeConfigMap gửi 11 khoá admin chỉnh, gồm night_allowed_access_sources mặc định 4 nguồn")
+    @DisplayName("V150: getAiRuntimeConfigMap gửi 11 khoá admin chỉnh, gồm night_allowed_access_sources mặc định 4 nguồn")
     void testGetAiRuntimeConfigMap_AdminKeysWithDefaults() {
         when(systemConfigurationRepository.findAll()).thenReturn(List.of());
         systemConfigService.initCache();
@@ -307,7 +307,7 @@ class SystemConfigServiceTest {
     }
 
     @Test
-    @DisplayName("V149: cập nhật AI_NIGHT_ALLOWED_ACCESS_SOURCES hợp lệ -> chuẩn hoá CSV, ghi audit, cập nhật runtime-config và sync MQTT")
+    @DisplayName("V150: cập nhật AI_NIGHT_ALLOWED_ACCESS_SOURCES hợp lệ -> chuẩn hoá CSV, ghi audit, cập nhật runtime-config và sync MQTT")
     void updateNightAllowedAccessSources_ValidValue_NormalizesAuditsAndSyncs() {
         String key = ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey();
         SystemConfiguration nightConfig = SystemConfiguration.builder()
@@ -354,7 +354,7 @@ class SystemConfigServiceTest {
     }
 
     @Test
-    @DisplayName("V149: từ chối giá trị lạ, NONE, phần tử rỗng hoặc danh sách rỗng cho AI_NIGHT_ALLOWED_ACCESS_SOURCES")
+    @DisplayName("V150: từ chối giá trị lạ, NONE, phần tử rỗng hoặc danh sách rỗng cho AI_NIGHT_ALLOWED_ACCESS_SOURCES")
     void updateNightAllowedAccessSources_InvalidOrEmpty_ThrowsIllegalArgumentException() {
         String key = ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey();
         SystemConfiguration nightConfig = SystemConfiguration.builder()
@@ -388,7 +388,7 @@ class SystemConfigServiceTest {
     }
 
     @Test
-    @DisplayName("V149: getAll chỉ gắn options cho AI_NIGHT_ALLOWED_ACCESS_SOURCES, khoá khác giữ options = null")
+    @DisplayName("V150: getAll chỉ gắn options cho AI_NIGHT_ALLOWED_ACCESS_SOURCES, khoá khác giữ options = null")
     void getAll_OnlyNightAllowedSourcesHasOptions() {
         SystemConfiguration nightConfig = SystemConfiguration.builder()
                 .configKey(ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey())
@@ -410,7 +410,7 @@ class SystemConfigServiceTest {
     }
 
     @Test
-    @DisplayName("V149: PATCH /api/system-configurations/AI_NIGHT_ALLOWED_ACCESS_SOURCES với giá trị lạ -> HTTP 400")
+    @DisplayName("V150: PATCH /api/system-configurations/AI_NIGHT_ALLOWED_ACCESS_SOURCES với giá trị lạ -> HTTP 400")
     void patchNightAllowedSources_InvalidValue_Returns400() throws Exception {
         String key = ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey();
         SystemConfiguration nightConfig = SystemConfiguration.builder()

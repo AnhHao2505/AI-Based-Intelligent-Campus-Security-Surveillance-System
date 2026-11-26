@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * @param eventAdjustments EV-N8 (V115): chỉ có khi lưu AI_AFTER_HOUR_START / AI_AFTER_HOUR_END — các lịch / sự kiện hệ thống
  *                         đã cắt / huỷ / tắt theo khung ban đêm mới (rỗng nếu không có gì bị ảnh hưởng); null ở mọi trường hợp khác
- * @param options          V149: danh sách lựa chọn hợp lệ (value, nhãn tiếng Việt, mô tả) cho khoá dạng chọn nhiều; null ở mọi khoá khác
+ * @param options          V150: danh sách lựa chọn hợp lệ (value, nhãn tiếng Việt, mô tả) cho khoá dạng chọn nhiều; null ở mọi khoá khác
  */
 public record SystemConfigResponse(
     String configKey,

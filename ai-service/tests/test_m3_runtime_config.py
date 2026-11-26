@@ -232,7 +232,7 @@ def test_suspicious_motion_min_duration_runtime_config():
 
 
 def test_main_update_ai_runtime_config_night_allowed_sources():
-    """V149: Kiểm tra endpoint /api/v1/system-config/ai-runtime nhận và validate night_allowed_access_sources."""
+    """V150: Kiểm tra endpoint /api/v1/system-config/ai-runtime nhận và validate night_allowed_access_sources."""
     import asyncio
     old_sources = list(settings.NIGHT_ALLOWED_ACCESS_SOURCES)
     try:

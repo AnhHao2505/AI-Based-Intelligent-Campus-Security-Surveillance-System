@@ -48,7 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class SystemConfigService {
 
-    /** V149: 6 nguồn quyền hợp lệ cho AI_NIGHT_ALLOWED_ACCESS_SOURCES (trừ AccessSource.NONE), kèm nhãn và mô tả cho FE. */
+    /** V150: 6 nguồn quyền hợp lệ cho AI_NIGHT_ALLOWED_ACCESS_SOURCES (trừ AccessSource.NONE), kèm nhãn và mô tả cho FE. */
     static final List<ConfigOptionResponse> NIGHT_ALLOWED_ACCESS_SOURCE_OPTIONS = List.of(
             new ConfigOptionResponse(
                     AccessSource.ASSIGNED_PERSONNEL.name(),
@@ -709,7 +709,7 @@ public class SystemConfigService {
     }
 
     /**
-     * V149: kiểm và chuẩn hoá danh sách nguồn quyền miễn giờ giới nghiêm (CSV, bắt buộc >= 1 nguồn,
+     * V150: kiểm và chuẩn hoá danh sách nguồn quyền miễn giờ giới nghiêm (CSV, bắt buộc >= 1 nguồn,
      * chỉ nhận 6 giá trị thuộc VALID_NIGHT_ALLOWED_SOURCES, bỏ trùng và sắp theo thứ tự chuẩn).
      */
     private String normalizeNightAllowedAccessSources(String value) {

@@ -461,7 +461,7 @@ class AIRuntimeConfigRequest(BaseModel):
     incident_no_detection_timeout_seconds: Optional[float] = None
     # V131: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
     recording_segment_seconds: Optional[int] = None
-    # V149: danh sách nguồn quyền được miễn giờ giới nghiêm
+    # V150: danh sách nguồn quyền được miễn giờ giới nghiêm
     night_allowed_access_sources: Optional[List[str]] = None
 
 @app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])

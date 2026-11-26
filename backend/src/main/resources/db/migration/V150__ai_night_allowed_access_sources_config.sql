@@ -1,5 +1,5 @@
 -- ============================================================================
--- V149: Chuyển danh sách nguồn quyền được miễn giờ giới nghiêm
+-- V150: Chuyển danh sách nguồn quyền được miễn giờ giới nghiêm
 -- (NIGHT_ALLOWED_ACCESS_SOURCES) từ .env ai-service sang System Configuration
 -- (nhóm AI_CONFIG) để Admin chỉnh động, ghi audit và đồng bộ tức thì xuống AI.
 -- Mặc định giữ đúng 4 nguồn: ASSIGNED_PERSONNEL, ACCESS_REQUEST, GUEST_VISIT,

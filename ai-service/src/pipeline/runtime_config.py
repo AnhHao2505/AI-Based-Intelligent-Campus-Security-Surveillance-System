@@ -18,7 +18,7 @@ from ..config import settings
 
 logger = logging.getLogger(__name__)
 
-# V149: 6 nguồn quyền hợp lệ cho AI_NIGHT_ALLOWED_ACCESS_SOURCES (khớp AccessSource trừ NONE).
+# V150: 6 nguồn quyền hợp lệ cho AI_NIGHT_ALLOWED_ACCESS_SOURCES (khớp AccessSource trừ NONE).
 VALID_NIGHT_ALLOWED_SOURCES: Tuple[str, ...] = (
     "ASSIGNED_PERSONNEL",
     "ACCESS_REQUEST",
