@@ -58,7 +58,9 @@ import {
 	formatCameraLocationSubtitle,
 	formatCameraRoomName,
 	formatCameraSubLabel,
+	formatIncidentCameraLabel,
 	formatShortFloorCode,
+	resolveCameraCodeLabel,
 	sortCamerasStableByLocation,
 } from "../../utils/cameraGridHelpers";
 import { fetchCameras } from "../../services/cameraService";
@@ -594,17 +596,14 @@ export function SecuritySurveillancePage() {
 	const [evidenceModalAlert, setEvidenceModalAlert] = useState(null);
 	const [evidenceModalTab, setEvidenceModalTab] = useState("image"); // "image" | "video"
 
-	const { cameraAreaByCode, cameraNameByCode } = useMemo(() => {
+	const cameraAreaByCode = useMemo(() => {
 		const areaMap = {};
-		const nameMap = {};
 		for (const cam of cameraList) {
 			if (!cam.code) continue;
 			const area = (cam.areaName || "").trim();
-			const name = (cam.name || "").trim();
 			if (area) areaMap[cam.code] = area;
-			if (name) nameMap[cam.code] = name;
 		}
-		return { cameraAreaByCode: areaMap, cameraNameByCode: nameMap };
+		return areaMap;
 	}, [cameraList]);
 	const cameraAreaByCodeRef = useRef(cameraAreaByCode);
 	useEffect(() => {
@@ -1901,10 +1900,15 @@ export function SecuritySurveillancePage() {
 
 									return (
 										<button
-											key={cam.code}
+											key={cam.code || cam.id}
 											type="button"
+											disabled={!cam.code}
 											className={`cam-chip-btn ${isSelected ? "active" : ""} ${hasIncident ? `has-incident ${severityClass}` : ""} ${isFlashing ? `flashing ${severityClass}` : ""}`}
-											onClick={() => handleSelectCamera(cam.code)}
+											onClick={() => {
+												if (cam.code) {
+													handleSelectCamera(cam.code);
+												}
+											}}
 											title={`${chipLabel} — ${roomLabel}${floorBadge ? ` (${floorBadge})` : ""}${locSubtitle ? ` · ${locSubtitle}` : ""}${hasIncident ? ` — ${summary.count} sự cố` : ""}`}
 										>
 											<span
@@ -1966,9 +1970,10 @@ export function SecuritySurveillancePage() {
 									return (
 										<div
 											className={`video-viewport-card ${hasIncident ? `card-has-incident ${severityClass}` : ""} ${isFlashing ? `card-flashing ${severityClass}` : ""}`}
-											key={camera.code}
+											key={camera.code || camera.id}
 											onClick={() => {
 												if (
+													camera.code &&
 													!isFullFocusTile &&
 													selectedCamera !== camera.code
 												) {
@@ -1985,7 +1990,7 @@ export function SecuritySurveillancePage() {
 												cameraSubLabel={formatCameraSubLabel(camera)}
 												incidentCount={summary.count}
 												incidentSeverityClass={severityClass}
-												enabled={camera.status === "ONLINE"}
+												enabled={Boolean(camera.code) && camera.status === "ONLINE"}
 												enableDvr={true}
 												alwaysShowDvr={false}
 												enableDvrToggle={true}
@@ -2471,24 +2476,38 @@ export function SecuritySurveillancePage() {
 
 												<div className="soc-incident-bottom">
 													<div className="soc-incident-bottom-left">
-														{/* Nút định vị nhanh tới camera trên lưới */}
+														{/* Nút định vị nhanh tới camera trên lưới (luôn hiện đúng mã camera thật hoặc Không xác định) */}
 														{(() => {
-															const camDisplayName =
-																cameraNameByCode[alert.camCodeClean] ||
-																alert.cameraCode;
+															const resolvedCamCode =
+																resolveCameraCodeLabel(alert);
+															const camCodeLabel =
+																formatIncidentCameraLabel(alert);
+															const areaLabel =
+																cameraAreaByCode[alert.camCodeClean] ||
+																(alert.cameraName &&
+																alert.cameraName !== "Khu vực camera"
+																	? alert.cameraName
+																	: "");
 															return (
 																<button
 																	type="button"
 																	className="btn-soc-jump-cam"
-																	onClick={() =>
-																		handleSelectCamera(
-																			alert.camCodeClean || alert.cameraCode,
-																		)
+																	disabled={!resolvedCamCode}
+																	onClick={() => {
+																		if (resolvedCamCode) {
+																			handleSelectCamera(
+																				alert.camCodeClean || resolvedCamCode,
+																			);
+																		}
+																	}}
+																	title={
+																		resolvedCamCode
+																			? `Định vị tới ${resolvedCamCode}${areaLabel ? ` — ${areaLabel}` : ""}`
+																			: "Không xác định được mã camera của sự cố"
 																	}
-																	title={`Định vị tới ${alert.cameraCode ? `${alert.cameraCode} — ` : ""}${camDisplayName}`}
 																>
 																	<Video size={12} />
-																	<span>Tới camera</span>
+																	<span>{camCodeLabel}</span>
 																</button>
 															);
 														})()}
@@ -2671,6 +2690,9 @@ export function SecuritySurveillancePage() {
 										cameraName={
 											evidenceModalAlert.cameraName || "Camera hiện trường"
 										}
+										cameraSubLabel={formatIncidentCameraLabel(
+											evidenceModalAlert,
+										)}
 										enabled={Boolean(
 											evidenceModalAlert.camCodeClean ||
 											evidenceModalAlert.cameraCode,
@@ -2708,6 +2730,9 @@ export function SecuritySurveillancePage() {
 							<div className="soc-evidence-meta-panel">
 								<div className="soc-evidence-meta-row">
 									<span className="soc-evidence-meta-label">Camera:</span>
+									<span className="soc-evidence-meta-val">
+										{formatIncidentCameraLabel(evidenceModalAlert)}
+									</span>
 								</div>
 								<div className="soc-evidence-meta-row">
 									<span className="soc-evidence-meta-label">Thời điểm:</span>
@@ -2726,21 +2751,37 @@ export function SecuritySurveillancePage() {
 
 						<div className="soc-evidence-modal-footer">
 							<div className="soc-evidence-footer-right">
-								<button
-									type="button"
-									className="btn-soc-jump-cam"
-									onClick={() => {
-										handleSelectCamera(
-											evidenceModalAlert.camCodeClean ||
-												evidenceModalAlert.cameraCode,
-										);
-										setEvidenceModalAlert(null);
-									}}
-									title="Chuyển màn hình sang xem trực tiếp camera này"
-								>
-									<Video size={13} />
-									<span>Xem trực tiếp trên camera</span>
-								</button>
+								{(() => {
+									const modalCamCode =
+										resolveCameraCodeLabel(evidenceModalAlert);
+									return (
+										<button
+											type="button"
+											className="btn-soc-jump-cam"
+											disabled={!modalCamCode}
+											onClick={() => {
+												if (modalCamCode) {
+													handleSelectCamera(
+														evidenceModalAlert.camCodeClean || modalCamCode,
+													);
+													setEvidenceModalAlert(null);
+												}
+											}}
+											title={
+												modalCamCode
+													? `Chuyển màn hình sang xem trực tiếp camera ${modalCamCode}`
+													: "Không xác định được mã camera để xem trực tiếp"
+											}
+										>
+											<Video size={13} />
+											<span>
+												{modalCamCode
+													? `Xem trực tiếp camera ${modalCamCode}`
+													: "Camera không xác định"}
+											</span>
+										</button>
+									);
+								})()}
 								<button
 									type="button"
 									className="btn-soc-evidence-close"

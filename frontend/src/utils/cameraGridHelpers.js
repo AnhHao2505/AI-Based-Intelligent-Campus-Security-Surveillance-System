@@ -1,7 +1,14 @@
 /**
  * Pure helpers for Guard SOC Livestream Grid (layouts: 1, spotlight 1+5, 2x2, 3x3, 4x4, auto-fit).
- * No CAM-xxx codes are exposed on UI labels.
  */
+
+export const UNKNOWN_CAMERA_CODE_LABEL = "Không xác định";
+
+function looksLikeCameraCode(value) {
+	const trimmed = String(value || "").trim();
+	if (!trimmed) return false;
+	return /^cam[-_\s]*[a-z0-9_-]*\d+[a-z0-9_-]*$/i.test(trimmed);
+}
 
 export function formatCameraLocationSubtitle(cam) {
 	if (!cam || typeof cam !== "object") return "";
@@ -16,14 +23,42 @@ export function formatCameraLocationSubtitle(cam) {
 	return [building, floor].filter(Boolean).join(" · ");
 }
 
-export function formatCameraTileTitle(cam) {
-	if (!cam || typeof cam !== "object") return "Camera giám sát";
-	const areaName = (cam.areaName || "").trim();
-	const camName = (cam.name || "").trim();
-	if (areaName && camName && areaName.toLowerCase() !== camName.toLowerCase()) {
-		return `${areaName} · ${camName}`;
+export function resolveCameraCodeLabel(camOrCode) {
+	if (typeof camOrCode === "string") {
+		return camOrCode.trim().toUpperCase();
 	}
-	const baseName = camName || areaName || "Camera giám sát";
+	if (!camOrCode || typeof camOrCode !== "object") return "";
+	return String(
+		camOrCode.cameraCode ||
+			camOrCode.camera_code ||
+			camOrCode.code ||
+			camOrCode.camCodeClean ||
+			"",
+	)
+		.trim()
+		.toUpperCase();
+}
+
+export function formatCameraCodeOrUnknown(camOrCode) {
+	return resolveCameraCodeLabel(camOrCode) || UNKNOWN_CAMERA_CODE_LABEL;
+}
+
+export function formatIncidentCameraLabel(alert) {
+	return formatCameraCodeOrUnknown(alert);
+}
+
+export function formatCameraTileTitle(cam) {
+	if (!cam || typeof cam !== "object") return UNKNOWN_CAMERA_CODE_LABEL;
+	const areaName = (cam.areaName || "").trim();
+	const rawCamName = (cam.name || "").trim();
+	const codeLabel = resolveCameraCodeLabel(cam);
+	const safeCamName = looksLikeCameraCode(rawCamName)
+		? codeLabel || UNKNOWN_CAMERA_CODE_LABEL
+		: rawCamName;
+	if (areaName && safeCamName && areaName.toLowerCase() !== safeCamName.toLowerCase()) {
+		return `${areaName} · ${safeCamName}`;
+	}
+	const baseName = safeCamName || areaName || codeLabel || UNKNOWN_CAMERA_CODE_LABEL;
 	const floor =
 		cam.floor ||
 		(cam.mapFloorOrder != null && Number.isFinite(Number(cam.mapFloorOrder))
@@ -51,10 +86,11 @@ export function formatShortFloorCode(cam) {
 }
 
 export function formatCameraRoomName(cam) {
-	if (!cam || typeof cam !== "object") return "Camera";
+	if (!cam || typeof cam !== "object") return UNKNOWN_CAMERA_CODE_LABEL;
 	const areaName = (cam.areaName || "").trim();
 	const rawCamName = (cam.name || "").trim();
-	const base = areaName || rawCamName || "Camera";
+	const safeCamName = looksLikeCameraCode(rawCamName) ? "" : rawCamName;
+	const base = areaName || safeCamName || formatCameraCodeOrUnknown(cam);
 	const cleaned = base
 		.replace(/\s*(?:·|-)?\s*(?:Tầng\s*(?:Trệt|\d+)|T\d+)\s*$/i, "")
 		.trim();
@@ -62,23 +98,18 @@ export function formatCameraRoomName(cam) {
 }
 
 export function formatCameraRoomFloorTitle(cam) {
-	if (!cam || typeof cam !== "object") return "Camera";
+	if (!cam || typeof cam !== "object") return UNKNOWN_CAMERA_CODE_LABEL;
 	const base = formatCameraRoomName(cam);
 	const floorCode = formatShortFloorCode(cam);
 	return floorCode ? `${base} · ${floorCode}` : base;
 }
 
-export function resolveCameraCodeLabel(cam) {
-	if (!cam || typeof cam !== "object") return "";
-	return String(cam.cameraCode || cam.code || "").trim().toUpperCase();
-}
-
 export function formatCameraSubLabel(cam) {
-	return resolveCameraCodeLabel(cam);
+	return formatCameraCodeOrUnknown(cam);
 }
 
 export function formatCameraChipLabel(cam) {
-	return resolveCameraCodeLabel(cam) || (cam?.name || cam?.areaName || "Camera").trim();
+	return formatCameraCodeOrUnknown(cam);
 }
 
 export function resolveCameraBuilding(cam) {

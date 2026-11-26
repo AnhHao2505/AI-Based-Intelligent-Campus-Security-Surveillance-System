@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+	UNKNOWN_CAMERA_CODE_LABEL,
 	computeVisibleGridSlice,
 	extractAreaFilterOptions,
 	extractAreaNameOptions,
@@ -10,11 +11,14 @@ import {
 	filterCamerasByHierarchy,
 	findAdjacentCameras,
 	formatCameraChipLabel,
+	formatCameraCodeOrUnknown,
 	formatCameraRoomFloorTitle,
 	formatCameraRoomName,
 	formatCameraSubLabel,
 	formatCameraTileTitle,
+	formatIncidentCameraLabel,
 	formatShortFloorCode,
+	resolveCameraCodeLabel,
 	resolveGridConfig,
 	sortCamerasStableByLocation,
 } from "../cameraGridHelpers.js";
@@ -282,5 +286,56 @@ describe("cameraGridHelpers", () => {
 			filteredCorridors.map((c) => c.code),
 			["CAM-004", "CAM-005"],
 		);
+	});
+
+	it("luôn ưu tiên mã camera thật (CAM-005), bỏ qua tên bị đặt nhầm CAM-001 và báo Không xác định khi thiếu mã", () => {
+		const misnamedCam = {
+			id: "cam-db-5",
+			code: "cam-005",
+			cameraCode: "CAM-005",
+			name: "CAM-001",
+			areaName: "Văn Phòng",
+			building: "Tòa Epsilon",
+			floor: "Tầng 1",
+		};
+		assert.equal(resolveCameraCodeLabel(misnamedCam), "CAM-005");
+		assert.equal(formatCameraChipLabel(misnamedCam), "CAM-005");
+		assert.equal(formatCameraSubLabel(misnamedCam), "CAM-005");
+		assert.equal(formatCameraRoomName(misnamedCam), "Văn Phòng");
+		assert.equal(formatCameraTileTitle(misnamedCam), "Văn Phòng · CAM-005");
+
+		const camWithoutAreaButMisnamed = {
+			cameraCode: "CAM-005",
+			name: "CAM-001",
+		};
+		assert.equal(formatCameraRoomName(camWithoutAreaButMisnamed), "CAM-005");
+		assert.equal(formatCameraTileTitle(camWithoutAreaButMisnamed), "CAM-005");
+
+		const missingCodeCam = {
+			id: "cam-no-code",
+			cameraCode: "   ",
+			code: "",
+			name: "CAM-001",
+			areaName: "Văn Phòng",
+		};
+		assert.equal(resolveCameraCodeLabel(missingCodeCam), "");
+		assert.equal(formatCameraCodeOrUnknown(missingCodeCam), UNKNOWN_CAMERA_CODE_LABEL);
+		assert.equal(formatCameraChipLabel(missingCodeCam), "Không xác định");
+		assert.equal(formatCameraSubLabel(missingCodeCam), "Không xác định");
+		assert.equal(formatCameraTileTitle(missingCodeCam), "Văn Phòng · Không xác định");
+
+		assert.equal(
+			formatIncidentCameraLabel({ cameraCode: "cam-005", cameraName: "CAM-001" }),
+			"CAM-005",
+		);
+		assert.equal(
+			formatIncidentCameraLabel({ camera_code: "cam-005" }),
+			"CAM-005",
+		);
+		assert.equal(
+			formatIncidentCameraLabel({ cameraCode: "", camCodeClean: "" }),
+			"Không xác định",
+		);
+		assert.equal(formatIncidentCameraLabel(null), "Không xác định");
 	});
 });
