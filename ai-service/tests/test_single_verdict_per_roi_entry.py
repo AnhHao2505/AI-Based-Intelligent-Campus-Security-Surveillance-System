@@ -287,3 +287,159 @@ def test_runtime_config_applies_camera_unknown_min_interval():
         assert settings.CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS == 7.0
     finally:
         settings.CAMERA_UNKNOWN_ALERT_MIN_INTERVAL_SECONDS = old
+
+
+def test_bytetrack_id_switch_within_max_inactive_seconds_emits_identity_update_not_second_incident():
+    # Tái hiện lỗi thực tế ngoài giờ (22:13): người bước vào ROI 1 lần, chốt PERSON_INTRUSION khi chưa thấy mặt,
+    # sau đó khuất / trượt YOLO 3.5s (> 2.5s nhưng <= max_inactive_seconds=4.0s) rồi xuất hiện lại với Track ID mới #32
+    # và nhận ra mặt FM-007 -> chỉ được gửi IDENTITY_UPDATE vào sự cố cũ, KHÔNG được phát PERSON_INTRUSION thứ hai.
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    t0 = datetime(2026, 11, 26, 22, 13, 35, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh")).timestamp()
+    engine = _engine(
+        max_inactive_seconds=4.0,
+        after_hour_start="22:00",
+        after_hour_end="06:00",
+        unknown_alert_cooldown=30.0,
+        unauthorized_alert_cooldown=60.0,
+    )
+    roi = [Point(0, 0), Point(200, 0), Point(200, 200), Point(0, 200)]
+
+    _, a0, _ = engine.process_frame([(31, BBOX)], roi_polygon=roi, camera_code="CAM-005", current_time=t0, area_name="Văn Phòng")
+    assert a0 == []
+
+    _, a1, _ = engine.process_frame([(31, BBOX)], roi_polygon=roi, camera_code="CAM-005", current_time=t0 + 2.0, area_name="Văn Phòng")
+    assert [a.event_type for a in a1] == ["PERSON_INTRUSION"]
+    session_id = a1[0].roi_session_id
+    assert session_id is not None
+    assert "FM-007" not in a1[0].details
+
+    # Track #31 mất dấu 3.5s (> 2.5s, <= max_inactive_seconds=4.0s), ByteTrack cấp ID mới #32 tại t0 + 5.5s
+    _, a_gap, _ = engine.process_frame([], roi_polygon=roi, camera_code="CAM-005", current_time=t0 + 3.8, area_name="Văn Phòng")
+    assert a_gap == []
+
+    _, a_reappear, _ = engine.process_frame([(32, BBOX)], roi_polygon=roi, camera_code="CAM-005", current_time=t0 + 5.5, area_name="Văn Phòng")
+    assert a_reappear == []
+
+    # Đến t0 + 10.0s (22:13:45, cách sự cố đầu 8s) nhận ra mặt Anh Hào (FM-007) trên Track #32
+    face_fm = FaceDetectionResult(
+        bbox=BoundingBox(60, 55, 80, 75),
+        score=0.78,
+        matched_code="FM-007",
+        matched_name="Anh Hào",
+        role="FACILITY_MANAGER",
+        is_authorized=False,
+        access_checked=True,
+        access_reason="Ngoài giờ hoạt động",
+        matched_at=t0 + 10.0,
+        seen_at=t0 + 10.0,
+    )
+    engine.associate_face(32, face_fm)
+    _, a2, _ = engine.process_frame([(32, BBOX)], roi_polygon=roi, camera_code="CAM-005", current_time=t0 + 10.0, area_name="Văn Phòng")
+
+    assert [a.event_type for a in a2] == ["IDENTITY_UPDATE"], f"Kỳ vọng đúng 1 IDENTITY_UPDATE, thực tế: {[a.event_type for a in a2]}"
+    assert a2[0].roi_session_id == session_id
+    assert a2[0].identity_outcome == "UNAUTHORIZED"
+    assert a2[0].user_code == "FM-007"
+    assert "Anh Hào (FM-007)" in a2[0].details
+
+
+def test_coasting_nms_transfers_unknown_verdict_session_in_both_directions():
+    # (b) Khi Coasting NMS gộp track đang coasting sang track đang thấy (cả hai chiều tid nhỏ->lớn và lớn->nhỏ),
+    # track mới phải giữ unknown_verdict_time, unknown_verdict_session_id, identity_update_sent, entry_logged_as_unknown.
+    shifted = BoundingBox(65, 50, 115, 150)  # IoU ~ 0.54 với BBOX nhưng dx = 15 >= 20% width -> không bị lọc double-box
+
+    for old_tid, new_tid, code in ((1, 5, "U010"), (10, 2, "U011")):
+        engine = _engine(max_inactive_seconds=4.0, unknown_alert_cooldown=30.0)
+        engine.process_frame([(old_tid, BBOX)], camera_code=CAM, current_time=0.0)
+        _, first_alerts, first_events = engine.process_frame([(old_tid, BBOX)], camera_code=CAM, current_time=1.6)
+        assert [a.event_type for a in first_alerts] == ["UNKNOWN_PERSON"]
+        assert [e["user_code"] for e in first_events if e["direction"] == "ENTRY"] == ["UNKNOWN"]
+        session_id = first_alerts[0].roi_session_id
+
+        # Frame chuyển giao: hai box cùng xuất hiện (chưa bị lọc double-box), sau đó old_tid coasting và new_tid đè lên BBOX
+        engine.process_frame([(old_tid, BBOX), (new_tid, shifted)], camera_code=CAM, current_time=1.8)
+        _, coast_alerts, coast_events = engine.process_frame([(new_tid, BBOX)], camera_code=CAM, current_time=2.0)
+        assert coast_alerts == []
+        assert not [e for e in coast_events if e["direction"] == "ENTRY"]
+
+        transferred = engine.active_tracks[new_tid]
+        assert transferred.unknown_verdict_time == 1.6
+        assert transferred.unknown_verdict_session_id == session_id
+        assert transferred.identity_update_sent is False
+        assert transferred.entry_logged_as_unknown is True
+
+        # Nhận ra mặt trên new_tid -> gửi IDENTITY_UPDATE cho phiên cũ + ghi bổ sung 1 ENTRY mã thật, không phát sự cố thứ hai
+        engine.associate_face(new_tid, _face(2.4, code=code, authorized=False, checked=True))
+        _, second_alerts, second_events = engine.process_frame([(new_tid, BBOX)], camera_code=CAM, current_time=2.4)
+        assert [a.event_type for a in second_alerts] == ["IDENTITY_UPDATE"]
+        assert second_alerts[0].roi_session_id == session_id
+        assert second_alerts[0].user_code == code
+        assert [e["user_code"] for e in second_events if e["direction"] == "ENTRY"] == [code]
+
+
+def test_negative_stranger_deleted_after_max_inactive_then_other_person_creates_new_incident():
+    # (c) Ca âm: người lạ chốt cảnh báo, track bị xoá (> max_inactive_seconds), sau đó một người khác được nhận ra
+    # trong cùng cửa sổ unknown_alert_cooldown -> PHẢI tạo sự cố mới, sự cố người lạ ban đầu giữ nguyên không có tên
+    # (và nếu người vào sau có quyền hợp lệ thì cũng KHÔNG được phát IDENTITY_UPDATE làm tự đóng sự cố người lạ).
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    t0 = datetime(2026, 11, 26, 22, 13, 35, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh")).timestamp()
+    engine = _engine(
+        max_inactive_seconds=4.0,
+        after_hour_start="22:00",
+        after_hour_end="06:00",
+        unknown_alert_cooldown=30.0,
+        unauthorized_alert_cooldown=60.0,
+    )
+    roi = [Point(0, 0), Point(200, 0), Point(200, 200), Point(0, 200)]
+
+    engine.process_frame([(1, BBOX)], roi_polygon=roi, camera_code="CAM-005", current_time=t0, area_name="Văn Phòng")
+    _, stranger_alerts, _ = engine.process_frame([(1, BBOX)], roi_polygon=roi, camera_code="CAM-005", current_time=t0 + 2.0, area_name="Văn Phòng")
+    assert [a.event_type for a in stranger_alerts] == ["PERSON_INTRUSION"]
+    stranger_session = stranger_alerts[0].roi_session_id
+    assert stranger_session is not None
+    assert "Tên:" not in stranger_alerts[0].details
+
+    # Quá max_inactive_seconds (4.0s): Track #1 bị xoá hoàn toàn khỏi active_tracks tại t0 + 6.5s
+    engine.process_frame([], roi_polygon=roi, camera_code="CAM-005", current_time=t0 + 6.5, area_name="Văn Phòng")
+    assert 1 not in engine.active_tracks
+
+    # Trường hợp 1: bảo vệ có quyền hợp lệ (GUARD) bước vào lúc t0 + 7.5s -> KHÔNG được phát IDENTITY_UPDATE đóng nhầm sự cố kẻ lạ
+    guard_face = FaceDetectionResult(
+        bbox=BoundingBox(60, 55, 80, 75),
+        score=0.85,
+        matched_code="BV-001",
+        matched_name="Bảo Vệ Ca Đêm",
+        role="GUARD",
+        is_authorized=True,
+        access_checked=True,
+        matched_at=t0 + 7.5,
+        seen_at=t0 + 7.5,
+    )
+    engine.associate_face(20, guard_face)
+    _, guard_alerts, _ = engine.process_frame([(20, BBOX)], roi_polygon=roi, camera_code="CAM-005", current_time=t0 + 7.5, area_name="Văn Phòng")
+    assert guard_alerts == []
+
+    # Bảo vệ rời đi quá max_inactive_seconds, người khác không có quyền (FM-007) bước vào lúc t0 + 15.0s (< 30s cooldown)
+    engine.process_frame([], roi_polygon=roi, camera_code="CAM-005", current_time=t0 + 12.0, area_name="Văn Phòng")
+    other_face = FaceDetectionResult(
+        bbox=BoundingBox(60, 55, 80, 75),
+        score=0.80,
+        matched_code="FM-007",
+        matched_name="Anh Hào",
+        role="FACILITY_MANAGER",
+        is_authorized=False,
+        access_checked=True,
+        access_reason="Ngoài giờ hoạt động",
+        matched_at=t0 + 15.0,
+        seen_at=t0 + 15.0,
+    )
+    engine.associate_face(32, other_face)
+    _, second_alerts, _ = engine.process_frame([(32, BBOX)], roi_polygon=roi, camera_code="CAM-005", current_time=t0 + 15.0, area_name="Văn Phòng")
+    assert [a.event_type for a in second_alerts] == ["PERSON_INTRUSION"]
+    assert second_alerts[0].roi_session_id is None
+    assert second_alerts[0].roi_session_id != stranger_session
+    assert "Anh Hào (FM-007)" in second_alerts[0].details

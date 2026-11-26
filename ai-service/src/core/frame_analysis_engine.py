@@ -98,7 +98,7 @@ class FrameAnalysisEngine:
         1. Khớp theo user_code nếu cả hai đã định danh cùng một người.
         2. Khớp theo độ trùng lấn không gian (IoU > 0.30 hoặc IoM > 0.50).
         3. Khớp ngữ cảnh phòng kín (Single Person Scene Continuity): Nếu chỉ có duy nhất 1 người
-           vừa xuất hiện gần đây trong vòng 2.5s và không có ai khác trong frame hiện tại.
+           vừa xuất hiện gần đây trong vòng max_inactive_seconds và không có ai khác trong frame hiện tại.
         """
         exclude = exclude_tids or set()
         best_tid = None
@@ -106,7 +106,7 @@ class FrameAnalysisEngine:
 
         active_recent = [
             (tid, p) for tid, p in self.active_tracks.items()
-            if tid not in exclude and (current_time - p.last_seen_time) <= min(2.5, self.max_inactive_seconds)
+            if tid not in exclude and (current_time - p.last_seen_time) <= self.max_inactive_seconds
         ]
 
         # Ưu tiên 1: Cùng user_code
@@ -196,6 +196,25 @@ class FrameAnalysisEngine:
         receiver.identity_verified_at = None
         if hasattr(receiver.face_info, "is_inherited"):
             receiver.face_info.is_inherited = True
+
+    def _inherit_coasting_verdict_state(
+        self, receiver: TrackedPerson, donor: TrackedPerson, receiver_tid: int, donor_tid: int
+    ) -> None:
+        """Chuyển tiếp phiên cảnh báo không danh tính và dấu vết ghi ENTRY từ track coasting sang track đang thấy."""
+        if getattr(receiver, "unknown_verdict_time", None) is None and getattr(donor, "unknown_verdict_time", None) is not None:
+            receiver.unknown_verdict_time = donor.unknown_verdict_time
+            receiver.unknown_verdict_session_id = getattr(donor, "unknown_verdict_session_id", None)
+            receiver.identity_update_sent = getattr(donor, "identity_update_sent", False)
+            donor.unknown_verdict_time = None
+            donor.unknown_verdict_session_id = None
+        if getattr(donor, "entry_logged_as_unknown", False):
+            receiver.entry_logged_as_unknown = True
+            receiver.roi_entry_logged = True
+            donor.entry_logged_as_unknown = False
+        if donor_tid in self.track_last_unknown_alert_time and receiver_tid not in self.track_last_unknown_alert_time:
+            self.track_last_unknown_alert_time[receiver_tid] = self.track_last_unknown_alert_time.pop(donor_tid)
+        if donor_tid in self.track_last_unauthorized_alert_time and receiver_tid not in self.track_last_unauthorized_alert_time:
+            self.track_last_unauthorized_alert_time[receiver_tid] = self.track_last_unauthorized_alert_time.pop(donor_tid)
 
     @staticmethod
     def _is_double_box_glitch(b1: BoundingBox, b2: BoundingBox) -> bool:
@@ -1323,6 +1342,7 @@ class FrameAnalysisEngine:
                         pb.alert_unauthorized_sent = pb.alert_unauthorized_sent or getattr(pa, "alert_unauthorized_sent", False)
                         pb.alert_unknown_sent = pb.alert_unknown_sent or getattr(pa, "alert_unknown_sent", False)
                         pb.alert_after_hours_sent = pb.alert_after_hours_sent or getattr(pa, "alert_after_hours_sent", False)
+                        self._inherit_coasting_verdict_state(pb, pa, tid_b, tid_a)
                         pa.is_currently_visible = False
                         suppressed_tids.add(tid_a)
                         break
@@ -1345,6 +1365,7 @@ class FrameAnalysisEngine:
                         pa.alert_unauthorized_sent = pa.alert_unauthorized_sent or getattr(pb, "alert_unauthorized_sent", False)
                         pa.alert_unknown_sent = pa.alert_unknown_sent or getattr(pb, "alert_unknown_sent", False)
                         pa.alert_after_hours_sent = pa.alert_after_hours_sent or getattr(pb, "alert_after_hours_sent", False)
+                        self._inherit_coasting_verdict_state(pa, pb, tid_a, tid_b)
                         pb.is_currently_visible = False
                         suppressed_tids.add(tid_b)
 

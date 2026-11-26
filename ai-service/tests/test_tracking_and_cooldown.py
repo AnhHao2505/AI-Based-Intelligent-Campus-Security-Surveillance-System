@@ -93,15 +93,15 @@ def test_unauthorized_face_not_blocked_by_unknown_cooldown():
         current_time=100.0
     )
     # t=102.0: Kích hoạt cảnh báo UNKNOWN
-    engine.process_frame(
+    _, first_alerts, _ = engine.process_frame(
         detected_tracks=[(1, bbox)],
         camera_code="CAM-001",
         current_time=102.0
     )
     assert engine.last_unknown_alert_time["CAM-001"] == 102.0
+    first_session = first_alerts[0].roi_session_id
 
-    # t=105.0: Khuôn mặt đã nhận diện nhưng KHÔNG CÓ QUYỀN (UNAUTHORIZED_ACCESS)
-    # Mặc dù cooldown UNKNOWN đang hoạt động, cảnh báo UNAUTHORIZED VẪN PHẢI BẮN!
+    # t=105.0 (<= max_inactive_seconds=10s, cùng vị trí): Track 2 kế thừa Track 1 -> gửi IDENTITY_UPDATE nâng cấp sự cố cũ
     face_info = FaceDetectionResult(
         bbox=bbox,
         score=0.95,
@@ -118,7 +118,30 @@ def test_unauthorized_face_not_blocked_by_unknown_cooldown():
         current_time=105.0
     )
     assert len(alerts) == 1
-    assert alerts[0].event_type == "UNAUTHORIZED_PERSON"
+    assert alerts[0].event_type == "IDENTITY_UPDATE"
+    assert alerts[0].identity_outcome == "UNAUTHORIZED"
+    assert alerts[0].roi_session_id == first_session
+
+    # t=106.0 (vẫn trong unknown_alert_cooldown=30s kể từ t=102.0): Người khác (Track 3) không có quyền cùng xuất hiện ->
+    # cảnh báo UNAUTHORIZED_PERSON VẪN PHẢI BẮN ngay, không bị chặn bởi cooldown UNKNOWN!
+    bbox_other = BoundingBox(400, 10, 500, 200, confidence=0.9)
+    other_face = FaceDetectionResult(
+        bbox=bbox_other,
+        score=0.95,
+        matched_code="USER-002",
+        matched_name="Nguoi Khac",
+        is_authorized=False,
+        access_reason="Level 1 khong co quyen vao Area 2",
+        access_checked=True
+    )
+    engine.associate_face(3, other_face)
+    _, other_alerts, _ = engine.process_frame(
+        detected_tracks=[(2, bbox), (3, bbox_other)],
+        camera_code="CAM-001",
+        current_time=106.0
+    )
+    assert len(other_alerts) == 1
+    assert other_alerts[0].event_type == "UNAUTHORIZED_PERSON"
 
 
 def test_g3_1_stranger_b_not_silenced_when_identity_not_safe():
