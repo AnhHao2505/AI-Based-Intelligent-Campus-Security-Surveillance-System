@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Scan, Layers } from "lucide-react";
 import WebRtcPlayer from "../video/WebRtcPlayer";
-import { formatCameraSubLabel } from "../../utils/cameraGridHelpers";
+import {
+	formatCameraSubLabel,
+	formatCameraTileTitle,
+} from "../../utils/cameraGridHelpers";
 import {
 	computePolygonCentroid,
 	resolveRoiModalSnapshot,
@@ -153,6 +156,7 @@ export default function CameraSurveillanceTab({ camera, onOpenRoiEditor }) {
 								streamPath={cleanStreamPath}
 								cameraCode={rawCameraCode}
 								cameraName={camera?.name || "Camera"}
+								displayLabel={formatCameraTileTitle(camera)}
 								cameraSubLabel={formatCameraSubLabel(camera)}
 								enabled={Boolean(rawCameraCode)}
 								host={

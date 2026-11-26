@@ -56,8 +56,8 @@ import {
 	filterCamerasByHierarchy,
 	formatCameraChipLabel,
 	formatCameraLocationSubtitle,
-	formatCameraRoomName,
 	formatCameraSubLabel,
+	formatCameraTileTitle,
 	formatIncidentCameraLabel,
 	formatShortFloorCode,
 	resolveCameraCodeLabel,
@@ -1894,7 +1894,7 @@ export function SecuritySurveillancePage() {
 										summary.highestSeverity?.badgeClass || "severity-warning";
 
 									const locSubtitle = formatCameraLocationSubtitle(cam);
-									const roomLabel = formatCameraRoomName(cam);
+									const subLabel = formatCameraSubLabel(cam);
 									const floorBadge = formatShortFloorCode(cam);
 									const chipLabel = formatCameraChipLabel(cam);
 
@@ -1909,7 +1909,7 @@ export function SecuritySurveillancePage() {
 													handleSelectCamera(cam.code);
 												}
 											}}
-											title={`${chipLabel} — ${roomLabel}${floorBadge ? ` (${floorBadge})` : ""}${locSubtitle ? ` · ${locSubtitle}` : ""}${hasIncident ? ` — ${summary.count} sự cố` : ""}`}
+											title={`${chipLabel}${subLabel ? ` — ${subLabel}` : ""}${floorBadge ? ` (${floorBadge})` : ""}${locSubtitle ? ` · ${locSubtitle}` : ""}${hasIncident ? ` — ${summary.count} sự cố` : ""}`}
 										>
 											<span
 												className={`status-indicator-dot ${cam.status === "ONLINE" ? "online" : "standby"}`}
@@ -1985,7 +1985,7 @@ export function SecuritySurveillancePage() {
 												streamPath={camera.code}
 												cameraCode={camera.cameraCode}
 												cameraName={camera.name}
-												displayLabel={formatCameraRoomName(camera)}
+												displayLabel={formatCameraTileTitle(camera)}
 												floorCode={formatShortFloorCode(camera)}
 												cameraSubLabel={formatCameraSubLabel(camera)}
 												incidentCount={summary.count}
@@ -2690,9 +2690,14 @@ export function SecuritySurveillancePage() {
 										cameraName={
 											evidenceModalAlert.cameraName || "Camera hiện trường"
 										}
-										cameraSubLabel={formatIncidentCameraLabel(
-											evidenceModalAlert,
-										)}
+										displayLabel={formatIncidentCameraLabel(evidenceModalAlert)}
+										cameraSubLabel={
+											cameraAreaByCode[evidenceModalAlert.camCodeClean] ||
+											(evidenceModalAlert.cameraName &&
+											evidenceModalAlert.cameraName !== "Khu vực camera"
+												? evidenceModalAlert.cameraName
+												: "")
+										}
 										enabled={Boolean(
 											evidenceModalAlert.camCodeClean ||
 											evidenceModalAlert.cameraCode,

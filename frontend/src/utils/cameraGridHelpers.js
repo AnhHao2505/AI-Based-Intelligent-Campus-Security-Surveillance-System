@@ -4,12 +4,6 @@
 
 export const UNKNOWN_CAMERA_CODE_LABEL = "Không xác định";
 
-function looksLikeCameraCode(value) {
-	const trimmed = String(value || "").trim();
-	if (!trimmed) return false;
-	return /^cam[-_\s]*[a-z0-9_-]*\d+[a-z0-9_-]*$/i.test(trimmed);
-}
-
 export function formatCameraLocationSubtitle(cam) {
 	if (!cam || typeof cam !== "object") return "";
 	const building = cam.building || cam.mapBuilding || "";
@@ -48,28 +42,7 @@ export function formatIncidentCameraLabel(alert) {
 }
 
 export function formatCameraTileTitle(cam) {
-	if (!cam || typeof cam !== "object") return UNKNOWN_CAMERA_CODE_LABEL;
-	const areaName = (cam.areaName || "").trim();
-	const rawCamName = (cam.name || "").trim();
-	const codeLabel = resolveCameraCodeLabel(cam);
-	const safeCamName = looksLikeCameraCode(rawCamName)
-		? codeLabel || UNKNOWN_CAMERA_CODE_LABEL
-		: rawCamName;
-	if (areaName && safeCamName && areaName.toLowerCase() !== safeCamName.toLowerCase()) {
-		return `${areaName} · ${safeCamName}`;
-	}
-	const baseName = safeCamName || areaName || codeLabel || UNKNOWN_CAMERA_CODE_LABEL;
-	const floor =
-		cam.floor ||
-		(cam.mapFloorOrder != null && Number.isFinite(Number(cam.mapFloorOrder))
-			? Number(cam.mapFloorOrder) === 0
-				? "Tầng Trệt"
-				: `Tầng ${Number(cam.mapFloorOrder)}`
-			: "");
-	if (!floor || baseName.toLowerCase().includes(floor.toLowerCase())) {
-		return baseName;
-	}
-	return `${baseName} · ${floor}`;
+	return formatCameraCodeOrUnknown(cam);
 }
 
 export function formatShortFloorCode(cam) {
@@ -86,11 +59,10 @@ export function formatShortFloorCode(cam) {
 }
 
 export function formatCameraRoomName(cam) {
-	if (!cam || typeof cam !== "object") return UNKNOWN_CAMERA_CODE_LABEL;
-	const areaName = (cam.areaName || "").trim();
-	const rawCamName = (cam.name || "").trim();
-	const safeCamName = looksLikeCameraCode(rawCamName) ? "" : rawCamName;
-	const base = areaName || safeCamName || formatCameraCodeOrUnknown(cam);
+	if (!cam || typeof cam !== "object") return "Camera";
+	const areaName = String(cam.areaName || "").trim();
+	const rawCamName = String(cam.name || "").trim();
+	const base = areaName || rawCamName || "Camera";
 	const cleaned = base
 		.replace(/\s*(?:·|-)?\s*(?:Tầng\s*(?:Trệt|\d+)|T\d+)\s*$/i, "")
 		.trim();
@@ -105,7 +77,15 @@ export function formatCameraRoomFloorTitle(cam) {
 }
 
 export function formatCameraSubLabel(cam) {
-	return formatCameraCodeOrUnknown(cam);
+	if (!cam || typeof cam !== "object") return "";
+	const areaName = String(cam.areaName || "").trim();
+	const rawName = String(cam.name || "").trim();
+	if (areaName && rawName) {
+		return areaName.toLowerCase() === rawName.toLowerCase()
+			? areaName
+			: `${areaName} · ${rawName}`;
+	}
+	return areaName || rawName || "";
 }
 
 export function formatCameraChipLabel(cam) {
