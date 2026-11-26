@@ -18,6 +18,17 @@ from ..config import settings
 
 logger = logging.getLogger(__name__)
 
+# V149: 6 nguồn quyền hợp lệ cho AI_NIGHT_ALLOWED_ACCESS_SOURCES (khớp AccessSource trừ NONE).
+VALID_NIGHT_ALLOWED_SOURCES: Tuple[str, ...] = (
+    "ASSIGNED_PERSONNEL",
+    "ACCESS_REQUEST",
+    "GUEST_VISIT",
+    "INCIDENT_RESPONSE",
+    "ACCESS_LEVEL",
+    "OPEN_EVENT",
+)
+_VALID_NIGHT_ALLOWED_SOURCES_SET = frozenset(VALID_NIGHT_ALLOWED_SOURCES)
+
 # Khoá trong payload -> (thuộc tính settings, đích áp lên pipeline đang chạy).
 # Đích: ("engine", tên thuộc tính của FrameAnalysisEngine) | ("pipeline", tên thuộc tính của VideoPipeline)
 #     | ("human_detector", tên thuộc tính của HumanDetector) | ("face_detector", tên thuộc tính của FaceDetector) | None
@@ -50,9 +61,29 @@ RUNTIME_FIELDS: Dict[str, Tuple[str, Optional[Tuple[str, str]]]] = {
 }
 
 
-def parse_runtime_config(data: Dict[str, Any]) -> Tuple[Dict[str, float], List[str]]:
+def _parse_night_allowed_sources(raw: Any) -> Tuple[Optional[List[str]], Optional[str]]:
+    """Kiểm danh sách nguồn quyền miễn giờ giới nghiêm. Sai kiểu/rỗng/giá trị lạ -> báo lỗi để giữ nguyên giá trị cũ."""
+    if not isinstance(raw, list):
+        return None, f"night_allowed_access_sources không hợp lệ (cần danh sách): {raw!r}"
+    if len(raw) == 0:
+        return None, "night_allowed_access_sources không được rỗng"
+    selected = set()
+    for item in raw:
+        if not isinstance(item, str):
+            return None, f"night_allowed_access_sources chứa phần tử sai kiểu: {item!r}"
+        token = item.strip().upper()
+        if token not in _VALID_NIGHT_ALLOWED_SOURCES_SET:
+            return None, f"night_allowed_access_sources chứa nguồn không hợp lệ: {item!r}"
+        selected.add(token)
+    ordered = [src for src in VALID_NIGHT_ALLOWED_SOURCES if src in selected]
+    if not ordered:
+        return None, "night_allowed_access_sources không được rỗng"
+    return ordered, None
+
+
+def parse_runtime_config(data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     """Lọc các khoá runtime có trong payload. Trả (giá trị dùng được, danh sách lỗi)."""
-    values: Dict[str, float] = {}
+    values: Dict[str, Any] = {}
     errors: List[str] = []
     for key in RUNTIME_FIELDS:
         raw = data.get(key)
@@ -81,14 +112,24 @@ def parse_runtime_config(data: Dict[str, Any]) -> Tuple[Dict[str, float], List[s
             errors.append(f"{key}={raw} phải trong [0.30, 0.65]")
             continue
         values[key] = val
+
+    if "night_allowed_access_sources" in data and data.get("night_allowed_access_sources") is not None:
+        parsed_sources, src_err = _parse_night_allowed_sources(data.get("night_allowed_access_sources"))
+        if src_err:
+            errors.append(src_err)
+        elif parsed_sources:
+            values["night_allowed_access_sources"] = parsed_sources
+
     return values, errors
 
 
-def _apply_to_pipeline(pipeline: Any, values: Dict[str, float]) -> None:
+def _apply_to_pipeline(pipeline: Any, values: Dict[str, Any]) -> None:
     engine = getattr(pipeline, "analysis_engine", None)
     human_detector = getattr(pipeline, "human_detector", None)
     face_detector = getattr(pipeline, "face_detector", None)
     for key, val in values.items():
+        if key not in RUNTIME_FIELDS:
+            continue
         target = RUNTIME_FIELDS[key][1]
         if target is None:
             continue
@@ -109,7 +150,7 @@ def apply_runtime_config(
     data: Dict[str, Any],
     default_pipeline: Any = None,
     workers: Iterable[Any] = (),
-) -> Tuple[Dict[str, float], List[str]]:
+) -> Tuple[Dict[str, Any], List[str]]:
     """Áp các khoá dùng được vào settings, pipeline mặc định và mọi worker. Khoá sai bị bỏ qua và ghi log."""
     values, errors = parse_runtime_config(data)
     for err in errors:
@@ -118,7 +159,10 @@ def apply_runtime_config(
         return values, errors
 
     for key, val in values.items():
-        setattr(settings, RUNTIME_FIELDS[key][0], val)
+        if key == "night_allowed_access_sources":
+            setattr(settings, "NIGHT_ALLOWED_ACCESS_SOURCES", list(val))
+        else:
+            setattr(settings, RUNTIME_FIELDS[key][0], val)
     if default_pipeline is not None:
         _apply_to_pipeline(default_pipeline, values)
 
@@ -138,6 +182,8 @@ def apply_runtime_config(
     return values, errors
 
 
-def current_runtime_config() -> Dict[str, float]:
+def current_runtime_config() -> Dict[str, Any]:
     """Giá trị AI đang dùng cho mọi khoá runtime (đọc từ settings)."""
-    return {key: getattr(settings, attr) for key, (attr, _) in RUNTIME_FIELDS.items()}
+    result: Dict[str, Any] = {key: getattr(settings, attr) for key, (attr, _) in RUNTIME_FIELDS.items()}
+    result["night_allowed_access_sources"] = list(getattr(settings, "NIGHT_ALLOWED_ACCESS_SOURCES", []))
+    return result

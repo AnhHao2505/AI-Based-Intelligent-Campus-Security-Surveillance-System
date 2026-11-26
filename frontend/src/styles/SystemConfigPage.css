@@ -213,6 +213,10 @@
   border-color: var(--theme-border-hover);
 }
 
+.syscfg-item-card--wide {
+  grid-column: 1 / -1;
+}
+
 .syscfg-item {
   display: flex;
   flex-direction: column;
@@ -347,6 +351,94 @@
   align-items: center;
   gap: 12px;
   justify-content: space-between;
+}
+
+.syscfg-item__control-row--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.syscfg-item__control-row--stacked .syscfg-item__actions {
+  justify-content: flex-end;
+}
+
+.syscfg-options-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.syscfg-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.syscfg-option-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg-page);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.syscfg-option-item:hover:not(.syscfg-option-item--disabled) {
+  border-color: var(--theme-border-hover);
+  background: var(--theme-bg-hover);
+}
+
+.syscfg-option-item--checked {
+  border-color: var(--brand-subtle-border);
+  background: var(--brand-subtle);
+}
+
+.syscfg-option-item--disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.syscfg-option-item__checkbox {
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--theme-primary);
+  cursor: inherit;
+}
+
+.syscfg-option-item__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.syscfg-option-item__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  line-height: 1.35;
+}
+
+.syscfg-option-item__desc {
+  font-size: 0.78rem;
+  color: var(--theme-text-secondary);
+  line-height: 1.4;
+}
+
+.syscfg-options-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--theme-danger-text);
 }
 
 .syscfg-input-wrapper {

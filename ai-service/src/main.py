@@ -154,6 +154,7 @@ async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float 
                     logger.info(
                         f"✅ Đồng bộ cấu hình AI thành công từ Backend: threshold={settings.FACE_MATCH_THRESHOLD}, "
                         f"after_hours={settings.DEFAULT_AFTER_HOUR_START}-{settings.DEFAULT_AFTER_HOUR_END}, "
+                        f"night_allowed_sources={settings.NIGHT_ALLOWED_ACCESS_SOURCES}, "
                         f"max_inactive={settings.DEFAULT_TRACK_MAX_INACTIVE_SECONDS}s, cooldown={settings.DEFAULT_UNKNOWN_ALERT_COOLDOWN_SECONDS}s"
                     )
                     return True
@@ -460,6 +461,8 @@ class AIRuntimeConfigRequest(BaseModel):
     incident_no_detection_timeout_seconds: Optional[float] = None
     # V131: thời lượng mỗi phân đoạn video ghi hình camera định kỳ (giây)
     recording_segment_seconds: Optional[int] = None
+    # V149: danh sách nguồn quyền được miễn giờ giới nghiêm
+    night_allowed_access_sources: Optional[List[str]] = None
 
 @app.post("/api/v1/system-config/ai-runtime", dependencies=[Depends(require_service_key)])
 async def update_ai_runtime_config(req: AIRuntimeConfigRequest):
