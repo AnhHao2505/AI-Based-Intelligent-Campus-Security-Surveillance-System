@@ -1,10 +1,12 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.dto.systemconfig.ConfigOptionResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigChangeLogResponse;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigResponse;
 import com.fa26se040.icss.entity.SystemConfiguration;
 import com.fa26se040.icss.entity.SystemConfigurationChangeLog;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AccessSource;
 import com.fa26se040.icss.enums.ConfigKey;
 import com.fa26se040.icss.exception.ResourceNotFoundException;
 import com.fa26se040.icss.exception.UnauthorizedException;
@@ -34,7 +36,9 @@ import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,11 +48,50 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class SystemConfigService {
 
+    /** V150: 6 nguồn quyền hợp lệ cho AI_NIGHT_ALLOWED_ACCESS_SOURCES (trừ AccessSource.NONE), kèm nhãn và mô tả cho FE. */
+    static final List<ConfigOptionResponse> NIGHT_ALLOWED_ACCESS_SOURCE_OPTIONS = List.of(
+            new ConfigOptionResponse(
+                    AccessSource.ASSIGNED_PERSONNEL.name(),
+                    "Nhân sự chỉ định",
+                    "Người được Quản lý cơ sở vật chất gán trực tiếp vào khu vực (AP)."
+            ),
+            new ConfigOptionResponse(
+                    AccessSource.ACCESS_REQUEST.name(),
+                    "Đơn truy cập đã duyệt",
+                    "Người có đơn cá nhân hoặc đơn nhóm đã được duyệt trong khung giờ hợp lệ."
+            ),
+            new ConfigOptionResponse(
+                    AccessSource.GUEST_VISIT.name(),
+                    "Khách được duyệt",
+                    "Khách có lượt ghé thăm đã được duyệt và đang trong khung giờ tiếp đón."
+            ),
+            new ConfigOptionResponse(
+                    AccessSource.INCIDENT_RESPONSE.name(),
+                    "Bảo vệ xử lý sự cố",
+                    "Bảo vệ đã tiếp nhận sự cố và vào khu vực trong thời hạn xử lý."
+            ),
+            new ConfigOptionResponse(
+                    AccessSource.ACCESS_LEVEL.name(),
+                    "Cấp truy cập thông thường",
+                    "Người vào chỉ nhờ cấp truy cập mặc định đủ cao (không khuyến nghị miễn giờ giới nghiêm)."
+            ),
+            new ConfigOptionResponse(
+                    AccessSource.OPEN_EVENT.name(),
+                    "Chế độ / lịch sự kiện",
+                    "Khu vực đang mở chế độ hoặc lịch sự kiện cho thành viên đã đăng ký (không khuyến nghị miễn giờ giới nghiêm)."
+            )
+    );
+
+    private static final Set<String> VALID_NIGHT_ALLOWED_SOURCES = NIGHT_ALLOWED_ACCESS_SOURCE_OPTIONS.stream()
+            .map(ConfigOptionResponse::value)
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+
     /** Khoá cấu hình runtime của AI (trừ giờ ngoài giờ): đổi khoá nào trong tập này thì đồng bộ ngay xuống AI. */
     static final Set<String> AI_RUNTIME_KEYS = Set.of(
             ConfigKey.AI_FACE_MATCH_THRESHOLD.getKey(),
             ConfigKey.AI_DETECTION_CONFIDENCE.getKey(),
             ConfigKey.AI_FACE_CONFIDENCE.getKey(),
+            ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey(),
             ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS.getKey(),
             ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS.getKey(),
             ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS.getKey(),
@@ -243,6 +286,9 @@ public class SystemConfigService {
         }
 
         validateValue(config, value);
+        if (ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey().equals(key)) {
+            value = normalizeNightAllowedAccessSources(value);
+        }
         // #262: START = END bị từ chối TRƯỚC mọi ghi (DB, change log, audit, cache), đồng bộ AI và EV-N8
         if (isAfterHoursKey(key)) {
             requireDistinctAfterHours(key, value);
@@ -422,6 +468,7 @@ public class SystemConfigService {
         map.put("face_confidence", getDouble(ConfigKey.AI_FACE_CONFIDENCE));
         map.put("after_hour_start", getString(ConfigKey.AI_AFTER_HOUR_START));
         map.put("after_hour_end", getString(ConfigKey.AI_AFTER_HOUR_END));
+        map.put("night_allowed_access_sources", getNightAllowedAccessSources());
         map.put("unknown_alert_cooldown", getInt(ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS));
         map.put("unauthorized_alert_cooldown", getInt(ConfigKey.AI_UNAUTHORIZED_ALERT_COOLDOWN_SECONDS));
         map.put("suspicious_motion_cooldown", getInt(ConfigKey.AI_SUSPICIOUS_MOTION_COOLDOWN_SECONDS));
@@ -491,6 +538,9 @@ public class SystemConfigService {
                 }
                 if (ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey().equals(config.getConfigKey())) {
                     validateSponsorAllowedAreaTypes(value);
+                }
+                if (ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey().equals(config.getConfigKey())) {
+                    normalizeNightAllowedAccessSources(value);
                 }
                 if (ConfigKey.INCIDENT_SEVERITY_DEFAULT.getKey().equals(config.getConfigKey())) {
                     validateIncidentSeverityDefault(value);
@@ -658,6 +708,58 @@ public class SystemConfigService {
         return levels.isEmpty() ? java.util.Set.of(com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL) : levels;
     }
 
+    /**
+     * V150: kiểm và chuẩn hoá danh sách nguồn quyền miễn giờ giới nghiêm (CSV, bắt buộc >= 1 nguồn,
+     * chỉ nhận 6 giá trị thuộc VALID_NIGHT_ALLOWED_SOURCES, bỏ trùng và sắp theo thứ tự chuẩn).
+     */
+    private String normalizeNightAllowedAccessSources(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException("Danh sách nguồn quyền miễn giờ giới nghiêm phải chọn ít nhất 1 nguồn");
+        }
+        String[] parts = value.split(",", -1);
+        Set<String> selected = new LinkedHashSet<>();
+        for (String raw : parts) {
+            String token = raw.trim().toUpperCase(Locale.ROOT);
+            if (token.isEmpty()) {
+                throw new IllegalArgumentException("Danh sách nguồn quyền miễn giờ giới nghiêm chứa phần tử rỗng không hợp lệ");
+            }
+            if (!VALID_NIGHT_ALLOWED_SOURCES.contains(token)) {
+                throw new IllegalArgumentException("Nguồn quyền miễn giờ giới nghiêm không hợp lệ: " + token
+                        + ". Chỉ chấp nhận: " + String.join(", ", VALID_NIGHT_ALLOWED_SOURCES));
+            }
+            selected.add(token);
+        }
+        if (selected.isEmpty()) {
+            throw new IllegalArgumentException("Danh sách nguồn quyền miễn giờ giới nghiêm phải chọn ít nhất 1 nguồn");
+        }
+        return NIGHT_ALLOWED_ACCESS_SOURCE_OPTIONS.stream()
+                .map(ConfigOptionResponse::value)
+                .filter(selected::contains)
+                .collect(java.util.stream.Collectors.joining(","));
+    }
+
+    public List<String> getNightAllowedAccessSources() {
+        String raw = getString(ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES);
+        Set<String> selected = new LinkedHashSet<>();
+        if (raw != null && !raw.isBlank()) {
+            for (String part : raw.split(",")) {
+                String token = part.trim().toUpperCase(Locale.ROOT);
+                if (VALID_NIGHT_ALLOWED_SOURCES.contains(token)) {
+                    selected.add(token);
+                }
+            }
+        }
+        if (selected.isEmpty()) {
+            for (String part : ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getDefaultValue().split(",")) {
+                selected.add(part.trim());
+            }
+        }
+        return NIGHT_ALLOWED_ACCESS_SOURCE_OPTIONS.stream()
+                .map(ConfigOptionResponse::value)
+                .filter(selected::contains)
+                .toList();
+    }
+
     private SystemConfigResponse mapToResponse(SystemConfiguration config) {
         String updatedByEmail = null;
         String updatedByName = null;
@@ -665,6 +767,9 @@ public class SystemConfigService {
             updatedByEmail = config.getUpdatedBy().getEmail();
             updatedByName = config.getUpdatedBy().getFullName();
         }
+        List<ConfigOptionResponse> options = ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey().equals(config.getConfigKey())
+                ? NIGHT_ALLOWED_ACCESS_SOURCE_OPTIONS
+                : null;
         return new SystemConfigResponse(
                 config.getConfigKey(),
                 config.getConfigValue(),
@@ -679,7 +784,9 @@ public class SystemConfigService {
                 config.getEditable(),
                 config.getUpdatedAt(),
                 updatedByEmail,
-                updatedByName
+                updatedByName,
+                null,
+                options
         );
     }
 

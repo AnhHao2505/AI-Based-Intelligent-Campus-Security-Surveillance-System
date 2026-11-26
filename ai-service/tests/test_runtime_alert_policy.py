@@ -29,10 +29,12 @@ def _fake_pipeline():
 class TestRuntimeConfig(unittest.TestCase):
     def setUp(self):
         self._saved = {attr: getattr(settings, attr) for attr, _ in RUNTIME_FIELDS.values()}
+        self._saved_night_sources = list(settings.NIGHT_ALLOWED_ACCESS_SOURCES)
 
     def tearDown(self):
         for attr, val in self._saved.items():
             setattr(settings, attr, val)
+        settings.NIGHT_ALLOWED_ACCESS_SOURCES = list(self._saved_night_sources)
 
     def test_parse_rejects_only_meaningless_values(self):
         values, errors = parse_runtime_config({
@@ -104,6 +106,48 @@ class TestRuntimeConfig(unittest.TestCase):
         self.assertEqual(worker.pipeline._suspicious_motion_cooldown, 30.0)
         self.assertEqual(worker.pipeline.analysis_engine.after_hour_start, "23:30")
         self.assertEqual(default_pipe.analysis_engine.access_grace_period, 2.5)
+
+    def test_night_allowed_access_sources_updates_via_apply_and_mqtt(self):
+        from src.integration.edge_agent import EdgeMqttAgent
+
+        values, errors = apply_runtime_config(
+            {"night_allowed_access_sources": [" guest_visit ", "ASSIGNED_PERSONNEL", "GUEST_VISIT"]}
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(values["night_allowed_access_sources"], ["ASSIGNED_PERSONNEL", "GUEST_VISIT"])
+        self.assertEqual(settings.NIGHT_ALLOWED_ACCESS_SOURCES, ["ASSIGNED_PERSONNEL", "GUEST_VISIT"])
+        self.assertEqual(current_runtime_config()["night_allowed_access_sources"], ["ASSIGNED_PERSONNEL", "GUEST_VISIT"])
+
+        agent = EdgeMqttAgent(mqtt_client_wrapper=MagicMock(), storage=MagicMock(), active_workers={})
+        agent._handle_system_config({"night_allowed_access_sources": ["INCIDENT_RESPONSE", "OPEN_EVENT"]})
+        self.assertEqual(settings.NIGHT_ALLOWED_ACCESS_SOURCES, ["INCIDENT_RESPONSE", "OPEN_EVENT"])
+
+    def test_night_allowed_access_sources_invalid_payload_keeps_old_value_and_logs_warning(self):
+        initial = ["ASSIGNED_PERSONNEL", "ACCESS_REQUEST"]
+        settings.NIGHT_ALLOWED_ACCESS_SOURCES = list(initial)
+
+        bad_payloads = [
+            [],
+            "ASSIGNED_PERSONNEL",
+            123,
+            True,
+            {"source": "ASSIGNED_PERSONNEL"},
+            ["ASSIGNED_PERSONNEL", "UNKNOWN_SOURCE"],
+            ["NONE"],
+            ["ASSIGNED_PERSONNEL", 42],
+        ]
+        for bad in bad_payloads:
+            with self.assertLogs("src.pipeline.runtime_config", level="WARNING") as cm:
+                values, errors = apply_runtime_config({
+                    "night_allowed_access_sources": bad,
+                    "suspicious_motion_cooldown": 15,
+                })
+            self.assertEqual(len(errors), 1, f"Phải báo lỗi với payload: {bad!r}")
+            self.assertNotIn("night_allowed_access_sources", values)
+            self.assertEqual(settings.NIGHT_ALLOWED_ACCESS_SOURCES, initial)
+            self.assertTrue(len(settings.NIGHT_ALLOWED_ACCESS_SOURCES) > 0)
+            self.assertEqual(settings.SUSPICIOUS_MOTION_COOLDOWN_SECONDS, 15.0)
+            self.assertTrue(any("night_allowed_access_sources" in msg for msg in cm.output))
 
 
 if __name__ == "__main__":

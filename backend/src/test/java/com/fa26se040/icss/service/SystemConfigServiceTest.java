@@ -1,10 +1,15 @@
 package com.fa26se040.icss.service;
 
+import com.fa26se040.icss.controller.SystemConfigController;
+import com.fa26se040.icss.dto.audit.AuditActor;
 import com.fa26se040.icss.dto.systemconfig.SystemConfigResponse;
 import com.fa26se040.icss.entity.SystemConfiguration;
 import com.fa26se040.icss.entity.SystemConfigurationChangeLog;
 import com.fa26se040.icss.entity.User;
+import com.fa26se040.icss.enums.AuditAction;
+import com.fa26se040.icss.enums.AuditTargetType;
 import com.fa26se040.icss.enums.ConfigKey;
+import com.fa26se040.icss.exception.GlobalExceptionHandler;
 import com.fa26se040.icss.repository.SystemConfigurationChangeLogRepository;
 import com.fa26se040.icss.repository.SystemConfigurationRepository;
 import com.fa26se040.icss.repository.UserRepository;
@@ -12,8 +17,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.validation.Errors;
+import org.springframework.validation.Validator;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -28,11 +40,19 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
 class SystemConfigServiceTest {
@@ -262,24 +282,169 @@ class SystemConfigServiceTest {
     }
 
     @Test
-    @DisplayName("V145-V146: getAiRuntimeConfigMap gửi 10 khoá admin chỉnh, giá trị mặc định đúng")
+    @DisplayName("V150: getAiRuntimeConfigMap gửi 11 khoá admin chỉnh, gồm night_allowed_access_sources mặc định 4 nguồn")
     void testGetAiRuntimeConfigMap_AdminKeysWithDefaults() {
         when(systemConfigurationRepository.findAll()).thenReturn(List.of());
         systemConfigService.initCache();
 
         var map = systemConfigService.getAiRuntimeConfigMap();
         assertNotNull(map);
-        assertEquals(10, map.size());
+        assertEquals(11, map.size());
         assertEquals(0.50, map.get("face_match_threshold"));
         assertEquals(0.35, map.get("detection_confidence"));
         assertEquals(0.45, map.get("face_confidence"));
         assertEquals("22:00", map.get("after_hour_start"));
         assertEquals("06:00", map.get("after_hour_end"));
+        assertEquals(
+                List.of("ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"),
+                map.get("night_allowed_access_sources")
+        );
         assertEquals(30, map.get("unknown_alert_cooldown"));
         assertEquals(30, map.get("unauthorized_alert_cooldown"));
         assertEquals(5, map.get("suspicious_motion_cooldown"));
         assertEquals(0.5, map.get("recording_retention_hours"));
         assertEquals(0.0, map.get("incident_no_detection_timeout_seconds"));
+    }
+
+    @Test
+    @DisplayName("V150: cập nhật AI_NIGHT_ALLOWED_ACCESS_SOURCES hợp lệ -> chuẩn hoá CSV, ghi audit, cập nhật runtime-config và sync MQTT")
+    void updateNightAllowedAccessSources_ValidValue_NormalizesAuditsAndSyncs() {
+        String key = ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey();
+        SystemConfiguration nightConfig = SystemConfiguration.builder()
+                .configKey(key)
+                .configValue(ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getDefaultValue())
+                .dataType("STRING")
+                .configGroup("AI_CONFIG")
+                .displayOrder(12)
+                .description("Nguồn quyền miễn giờ giới nghiêm")
+                .editable(true)
+                .build();
+
+        AuditService mockAudit = mock(AuditService.class);
+        EdgeMqttControlService mockMqtt = mock(EdgeMqttControlService.class);
+        when(mockMqtt.isConnected()).thenReturn(true);
+        ReflectionTestUtils.setField(systemConfigService, "auditService", mockAudit);
+        ReflectionTestUtils.setField(systemConfigService, "edgeMqttControlService", mockMqtt);
+
+        when(systemConfigurationRepository.findById(key)).thenReturn(Optional.of(nightConfig));
+        when(userRepository.findByEmail(adminUser.getEmail())).thenReturn(Optional.of(adminUser));
+        when(systemConfigurationRepository.save(any(SystemConfiguration.class))).thenAnswer(i -> i.getArgument(0));
+
+        SystemConfigResponse response = systemConfigService.update(
+                key,
+                " guest_visit , ASSIGNED_PERSONNEL , GUEST_VISIT , open_event ",
+                "Mở thử nghiệm sự kiện tối và bỏ đơn tạm thời",
+                adminUser.getEmail()
+        );
+
+        assertEquals("ASSIGNED_PERSONNEL,GUEST_VISIT,OPEN_EVENT", response.configValue());
+        assertNotNull(response.options());
+        assertEquals(6, response.options().size());
+        assertEquals(
+                List.of("ASSIGNED_PERSONNEL", "GUEST_VISIT", "OPEN_EVENT"),
+                systemConfigService.getAiRuntimeConfigMap().get("night_allowed_access_sources")
+        );
+
+        ArgumentCaptor<SystemConfigurationChangeLog> logCaptor = ArgumentCaptor.forClass(SystemConfigurationChangeLog.class);
+        verify(changeLogRepository).save(logCaptor.capture());
+        assertEquals("ASSIGNED_PERSONNEL,GUEST_VISIT,OPEN_EVENT", logCaptor.getValue().getNewValue());
+        verify(mockAudit).record(eq(AuditTargetType.SYSTEM_CONFIG), eq(AuditAction.UPDATE), eq(key),
+                any(), any(), any(), any(), eq("Mở thử nghiệm sự kiện tối và bỏ đơn tạm thời"), any(AuditActor.class));
+        verify(mockMqtt).publishSystemConfig(anyMap());
+    }
+
+    @Test
+    @DisplayName("V150: từ chối giá trị lạ, NONE, phần tử rỗng hoặc danh sách rỗng cho AI_NIGHT_ALLOWED_ACCESS_SOURCES")
+    void updateNightAllowedAccessSources_InvalidOrEmpty_ThrowsIllegalArgumentException() {
+        String key = ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey();
+        SystemConfiguration nightConfig = SystemConfiguration.builder()
+                .configKey(key)
+                .configValue(ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getDefaultValue())
+                .dataType("STRING")
+                .configGroup("AI_CONFIG")
+                .editable(true)
+                .build();
+
+        // Danh sách rỗng bị chặn ngay trước findById
+        for (String empty : List.of("", "   ")) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> systemConfigService.update(key, empty, "Lý do kiểm thử", adminUser.getEmail()));
+        }
+
+        when(systemConfigurationRepository.findById(key)).thenReturn(Optional.of(nightConfig));
+        for (String invalid : List.of(
+                "UNKNOWN_SOURCE",
+                "NONE",
+                "ASSIGNED_PERSONNEL,INVALID_VAL",
+                "ASSIGNED_PERSONNEL,",
+                ",ACCESS_REQUEST",
+                "ASSIGNED_PERSONNEL,,GUEST_VISIT"
+        )) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> systemConfigService.update(key, invalid, "Lý do kiểm thử", adminUser.getEmail()),
+                    "Phải từ chối giá trị không hợp lệ: " + invalid);
+        }
+        verify(systemConfigurationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("V150: getAll chỉ gắn options cho AI_NIGHT_ALLOWED_ACCESS_SOURCES, khoá khác giữ options = null")
+    void getAll_OnlyNightAllowedSourcesHasOptions() {
+        SystemConfiguration nightConfig = SystemConfiguration.builder()
+                .configKey(ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey())
+                .configValue(ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getDefaultValue())
+                .dataType("STRING")
+                .configGroup("AI_CONFIG")
+                .displayOrder(12)
+                .description("Nguồn quyền miễn giờ giới nghiêm")
+                .editable(true)
+                .build();
+        when(systemConfigurationRepository.findAllByOrderByConfigGroupAscDisplayOrderAsc())
+                .thenReturn(List.of(maxMembersConfig, nightConfig));
+
+        List<SystemConfigResponse> responses = systemConfigService.getAll();
+        assertEquals(2, responses.size());
+        assertNull(responses.get(0).options());
+        assertNotNull(responses.get(1).options());
+        assertEquals(6, responses.get(1).options().size());
+    }
+
+    @Test
+    @DisplayName("V150: PATCH /api/system-configurations/AI_NIGHT_ALLOWED_ACCESS_SOURCES với giá trị lạ -> HTTP 400")
+    void patchNightAllowedSources_InvalidValue_Returns400() throws Exception {
+        String key = ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey();
+        SystemConfiguration nightConfig = SystemConfiguration.builder()
+                .configKey(key)
+                .configValue(ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getDefaultValue())
+                .dataType("STRING")
+                .configGroup("AI_CONFIG")
+                .editable(true)
+                .build();
+        when(systemConfigurationRepository.findById(key)).thenReturn(Optional.of(nightConfig));
+
+        Validator noValidation = new Validator() {
+            @Override
+            public boolean supports(Class<?> clazz) {
+                return true;
+            }
+
+            @Override
+            public void validate(Object target, Errors errors) {
+            }
+        };
+        MockMvc mockMvc = MockMvcBuilders
+                .standaloneSetup(new SystemConfigController(systemConfigService, mock(ReasonValidator.class), mock(GuestRules.class)))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setValidator(noValidation)
+                .build();
+
+        mockMvc.perform(patch("/api/system-configurations/{configKey}", key)
+                        .principal(new UsernamePasswordAuthenticationToken(adminUser.getEmail(), null))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"configValue\":\"ASSIGNED_PERSONNEL,STRANGE_SOURCE\",\"reason\":\"Kiểm thử từ chối giá trị lạ\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.httpCode").value(400))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("STRANGE_SOURCE")));
     }
 
     @Test
