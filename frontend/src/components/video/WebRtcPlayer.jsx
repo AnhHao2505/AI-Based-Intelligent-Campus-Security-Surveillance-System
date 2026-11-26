@@ -1189,9 +1189,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				<div className="cctv-osd-top-left">
 					<span
 						className="cctv-spec-code"
-						title={displayLabel || displayCamCode || "Camera"}
+						title={displayLabel || displayCamCode || "Không xác định"}
 					>
-						{displayLabel || displayCamCode || "—"}
+						{displayLabel || displayCamCode || "Không xác định"}
 					</span>
 					{floorCode && (
 						<span
@@ -1255,7 +1255,9 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			{!enableDvr && (
 				<div className="cctv-osd-bottom-bar">
 					<div className="cctv-osd-bottom-left">
-						<span className="cctv-spec-code">{displayCamCode || "—"}</span>
+						<span className="cctv-spec-code">
+							{displayCamCode || "Không xác định"}
+						</span>
 						{resolution && (
 							<>
 								<span className="cctv-spec-divider">•</span>
