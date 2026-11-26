@@ -18,12 +18,23 @@ logger = logging.getLogger(__name__)
 class AccessCheckResult(tuple):
     """
     Bộ kết quả kiểm tra quyền truy cập 5 phần tử tương thích ngược (allowed, reason, area_name, source, deny_reason)
-    kèm thuộc tính expires_at và starts_at để quản lý mốc thời gian tức thì.
+    kèm thuộc tính expires_at, starts_at và verification_status.
     """
-    def __new__(cls, allowed: bool, reason: str, area_name: Optional[str] = None, source: Optional[str] = None, deny_reason: Optional[str] = None, expires_at: Optional[float] = None, starts_at: Optional[float] = None):
+    def __new__(
+        cls,
+        allowed: bool,
+        reason: str,
+        area_name: Optional[str] = None,
+        source: Optional[str] = None,
+        deny_reason: Optional[str] = None,
+        expires_at: Optional[float] = None,
+        starts_at: Optional[float] = None,
+        verification_status: Optional[str] = None,
+    ):
         instance = super().__new__(cls, (allowed, reason, area_name, source, deny_reason))
         instance.expires_at = expires_at
         instance.starts_at = starts_at
+        instance.verification_status = verification_status
         return instance
 
 class CacheEntry(tuple):
@@ -333,6 +344,7 @@ class FaceMatcher:
         # + 0.1s), vượt ngân sách cảnh báo 3s (NFR-01), và có thể làm Backend ghi trùng nhật ký VÀO/RA khi lần
         # đầu thật ra đã được xử lý nhưng trả lời chậm. Lỗi kết nối nhanh (keep-alive cũ, backend vừa restart)
         # vẫn được urllib3 Retry của session dùng chung (utils/http_client.py) thử lại tự động.
+        t_req_start = time.perf_counter()
         try:
             if hasattr(requests.post, "mock_calls") or hasattr(requests.post, "assert_called"):
                 post_fn = requests.post
@@ -345,6 +357,7 @@ class FaceMatcher:
                 headers=headers,
                 timeout=timeout
             )
+            check_entry_ms = (time.perf_counter() - t_req_start) * 1000.0
             if resp.status_code == 200:
                 res_json = resp.json()
                 data = res_json.get("data", {})
@@ -385,14 +398,19 @@ class FaceMatcher:
                             expires_at=expires_at, starts_at=starts_at
                         )
 
-                logger.info(f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}, source={source}, starts_at={starts_at}, expires_at={expires_at}): {'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})")
+                logger.info(
+                    f"🔑 [FaceMatcher] Quyền ra vào [{user_code}] tại [{camera_code}] ({area_name or 'N/A'}, "
+                    f"source={source}, check_entry_ms={check_entry_ms:.1f}ms, starts_at={starts_at}, expires_at={expires_at}): "
+                    f"{'HỢP LỆ' if allowed else 'TỪ CHỐI'} ({reason})"
+                )
                 return AccessCheckResult(allowed, reason, area_name, source, deny_reason, expires_at=expires_at, starts_at=starts_at)
             else:
                 last_error = f"HTTP {resp.status_code}"
-                logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code}")
+                logger.warning(f"⚠️ [FaceMatcher] Backend trả về status {resp.status_code} khi checkEntry cho {user_code} (check_entry_ms={check_entry_ms:.1f}ms)")
         except Exception as e:
+            check_entry_ms = (time.perf_counter() - t_req_start) * 1000.0
             last_error = str(e)
-            logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Backend để xét checkEntry cho {user_code}: {e}")
+            logger.warning(f"⚠️ [FaceMatcher] Không thể kết nối Backend để xét checkEntry cho {user_code} (check_entry_ms={check_entry_ms:.1f}ms): {e}")
 
         # 3. Fallback Chính sách BUG-02 khi Backend lỗi / timeout (Lucas K8):
         # (ii) Stale-if-error: nếu có quyết định cũ trong access_cache (kể cả hết TTL)
@@ -464,4 +482,13 @@ class FaceMatcher:
                 f"🛑 [FaceMatcher] Backend không phản hồi khi xét quyền cho [{user_code}] "
                 f"tại khu vực hạn chế [{camera_code}] ({last_error}). Áp dụng Fail-Closed."
             )
-            return AccessCheckResult(False, f"[Backend không phản hồi] Không thể xác thực quyền truy cập ({last_error})", area_name, None, None, expires_at=None, starts_at=None)
+            return AccessCheckResult(
+                False,
+                f"[Backend không phản hồi] Không thể xác thực quyền truy cập ({last_error})",
+                area_name,
+                None,
+                None,
+                expires_at=None,
+                starts_at=None,
+                verification_status="UNVERIFIED_TIMEOUT",
+            )

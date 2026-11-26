@@ -4,6 +4,12 @@ from datetime import datetime, timezone
 import time
 import uuid
 
+
+def format_utc_iso_ms(ts: Optional[float] = None) -> str:
+    """Format epoch seconds (or current UTC time) as ISO-8601 UTC millisecond string."""
+    dt = datetime.fromtimestamp(ts, timezone.utc) if ts is not None else datetime.now(timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
 @dataclass
 class Point:
     x: float
@@ -88,7 +94,7 @@ class FaceDetectionResult:
     area_name: Optional[str] = None
     role: Optional[str] = "NORMAL_USER"
     access_checked: bool = False
-    access_source: Optional[str] = None
+    access_verification_status: Optional[str] = None
     is_inherited: bool = False
     # Thời điểm khuôn mặt được khớp ra danh tính này (cùng đồng hồ với current_time của pipeline).
     # Engine dùng để chờ quyết định quyền tính từ lúc nhận ra mặt, không chỉ từ lúc vào ROI.
@@ -185,7 +191,7 @@ class SecurityAlertEvent:
     duration_seconds: float = 0.0
     confidence: float = 1.0
     image_url: Optional[str] = None
-    detected_at: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z")
+    detected_at: str = field(default_factory=lambda: format_utc_iso_ms())
     details: str = ""
     location: Optional[Dict[str, Any]] = None
     # Cảnh báo không danh tính: mã phiên để Backend ghép với IDENTITY_UPDATE gửi sau
@@ -194,6 +200,11 @@ class SecurityAlertEvent:
     identity_outcome: Optional[str] = None
     user_code: Optional[str] = None
     user_name: Optional[str] = None
+    # NFR-01 end-to-end latency timestamps (UTC ISO-8601 ms)
+    frame_captured_at: Optional[str] = None
+    mqtt_published_at: Optional[str] = None
+    # Phân biệt sự cố phát sinh do check-entry timeout/backend không phản hồi ('UNVERIFIED_TIMEOUT')
+    verification_status: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         data = {
@@ -208,7 +219,15 @@ class SecurityAlertEvent:
             "details": self.details,
             "location": self.location or {}
         }
-        for key in ("roi_session_id", "identity_outcome", "user_code", "user_name"):
+        for key in (
+            "roi_session_id",
+            "identity_outcome",
+            "user_code",
+            "user_name",
+            "frame_captured_at",
+            "mqtt_published_at",
+            "verification_status",
+        ):
             value = getattr(self, key)
             if value is not None:
                 data[key] = value

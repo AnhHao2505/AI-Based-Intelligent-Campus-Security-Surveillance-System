@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import logging
 import threading
 from typing import Dict, Optional, Any, Set, Callable, List
-from ..core.entity import SecurityAlertEvent
+from ..core.entity import SecurityAlertEvent, format_utc_iso_ms
 from ..config import settings
 from .alert_outbox import AlertOutbox, get_outbox
 
@@ -178,9 +178,23 @@ class SecurityMqttClient:
             return
         self.outbox.mark_sent(event_id)
 
+    def _stamp_publish_ts_if_alert(self, topic: str, payload: str) -> str:
+        alerts_topic = getattr(settings, "MQTT_TOPIC_ALERTS", "campus/alerts/incidents")
+        if topic != alerts_topic:
+            return payload
+        try:
+            data = json.loads(payload)
+            if isinstance(data, dict):
+                data["mqtt_published_at"] = format_utc_iso_ms()
+                return json.dumps(data, ensure_ascii=False)
+        except Exception:
+            pass
+        return payload
+
     def _publish_row(self, event_id: str, topic: str, payload: str) -> bool:
         try:
-            info = self.client.publish(topic, payload=payload, qos=1)
+            wire_payload = self._stamp_publish_ts_if_alert(topic, payload)
+            info = self.client.publish(topic, payload=wire_payload, qos=1)
             rc = getattr(info, "rc", 0)
             with self._mid_lock:
                 acked_at = self._early_acks.pop(info.mid, None)

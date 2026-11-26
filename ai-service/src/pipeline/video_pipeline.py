@@ -7,7 +7,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Any
 
 from ..config import settings
-from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonConfig, BoundingBox, MotionResult
+from ..core.entity import Point, TrackedPerson, SecurityAlertEvent, RoiPolygonConfig, BoundingBox, MotionResult, format_utc_iso_ms
 from ..core.motion_detector import MotionDetector
 from ..core.zone_state_machine import ZoneStateMachine, ZoneState
 from ..core.human_detector import HumanDetector
@@ -211,7 +211,7 @@ class VideoPipeline:
     def _apply_access_decision(self, face_info, is_allowed: bool, access_reason: str, area_name: Optional[str],
                                access_source: Optional[str] = None, access_deny_reason: Optional[str] = None,
                                track_id: Optional[int] = None, expires_at: Optional[float] = None,
-                               starts_at: Optional[float] = None):
+                               starts_at: Optional[float] = None, verification_status: Optional[str] = None):
         # starts_at chỉ có nghĩa khi bị từ chối, expires_at chỉ khi được phép. Backend chỉ trả mốc nằm sau thời điểm
         # nó xét; nếu mốc đã qua theo đồng hồ AI thì hai máy lệch giờ -> hẹn hỏi lại sau WINDOW_RECHECK_RETRY_SECONDS
         # thay vì bỏ mốc (bỏ mốc sẽ làm người kẹt màu cũ tới lượt quét lại kế tiếp).
@@ -233,6 +233,7 @@ class VideoPipeline:
             face_info.access_deny_reason = None
             face_info.expires_at = None
             face_info.starts_at = None
+            face_info.access_verification_status = None
         else:
             face_info.is_authorized = is_allowed
             face_info.access_reason = access_reason
@@ -241,6 +242,7 @@ class VideoPipeline:
             face_info.access_deny_reason = access_deny_reason
             face_info.expires_at = effective_expires_at
             face_info.starts_at = effective_starts_at
+            face_info.access_verification_status = verification_status
         face_info.access_checked = True
         target_name = face_info.matched_name or face_info.matched_code or "Đối tượng"
         logger.info(
@@ -286,9 +288,10 @@ class VideoPipeline:
                 deny_reason = res[4] if len(res) >= 5 else None
                 expires_at = getattr(res, "expires_at", None) if hasattr(res, "expires_at") else (res[5] if len(res) >= 6 else None)
                 starts_at = getattr(res, "starts_at", None) if hasattr(res, "starts_at") else (res[6] if len(res) >= 7 else None)
+                ver_status = getattr(res, "verification_status", None) if hasattr(res, "verification_status") else None
                 existing = self.analysis_engine.active_tracks.get(track_id)
                 if existing and existing.face_info and existing.face_info.matched_code == new_code:
-                    self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id, expires_at=expires_at, starts_at=starts_at)
+                    self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id, expires_at=expires_at, starts_at=starts_at, verification_status=ver_status)
                     existing.roi_entry_logged = True
             except Exception as e:
                 logger.warning(f"[VideoPipeline] Lỗi khi ghi ENTRY cho mã mới {new_code}: {e}")
@@ -308,9 +311,10 @@ class VideoPipeline:
             deny_reason = res[4] if len(res) >= 5 else None
             expires_at = getattr(res, "expires_at", None) if hasattr(res, "expires_at") else (res[5] if len(res) >= 6 else None)
             starts_at = getattr(res, "starts_at", None) if hasattr(res, "starts_at") else (res[6] if len(res) >= 7 else None)
+            ver_status = getattr(res, "verification_status", None) if hasattr(res, "verification_status") else None
             existing = self.analysis_engine.active_tracks.get(track_id)
             if existing and existing.face_info and existing.face_info.matched_code == user_code:
-                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id, expires_at=expires_at, starts_at=starts_at)
+                self._apply_access_decision(existing.face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id, expires_at=expires_at, starts_at=starts_at, verification_status=ver_status)
         except Exception as e:
             logger.warning(f"[VideoPipeline] Lỗi kiểm tra quyền bất đồng bộ cho user {user_code}: {e}")
         finally:
@@ -348,6 +352,7 @@ class VideoPipeline:
             deny_reason = res[4] if len(res) >= 5 else None
             expires_at = getattr(res, "expires_at", None) if hasattr(res, "expires_at") else (res[5] if len(res) >= 6 else None)
             starts_at = getattr(res, "starts_at", None) if hasattr(res, "starts_at") else (res[6] if len(res) >= 7 else None)
+            ver_status = getattr(res, "verification_status", None) if hasattr(res, "verification_status") else None
 
             if not force_recheck or track_id is None:
                 return
@@ -362,7 +367,8 @@ class VideoPipeline:
                     deny_reason,
                     track_id=target_track.track_id,
                     expires_at=expires_at,
-                    starts_at=starts_at
+                    starts_at=starts_at,
+                    verification_status=ver_status,
                 )
                 target_track.window_recheck_result_ready = True
         except Exception as e:
@@ -383,7 +389,8 @@ class VideoPipeline:
             deny_reason = cached[4] if len(cached) >= 5 else None
             expires_at = getattr(cached, "expires_at", None) if hasattr(cached, "expires_at") else (cached[5] if len(cached) >= 6 else None)
             starts_at = getattr(cached, "starts_at", None) if hasattr(cached, "starts_at") else (cached[6] if len(cached) >= 7 else None)
-            self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id, expires_at=expires_at, starts_at=starts_at)
+            ver_status = getattr(cached, "verification_status", None) if hasattr(cached, "verification_status") else None
+            self._apply_access_decision(face_info, is_allowed, access_reason, area_name, access_source, deny_reason, track_id=track_id, expires_at=expires_at, starts_at=starts_at, verification_status=ver_status)
             return
 
         cache_key = f"{self.camera_code}:{user_code}"
@@ -538,12 +545,14 @@ class VideoPipeline:
                                 res = self.face_matcher.check_camera_access(self.camera_code, code)
                                 expires_at = getattr(res, "expires_at", None) if hasattr(res, "expires_at") else (res[5] if len(res) >= 6 else None)
                                 starts_at = getattr(res, "starts_at", None) if hasattr(res, "starts_at") else (res[6] if len(res) >= 7 else None)
+                                ver_status = getattr(res, "verification_status", None) if hasattr(res, "verification_status") else None
                                 self._apply_access_decision(
                                     face_res, res[0], res[1], res[2],
                                     res[3] if len(res) >= 4 else None,
                                     res[4] if len(res) >= 5 else None,
                                     expires_at=expires_at,
-                                    starts_at=starts_at
+                                    starts_at=starts_at,
+                                    verification_status=ver_status,
                                 )
                             else:
                                 face_res.is_authorized = False
@@ -833,7 +842,8 @@ class VideoPipeline:
         self,
         frame: np.ndarray,
         current_time: Optional[float] = None,
-        need_annotated: Optional[bool] = None
+        need_annotated: Optional[bool] = None,
+        frame_captured_at: Optional[float] = None,
     ) -> Tuple[np.ndarray, List[TrackedPerson], List[SecurityAlertEvent]]:
         """
         Xử lý 1 khung hình qua toàn bộ pipeline.
@@ -1580,6 +1590,12 @@ class VideoPipeline:
         if early_alerts:
             alerts = early_alerts + alerts
 
+        if alerts and frame_captured_at is not None:
+            captured_iso = format_utc_iso_ms(frame_captured_at)
+            for alert in alerts:
+                if getattr(alert, "frame_captured_at", None) is None:
+                    alert.frame_captured_at = captured_iso
+
         # 4b. Xử lý ghi log sự kiện RA / VÀO vùng ROI ngầm (Async qua ThreadPoolExecutor)
         # Lưu ý: Chức năng ghi log khi out ROI đã bị xoá, bỏ qua toàn bộ sự kiện EXIT
         if roi_events and self.face_matcher:
@@ -1661,26 +1677,27 @@ class VideoPipeline:
         )
 
         has_incident_detection = (active_incident_alert is not None) or has_violating_person or has_suspicious_motion
+        has_active_or_armed_incident = (
+            self._incident_first_detected_at is not None
+            or self._incident_recording_active
+            or is_rec_running
+        )
 
-        if has_incident_detection:
+        # Chỉ khởi tạo phiên ghi hình bằng chứng MỚI khi có cảnh báo sự cố thực sự được phát đi
+        # (không kích hoạt video mới cho các frame bị suppress bởi cooldown).
+        if active_incident_alert is not None and self._incident_first_detected_at is None and not is_rec_running:
+            self._incident_first_detected_at = current_time
             self._incident_last_detected_at = current_time
+            self._pending_incident_params = {
+                "incident_id": active_incident_alert.event_id or f"EVT-{int(current_time * 1000)}",
+                "event_type": active_incident_alert.event_type,
+                "details": active_incident_alert.details or "Phát hiện sự cố an ninh",
+            }
+            has_active_or_armed_incident = True
 
-            # Ghi nhận lần phát hiện đầu tiên
-            if self._incident_first_detected_at is None:
-                self._incident_first_detected_at = current_time
-                if active_incident_alert:
-                    self._pending_incident_params = {
-                        "incident_id": active_incident_alert.event_id or f"EVT-{int(current_time * 1000)}",
-                        "event_type": active_incident_alert.event_type,
-                        "details": active_incident_alert.details or "Phát hiện sự cố an ninh",
-                    }
-                else:
-                    self._pending_incident_params = {
-                        "incident_id": f"EVT-{int(current_time * 1000)}",
-                        "event_type": "SECURITY_INCIDENT",
-                        "details": "Phát hiện sự cố an ninh trên camera",
-                    }
-            elif active_incident_alert and not self._pending_incident_params:
+        if has_incident_detection and has_active_or_armed_incident:
+            self._incident_last_detected_at = current_time
+            if active_incident_alert and not self._pending_incident_params:
                 self._pending_incident_params = {
                     "incident_id": active_incident_alert.event_id or f"EVT-{int(current_time * 1000)}",
                     "event_type": active_incident_alert.event_type,
@@ -1688,7 +1705,7 @@ class VideoPipeline:
                 }
 
             # Quy tắc 1: Bắt đầu ghi hình sau 2 giây kể từ phát hiện đầu tiên
-            elapsed_from_first = current_time - self._incident_first_detected_at
+            elapsed_from_first = current_time - (self._incident_first_detected_at or current_time)
             if not is_rec_running and not self._incident_recording_active:
                 if elapsed_from_first >= self.incident_start_delay_seconds:
                     params = self._pending_incident_params or {
@@ -1713,7 +1730,7 @@ class VideoPipeline:
             else:
                 self._incident_recording_active = True
 
-        else:
+        elif has_active_or_armed_incident:
             # Không còn phát hiện sự cố trong frame này
             if not is_rec_running and not self._incident_recording_active:
                 if self._incident_first_detected_at is not None:

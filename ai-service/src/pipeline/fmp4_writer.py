@@ -1,17 +1,27 @@
-import os
-import cv2
+import importlib.util
 import logging
-import numpy as np
+import os
+import subprocess
+import sys
 from typing import Optional, Tuple
+
+import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
-try:
-    import av
-    HAS_AV = True
-except ImportError:
-    HAS_AV = False
+# Do NOT import `av` at module import time: on macOS, cv2 and PyAV both bundle
+# FFmpeg dylibs (libavdevice) with ObjC classes, causing startup duplicate-class warnings.
+HAS_AV = importlib.util.find_spec("av") is not None
+if not HAS_AV:
     logger.warning("⚠️ Thư viện 'av' (PyAV) chưa được cài đặt. Sẽ fallback sang cv2.VideoWriter.")
+
+_AV_WORKER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_av_fmp4_worker.py")
+
+
+def _should_isolate_av_subprocess() -> bool:
+    """Isolate PyAV into a cv2-free child process on macOS to prevent libavdevice ObjC collisions."""
+    return sys.platform == "darwin" or os.environ.get("AI_AV_SUBPROCESS_ISOLATION") == "1"
 
 
 class Fmp4VideoWriter:
@@ -37,9 +47,11 @@ class Fmp4VideoWriter:
         self.target_w, self.target_h = frame_size
         self.gop = keyframe_interval if keyframe_interval is not None else int(round(self.fps))
 
+        self._av_module = None
         self._raw_file = None
         self._container = None
         self._stream = None
+        self._proc: Optional[subprocess.Popen] = None
         self._cv2_writer: Optional[cv2.VideoWriter] = None
         self._is_opened = False
         self._frames_written = 0
@@ -50,8 +62,35 @@ class Fmp4VideoWriter:
         # Đảm bảo thư mục cha tồn tại
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
 
-        if HAS_AV:
+        if HAS_AV and _should_isolate_av_subprocess() and os.path.exists(_AV_WORKER_PATH):
             try:
+                self._proc = subprocess.Popen(
+                    [
+                        sys.executable,
+                        _AV_WORKER_PATH,
+                        self.file_path,
+                        str(self.fps),
+                        str(self.target_w),
+                        str(self.target_h),
+                        str(self.gop),
+                    ],
+                    stdin=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                if self._proc.poll() is None and self._proc.stdin is not None:
+                    self._is_opened = True
+                    logger.debug(f"🎬 [Fmp4Writer] Đã mở isolated PyAV worker cho fMP4: {self.file_path}")
+                    return
+                self._cleanup_subprocess()
+            except Exception as e:
+                logger.warning(f"⚠️ [Fmp4Writer] Không thể khởi tạo isolated PyAV worker ({e}), fallback sang cv2.VideoWriter")
+                self._cleanup_subprocess()
+
+        elif HAS_AV:
+            try:
+                import av
+
+                self._av_module = av
                 self._raw_file = open(self.file_path, "wb")
                 self._container = av.open(
                     self._raw_file,
@@ -118,9 +157,17 @@ class Fmp4VideoWriter:
         if (frame.shape[1], frame.shape[0]) != (self.target_w, self.target_h):
             frame = cv2.resize(frame, (self.target_w, self.target_h))
 
-        if self._stream is not None and self._container is not None:
+        if self._proc is not None and self._proc.stdin is not None:
             try:
-                av_frame = av.VideoFrame.from_ndarray(frame, format="bgr24")
+                bgr_bytes = np.ascontiguousarray(frame, dtype=np.uint8).tobytes()
+                self._proc.stdin.write(bgr_bytes)
+                self._proc.stdin.flush()
+                self._frames_written += 1
+            except Exception as ex:
+                logger.warning(f"⚠️ [Fmp4Writer] Lỗi ghi frame qua isolated PyAV worker: {ex}")
+        elif self._stream is not None and self._container is not None and self._av_module is not None:
+            try:
+                av_frame = self._av_module.VideoFrame.from_ndarray(frame, format="bgr24")
                 for packet in self._stream.encode(av_frame):
                     self._container.mux(packet)
                 if self._raw_file is not None:
@@ -140,7 +187,9 @@ class Fmp4VideoWriter:
             return
         self._is_opened = False
 
-        if self._stream is not None and self._container is not None:
+        if self._proc is not None:
+            self._cleanup_subprocess()
+        elif self._stream is not None and self._container is not None:
             try:
                 for packet in self._stream.encode():
                     self._container.mux(packet)
@@ -153,6 +202,27 @@ class Fmp4VideoWriter:
             except Exception:
                 pass
             self._cv2_writer = None
+
+    def _cleanup_subprocess(self):
+        if self._proc is not None:
+            try:
+                if self._proc.stdin is not None:
+                    self._proc.stdin.close()
+            except Exception:
+                pass
+            try:
+                self._proc.wait(timeout=10.0)
+            except Exception:
+                try:
+                    self._proc.kill()
+                except Exception:
+                    pass
+            try:
+                if self._proc.stderr is not None:
+                    self._proc.stderr.close()
+            except Exception:
+                pass
+            self._proc = None
 
     def _cleanup_av(self):
         if self._container is not None:
