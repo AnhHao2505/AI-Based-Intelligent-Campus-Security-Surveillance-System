@@ -57,8 +57,6 @@ class ApiEndpoints {
   static String claimIncident(String incidentId) => '$baseUrl/api/incidents/$incidentId/claim';
   static String resolveIncident(String incidentId) => '$baseUrl/api/incidents/$incidentId/resolve';
   static String declineOffer(String incidentId) => '$baseUrl/api/incidents/$incidentId/offers/decline';
-  static String get testAlert => '$baseUrl/api/incidents/test-alert';
-  static String get testAlertBatch => '$baseUrl/api/incidents/test-alert/batch';
 
   // Guard Chat endpoints
   static String get guardChatGuards => '$baseUrl/api/guard-chat/guards';
