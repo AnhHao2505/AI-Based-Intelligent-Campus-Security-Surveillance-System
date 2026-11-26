@@ -34,8 +34,6 @@ import {
 	ChevronRight,
 	VideoOff,
 	Building2,
-	Pin,
-	PinOff,
 	Compass,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -561,7 +559,7 @@ export function SecuritySurveillancePage() {
 	const [cameraLayout, setCameraLayout] = useState(1); // 1 | "spotlight" (1+5) | 4 (2x2) | 9 (3x3) | 16 (4x4) | "auto"
 	const [gridPage, setGridPage] = useState(0);
 	const [areaFilter, setAreaFilter] = useState("ALL");
-	const [isSpotlightPinned, setIsSpotlightPinned] = useState(false);
+	const [pinnedCameras, setPinnedCameras] = useState([]); // Danh sách mã camera được ghim cố định trên từng màn hình
 	const [adjacentModeEnabled, setAdjacentModeEnabled] = useState(true);
 	const [isTheaterMode, setIsTheaterMode] = useState(false); // Chế độ phóng to chỉ view màn hình
 	const [soundEnabled, setSoundEnabled] = useState(true);
@@ -615,7 +613,8 @@ export function SecuritySurveillancePage() {
 	const flashTimeoutRef = useRef(null);
 	const notificationTimeoutRef = useRef(null);
 	const soundEnabledRef = useRef(soundEnabled);
-	const isSpotlightPinnedRef = useRef(isSpotlightPinned);
+	const pinnedCamerasRef = useRef(pinnedCameras);
+	const selectedCameraRef = useRef(selectedCamera);
 	const activeAlertsRef = useRef(activeAlerts);
 	// Hàm tải lại danh sách sự cố, giữ trong ref để callback STOMP (tạo một lần) luôn gọi bản mới nhất
 	const reloadActiveIncidentsRef = useRef(null);
@@ -627,8 +626,12 @@ export function SecuritySurveillancePage() {
 	}, [soundEnabled]);
 
 	useEffect(() => {
-		isSpotlightPinnedRef.current = isSpotlightPinned;
-	}, [isSpotlightPinned]);
+		pinnedCamerasRef.current = pinnedCameras;
+	}, [pinnedCameras]);
+
+	useEffect(() => {
+		selectedCameraRef.current = selectedCamera;
+	}, [selectedCamera]);
 
 	useEffect(() => {
 		activeAlertsRef.current = activeAlerts;
@@ -1005,9 +1008,12 @@ export function SecuritySurveillancePage() {
 		}
 		flashCameraAlert(camCodeClean);
 
-		// Chỉ tự đưa sự cố mức CRITICAL vào ô tiêu điểm khi người trực không bấm Ghim ô chính
+		// Chỉ tự đưa sự cố mức CRITICAL vào ô tiêu điểm khi màn hình đang xem không bị ghim
 		const severityMeta = getAlertSeverityMeta(newAlert);
-		if (!isSpotlightPinnedRef.current && severityMeta.weight >= 3) {
+		const isCurrentPinned = pinnedCamerasRef.current.includes(
+			selectedCameraRef.current,
+		);
+		if (!isCurrentPinned && severityMeta.weight >= 3) {
 			setSelectedCamera(camCodeClean);
 		}
 	};
@@ -1419,6 +1425,17 @@ export function SecuritySurveillancePage() {
 		setEvidenceModalTab(tab);
 	};
 
+	// Ghim / bỏ ghim cố định một màn hình camera trên lưới
+	const handleTogglePinCamera = (camCode) => {
+		const clean = (camCode || "").toLowerCase().trim();
+		if (!clean) return;
+		setPinnedCameras((prev) =>
+			prev.includes(clean)
+				? prev.filter((c) => c !== clean)
+				: [...prev, clean],
+		);
+	};
+
 	// Chuyển trực tiếp video sang camera cụ thể
 	const handleSelectCamera = (targetCamCode) => {
 		const clean = (targetCamCode || "")
@@ -1513,6 +1530,7 @@ export function SecuritySurveillancePage() {
 			adjacentPriorityCodes: adjacentModeEnabled
 				? adjacentCamerasForGrid.map((a) => a.camera.code)
 				: null,
+			pinnedCodes: pinnedCameras,
 		},
 	);
 
@@ -1738,23 +1756,6 @@ export function SecuritySurveillancePage() {
 								</div>
 							)}
 
-							<button
-								type="button"
-								className={`toolbar-icon-btn ${isSpotlightPinned ? "is-pin-active" : ""}`}
-								onClick={() => setIsSpotlightPinned((prev) => !prev)}
-								title={
-									isSpotlightPinned
-										? "Đang ghim ô chính (sự cố mới sẽ không tự đổi camera). Bấm để mở khóa."
-										: "Ghim ô chính (ngăn sự cố CRITICAL mới tự chuyển camera đang xem)"
-								}
-								aria-label={
-									isSpotlightPinned ? "Bỏ ghim ô chính" : "Ghim ô chính"
-								}
-								aria-pressed={isSpotlightPinned}
-							>
-								{isSpotlightPinned ? <Pin size={14} /> : <PinOff size={14} />}
-							</button>
-
 							{cameraLayout === "spotlight" && (
 								<button
 									type="button"
@@ -1924,10 +1925,11 @@ export function SecuritySurveillancePage() {
 										gridConfig.mode === "spotlight" && idx === 0;
 									const isFullFocusTile =
 										gridConfig.mode === "1" || isSpotlightPrimary;
+									const isTilePinned = pinnedCameras.includes(camera.code);
 
 									return (
 										<div
-											className={`video-viewport-card ${isSpotlightPrimary ? "video-viewport-card--spotlight" : ""} ${hasIncident ? `card-has-incident ${severityClass}` : ""} ${isFlashing ? `card-flashing ${severityClass}` : ""}`}
+											className={`video-viewport-card ${isSpotlightPrimary ? "video-viewport-card--spotlight" : ""} ${isTilePinned ? "is-pinned" : ""} ${hasIncident ? `card-has-incident ${severityClass}` : ""} ${isFlashing ? `card-flashing ${severityClass}` : ""}`}
 											key={camera.code}
 										>
 											<WebRtcPlayer
@@ -1940,6 +1942,8 @@ export function SecuritySurveillancePage() {
 												enabled={camera.status === "ONLINE"}
 												enableDvr={true}
 												alwaysShowDvr={isFullFocusTile}
+												isPinned={isTilePinned}
+												onTogglePin={() => handleTogglePinCamera(camera.code)}
 												adjacentCameras={
 													isFullFocusTile ? adjacentCamerasSameFloor : []
 												}

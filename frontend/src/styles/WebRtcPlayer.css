@@ -268,6 +268,32 @@
   border-color: #ffffff;
 }
 
+.cctv-quick-pin-btn {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #cbd5e1;
+  width: 22px;
+  height: 22px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cctv-quick-pin-btn:hover {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.65);
+}
+
+.cctv-quick-pin-btn.is-pinned {
+  background: rgba(245, 158, 11, 0.24);
+  color: #fbbf24;
+  border-color: #f59e0b;
+}
+
 /* --------------------------------------------------------------------------
    Thanh OSD Phía Dưới (Bottom Bar)
    CAM-001 • 1080p • 30 FPS                      15:53:21

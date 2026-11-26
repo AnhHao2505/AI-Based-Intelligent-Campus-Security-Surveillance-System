@@ -256,6 +256,9 @@ export function computeVisibleGridSlice(
 	const adjacentPriorityCodes = Array.isArray(options?.adjacentPriorityCodes)
 		? options.adjacentPriorityCodes
 		: null;
+	const pinnedSet = new Set(
+		Array.isArray(options?.pinnedCodes) ? options.pinnedCodes : [],
+	);
 
 	if (list.length === 0) {
 		return {
@@ -286,12 +289,25 @@ export function computeVisibleGridSlice(
 		const spotlightCam =
 			list.find((c) => c.code === selectedCameraCode) || list[0];
 		let others = list.filter((c) => c.code !== spotlightCam.code);
-		if (adjacentPriorityCodes && adjacentPriorityCodes.length > 0) {
-			const priorityMap = new Map(adjacentPriorityCodes.map((code, idx) => [code, idx]));
+		const priorityMap =
+			adjacentPriorityCodes && adjacentPriorityCodes.length > 0
+				? new Map(adjacentPriorityCodes.map((code, idx) => [code, idx]))
+				: null;
+		if (pinnedSet.size > 0 || priorityMap) {
 			others = [...others].sort((a, b) => {
-				const pa = priorityMap.has(a.code) ? priorityMap.get(a.code) : Number.MAX_SAFE_INTEGER;
-				const pb = priorityMap.has(b.code) ? priorityMap.get(b.code) : Number.MAX_SAFE_INTEGER;
-				return pa - pb;
+				const aPinned = pinnedSet.has(a.code) ? 0 : 1;
+				const bPinned = pinnedSet.has(b.code) ? 0 : 1;
+				if (aPinned !== bPinned) return aPinned - bPinned;
+				if (priorityMap) {
+					const pa = priorityMap.has(a.code)
+						? priorityMap.get(a.code)
+						: Number.MAX_SAFE_INTEGER;
+					const pb = priorityMap.has(b.code)
+						? priorityMap.get(b.code)
+						: Number.MAX_SAFE_INTEGER;
+					return pa - pb;
+				}
+				return 0;
 			});
 		}
 		const totalPages = Math.max(1, Math.ceil(others.length / 5));
@@ -308,10 +324,17 @@ export function computeVisibleGridSlice(
 		};
 	}
 
-	const totalPages = Math.max(1, Math.ceil(list.length / config.pageSize));
+	const orderedList =
+		pinnedSet.size > 0
+			? [
+					...list.filter((c) => pinnedSet.has(c.code)),
+					...list.filter((c) => !pinnedSet.has(c.code)),
+				]
+			: list;
+	const totalPages = Math.max(1, Math.ceil(orderedList.length / config.pageSize));
 	const currentPage = Math.min(Math.max(0, pageIndex), totalPages - 1);
 	const start = currentPage * config.pageSize;
-	const visibleCameras = list.slice(start, start + config.pageSize);
+	const visibleCameras = orderedList.slice(start, start + config.pageSize);
 	const emptySlotCount = Math.max(0, config.totalSlots - visibleCameras.length);
 	return {
 		config,

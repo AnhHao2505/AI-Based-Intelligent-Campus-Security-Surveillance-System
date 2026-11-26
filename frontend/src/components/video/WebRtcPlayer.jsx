@@ -17,6 +17,7 @@ import {
 	Flame,
 	Info,
 	Navigation,
+	Pin,
 } from "lucide-react";
 import {
 	buildDvrStreamUrl,
@@ -129,6 +130,8 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		enabled = true,
 		onStatusChange = null,
 		onToggleMaximize = null,
+		isPinned = false,
+		onTogglePin = null,
 		onAlertMarkerClick = null,
 	},
 	ref,
@@ -1052,23 +1055,27 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			)}
 
 			{/* 3. Luồng AI Tracking Annotation trực tiếp */}
-			{mode === "live" && showTracking && streamToken && !trackingError && displayCamCode && (
-				<img
-					src={resolveAiStreamUrl(
-						aiHost,
-						String(cameraCode || streamPath || "").trim(),
-						streamToken,
-					)}
-					alt={`AI Tracking ${displayCamCode}`}
-					className="cctv-annotated-stream"
-					onError={() => {
-						setTrackingError(true);
-					}}
-					onLoad={() => {
-						setTrackingError(false);
-					}}
-				/>
-			)}
+			{mode === "live" &&
+				showTracking &&
+				streamToken &&
+				!trackingError &&
+				displayCamCode && (
+					<img
+						src={resolveAiStreamUrl(
+							aiHost,
+							String(cameraCode || streamPath || "").trim(),
+							streamToken,
+						)}
+						alt={`AI Tracking ${displayCamCode}`}
+						className="cctv-annotated-stream"
+						onError={() => {
+							setTrackingError(true);
+						}}
+						onLoad={() => {
+							setTrackingError(false);
+						}}
+					/>
+				)}
 
 			{/* Overlay lỗi AI Tracking */}
 			{mode === "live" &&
@@ -1077,12 +1084,10 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					<div className="cctv-tracking-error-overlay">
 						<div className="cctv-tracking-error-box">
 							<span className="cctv-tracking-error-title">
-								⚠️ AI Tracking Chưa Khả Dụng
+								⚠️ AI View Chưa Khả Dụng
 							</span>
 							<span className="cctv-tracking-error-desc">
-								Không thể kết nối luồng phân tích thời gian thực cho [
-								{displayCamCode}]. Vui lòng đảm bảo camera đã kết nối RTSP và AI
-								Service đang chạy.
+								AI Service chưa chạy / mất kết nối
 							</span>
 							<div className="cctv-tracking-error-actions">
 								<button
@@ -1106,7 +1111,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 									}}
 									className="cctv-tracking-return-btn"
 								>
-									Quay lại luồng gốc
+									Quay lại
 								</button>
 							</div>
 						</div>
@@ -1229,14 +1234,14 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 										onClick={handleToggleTracking}
 										title={
 											showTracking
-												? "Đang bật AI Tracking (Bounding Box, Track ID, Face & ROI). Bấm để chuyển về luồng gốc."
-												: "Bấm để bật AI Tracking (hiển thị Bounding Box, Track ID, Face & ROI)"
+												? "Đang bật AI View (Bounding Box, Track ID, Face & ROI). Bấm để chuyển về luồng gốc."
+												: "Bấm để bật AI View (hiển thị Bounding Box, Track ID, Face & ROI)"
 										}
 									>
 										<span
 											className={`cctv-dot ${showTracking ? "cctv-dot--cyan" : "cctv-dot--idle"}`}
 										/>
-										{showTracking ? "TRACKING: ON" : "TRACKING"}
+										{showTracking ? "AI View: ON" : "AI View"}
 									</button>
 								)}
 							</div>
@@ -1246,6 +1251,25 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 						<span className="cctv-clock-text">
 							{mode === "playback" ? formatClockTime(playheadMs) : liveClock}
 						</span>
+					)}
+
+					{onTogglePin && (
+						<button
+							type="button"
+							className={`cctv-quick-pin-btn ${isPinned ? "is-pinned" : ""}`}
+							onClick={(e) => {
+								e.stopPropagation();
+								onTogglePin();
+							}}
+							title={
+								isPinned
+									? "Đang ghim màn hình này (giữ cố định trên lưới & không bị sự cố khác đẩy). Bấm để bỏ ghim."
+									: "Ghim màn hình này cố định trên lưới"
+							}
+							aria-pressed={isPinned}
+						>
+							<Pin size={12} />
+						</button>
 					)}
 
 					{onToggleMaximize && (
@@ -1478,11 +1502,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 								<span>TRỰC TIẾP</span>
 							</button>
 
-							<span className="dvr-time-readout">
-								{mode === "live"
-									? formatClockTime(liveNowMs)
-									: `${formatClockTime(playheadMs)} (${formatRelativeBehindLive(playheadMs, liveNowMs)})`}
-							</span>
+							{mode === "playback" && (
+								<span className="dvr-time-readout">
+									{`${formatClockTime(playheadMs)} (${formatRelativeBehindLive(playheadMs, liveNowMs)})`}
+								</span>
+							)}
 						</div>
 
 						<div className="dvr-controls-right">
@@ -1538,7 +1562,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 							}
 						>
 							{!enabled
-								? "[ LUỒNG STREAM ĐANG TẮT ]"
+								? "[ ADMIN CHƯA KÍCH HOẠT STREAM ]"
 								: status === "connecting"
 									? "[ ĐANG KẾT NỐI... ]"
 									: "[ MẤT TÍN HIỆU ]"}

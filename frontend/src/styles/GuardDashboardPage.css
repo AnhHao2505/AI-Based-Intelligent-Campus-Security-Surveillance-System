@@ -1004,6 +1004,10 @@ body.soc-theater-active .sidebar {
   transition: all 0.25s ease;
 }
 
+.video-viewport-card.is-pinned {
+  border-color: rgba(245, 158, 11, 0.7);
+}
+
 /* 1. Mức độ NGUY CẤP (Critical - Đỏ: viền đỏ xung nổi bật nhất) */
 .video-viewport-card.card-has-incident.severity-critical {
   border-color: var(--theme-danger) !important;
