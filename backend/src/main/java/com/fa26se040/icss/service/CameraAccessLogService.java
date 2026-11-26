@@ -8,17 +8,23 @@ import com.fa26se040.icss.entity.CameraAccessLog;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.AccessResult;
 import com.fa26se040.icss.enums.ConfigKey;
+import com.fa26se040.icss.enums.Role;
 import com.fa26se040.icss.repository.AreaRepository;
 import com.fa26se040.icss.repository.CameraAccessLogRepository;
 import com.fa26se040.icss.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -42,21 +48,25 @@ public class CameraAccessLogService {
     private final SimpMessagingTemplate messagingTemplate;
     private final SystemConfigService systemConfigService;
 
+    @Autowired(required = false)
+    private PlatformTransactionManager transactionManager;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
     // Bộ nhớ đệm in-memory Debounce (Key: cameraCode:userCode -> Expire Epoch Seconds)
     private final Map<String, Long> debounceCache = new ConcurrentHashMap<>();
 
     /**
      * Ghi nhận lượt quét ra vào từ camera (có cơ chế debounce chống spam, số giây đọc từ ENTRY_LOG_DEBOUNCE_SECONDS).
+     * Kiểm tra debounce TRƯỚC khi mở giao dịch REQUIRES_NEW để lượt bị bỏ qua không chiếm kết nối DB.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CameraAccessLogResponse recordAccessLog(CheckCameraEntryResponse entryResponse, OffsetDateTime at) {
         if (entryResponse == null || entryResponse.getCameraCode() == null) {
             return null;
         }
 
-        if (at == null) {
-            at = OffsetDateTime.now();
-        }
+        final OffsetDateTime effectiveAt = at != null ? at : OffsetDateTime.now();
 
         String cameraCode = entryResponse.getCameraCode();
         String userCode = (entryResponse.getUserCode() != null && !entryResponse.getUserCode().isBlank())
@@ -81,7 +91,7 @@ public class CameraAccessLogService {
         String oppositeOutcome = entryResponse.isAllowed() ? "DENIED" : "ALLOWED";
         String baseKey = cameraCode + ":" + userCode + ":" + outcome;
         String cacheKey = isRoiEntry ? baseKey + ":ENTRY" : baseKey;
-        long nowEpoch = at.toEpochSecond();
+        long nowEpoch = effectiveAt.toEpochSecond();
         Long lastSeen = debounceCache.get(cacheKey);
         int debounceSeconds = systemConfigService.getInt(ConfigKey.ENTRY_LOG_DEBOUNCE_SECONDS);
         if (lastSeen != null && (nowEpoch - lastSeen) < debounceSeconds) {
@@ -97,26 +107,61 @@ public class CameraAccessLogService {
         debounceCache.remove(oppositeKey + ":ENTRY");
         log.info("Recording access log for camera [{}], user [{}]", cameraCode, userCode);
 
-        // 2. Tìm Area và User
+        if (transactionManager != null) {
+            TransactionTemplate requiresNew = new TransactionTemplate(transactionManager);
+            requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            return requiresNew.execute(status -> persistAndBroadcastAccessLog(entryResponse, effectiveAt, cameraCode, userCode));
+        }
+        return persistAndBroadcastAccessLog(entryResponse, effectiveAt, cameraCode, userCode);
+    }
+
+    private CameraAccessLogResponse persistAndBroadcastAccessLog(
+            CheckCameraEntryResponse entryResponse,
+            OffsetDateTime at,
+            String cameraCode,
+            String userCode
+    ) {
+        // 2. Tìm Area và User (dùng getReference + metadata đã tải ở AccessDecisionService để tránh 2 query thừa)
         Area area = null;
         if (entryResponse.getAreaId() != null) {
-            area = areaRepository.findById(entryResponse.getAreaId()).orElse(null);
+            if (entityManager != null) {
+                area = entityManager.getReference(Area.class, entryResponse.getAreaId());
+            } else {
+                area = areaRepository.findById(entryResponse.getAreaId()).orElse(null);
+            }
         }
 
         User user = null;
-        if (entryResponse.getUserCode() != null) {
-            user = userRepository.findByUserCodeAndDeletedAtIsNull(entryResponse.getUserCode()).orElse(null);
+        boolean userExists;
+        boolean isGuard;
+        Integer userAccessLevel;
+        String fullName = entryResponse.getFullName();
+
+        if (entryResponse.getUserId() != null && entryResponse.getUserRole() != null && entityManager != null) {
+            user = entityManager.getReference(User.class, entryResponse.getUserId());
+            userExists = true;
+            isGuard = entryResponse.getUserRole() == Role.GUARD;
+            userAccessLevel = entryResponse.getUserAccessLevel();
+        } else if (Boolean.TRUE.equals(entryResponse.getUserKnownAbsent())) {
+            user = null;
+            userExists = false;
+            isGuard = false;
+            userAccessLevel = null;
+        } else {
+            if (entryResponse.getUserCode() != null) {
+                user = userRepository.findByUserCodeAndDeletedAtIsNull(entryResponse.getUserCode()).orElse(null);
+            }
+            userExists = user != null;
+            isGuard = user != null && user.getRole() == Role.GUARD;
+            userAccessLevel = user != null ? user.getAccessLevel() : null;
+            if (fullName == null && user != null) {
+                fullName = user.getFullName();
+            }
         }
 
         // 3. Phân loại kết quả theo 5 nhóm chuẩn Ma trận
-        AccessResult result = classifyResult(entryResponse, at, user != null,
-                user != null && user.getRole() == com.fa26se040.icss.enums.Role.GUARD);
+        AccessResult result = classifyResult(entryResponse, at, userExists, isGuard);
 
-        String fullName = entryResponse.getFullName();
-        if (fullName == null && user != null) {
-            fullName = user.getFullName();
-        }
-        Integer userAccessLevel = user != null ? user.getAccessLevel() : null;
         String reasonDetails = entryResponse.getReason();
         if (reasonDetails != null) {
             reasonDetails = reasonDetails.replaceAll("\\[[A-Z0-9_]+\\]\\s*", "").trim();
@@ -125,7 +170,7 @@ public class CameraAccessLogService {
         // 3b. Chuẩn hóa danh tính khi là Người lạ (UNKNOWN_PERSON) hoặc Đột nhập ngoài giờ của người lạ
         // Giữ nguyên mã AI quét được (userCode) để phục vụ truy vết điều tra; chỉ ẩn thông tin user entity và đặt tên chuẩn hoá
         boolean isGuest = userCode.startsWith("GUEST-");
-        if (result == AccessResult.UNKNOWN_PERSON || ((result == AccessResult.PERSON_INTRUSION || result == AccessResult.INTRUSION) && user == null && !isGuest)) {
+        if (result == AccessResult.UNKNOWN_PERSON || ((result == AccessResult.PERSON_INTRUSION || result == AccessResult.INTRUSION) && !userExists && !isGuest)) {
             user = null;
             fullName = "Người lạ / Chưa rõ mặt";
             userAccessLevel = null;
@@ -158,7 +203,11 @@ public class CameraAccessLogService {
                 .build();
 
         CameraAccessLog saved = cameraAccessLogRepository.save(logEntity);
-        CameraAccessLogResponse responseDto = CameraAccessLogResponse.from(saved);
+        CameraAccessLogResponse responseDto = CameraAccessLogResponse.from(
+                saved,
+                entryResponse.getAreaId(),
+                entryResponse.getAreaName()
+        );
 
         // 5. Phát WebSocket sự kiện thời gian thực cho Tab Timeline
         try {
