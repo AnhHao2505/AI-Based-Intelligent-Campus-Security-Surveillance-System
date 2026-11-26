@@ -219,7 +219,14 @@ public class IncidentDispatchService {
             payload.put("incident", incident);
             messages.add(Map.entry(offerTopic(offer.getGuard().getId()), payload));
         }
-        runAfterCommit(() -> messages.forEach(m -> send(m.getKey(), m.getValue())));
+        runAfterCommit(() -> {
+            OffsetDateTime wsPushedAt = OffsetDateTime.now(java.time.ZoneOffset.UTC);
+            incident.setWsPushedAt(wsPushedAt);
+            messages.forEach(m -> send(m.getKey(), m.getValue()));
+            log.info("[NFR-TRACE] dispatch=STEP1 incidentId={} eventId={} cameraCode={} eventType={} frameCapturedAt={} mqttPublishedAt={} mqttReceivedAt={} wsPushedAt={} offers={}",
+                    incident.getId(), incident.getEventId(), incident.getCameraCode(), incident.getEventType(),
+                    incident.getFrameCapturedAt(), incident.getMqttPublishedAt(), incident.getMqttReceivedAt(), wsPushedAt, messages.size());
+        });
     }
 
     /** BR-DSP-09: notify_fm_immediately của mức sự cố -> thông báo riêng cho FM qua topic critical-notices, sau commit. */

@@ -238,6 +238,27 @@ public class SecurityIncidentService {
                         normalizedEventType, extractedSubjectCode, camCode, current.getId(), dedupMinutes);
                 return null;
             }
+        } else if (!isTestEvent && (extractedSubjectCode == null || extractedSubjectCode.isBlank())
+                && ("PERSON_INTRUSION".equals(normalizedEventType) || "UNKNOWN_PERSON".equals(normalizedEventType))) {
+            int cooldownSeconds = systemConfigService != null
+                    ? systemConfigService.getIntWithinBounds(com.fa26se040.icss.enums.ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS)
+                    : 30;
+            if (cooldownSeconds > 0) {
+                java.time.OffsetDateTime cooldownWindowStart = detectedAt.minusSeconds(cooldownSeconds);
+                java.util.Optional<SecurityIncident> existingOpen = incidentRepository
+                        .findFirstByCameraCodeAndEventTypeAndSubjectUserCodeIsNullAndStatusInAndDetectedAtAfterOrderByDetectedAtDesc(
+                                camCode,
+                                normalizedEventType,
+                                List.of(IncidentStatus.NEW, IncidentStatus.CLAIMED),
+                                cooldownWindowStart);
+                if (existingOpen.isPresent()) {
+                    SecurityIncident current = existingOpen.get();
+                    mergeIntoOpenIncident(current, detectedAt, imageUrl, eventDto.getEventId());
+                    log.info("Gộp cảnh báo ẩn danh [{}] tại camera [{}] vào sự cố đang mở #{} (cooldown {}s).",
+                            normalizedEventType, camCode, current.getId(), cooldownSeconds);
+                    return null;
+                }
+            }
         }
 
         SecurityIncident incident = SecurityIncident.builder()
@@ -253,6 +274,7 @@ public class SecurityIncidentService {
                 .version(0)
                 .broadcastAt(detectedAt)
                 .aiSessionId(truncate(eventDto.getRoiSessionId(), 64))
+                .verificationStatus(truncate(eventDto.getVerificationStatus(), 32))
                 .build();
         incident.setSeverity(resolveSeverity(normalizedEventType, effectiveAreaLevel, locationName, detectedAt));
         // V93 (BR-DSP-02): luôn lưu mã người bị nhận diện để phục vụ điều phối và gộp sự cố 5 phút.
@@ -262,6 +284,9 @@ public class SecurityIncidentService {
         // Ghi xuống DB ngay: tin trùng đến cùng lúc vấp unique index event_id tại đây, trước mọi tác dụng phụ bên dưới
         incidentRepository.flush();
         IncidentDetailResponse response = mapToDetailResponse(saved, camera);
+        response.setFrameCapturedAt(parseOptionalTimestamp(eventDto.getFrameCapturedAt()));
+        response.setMqttPublishedAt(parseOptionalTimestamp(eventDto.getMqttPublishedAt()));
+        response.setMqttReceivedAt(parseOptionalTimestamp(eventDto.getMqttReceivedAt()));
 
         // 1b. Tự động đồng bộ sự cố người lạ / vi phạm / sai giờ / ngoài giờ sang Nhật ký ra vào của Camera (Tab 4 Camera Detail)
         if (cameraAccessLogService != null && eventDto.getCameraCode() != null) {
@@ -302,7 +327,7 @@ public class SecurityIncidentService {
         //     -> đi đúng luồng cũ ở mục 2 bên dưới. Bước 1 có người được mời -> KHÔNG gửi 3 kênh broadcast (X3).
         boolean dispatchEnabled = incidentDispatchService != null && incidentDispatchService.isEnabled();
         if (dispatchEnabled) {
-            IncidentDetailResponse step1Response = startStep1IfPossible(saved, camera);
+            IncidentDetailResponse step1Response = startStep1IfPossible(saved, camera, response);
             if (step1Response != null) {
                 return step1Response;
             }
@@ -315,6 +340,7 @@ public class SecurityIncidentService {
         //    Lỗi SQL trong transaction này làm cả transaction rollback (kể cả sự cố) — try/catch chỉ chặn lỗi tầng Java.
         //    V93: phần gửi tách thành sendToOnDutyGuards / sendToBuildingAndGlobalTopics (giữ nguyên nội dung, thứ tự)
         //    để job dùng lại khi sự cố chuyển STEP1 -> BROADCAST.
+        response.setWsPushedAt(OffsetDateTime.now(ZoneOffset.UTC));
         int guardRecipientCount = sendToOnDutyGuards(saved, response, locationName, building, detectedAt);
 
         try {
@@ -328,6 +354,7 @@ public class SecurityIncidentService {
         }
 
         sendToBuildingAndGlobalTopics(saved, response, building);
+        logNfrTrace(response);
 
         // V93 (BR-DSP-09): mức có notify_fm_immediately -> báo FM ngay qua kênh riêng (sau commit). Chỉ khi DISPATCH_ENABLED.
         if (dispatchEnabled) {
@@ -419,7 +446,7 @@ public class SecurityIncidentService {
      * V93 (K6 bước 3, BR-DSP-02..04): mời tối đa step1_size bảo vệ. Trả về response (dispatchStage = STEP1) nếu đã mời;
      * null nếu không vào bước 1 (step1_size = 0, không có ứng viên E1, hoặc lỗi chọn ứng viên) -> ingest phát như cũ.
      */
-    private IncidentDetailResponse startStep1IfPossible(SecurityIncident saved, Camera camera) {
+    private IncidentDetailResponse startStep1IfPossible(SecurityIncident saved, Camera camera, IncidentDetailResponse ingestResponse) {
         OffsetDateTime now = OffsetDateTime.now();
         IncidentDispatchPolicy policy;
         List<User> invited;
@@ -443,6 +470,12 @@ public class SecurityIncidentService {
         saved.setBroadcastAt(null);
         List<IncidentDispatchOffer> offers = incidentDispatchService.createOffers(saved, invited, policy, now);
         IncidentDetailResponse response = mapToDetailResponse(saved, camera);
+        if (ingestResponse != null) {
+            response.setFrameCapturedAt(ingestResponse.getFrameCapturedAt());
+            response.setMqttPublishedAt(ingestResponse.getMqttPublishedAt());
+            response.setMqttReceivedAt(ingestResponse.getMqttReceivedAt());
+        }
+        response.setWsPushedAt(OffsetDateTime.now(ZoneOffset.UTC));
 
         // BR-IE-03: vẫn tạo bản ghi leo thang. Số bảo vệ được nhắm tới = số người được mời (khác 0), để job leo thang
         // không báo FM ngay; hạn leo thang vẫn tính từ lúc tạo sự cố (BR-DSP-09)
@@ -1038,7 +1071,48 @@ public class SecurityIncidentService {
                 .severity(i.getSeverity())
                 .dispatchStage(i.getDispatchStage())
                 .repeatCount(i.getRepeatCount() != null ? i.getRepeatCount() : 1)
+                .verificationStatus(i.getVerificationStatus())
                 .build();
+    }
+
+    private static OffsetDateTime parseOptionalTimestamp(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(raw.trim());
+        } catch (DateTimeParseException e) {
+            try {
+                return LocalDateTime.parse(raw.trim()).atZone(ZoneOffset.UTC).toOffsetDateTime();
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+    }
+
+    private void logNfrTrace(IncidentDetailResponse response) {
+        if (response == null) {
+            return;
+        }
+        OffsetDateTime frameCaptured = response.getFrameCapturedAt();
+        OffsetDateTime mqttPublished = response.getMqttPublishedAt();
+        OffsetDateTime mqttReceived = response.getMqttReceivedAt();
+        OffsetDateTime wsPushed = response.getWsPushedAt();
+        Long captureToMqttMs = diffMs(frameCaptured, mqttPublished);
+        Long mqttTransportMs = diffMs(mqttPublished, mqttReceived);
+        Long backendToWsMs = diffMs(mqttReceived, wsPushed);
+        Long e2eMs = diffMs(frameCaptured, wsPushed);
+        log.info("[NFR-TRACE] incidentId={} eventId={} cameraCode={} eventType={} frameCapturedAt={} mqttPublishedAt={} mqttReceivedAt={} wsPushedAt={} captureToMqttMs={} mqttTransportMs={} backendToWsMs={} e2eMs={}",
+                response.getId(), response.getEventId(), response.getCameraCode(), response.getEventType(),
+                frameCaptured, mqttPublished, mqttReceived, wsPushed,
+                captureToMqttMs, mqttTransportMs, backendToWsMs, e2eMs);
+    }
+
+    private static Long diffMs(OffsetDateTime from, OffsetDateTime to) {
+        if (from == null || to == null) {
+            return null;
+        }
+        return java.time.Duration.between(from, to).toMillis();
     }
 
     private static String resolveBuildingName(Area area, Camera camera) {

@@ -97,6 +97,13 @@ public interface SecurityIncidentRepository extends JpaRepository<SecurityIncide
                         List<IncidentStatus> statuses,
                         java.time.OffsetDateTime since);
 
+        /** Gộp sự cố ẩn danh (chưa nhận diện được danh tính) trên cùng camera trong cửa sổ cooldown (Issue #1). */
+        Optional<SecurityIncident> findFirstByCameraCodeAndEventTypeAndSubjectUserCodeIsNullAndStatusInAndDetectedAtAfterOrderByDetectedAtDesc(
+                        String cameraCode,
+                        String eventType,
+                        List<IncidentStatus> statuses,
+                        java.time.OffsetDateTime since);
+
         @Query("SELECT i FROM SecurityIncident i " +
                         "LEFT JOIN FETCH i.area a " +
                         "LEFT JOIN FETCH i.claimedBy cb " +
