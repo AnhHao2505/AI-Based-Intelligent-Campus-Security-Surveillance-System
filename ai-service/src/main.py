@@ -297,7 +297,7 @@ async def startup_event():
     global default_pipeline
     try:
         default_pipeline = VideoPipeline(
-            camera_code="CAM-001",
+            camera_code="",
             conf_threshold=settings.DEFAULT_DETECTION_CONFIDENCE
         )
     except Exception as e:
@@ -531,7 +531,7 @@ async def configure_camera(req: ROIConfigRequest):
             after_hour_end=ah_end
         )
         worker_updated = True
-    elif req.camera_code == getattr(default_pipeline, "camera_code", "CAM-001"):
+    elif default_pipeline and req.camera_code and req.camera_code == getattr(default_pipeline, "camera_code", ""):
         default_pipeline.analysis_engine.after_hour_start = ah_start
         default_pipeline.analysis_engine.after_hour_end = ah_end
         default_pipeline.set_roi_config(polygons=polygons_to_set)

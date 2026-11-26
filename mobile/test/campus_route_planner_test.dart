@@ -81,6 +81,26 @@ void main() {
           (n) => n.latitude == r.points.first.latLng.latitude && n.longitude == r.points.first.latLng.longitude && n.floorOrder == 3);
       expect(startNode.isVerticalAccess, isTrue);
       expect(r.floorChanges.map((c) => c.label), ['Xuống tầng G']);
+      expect(r.warningMessage, contains('ngoài khuôn viên'));
+    });
+
+    test('(a+) GPS cách node ngoài trời ~300 m (trong khuôn viên FPT HCM <= 450 m) vẫn nối outdoorGps', () {
+      final o = outdoorNode();
+      final campusEdgeGps = _north(o.latitude, o.longitude, 300);
+      expect(campus.buildingAt(latitude: campusEdgeGps.latitude, longitude: campusEdgeGps.longitude), isNull);
+      final dest = graph.nodes.firstWhere((n) => n.building == 'Tòa Epsilon' && n.floorOrder == 2 && n.type == 'NODE');
+      final r = planCampusRoute(
+        graph: graph,
+        campus: campus,
+        gps: campusEdgeGps,
+        destinationLatitude: dest.latitude,
+        destinationLongitude: dest.longitude,
+        destinationBuilding: 'Tòa Epsilon',
+        destinationFloorOrder: 2,
+      );
+      expect(r.startMode, CampusRouteStartMode.outdoorGps);
+      expect(r.points.first.latLng, campusEdgeGps);
+      expect(r.preferredDisplayFloorOrder, 0);
     });
 
     test('(b) không có GPS và chưa chọn toà → NO_START', () {
@@ -283,6 +303,30 @@ void main() {
       final on1 = (routeGeoJson(route, currentFloor: 1)['features'] as List).cast<Map>();
       expect(on1.map((f) => f['properties']['current']), [false, true]);
       expect(routeGeoJson(null, currentFloor: 0)['features'], isEmpty);
+    });
+
+    test('xuất phát từ cầu thang Tầng G lên thẳng Tầng 4 → preferredDisplayFloorOrder chọn Tầng 4 có đường đi', () {
+      final o = outdoorNode();
+      final far = _north(o.latitude, o.longitude, kGpsFarFromCampusMeters + 1000);
+      final destF4 = graph.nodes.firstWhere(
+          (n) => n.building == 'Tòa Epsilon' && n.floorOrder == 4 && n.type == 'NODE' && !n.isVerticalAccess);
+      final r = planCampusRoute(
+        graph: graph,
+        campus: campus,
+        gps: far,
+        selectedBuilding: 'Tòa Epsilon',
+        selectedFloorOrder: 0,
+        guardFloorOrder: 0,
+        destinationLatitude: destF4.latitude,
+        destinationLongitude: destF4.longitude,
+        destinationBuilding: 'Tòa Epsilon',
+        destinationFloorOrder: 4,
+      );
+      expect(r.startMode, CampusRouteStartMode.selectedFloor);
+      expect(r.startFloorOrder, 0);
+      expect(r.hasHorizontalSegmentOnFloor(0), isFalse);
+      expect(r.hasHorizontalSegmentOnFloor(4), isTrue);
+      expect(r.preferredDisplayFloorOrder, 4);
     });
   });
 

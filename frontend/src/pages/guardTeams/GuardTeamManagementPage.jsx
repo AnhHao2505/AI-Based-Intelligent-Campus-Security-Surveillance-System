@@ -266,21 +266,13 @@ export default function GuardTeamManagementPage() {
         getBuildings().catch(() => [])
       ]);
 
-      let areaList = Array.isArray(areasRes?.content)
+      const areaList = Array.isArray(areasRes?.content)
         ? areasRes.content
         : Array.isArray(areasRes?.areas)
         ? areasRes.areas
         : Array.isArray(areasRes)
         ? areasRes
         : [];
-      if (areaList.length === 0) {
-        areaList = [
-          { id: 'area-1', name: 'Chốt Cổng Chính & Bãi Xe', building: 'Tòa Alpha' },
-          { id: 'area-2', name: 'Phòng Điều Khiển Camera & Trực Ban', building: 'Tòa Alpha' },
-          { id: 'area-3', name: 'Sảnh Chính Tầng Trệt', building: 'Tòa Alpha' },
-          { id: 'area-4', name: 'Tuần Tra Hành Lang & Các Tầng', building: 'Tòa Alpha' }
-        ];
-      }
       setAreas(areaList);
       setBuildings(Array.isArray(buildingsRes) ? buildingsRes : []);
     } catch (e) {

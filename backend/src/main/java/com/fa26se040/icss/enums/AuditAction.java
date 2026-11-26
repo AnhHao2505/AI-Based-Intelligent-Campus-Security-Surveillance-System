@@ -45,5 +45,9 @@ public enum AuditAction {
     // V144: điểm danh ca trực bảo vệ
     CHECK_IN,
     CHECK_OUT,
-    MARK_ABSENT
+    MARK_ABSENT,
+    // V149: thao tác sự cố an ninh
+    CLAIM,
+    DECLINE,
+    RESOLVE
 }

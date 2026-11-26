@@ -1978,7 +1978,6 @@ export default function GuardTeamsTab({
                         ...(buildings || []).map((b) => ({ value: b.name || b.id, label: b.name })),
                         ...(!buildings || buildings.length === 0
                           ? [
-                              { value: 'Tòa Alpha', label: 'Tòa Alpha' },
                               { value: 'Tòa Epsilon', label: 'Tòa Epsilon' },
                             ]
                           : []),

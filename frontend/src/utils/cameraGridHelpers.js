@@ -37,9 +37,48 @@ export function formatCameraTileTitle(cam) {
 	return `${baseName} · ${floor}`;
 }
 
-export function formatCameraChipLabel(cam) {
+export function formatShortFloorCode(cam) {
+	if (!cam || typeof cam !== "object") return "";
+	if (cam.mapFloorOrder != null && cam.mapFloorOrder !== "" && Number.isFinite(Number(cam.mapFloorOrder))) {
+		const n = Number(cam.mapFloorOrder);
+		return n === 0 ? "G" : `T${n}`;
+	}
+	const raw = String(cam.floor || "").trim().toLowerCase();
+	if (!raw) return "";
+	if (raw.includes("trệt") || raw === "g" || raw === "0") return "G";
+	const match = raw.match(/(\d+)/);
+	return match ? `T${match[1]}` : "";
+}
+
+export function formatCameraRoomName(cam) {
 	if (!cam || typeof cam !== "object") return "Camera";
-	return (cam.name || cam.areaName || "Camera").trim();
+	const areaName = (cam.areaName || "").trim();
+	const rawCamName = (cam.name || "").trim();
+	const base = areaName || rawCamName || "Camera";
+	const cleaned = base
+		.replace(/\s*(?:·|-)?\s*(?:Tầng\s*(?:Trệt|\d+)|T\d+)\s*$/i, "")
+		.trim();
+	return cleaned || base;
+}
+
+export function formatCameraRoomFloorTitle(cam) {
+	if (!cam || typeof cam !== "object") return "Camera";
+	const base = formatCameraRoomName(cam);
+	const floorCode = formatShortFloorCode(cam);
+	return floorCode ? `${base} · ${floorCode}` : base;
+}
+
+export function resolveCameraCodeLabel(cam) {
+	if (!cam || typeof cam !== "object") return "";
+	return String(cam.cameraCode || cam.code || "").trim().toUpperCase();
+}
+
+export function formatCameraSubLabel(cam) {
+	return resolveCameraCodeLabel(cam);
+}
+
+export function formatCameraChipLabel(cam) {
+	return resolveCameraCodeLabel(cam) || (cam?.name || cam?.areaName || "Camera").trim();
 }
 
 export function resolveCameraBuilding(cam) {
@@ -69,6 +108,119 @@ export function resolveCameraFloorInfo(cam) {
 		areaKey,
 		areaLabel,
 	};
+}
+
+export function resolveFloorFilterKey(cam) {
+	const info = resolveCameraFloorInfo(cam);
+	if (info.floorOrder < Number.MAX_SAFE_INTEGER) {
+		return `ord::${info.floorOrder}`;
+	}
+	return info.floorLabel ? `lbl::${info.floorLabel.toLowerCase()}` : "unassigned";
+}
+
+export function extractBuildingOptions(cameras = []) {
+	if (!Array.isArray(cameras) || cameras.length === 0) return [];
+	const groups = new Map();
+	for (const cam of cameras) {
+		const building = resolveCameraBuilding(cam);
+		const key = building ? building.toLowerCase() : "unassigned";
+		const label = building || "Chưa gán tòa";
+		if (!groups.has(key)) {
+			groups.set(key, { key, label, count: 0 });
+		}
+		groups.get(key).count += 1;
+	}
+	return Array.from(groups.values()).sort((a, b) =>
+		a.label.localeCompare(b.label, "vi", { numeric: true, sensitivity: "base" }),
+	);
+}
+
+export function extractFloorOptions(cameras = [], buildingKey = "ALL") {
+	if (!Array.isArray(cameras) || cameras.length === 0) return [];
+	const groups = new Map();
+	for (const cam of cameras) {
+		if (buildingKey && buildingKey !== "ALL") {
+			const bKey = resolveCameraBuilding(cam).toLowerCase() || "unassigned";
+			if (bKey !== buildingKey) continue;
+		}
+		const info = resolveCameraFloorInfo(cam);
+		const key = resolveFloorFilterKey(cam);
+		const shortCode = formatShortFloorCode(cam);
+		const label = info.floorLabel || (shortCode ? `Tầng ${shortCode}` : "Chưa gán tầng");
+		if (!groups.has(key)) {
+			groups.set(key, {
+				key,
+				label,
+				shortCode,
+				floorOrder: info.floorOrder,
+				count: 0,
+			});
+		}
+		groups.get(key).count += 1;
+	}
+	return Array.from(groups.values()).sort((a, b) => {
+		if (a.floorOrder !== b.floorOrder) return a.floorOrder - b.floorOrder;
+		return a.label.localeCompare(b.label, "vi", { numeric: true, sensitivity: "base" });
+	});
+}
+
+export function isCorridorCamera(cam) {
+	if (!cam || typeof cam !== "object") return false;
+	if (String(cam.cameraType || "").trim().toUpperCase() === "CORRIDOR") {
+		return true;
+	}
+	const areaName = String(cam.areaName || "").trim();
+	const rawName = String(cam.name || "").trim();
+	return !areaName && /^hành\s*lang\b/i.test(rawName);
+}
+
+export function extractAreaNameOptions(cameras = [], buildingKey = "ALL", floorKey = "ALL") {
+	if (!Array.isArray(cameras) || cameras.length === 0) return [];
+	const groups = new Map();
+	for (const cam of cameras) {
+		if (buildingKey && buildingKey !== "ALL") {
+			const bKey = resolveCameraBuilding(cam).toLowerCase() || "unassigned";
+			if (bKey !== buildingKey) continue;
+		}
+		if (floorKey && floorKey !== "ALL" && resolveFloorFilterKey(cam) !== floorKey) {
+			continue;
+		}
+		const corridor = isCorridorCamera(cam);
+		const label = corridor ? "Hành lang" : formatCameraRoomName(cam);
+		const key = corridor ? "__corridor__" : label.toLowerCase();
+		if (!groups.has(key)) {
+			groups.set(key, { key, label, count: 0 });
+		}
+		groups.get(key).count += 1;
+	}
+	return Array.from(groups.values()).sort((a, b) =>
+		a.label.localeCompare(b.label, "vi", { numeric: true, sensitivity: "base" }),
+	);
+}
+
+export function filterCamerasByHierarchy(
+	cameras = [],
+	{ buildingKey = "ALL", floorKey = "ALL", areaKey = "ALL" } = {},
+) {
+	if (!Array.isArray(cameras)) return [];
+	return cameras.filter((cam) => {
+		if (buildingKey && buildingKey !== "ALL") {
+			const bKey = resolveCameraBuilding(cam).toLowerCase() || "unassigned";
+			if (bKey !== buildingKey) return false;
+		}
+		if (floorKey && floorKey !== "ALL" && resolveFloorFilterKey(cam) !== floorKey) {
+			return false;
+		}
+		if (areaKey && areaKey !== "ALL") {
+			if (areaKey === "__corridor__") {
+				return isCorridorCamera(cam);
+			}
+			if (isCorridorCamera(cam)) return false;
+			const aKey = formatCameraRoomName(cam).toLowerCase();
+			if (aKey !== areaKey) return false;
+		}
+		return true;
+	});
 }
 
 export function extractAreaFilterOptions(cameras = []) {
@@ -256,6 +408,9 @@ export function computeVisibleGridSlice(
 	const adjacentPriorityCodes = Array.isArray(options?.adjacentPriorityCodes)
 		? options.adjacentPriorityCodes
 		: null;
+	const pinnedSet = new Set(
+		Array.isArray(options?.pinnedCodes) ? options.pinnedCodes : [],
+	);
 
 	if (list.length === 0) {
 		return {
@@ -286,12 +441,25 @@ export function computeVisibleGridSlice(
 		const spotlightCam =
 			list.find((c) => c.code === selectedCameraCode) || list[0];
 		let others = list.filter((c) => c.code !== spotlightCam.code);
-		if (adjacentPriorityCodes && adjacentPriorityCodes.length > 0) {
-			const priorityMap = new Map(adjacentPriorityCodes.map((code, idx) => [code, idx]));
+		const priorityMap =
+			adjacentPriorityCodes && adjacentPriorityCodes.length > 0
+				? new Map(adjacentPriorityCodes.map((code, idx) => [code, idx]))
+				: null;
+		if (pinnedSet.size > 0 || priorityMap) {
 			others = [...others].sort((a, b) => {
-				const pa = priorityMap.has(a.code) ? priorityMap.get(a.code) : Number.MAX_SAFE_INTEGER;
-				const pb = priorityMap.has(b.code) ? priorityMap.get(b.code) : Number.MAX_SAFE_INTEGER;
-				return pa - pb;
+				const aPinned = pinnedSet.has(a.code) ? 0 : 1;
+				const bPinned = pinnedSet.has(b.code) ? 0 : 1;
+				if (aPinned !== bPinned) return aPinned - bPinned;
+				if (priorityMap) {
+					const pa = priorityMap.has(a.code)
+						? priorityMap.get(a.code)
+						: Number.MAX_SAFE_INTEGER;
+					const pb = priorityMap.has(b.code)
+						? priorityMap.get(b.code)
+						: Number.MAX_SAFE_INTEGER;
+					return pa - pb;
+				}
+				return 0;
 			});
 		}
 		const totalPages = Math.max(1, Math.ceil(others.length / 5));
@@ -308,10 +476,17 @@ export function computeVisibleGridSlice(
 		};
 	}
 
-	const totalPages = Math.max(1, Math.ceil(list.length / config.pageSize));
+	const orderedList =
+		pinnedSet.size > 0
+			? [
+					...list.filter((c) => pinnedSet.has(c.code)),
+					...list.filter((c) => !pinnedSet.has(c.code)),
+				]
+			: list;
+	const totalPages = Math.max(1, Math.ceil(orderedList.length / config.pageSize));
 	const currentPage = Math.min(Math.max(0, pageIndex), totalPages - 1);
 	const start = currentPage * config.pageSize;
-	const visibleCameras = list.slice(start, start + config.pageSize);
+	const visibleCameras = orderedList.slice(start, start + config.pageSize);
 	const emptySlotCount = Math.max(0, config.totalSlots - visibleCameras.length);
 	return {
 		config,

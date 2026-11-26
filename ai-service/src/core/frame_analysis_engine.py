@@ -646,7 +646,7 @@ class FrameAnalysisEngine:
         self,
         detected_tracks: List[Tuple[int, BoundingBox]],
         roi_polygon: Optional[List[Point]] = None,
-        camera_code: str = "CAM-001",
+        camera_code: str = "",
         current_time: Optional[float] = None,
         roi_polygons: Optional[List[Any]] = None,
         frame_size: Optional[Tuple[int, int]] = None,
