@@ -416,6 +416,24 @@ const cleanIncidentMessage = (
 	return `Vị trí: ${locDefault}`;
 };
 
+// Ghép thông tin Tòa · Tầng vào dòng "Vị trí:" nếu chưa có để bảo vệ định vị nhanh
+const enrichIncidentMessageLocation = (msg, buildingFloor = "") => {
+	if (!msg || !buildingFloor) return msg;
+	const bf = String(buildingFloor).trim();
+	if (!bf) return msg;
+	const firstToken = bf.split("·")[0]?.trim().toLowerCase();
+	if (firstToken && String(msg).toLowerCase().includes(firstToken)) {
+		return msg;
+	}
+	if (/Vị trí:\s*([^\n]+)/i.test(msg)) {
+		return String(msg).replace(/Vị trí:\s*([^\n]+)/i, (_, loc) => {
+			const cleanLoc = loc.trim();
+			return cleanLoc ? `Vị trí: ${cleanLoc} · ${bf}` : `Vị trí: ${bf}`;
+		});
+	}
+	return `${msg}\nVị trí: ${bf}`;
+};
+
 // Hiển thị nội dung chi tiết sự cố theo dạng danh sách key-value phân cấp trực quan
 const renderIncidentDetails = (msg) => {
 	if (!msg) return null;
@@ -606,6 +624,32 @@ export function SecuritySurveillancePage() {
 			if (area) areaMap[cam.code] = area;
 		}
 		return areaMap;
+	}, [cameraList]);
+	const cameraLocationByCode = useMemo(() => {
+		const locMap = {};
+		for (const cam of cameraList) {
+			if (!cam.code) continue;
+			const loc = formatCameraLocationSubtitle(cam);
+			if (loc) locMap[cam.code] = loc;
+		}
+		return locMap;
+	}, [cameraList]);
+	const cameraTitleByCode = useMemo(() => {
+		const titleMap = {};
+		for (const cam of cameraList) {
+			if (!cam.code) continue;
+			const rawName = String(cam.name || "").trim();
+			const codeLabel = resolveCameraCodeLabel(cam);
+			const isMismatchedCode =
+				Boolean(rawName) &&
+				Boolean(codeLabel) &&
+				/^CAM[-_]\d+[A-Z0-9-]*$/i.test(rawName) &&
+				rawName.toUpperCase() !== codeLabel.toUpperCase();
+			if (rawName && !isMismatchedCode) {
+				titleMap[cam.code] = rawName;
+			}
+		}
+		return titleMap;
 	}, [cameraList]);
 	const cameraAreaByCodeRef = useRef(cameraAreaByCode);
 	useEffect(() => {
@@ -973,6 +1017,11 @@ export function SecuritySurveillancePage() {
 				incident.area_name ||
 				incident.cameraName ||
 				"Khu vực camera",
+			rawCameraName: incident.cameraName || incident.camera_name || "",
+			areaName: incident.areaName || incident.area_name || "",
+			building: incident.building || "",
+			floor: incident.floor || "",
+			mapFloorOrder: incident.mapFloorOrder ?? incident.map_floor_order ?? null,
 			eventType:
 				incident.event_type || incident.eventType || "UNAUTHORIZED_PERSON",
 			message: cleanIncidentMessage(
@@ -1310,6 +1359,12 @@ export function SecuritySurveillancePage() {
 							camCodeClean,
 							cameraName:
 								incident.areaName || incident.cameraName || "Khu vực camera",
+							rawCameraName: incident.cameraName || incident.camera_name || "",
+							areaName: incident.areaName || incident.area_name || "",
+							building: incident.building || "",
+							floor: incident.floor || "",
+							mapFloorOrder:
+								incident.mapFloorOrder ?? incident.map_floor_order ?? null,
 							eventType: incident.eventType || "UNAUTHORIZED_PERSON",
 							message: cleanIncidentMessage(
 								incident.details ||
@@ -1982,10 +2037,14 @@ export function SecuritySurveillancePage() {
 									const severityClass =
 										summary.highestSeverity?.badgeClass || "severity-warning";
 									const isFullFocusTile = gridConfig.mode === "1";
+									const isFocusedTile =
+										!isFullFocusTile &&
+										Boolean(camera.code) &&
+										selectedCamera === camera.code;
 
 									return (
 										<div
-											className={`video-viewport-card ${hasIncident ? `card-has-incident ${severityClass}` : ""} ${isFlashing ? `card-flashing ${severityClass}` : ""}`}
+											className={`video-viewport-card ${isFocusedTile ? "card-selected" : ""} ${hasIncident ? `card-has-incident ${severityClass}` : ""} ${isFlashing ? `card-flashing ${severityClass}` : ""}`}
 											key={camera.code || camera.id}
 											onClick={() => {
 												if (
@@ -2480,14 +2539,19 @@ export function SecuritySurveillancePage() {
 												</div>
 
 												{renderIncidentDetails(
-													cameraAreaByCode[alert.camCodeClean]
-														? cleanIncidentMessage(
-																alert.message,
-																alert.eventType,
-																cameraAreaByCode[alert.camCodeClean],
-																alert.cameraCode,
-															)
-														: alert.message,
+													enrichIncidentMessageLocation(
+														cameraAreaByCode[alert.camCodeClean]
+															? cleanIncidentMessage(
+																	alert.message,
+																	alert.eventType,
+																	cameraAreaByCode[alert.camCodeClean],
+																	alert.cameraCode,
+																)
+															: alert.message,
+														formatCameraLocationSubtitle(alert) ||
+															cameraLocationByCode[alert.camCodeClean] ||
+															"",
+													),
 												)}
 
 												<div className="soc-incident-bottom">
@@ -2755,24 +2819,94 @@ export function SecuritySurveillancePage() {
 							)}
 
 							<div className="soc-evidence-meta-panel">
-								<div className="soc-evidence-meta-row">
-									<span className="soc-evidence-meta-label">Camera:</span>
-									<span className="soc-evidence-meta-val">
-										{formatIncidentCameraLabel(evidenceModalAlert)}
-									</span>
-								</div>
-								<div className="soc-evidence-meta-row">
-									<span className="soc-evidence-meta-label">Thời điểm:</span>
-									<span className="soc-evidence-meta-val">
-										{evidenceModalAlert.timestamp}
-									</span>
-								</div>
-								<div className="soc-evidence-meta-row">
-									<span className="soc-evidence-meta-label">Nội dung:</span>
-									<span className="soc-evidence-meta-val">
-										{evidenceModalAlert.message}
-									</span>
-								</div>
+								{(() => {
+									const codeLabel =
+										formatIncidentCameraLabel(evidenceModalAlert);
+									const fallbackRawName = String(
+										evidenceModalAlert.rawCameraName || "",
+									).trim();
+									const isMismatchedFallbackCode =
+										Boolean(fallbackRawName) &&
+										Boolean(codeLabel) &&
+										/^CAM[-_]\d+[A-Z0-9-]*$/i.test(fallbackRawName) &&
+										fallbackRawName.toUpperCase() !== codeLabel.toUpperCase();
+									const camTitle =
+										cameraTitleByCode[evidenceModalAlert.camCodeClean] ||
+										(!isMismatchedFallbackCode ? fallbackRawName : "");
+									const hasDistinctCamTitle =
+										Boolean(camTitle) &&
+										camTitle !== "Camera giám sát" &&
+										camTitle !== "Khu vực camera" &&
+										camTitle.toUpperCase() !== codeLabel.toUpperCase();
+									const cameraDisplay = hasDistinctCamTitle
+										? `${camTitle} (${codeLabel})`
+										: codeLabel;
+
+									const rawMsg = String(evidenceModalAlert.message || "").trim();
+									const onlyLocMatch = rawMsg.match(/^Vị trí:\s*([^\n]+)$/i);
+									const isDuplicateCorridorLoc =
+										Boolean(onlyLocMatch) &&
+										hasDistinctCamTitle &&
+										onlyLocMatch[1].trim().toLowerCase() ===
+											camTitle.trim().toLowerCase();
+									const fallbackDescByType = {
+										SUSPICIOUS_MOVING_OBJECT:
+											"Phát hiện vật thể chuyển động bất thường",
+										PERSON_INTRUSION:
+											"Phát hiện đối tượng xuất hiện ngoài giờ hoạt động",
+										UNAUTHORIZED_PERSON:
+											"Phát hiện đối tượng không có quyền truy cập",
+										UNKNOWN_PERSON: "Phát hiện người chưa đăng ký",
+									};
+									const contentDisplay = isDuplicateCorridorLoc
+										? fallbackDescByType[
+												String(evidenceModalAlert.eventType || "").toUpperCase()
+											] || "Phát hiện sự cố an ninh"
+										: rawMsg;
+
+									return (
+										<>
+											<div className="soc-evidence-meta-row">
+												<span className="soc-evidence-meta-label">Camera:</span>
+												<span className="soc-evidence-meta-val">
+													{cameraDisplay}
+												</span>
+											</div>
+											<div className="soc-evidence-meta-row">
+												<span className="soc-evidence-meta-label">
+													Thời điểm:
+												</span>
+												<span className="soc-evidence-meta-val">
+													{evidenceModalAlert.timestamp}
+												</span>
+											</div>
+											{(formatCameraLocationSubtitle(evidenceModalAlert) ||
+												cameraLocationByCode[
+													evidenceModalAlert.camCodeClean
+												]) && (
+												<div className="soc-evidence-meta-row">
+													<span className="soc-evidence-meta-label">
+														Tòa / Tầng:
+													</span>
+													<span className="soc-evidence-meta-val">
+														{formatCameraLocationSubtitle(evidenceModalAlert) ||
+															cameraLocationByCode[
+																evidenceModalAlert.camCodeClean
+															]}
+													</span>
+												</div>
+											)}
+											<div className="soc-evidence-meta-row">
+												<span className="soc-evidence-meta-label">
+													Nội dung:
+												</span>
+												<div className="soc-evidence-meta-val">
+													{renderIncidentDetails(contentDisplay)}
+												</div>
+											</div>
+										</>
+									);
+								})()}
 							</div>
 						</div>
 
