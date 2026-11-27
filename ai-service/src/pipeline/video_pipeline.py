@@ -108,7 +108,7 @@ class VideoPipeline:
         self._suspicious_motion_start_time: Optional[float] = None
         self._last_suspicious_candidate_time: Optional[float] = None
         self._last_suspicious_motion_time: float = 0.0
-        self._suspicious_motion_cooldown: float = float(getattr(settings, "SUSPICIOUS_MOTION_COOLDOWN_SECONDS", 5.0))
+        self._suspicious_motion_cooldown: float = float(getattr(settings, "SUSPICIOUS_MOTION_COOLDOWN_SECONDS", 30.0))
         self.suspicious_motion_min_duration: float = float(getattr(settings, "SUSPICIOUS_MOTION_MIN_DURATION", 0.5))
         self.suspicious_motion_gap_tolerance: float = float(getattr(settings, "SUSPICIOUS_MOTION_GAP_TOLERANCE", 0.6))
         self._pending_access_checks = set()

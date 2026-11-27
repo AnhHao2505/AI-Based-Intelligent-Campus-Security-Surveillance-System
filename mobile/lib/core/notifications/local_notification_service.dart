@@ -16,6 +16,12 @@ class LocalNotificationService {
   static const String _channelDescription =
       'Thông báo khi có sự cố an ninh mới lúc ứng dụng đang chạy nền';
 
+  static const String _cameraChannelId = 'camera_health_alerts';
+  static const String _cameraChannelName = 'Cảnh báo kết nối camera';
+  static const String _cameraChannelDescription =
+      'Thông báo khi camera giám sát đang hoạt động bị mất kết nối đột ngột';
+  static const String cameraPayloadPrefix = 'cam:';
+
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
@@ -132,6 +138,60 @@ class LocalNotificationService {
       await _plugin.cancel(id: idFor(incidentId));
     } catch (e) {
       debugPrint('[LocalNotification] cancel failed: $e');
+    }
+  }
+
+  /// Id thông báo ổn định riêng cho cảnh báo mất kết nối camera (tách khỏi không gian id sự cố).
+  static int cameraNotificationIdFor(String cameraId) =>
+      idFor('$cameraPayloadPrefix$cameraId');
+
+  Future<void> showCameraOffline({
+    required String cameraId,
+    required String title,
+    required String body,
+  }) async {
+    if (!_ready) {
+      debugPrint('[LocalNotification] skip camera offline show: plugin not initialized');
+      return;
+    }
+    try {
+      const details = NotificationDetails(
+        android: AndroidNotificationDetails(
+          _cameraChannelId,
+          _cameraChannelName,
+          channelDescription: _cameraChannelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+          visibility: NotificationVisibility.private,
+          ticker: 'Camera mất kết nối đột ngột',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBanner: true,
+          presentList: true,
+          presentSound: true,
+          presentBadge: false,
+        ),
+      );
+      await _plugin.show(
+        id: cameraNotificationIdFor(cameraId),
+        title: title,
+        body: body,
+        notificationDetails: details,
+        payload: '$cameraPayloadPrefix$cameraId',
+      );
+      debugPrint('[LocalNotification] shown camera offline for $cameraId');
+    } catch (e) {
+      debugPrint('[LocalNotification] showCameraOffline failed: $e');
+    }
+  }
+
+  Future<void> cancelCameraOffline(String cameraId) async {
+    if (!_ready) return;
+    try {
+      await _plugin.cancel(id: cameraNotificationIdFor(cameraId));
+    } catch (e) {
+      debugPrint('[LocalNotification] cancelCameraOffline failed: $e');
     }
   }
 

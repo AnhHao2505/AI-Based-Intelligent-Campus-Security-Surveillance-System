@@ -86,6 +86,34 @@ public class SystemConfigService {
             .map(ConfigOptionResponse::value)
             .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
 
+    /** V151: lựa chọn hợp lệ cho ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES (từ V83 chỉ nhận CONFIDENTIAL = Bảo mật). */
+    static final List<ConfigOptionResponse> SPONSOR_ALLOWED_AREA_TYPE_OPTIONS = List.of(
+            new ConfigOptionResponse(
+                    com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL.name(),
+                    com.fa26se040.icss.enums.AreaLevel.CONFIDENTIAL.label(),
+                    "Khu vực cấp 2 — cho phép người tạo đơn nhóm đủ điều kiện bảo lãnh thành viên."
+            )
+    );
+
+    /** V151: 3 mức độ sự cố hợp lệ cho INCIDENT_SEVERITY_DEFAULT, kèm nhãn chuẩn tiếng Việt. */
+    static final List<ConfigOptionResponse> INCIDENT_SEVERITY_OPTIONS = List.of(
+            new ConfigOptionResponse(
+                    com.fa26se040.icss.enums.IncidentSeverity.MEDIUM.name(),
+                    "Trung bình",
+                    "Mức cảnh báo tiêu chuẩn khi không có quy tắc riêng khớp."
+            ),
+            new ConfigOptionResponse(
+                    com.fa26se040.icss.enums.IncidentSeverity.HIGH.name(),
+                    "Cao",
+                    "Ưu tiên điều phối cao hơn mức trung bình."
+            ),
+            new ConfigOptionResponse(
+                    com.fa26se040.icss.enums.IncidentSeverity.CRITICAL.name(),
+                    "Nghiêm trọng",
+                    "Mức nghiêm trọng nhất, báo ngay cho Quản lý cơ sở vật chất."
+            )
+    );
+
     /** Khoá cấu hình runtime của AI (trừ giờ ngoài giờ): đổi khoá nào trong tập này thì đồng bộ ngay xuống AI. */
     static final Set<String> AI_RUNTIME_KEYS = Set.of(
             ConfigKey.AI_FACE_MATCH_THRESHOLD.getKey(),
@@ -767,8 +795,9 @@ public class SystemConfigService {
             updatedByEmail = config.getUpdatedBy().getEmail();
             updatedByName = config.getUpdatedBy().getFullName();
         }
-        List<ConfigOptionResponse> options = ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey().equals(config.getConfigKey())
-                ? NIGHT_ALLOWED_ACCESS_SOURCE_OPTIONS
+        List<ConfigOptionResponse> options = resolveConfigOptions(config.getConfigKey());
+        Boolean multiSelect = options != null
+                ? ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey().equals(config.getConfigKey())
                 : null;
         return new SystemConfigResponse(
                 config.getConfigKey(),
@@ -786,8 +815,22 @@ public class SystemConfigService {
                 updatedByEmail,
                 updatedByName,
                 null,
-                options
+                options,
+                multiSelect
         );
+    }
+
+    private static List<ConfigOptionResponse> resolveConfigOptions(String configKey) {
+        if (ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey().equals(configKey)) {
+            return NIGHT_ALLOWED_ACCESS_SOURCE_OPTIONS;
+        }
+        if (ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey().equals(configKey)) {
+            return SPONSOR_ALLOWED_AREA_TYPE_OPTIONS;
+        }
+        if (ConfigKey.INCIDENT_SEVERITY_DEFAULT.getKey().equals(configKey)) {
+            return INCIDENT_SEVERITY_OPTIONS;
+        }
+        return null;
     }
 
     private SystemConfigChangeLogResponse mapToChangeLogResponse(SystemConfigurationChangeLog changeLog) {

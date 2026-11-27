@@ -124,6 +124,7 @@ class IncidentProvider extends ChangeNotifier {
       onNewIncident: _onNewIncidentReceived,
       onIncidentUpdate: _onIncidentUpdateReceived,
       onOfferMessage: handleOfferMessage,
+      onCameraAlert: handleCameraAlert,
     );
   }
 
@@ -238,6 +239,62 @@ class IncidentProvider extends ChangeNotifier {
     await LocalNotificationService.instance.showIncident(
       incidentId: incident.id,
       title: 'Sự cố an ninh mới',
+      body: parts.join(' · '),
+    );
+  }
+
+  /// V151: Nhận cảnh báo mất / khôi phục kết nối camera livestream qua kênh riêng /topic/guards/{id}/camera-alerts.
+  /// Chỉ hiện thông báo hệ thống để bảo vệ đang trực nắm thông tin, không đưa vào hàng đợi sự cố _alertQueue.
+  Future<void> handleCameraAlert(Map<String, dynamic> alert) async {
+    final cameraId = alert['cameraId']?.toString();
+    if (cameraId == null || cameraId.isEmpty) return;
+    final event = (alert['event'] ?? '').toString();
+
+    if (event == 'CAMERA_ONLINE') {
+      await LocalNotificationService.instance.cancelCameraOffline(cameraId);
+      return;
+    }
+    if (event != 'CAMERA_OFFLINE') return;
+
+    final user = await StorageHelper.getUser();
+    if (user == null) {
+      debugPrint('[IncidentProvider] skip camera notification: no session');
+      return;
+    }
+
+    final cameraCode = (alert['cameraCode'] ?? '').toString().trim();
+    final cameraName = (alert['cameraName'] ?? '').toString().trim();
+    final camLabel = cameraName.isNotEmpty &&
+            cameraCode.isNotEmpty &&
+            cameraName.toUpperCase() != cameraCode.toUpperCase()
+        ? '$cameraName ($cameraCode)'
+        : (cameraName.isNotEmpty
+            ? cameraName
+            : (cameraCode.isNotEmpty ? cameraCode : 'Camera'));
+
+    final areaName = (alert['areaName'] ?? '').toString().trim();
+    final building = (alert['building'] ?? '').toString().trim();
+    final floor = (alert['floor'] ?? '').toString().trim();
+    final offlineRaw = alert['offlineSince']?.toString() ?? alert['timestamp']?.toString();
+    String? timeText;
+    if (offlineRaw != null && offlineRaw.isNotEmpty) {
+      final parsed = DateTime.tryParse(offlineRaw);
+      if (parsed != null) {
+        timeText = DateFormat('HH:mm').format(parsed.toLocal());
+      }
+    }
+
+    final parts = <String>[
+      camLabel,
+      if (areaName.isNotEmpty) areaName,
+      if (building.isNotEmpty) building,
+      if (floor.isNotEmpty) floor,
+      if (timeText != null) timeText,
+    ];
+
+    await LocalNotificationService.instance.showCameraOffline(
+      cameraId: cameraId,
+      title: 'Camera mất kết nối đột ngột',
       body: parts.join(' · '),
     );
   }

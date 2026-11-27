@@ -54,6 +54,9 @@ public class CameraStreamLifecycleService {
     @Autowired(required = false)
     private EdgeStatusService edgeStatusService;
 
+    @Autowired(required = false)
+    private CameraHealthAlertService cameraHealthAlertService;
+
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
@@ -196,6 +199,9 @@ public class CameraStreamLifecycleService {
         camera.setOperationalStatus(OperationalStatus.ONLINE);
         camera.setUpdatedAt(OffsetDateTime.now());
         cameraRepository.save(camera);
+        if (cameraHealthAlertService != null) {
+            cameraHealthAlertService.clearPlannedStop(camera.getId());
+        }
 
         String successMsg = aiWorkerRunning
                 ? "Kết nối Stream phát trực tiếp thành công"
@@ -250,6 +256,9 @@ public class CameraStreamLifecycleService {
         camera.setUpdatedAt(OffsetDateTime.now());
         Camera saved = cameraRepository.save(camera);
         Camera effective = saved != null ? saved : camera;
+        if (cameraHealthAlertService != null) {
+            cameraHealthAlertService.markPlannedStop(effective);
+        }
 
         if (auditService != null) {
             auditService.record(
