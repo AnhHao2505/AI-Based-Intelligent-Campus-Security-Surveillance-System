@@ -191,6 +191,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 	});
 
 	const [connectAttempt, setConnectAttempt] = useState(0);
+	const [isPortraitVideo, setIsPortraitVideo] = useState(false);
 	const consecutiveFailuresRef = useRef(0);
 	const hadLiveFrameRef = useRef(false);
 
@@ -211,20 +212,31 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 			canvas.height = h;
 			const ctx = canvas.getContext("2d");
 			ctx.drawImage(activeEl, 0, 0, w, h);
-			return {
-				base64: canvas.toDataURL("image/jpeg", 0.95),
-				width: w,
-				height: h,
-			};
+			try {
+				return {
+					base64: canvas.toDataURL("image/jpeg", 0.95),
+					width: w,
+					height: h,
+				};
+			} catch {
+				return null;
+			}
 		},
 		getVideoElement: () =>
 			mode === "playback" ? dvrVideoRef.current : videoRef.current,
+		getPlaybackInfo: () => ({
+			mode,
+			srcUrl: dvrPlayback.srcUrl || "",
+			anchorMs: dvrPlayback.anchorMs || 0,
+		}),
 		getStatus: () => (mode === "playback" ? "playback" : status),
 		isTrackingActive: () => showTracking,
 		toggleTracking: (val) =>
 			setShowTracking(val !== undefined ? val : (p) => !p),
 		seekToTimestamp: (ms) => seekToTimestampRef.current?.(ms),
 		jumpToLive: () => jumpToLiveRef.current?.(),
+		togglePause: () => togglePlaybackPauseRef.current?.(),
+		nudgeSeconds: (deltaSec) => nudgeSecondsRef.current?.(deltaSec),
 	}));
 
 	useEffect(() => {
@@ -972,6 +984,11 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 		seekToTimestamp(Math.max(timeline.windowStartMs, baseMs + deltaSec * 1000));
 	};
 
+	const togglePlaybackPauseRef = useRef(null);
+	togglePlaybackPauseRef.current = togglePlaybackPause;
+	const nudgeSecondsRef = useRef(null);
+	nudgeSecondsRef.current = nudgeSeconds;
+
 	const cyclePlaybackRate = (e) => {
 		if (e) e.stopPropagation();
 		const rates = [1, 1.5, 2, 0.5];
@@ -996,7 +1013,7 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 
 	return (
 		<div
-			className={`cctv-player-wrapper ${showLiveBlackout ? "cctv-player--blackout" : ""} ${enableDvr ? "cctv-player--with-dvr" : ""}`}
+			className={`cctv-player-wrapper ${isPortraitVideo ? "is-portrait" : ""} ${showLiveBlackout ? "cctv-player--blackout" : ""} ${enableDvr ? "cctv-player--with-dvr" : ""}`}
 		>
 			{/* 1. Luồng WebRTC LIVE */}
 			<video
@@ -1010,7 +1027,13 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 				}}
 				onPlaying={handleVideoReady}
 				onLoadedData={handleVideoReady}
-				onResize={handleVideoReady}
+				onResize={(e) => {
+					const el = e.currentTarget;
+					if (el.videoWidth > 0 && el.videoHeight > 0) {
+						setIsPortraitVideo(el.videoWidth < el.videoHeight * 0.95);
+					}
+					handleVideoReady();
+				}}
 			/>
 
 			{/* 2. Luồng MediaMTX fMP4 DVR Playback */}
@@ -1019,13 +1042,18 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					ref={dvrVideoRef}
 					key={`dvr-${dvrPlayback.seq}`}
 					src={dvrPlayback.srcUrl}
+					crossOrigin="anonymous"
 					autoPlay
 					muted={muted}
 					playsInline
 					preload="auto"
 					className="cctv-video-element active"
 					onLoadedMetadata={(e) => {
-						e.currentTarget.playbackRate = playbackRate;
+						const el = e.currentTarget;
+						el.playbackRate = playbackRate;
+						if (el.videoWidth > 0 && el.videoHeight > 0) {
+							setIsPortraitVideo(el.videoWidth < el.videoHeight * 0.95);
+						}
 						setDvrPlayback((p) => ({ ...p, isBuffering: false, errorMsg: "" }));
 					}}
 					onPlaying={() => {
@@ -1354,6 +1382,12 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 					{/* Hàng 1: Timeline Scrubber Track + Chấm đỏ cảnh báo */}
 					<div
 						ref={scrubberTrackRef}
+						role="slider"
+						tabIndex={0}
+						aria-label="Thanh tua thời gian bản ghi"
+						aria-valuemin={0}
+						aria-valuemax={100}
+						aria-valuenow={Math.round(progressPercent)}
 						className="dvr-track-hitarea"
 						onMouseDown={handleTrackPointerDown}
 						onTouchStart={handleTrackPointerDown}
@@ -1362,7 +1396,19 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 							setHoveredMarker(null);
 							if (!isScrubbing) setScrubPreviewMs(null);
 						}}
-						title="Kéo hoặc bấm thanh xanh để xem lại • Bấm chấm đỏ để nhảy tới sự cố"
+						onKeyDown={(e) => {
+							if (e.key === "ArrowLeft") {
+								e.preventDefault();
+								nudgeSeconds(-5, e);
+							} else if (e.key === "ArrowRight") {
+								e.preventDefault();
+								nudgeSeconds(5, e);
+							} else if (e.key === " " || e.key === "Enter") {
+								e.preventDefault();
+								togglePlaybackPause(e);
+							}
+						}}
+						title="Kéo, bấm hoặc dùng phím mũi tên để tua • Bấm chấm đỏ để nhảy tới sự cố"
 					>
 						<div className="dvr-track-rail">
 							{recordedIntervals.map((seg, idx) => (
@@ -1444,10 +1490,15 @@ const WebRtcPlayer = forwardRef(function WebRtcPlayer(
 								type="button"
 								className="dvr-ctrl-btn"
 								onClick={togglePlaybackPause}
+								aria-label={
+									mode === "live" || !dvrPlayback.isPaused
+										? "Tạm dừng video"
+										: "Phát tiếp video"
+								}
 								title={
 									mode === "live" || !dvrPlayback.isPaused
-										? "Tạm dừng"
-										: "Phát tiếp"
+										? "Tạm dừng (Space)"
+										: "Phát tiếp (Space)"
 								}
 							>
 								{mode === "playback" && dvrPlayback.isPaused ? (

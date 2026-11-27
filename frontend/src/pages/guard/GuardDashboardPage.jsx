@@ -35,6 +35,7 @@ import {
 	VideoOff,
 	Building2,
 	MapPin,
+	Download,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useAuthorizedImage } from "../../hooks/useAuthorizedImage";
@@ -595,6 +596,7 @@ export function SecuritySurveillancePage() {
 	const [statusNotification, setStatusNotification] = useState(null);
 	const [evidenceModalAlert, setEvidenceModalAlert] = useState(null);
 	const [evidenceModalTab, setEvidenceModalTab] = useState("image"); // "image" | "video"
+	const evidencePlayerRef = useRef(null);
 
 	const cameraAreaByCode = useMemo(() => {
 		const areaMap = {};
@@ -653,7 +655,7 @@ export function SecuritySurveillancePage() {
 		};
 	}, [isCategoryDropdownOpen]);
 
-	// Phím tắt ESC để đóng dropdown lọc, thoát chế độ phóng to hoặc đóng modal xem ảnh/video bằng chứng
+	// Phím tắt ESC để đóng dropdown/modal và Space / Mũi tên trái-phải điều khiển video bằng chứng
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			if (e.key === "Escape") {
@@ -664,11 +666,25 @@ export function SecuritySurveillancePage() {
 				} else if (isTheaterMode) {
 					setIsTheaterMode(false);
 				}
+				return;
+			}
+			if (!evidenceModalAlert || evidenceModalTab !== "video") return;
+			const tag = document.activeElement?.tagName;
+			if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+			if (e.key === " " && tag !== "BUTTON" && document.activeElement?.getAttribute("role") !== "slider") {
+				e.preventDefault();
+				evidencePlayerRef.current?.togglePause?.();
+			} else if (e.key === "ArrowLeft") {
+				e.preventDefault();
+				evidencePlayerRef.current?.nudgeSeconds?.(-5);
+			} else if (e.key === "ArrowRight") {
+				e.preventDefault();
+				evidencePlayerRef.current?.nudgeSeconds?.(5);
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [isTheaterMode, evidenceModalAlert, isCategoryDropdownOpen]);
+	}, [isTheaterMode, evidenceModalAlert, evidenceModalTab, isCategoryDropdownOpen]);
 
 	// Đồng bộ class body.soc-theater-active để ẩn chat/menu nổi và khóa nền tối toàn màn hình
 	useEffect(() => {
@@ -2614,6 +2630,9 @@ export function SecuritySurveillancePage() {
 				>
 					<div
 						className="soc-evidence-modal-content"
+						role="dialog"
+						aria-modal="true"
+						aria-label="Bằng chứng vi phạm an ninh"
 						onClick={(e) => e.stopPropagation()}
 					>
 						<div className="soc-evidence-modal-header">
@@ -2660,7 +2679,7 @@ export function SecuritySurveillancePage() {
 									onClick={() => handleSwitchModalTab("image")}
 								>
 									<CameraIcon size={14} />
-									<span>Ảnh </span>
+									<span>Ảnh</span>
 								</button>
 								<button
 									type="button"
@@ -2684,20 +2703,23 @@ export function SecuritySurveillancePage() {
 							) : (
 								<div className="soc-evidence-video-container">
 									<WebRtcPlayer
+										ref={evidencePlayerRef}
 										key={`evidence-dvr-${evidenceModalAlert.camCodeClean || evidenceModalAlert.cameraCode || "cam"}`}
 										streamPath={evidenceModalAlert.camCodeClean || ""}
 										cameraCode={evidenceModalAlert.cameraCode || ""}
 										cameraName={
 											evidenceModalAlert.cameraName || "Camera hiện trường"
 										}
-										displayLabel={formatIncidentCameraLabel(evidenceModalAlert)}
-										cameraSubLabel={
+										displayLabel={
 											cameraAreaByCode[evidenceModalAlert.camCodeClean] ||
 											(evidenceModalAlert.cameraName &&
 											evidenceModalAlert.cameraName !== "Khu vực camera"
 												? evidenceModalAlert.cameraName
-												: "")
+												: "Camera hiện trường")
 										}
+										cameraSubLabel={formatIncidentCameraLabel(
+											evidenceModalAlert,
+										)}
 										enabled={Boolean(
 											evidenceModalAlert.camCodeClean ||
 											evidenceModalAlert.cameraCode,
@@ -2755,6 +2777,90 @@ export function SecuritySurveillancePage() {
 						</div>
 
 						<div className="soc-evidence-modal-footer">
+							<div className="soc-evidence-footer-left">
+								{!evidenceModalAlert.socAcknowledged ? (
+									<button
+										type="button"
+										className="btn-soc-acknowledge"
+										onClick={() => {
+											handleAcknowledge(evidenceModalAlert.id);
+											setEvidenceModalAlert((prev) =>
+												prev ? { ...prev, socAcknowledged: true } : prev,
+											);
+										}}
+										title="Ghi nhận đã xem và tiếp nhận xử lý sự cố này"
+									>
+										<Check size={13} />
+										<span>Ghi nhận</span>
+									</button>
+								) : (
+									<span className="soc-ack-badge">
+										<Check size={12} />
+										<span>Đã ghi nhận</span>
+									</span>
+								)}
+								<button
+									type="button"
+									className="btn-soc-download-clip"
+									onClick={() => {
+										if (evidenceModalTab !== "video") {
+											handleSwitchModalTab("video");
+											return;
+										}
+										const info = evidencePlayerRef.current?.getPlaybackInfo?.();
+										if (!info?.srcUrl) {
+											triggerNotification("Chưa có đoạn video phát lại để tải về.");
+											return;
+										}
+										const cam =
+											resolveCameraCodeLabel(evidenceModalAlert) || "camera";
+										const link = document.createElement("a");
+										link.href = info.srcUrl;
+										link.download = `evidence-${cam}-${info.anchorMs || Date.now()}.mp4`;
+										link.target = "_blank";
+										link.rel = "noopener noreferrer";
+										document.body.appendChild(link);
+										link.click();
+										document.body.removeChild(link);
+									}}
+									title={
+										evidenceModalTab === "video"
+											? "Tải đoạn video đang phát lại"
+											: "Chuyển sang tab Video để tải clip"
+									}
+								>
+									<Download size={13} />
+									<span>Tải clip</span>
+								</button>
+								{evidenceModalTab === "video" && (
+									<button
+										type="button"
+										className="btn-soc-download-clip"
+										onClick={() => {
+											const snap =
+												evidencePlayerRef.current?.captureFrame?.();
+											if (!snap?.base64) {
+												triggerNotification(
+													"Chưa có khung hình video để chụp.",
+												);
+												return;
+											}
+											const cam =
+												resolveCameraCodeLabel(evidenceModalAlert) || "camera";
+											const link = document.createElement("a");
+											link.href = snap.base64;
+											link.download = `snapshot-${cam}-${Date.now()}.jpg`;
+											document.body.appendChild(link);
+											link.click();
+											document.body.removeChild(link);
+										}}
+										title="Chụp và tải khung hình hiện tại từ video"
+									>
+										<CameraIcon size={13} />
+										<span>Chụp khung hình</span>
+									</button>
+								)}
+							</div>
 							<div className="soc-evidence-footer-right">
 								{(() => {
 									const modalCamCode =

@@ -42,7 +42,15 @@ export function formatIncidentCameraLabel(alert) {
 }
 
 export function formatCameraTileTitle(cam) {
-	return formatCameraCodeOrUnknown(cam);
+	if (!cam || typeof cam !== "object") return "Camera giám sát";
+	const areaName = String(cam.areaName || "").trim();
+	const rawName = String(cam.name || "").trim();
+	if (areaName && rawName) {
+		return areaName.toLowerCase() === rawName.toLowerCase()
+			? areaName
+			: `${areaName} · ${rawName}`;
+	}
+	return areaName || rawName || "Camera giám sát";
 }
 
 export function formatShortFloorCode(cam) {
@@ -77,15 +85,7 @@ export function formatCameraRoomFloorTitle(cam) {
 }
 
 export function formatCameraSubLabel(cam) {
-	if (!cam || typeof cam !== "object") return "";
-	const areaName = String(cam.areaName || "").trim();
-	const rawName = String(cam.name || "").trim();
-	if (areaName && rawName) {
-		return areaName.toLowerCase() === rawName.toLowerCase()
-			? areaName
-			: `${areaName} · ${rawName}`;
-	}
-	return areaName || rawName || "";
+	return formatCameraCodeOrUnknown(cam);
 }
 
 export function formatCameraChipLabel(cam) {
