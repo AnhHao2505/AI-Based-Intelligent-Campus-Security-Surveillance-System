@@ -34,16 +34,16 @@ const makeCams = (n) =>
 	}));
 
 describe("cameraGridHelpers", () => {
-	it("tiêu đề & chip luôn dùng mã CAM-xxx, nhãn phụ hiện nguyên văn khu vực kèm tên camera", () => {
+	it("tiêu đề dùng tên khu vực/camera, nhãn phụ & chip dùng mã CAM-xxx", () => {
 		const cam = {
 			cameraCode: "cam-019",
 			name: "KT Điện",
 			building: "Tòa Epsilon",
 			floor: "Tầng 1",
 		};
-		assert.equal(formatCameraTileTitle(cam), "CAM-019");
+		assert.equal(formatCameraTileTitle(cam), "KT Điện");
 		assert.equal(formatCameraChipLabel(cam), "CAM-019");
-		assert.equal(formatCameraSubLabel(cam), "KT Điện");
+		assert.equal(formatCameraSubLabel(cam), "CAM-019");
 		assert.equal(formatCameraRoomName(cam), "KT Điện");
 		assert.equal(
 			formatCameraRoomName({
@@ -184,12 +184,12 @@ describe("cameraGridHelpers", () => {
 		};
 		assert.equal(formatCameraRoomName(cam), "Hành lang Cánh Đông");
 		assert.equal(formatCameraRoomFloorTitle(cam), "Hành lang Cánh Đông · T2");
-		assert.equal(formatCameraTileTitle(cam), "CAM-201");
-		assert.equal(formatCameraChipLabel(cam), "CAM-201");
 		assert.equal(
-			formatCameraSubLabel(cam),
+			formatCameraTileTitle(cam),
 			"Hành lang Cánh Đông · Góc hành lang đông",
 		);
+		assert.equal(formatCameraChipLabel(cam), "CAM-201");
+		assert.equal(formatCameraSubLabel(cam), "CAM-201");
 	});
 
 	it("lọc phân cấp 3 dropdown Tòa / Tầng / Khu vực: gom Hành lang & giữ khu vực >= 1 camera", () => {
@@ -292,7 +292,7 @@ describe("cameraGridHelpers", () => {
 		);
 	});
 
-	it("quy tắc cố định: tiêu đề và chip luôn hiện cameraCode (thiếu thì Không xác định), nhãn phụ hiện khu vực kèm name nguyên văn", () => {
+	it("quy tắc cố định: tiêu đề hiện khu vực/tên camera, nhãn phụ & chip hiện cameraCode (thiếu thì Không xác định)", () => {
 		const camWithAreaAndName = {
 			id: "cam-db-5",
 			code: "cam-005",
@@ -303,17 +303,17 @@ describe("cameraGridHelpers", () => {
 			floor: "Tầng 1",
 		};
 		assert.equal(resolveCameraCodeLabel(camWithAreaAndName), "CAM-005");
-		assert.equal(formatCameraTileTitle(camWithAreaAndName), "CAM-005");
+		assert.equal(formatCameraTileTitle(camWithAreaAndName), "Văn Phòng · CAM-001");
 		assert.equal(formatCameraChipLabel(camWithAreaAndName), "CAM-005");
-		assert.equal(formatCameraSubLabel(camWithAreaAndName), "Văn Phòng · CAM-001");
+		assert.equal(formatCameraSubLabel(camWithAreaAndName), "CAM-005");
 
 		const camOnlyName = {
 			cameraCode: "CAM-005",
 			name: "CAM-001",
 		};
-		assert.equal(formatCameraTileTitle(camOnlyName), "CAM-005");
+		assert.equal(formatCameraTileTitle(camOnlyName), "CAM-001");
 		assert.equal(formatCameraChipLabel(camOnlyName), "CAM-005");
-		assert.equal(formatCameraSubLabel(camOnlyName), "CAM-001");
+		assert.equal(formatCameraSubLabel(camOnlyName), "CAM-005");
 
 		const missingCodeCam = {
 			id: "cam-no-code",
@@ -324,9 +324,9 @@ describe("cameraGridHelpers", () => {
 		};
 		assert.equal(resolveCameraCodeLabel(missingCodeCam), "");
 		assert.equal(formatCameraCodeOrUnknown(missingCodeCam), UNKNOWN_CAMERA_CODE_LABEL);
-		assert.equal(formatCameraTileTitle(missingCodeCam), "Không xác định");
+		assert.equal(formatCameraTileTitle(missingCodeCam), "Văn Phòng · CAM-001");
 		assert.equal(formatCameraChipLabel(missingCodeCam), "Không xác định");
-		assert.equal(formatCameraSubLabel(missingCodeCam), "Văn Phòng · CAM-001");
+		assert.equal(formatCameraSubLabel(missingCodeCam), "Không xác định");
 
 		assert.equal(
 			formatIncidentCameraLabel({ cameraCode: "cam-005", cameraName: "CAM-001" }),
