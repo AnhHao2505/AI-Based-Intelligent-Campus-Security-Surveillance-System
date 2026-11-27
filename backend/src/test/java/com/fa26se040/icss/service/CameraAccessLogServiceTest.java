@@ -23,6 +23,9 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -593,5 +596,94 @@ class CameraAccessLogServiceTest {
         CameraAccessLogResponse res = cameraAccessLogService.recordAccessLog(byLevel, night);
         assertNotNull(res);
         assertEquals(AccessResult.AUTHORIZED_PERSON, res.getAccessResult());
+    }
+
+    // ===================== Nguồn quyền miễn giờ giới nghiêm đọc từ cấu hình (AI_NIGHT_ALLOWED_ACCESS_SOURCES, V150) =====================
+
+    /** Mặc định của khoá (ConfigKey), tách CSV như SystemConfigService.getNightAllowedAccessSources khi chưa sửa. */
+    private static List<String> defaultNightSources() {
+        return Arrays.stream(ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getDefaultValue().split(","))
+                .map(String::trim)
+                .toList();
+    }
+
+    private void nightSources(List<String> sources) {
+        when(systemConfigService.getNightAllowedAccessSources()).thenReturn(sources);
+    }
+
+    private static CheckCameraEntryResponse allowedBy(AccessSource source) {
+        return CheckCameraEntryResponse.builder()
+                .allowed(true)
+                .source(source)
+                .reason("Được phép ra vào khu vực")
+                .cameraCode("CAM-001")
+                .userCode("SE170123")
+                .build();
+    }
+
+    @Test
+    @DisplayName("Mặc định 4 nguồn: ACCESS_REQUEST ngoài giờ → AUTHORIZED; ACCESS_LEVEL ngoài giờ → PERSON_INTRUSION")
+    void nightSources_defaultList_keepsOldBehaviour() {
+        assertEquals(List.of("ASSIGNED_PERSONNEL", "ACCESS_REQUEST", "GUEST_VISIT", "INCIDENT_RESPONSE"), defaultNightSources());
+        nightSources(defaultNightSources());
+
+        assertEquals(AccessResult.AUTHORIZED_PERSON,
+                cameraAccessLogService.classifyResult(allowedBy(AccessSource.ACCESS_REQUEST), vn(23, 30), true, false));
+        assertEquals(AccessResult.PERSON_INTRUSION,
+                cameraAccessLogService.classifyResult(allowedBy(AccessSource.ACCESS_LEVEL), vn(23, 30), true, false));
+    }
+
+    @Test
+    @DisplayName("Admin thêm ACCESS_LEVEL: lần gọi kế tiếp ACCESS_LEVEL ngoài giờ → AUTHORIZED (đọc cấu hình mỗi lần)")
+    void nightSources_accessLevelAdded_authorized() {
+        nightSources(defaultNightSources());
+        assertEquals(AccessResult.PERSON_INTRUSION,
+                cameraAccessLogService.classifyResult(allowedBy(AccessSource.ACCESS_LEVEL), vn(23, 30), true, false));
+
+        List<String> withAccessLevel = new ArrayList<>(defaultNightSources());
+        withAccessLevel.add("ACCESS_LEVEL");
+        nightSources(withAccessLevel);
+
+        assertEquals(AccessResult.AUTHORIZED_PERSON,
+                cameraAccessLogService.classifyResult(allowedBy(AccessSource.ACCESS_LEVEL), vn(23, 30), true, false));
+    }
+
+    @Test
+    @DisplayName("Admin bỏ ACCESS_REQUEST: ACCESS_REQUEST ngoài giờ → PERSON_INTRUSION")
+    void nightSources_accessRequestRemoved_intrusion() {
+        nightSources(List.of("ASSIGNED_PERSONNEL", "GUEST_VISIT", "INCIDENT_RESPONSE"));
+
+        assertEquals(AccessResult.PERSON_INTRUSION,
+                cameraAccessLogService.classifyResult(allowedBy(AccessSource.ACCESS_REQUEST), vn(23, 30), true, false));
+    }
+
+    @Test
+    @DisplayName("Bảo vệ ngoài giờ, backend cho phép với nguồn bất kỳ → AUTHORIZED, không đọc danh sách nguồn")
+    void nightSources_guard_alwaysAuthorized() {
+        for (AccessSource source : AccessSource.values()) {
+            assertEquals(AccessResult.AUTHORIZED_PERSON,
+                    cameraAccessLogService.classifyResult(allowedBy(source), vn(23, 30), true, true), source.name());
+        }
+        verify(systemConfigService, never()).getNightAllowedAccessSources();
+    }
+
+    @Test
+    @DisplayName("Trong giờ: không áp luật ban đêm, ACCESS_LEVEL → AUTHORIZED, không đọc danh sách nguồn")
+    void nightSources_daytime_ruleNotApplied() {
+        assertEquals(AccessResult.AUTHORIZED_PERSON,
+                cameraAccessLogService.classifyResult(allowedBy(AccessSource.ACCESS_LEVEL), vn(14, 0), true, false));
+        assertEquals(AccessResult.AUTHORIZED_PERSON,
+                cameraAccessLogService.classifyResult(allowedBy(AccessSource.ACCESS_REQUEST), vn(14, 0), true, false));
+        verify(systemConfigService, never()).getNightAllowedAccessSources();
+    }
+
+    @Test
+    @DisplayName("Thiếu nguồn hoặc NONE ngoài giờ → PERSON_INTRUSION, không đọc danh sách nguồn")
+    void nightSources_missingOrNoneSource_intrusion() {
+        assertEquals(AccessResult.PERSON_INTRUSION,
+                cameraAccessLogService.classifyResult(allowedBy(null), vn(23, 30), true, false));
+        assertEquals(AccessResult.PERSON_INTRUSION,
+                cameraAccessLogService.classifyResult(allowedBy(AccessSource.NONE), vn(23, 30), true, false));
+        verify(systemConfigService, never()).getNightAllowedAccessSources();
     }
 }
