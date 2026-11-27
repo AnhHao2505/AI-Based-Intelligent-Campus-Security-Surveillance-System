@@ -1014,6 +1014,22 @@ body.soc-theater-active .sidebar {
   transition: all 0.25s ease;
 }
 
+/* Camera đang được chọn / focus (Cyan #38bdf8: tách biệt hoàn toàn với viền sự cố Đỏ / Cam / Vàng) */
+.video-viewport-card.card-selected,
+.guard-dashboard-container.soc-theater-mode .video-viewport-card.card-selected {
+  border: 2px solid #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45), 0 0 14px rgba(56, 189, 248, 0.28);
+}
+
+.video-viewport-card.card-selected:not(.card-has-incident) .cctv-player-wrapper {
+  border-color: rgba(56, 189, 248, 0.65);
+}
+
+.video-viewport-card.card-selected.card-has-incident,
+.guard-dashboard-container.soc-theater-mode .video-viewport-card.card-selected.card-has-incident {
+  box-shadow: 0 0 0 2px #38bdf8, 0 0 16px rgba(56, 189, 248, 0.35) !important;
+}
+
 /* 1. Mức độ NGUY CẤP (Critical - Đỏ: viền đỏ xung nổi bật nhất) */
 .video-viewport-card.card-has-incident.severity-critical {
   border-color: var(--theme-danger) !important;

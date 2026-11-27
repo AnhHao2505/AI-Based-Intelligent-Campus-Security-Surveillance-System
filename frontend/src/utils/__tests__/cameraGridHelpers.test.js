@@ -303,7 +303,7 @@ describe("cameraGridHelpers", () => {
 			floor: "Tầng 1",
 		};
 		assert.equal(resolveCameraCodeLabel(camWithAreaAndName), "CAM-005");
-		assert.equal(formatCameraTileTitle(camWithAreaAndName), "Văn Phòng · CAM-001");
+		assert.equal(formatCameraTileTitle(camWithAreaAndName), "Văn Phòng");
 		assert.equal(formatCameraChipLabel(camWithAreaAndName), "CAM-005");
 		assert.equal(formatCameraSubLabel(camWithAreaAndName), "CAM-005");
 
@@ -311,7 +311,8 @@ describe("cameraGridHelpers", () => {
 			cameraCode: "CAM-005",
 			name: "CAM-001",
 		};
-		assert.equal(formatCameraTileTitle(camOnlyName), "CAM-001");
+		assert.equal(formatCameraTileTitle(camOnlyName), "CAM-005");
+		assert.equal(formatCameraRoomName(camOnlyName), "CAM-005");
 		assert.equal(formatCameraChipLabel(camOnlyName), "CAM-005");
 		assert.equal(formatCameraSubLabel(camOnlyName), "CAM-005");
 

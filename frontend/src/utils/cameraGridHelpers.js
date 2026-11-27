@@ -41,16 +41,25 @@ export function formatIncidentCameraLabel(alert) {
 	return formatCameraCodeOrUnknown(alert);
 }
 
+function isMismatchedCameraCodeName(rawName, codeLabel) {
+	const trimmed = String(rawName || "").trim();
+	if (!trimmed || !codeLabel) return false;
+	if (!/^CAM[-_]\d+[A-Z0-9-]*$/i.test(trimmed)) return false;
+	return trimmed.toUpperCase() !== codeLabel.toUpperCase();
+}
+
 export function formatCameraTileTitle(cam) {
 	if (!cam || typeof cam !== "object") return "Camera giám sát";
 	const areaName = String(cam.areaName || "").trim();
 	const rawName = String(cam.name || "").trim();
-	if (areaName && rawName) {
-		return areaName.toLowerCase() === rawName.toLowerCase()
+	const codeLabel = resolveCameraCodeLabel(cam);
+	const safeName = isMismatchedCameraCodeName(rawName, codeLabel) ? "" : rawName;
+	if (areaName && safeName) {
+		return areaName.toLowerCase() === safeName.toLowerCase()
 			? areaName
-			: `${areaName} · ${rawName}`;
+			: `${areaName} · ${safeName}`;
 	}
-	return areaName || rawName || "Camera giám sát";
+	return areaName || safeName || codeLabel || "Camera giám sát";
 }
 
 export function formatShortFloorCode(cam) {
@@ -70,7 +79,9 @@ export function formatCameraRoomName(cam) {
 	if (!cam || typeof cam !== "object") return "Camera";
 	const areaName = String(cam.areaName || "").trim();
 	const rawCamName = String(cam.name || "").trim();
-	const base = areaName || rawCamName || "Camera";
+	const codeLabel = resolveCameraCodeLabel(cam);
+	const safeName = isMismatchedCameraCodeName(rawCamName, codeLabel) ? "" : rawCamName;
+	const base = areaName || safeName || codeLabel || "Camera";
 	const cleaned = base
 		.replace(/\s*(?:·|-)?\s*(?:Tầng\s*(?:Trệt|\d+)|T\d+)\s*$/i, "")
 		.trim();
