@@ -49,7 +49,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('vi', null);
   await StorageHelper.loadBaseUrl();
-  LocalNotificationService.instance.onIncidentTap = (_) {
+  LocalNotificationService.instance.onIncidentTap = (payload) {
+    if (payload != null &&
+        payload.startsWith(LocalNotificationService.cameraPayloadPrefix)) {
+      debugPrint('[NotificationTap] camera health alert ($payload), keep current screen');
+      return;
+    }
     final nav = appNavigatorKey.currentState;
     debugPrint('[NotificationTap] navigator ready=${nav != null}');
     if (nav == null) return;

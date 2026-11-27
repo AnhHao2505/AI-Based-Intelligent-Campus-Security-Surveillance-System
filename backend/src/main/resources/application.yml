@@ -126,6 +126,9 @@ minio:
     chat: chat-media
 
 icss:
+  camera:
+    # V151: thời gian ân hạn sau khi Backend khởi động (giây) để chờ MediaMTX / Edge đồng bộ nhịp đầu trước khi tính giờ mất kết nối camera (tham số vận hành, không lưu DB)
+    boot-grace-seconds: ${CAMERA_BOOT_GRACE_SECONDS:60}
   scheduler:
     expire-overdue-cron: ${EXPIRE_OVERDUE_CRON:0 */15 * * * *}
     # D-2.1: đơn APPROVED đã qua giờ kết thúc -> FINISHED do hệ thống

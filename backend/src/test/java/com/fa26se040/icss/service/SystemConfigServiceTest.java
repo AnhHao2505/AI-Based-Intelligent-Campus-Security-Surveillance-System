@@ -301,7 +301,7 @@ class SystemConfigServiceTest {
         );
         assertEquals(30, map.get("unknown_alert_cooldown"));
         assertEquals(30, map.get("unauthorized_alert_cooldown"));
-        assertEquals(5, map.get("suspicious_motion_cooldown"));
+        assertEquals(30, map.get("suspicious_motion_cooldown"));
         assertEquals(0.5, map.get("recording_retention_hours"));
         assertEquals(0.0, map.get("incident_no_detection_timeout_seconds"));
     }
@@ -388,8 +388,8 @@ class SystemConfigServiceTest {
     }
 
     @Test
-    @DisplayName("V150: getAll chỉ gắn options cho AI_NIGHT_ALLOWED_ACCESS_SOURCES, khoá khác giữ options = null")
-    void getAll_OnlyNightAllowedSourcesHasOptions() {
+    @DisplayName("V150 / V151: getAll gắn options tiếng Việt cho AI_NIGHT_ALLOWED_ACCESS_SOURCES, ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES và INCIDENT_SEVERITY_DEFAULT; khoá khác giữ options = null")
+    void getAll_AttachesOptionsToSupportedKeysOnly() {
         SystemConfiguration nightConfig = SystemConfiguration.builder()
                 .configKey(ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getKey())
                 .configValue(ConfigKey.AI_NIGHT_ALLOWED_ACCESS_SOURCES.getDefaultValue())
@@ -399,14 +399,43 @@ class SystemConfigServiceTest {
                 .description("Nguồn quyền miễn giờ giới nghiêm")
                 .editable(true)
                 .build();
+        SystemConfiguration sponsorConfig = SystemConfiguration.builder()
+                .configKey(ConfigKey.ACCESS_REQUEST_SPONSOR_ALLOWED_AREA_TYPES.getKey())
+                .configValue("CONFIDENTIAL")
+                .dataType("STRING")
+                .configGroup("ACCESS_REQUEST")
+                .displayOrder(6)
+                .description("Loại khu vực được bảo lãnh thành viên")
+                .editable(true)
+                .build();
+        SystemConfiguration severityConfig = SystemConfiguration.builder()
+                .configKey(ConfigKey.INCIDENT_SEVERITY_DEFAULT.getKey())
+                .configValue("MEDIUM")
+                .dataType("STRING")
+                .configGroup("SECURITY")
+                .displayOrder(62)
+                .description("Mức độ mặc định khi tạo sự cố an ninh")
+                .editable(true)
+                .build();
         when(systemConfigurationRepository.findAllByOrderByConfigGroupAscDisplayOrderAsc())
-                .thenReturn(List.of(maxMembersConfig, nightConfig));
+                .thenReturn(List.of(maxMembersConfig, nightConfig, sponsorConfig, severityConfig));
 
         List<SystemConfigResponse> responses = systemConfigService.getAll();
-        assertEquals(2, responses.size());
+        assertEquals(4, responses.size());
         assertNull(responses.get(0).options());
+        assertNull(responses.get(0).multiSelect());
         assertNotNull(responses.get(1).options());
         assertEquals(6, responses.get(1).options().size());
+        assertEquals(Boolean.TRUE, responses.get(1).multiSelect());
+        assertNotNull(responses.get(2).options());
+        assertEquals(1, responses.get(2).options().size());
+        assertEquals("Bảo mật", responses.get(2).options().get(0).label());
+        assertEquals(Boolean.FALSE, responses.get(2).multiSelect());
+        assertNotNull(responses.get(3).options());
+        assertEquals(3, responses.get(3).options().size());
+        assertEquals(List.of("Trung bình", "Cao", "Nghiêm trọng"),
+                responses.get(3).options().stream().map(o -> o.label()).toList());
+        assertEquals(Boolean.FALSE, responses.get(3).multiSelect());
     }
 
     @Test

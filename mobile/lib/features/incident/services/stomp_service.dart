@@ -54,6 +54,7 @@ class StompService {
     required Function(IncidentModel) onNewIncident,
     required Function(Map<String, dynamic>) onIncidentUpdate,
     Function(Map<String, dynamic>)? onOfferMessage,
+    Function(Map<String, dynamic>)? onCameraAlert,
   }) async {
     if ((_connecting || _client != null) && _guardId == guardId && _building == building) {
       debugPrint('[STOMP] Already connecting/connected (guardId: $guardId), skip');
@@ -155,6 +156,24 @@ class StompService {
                 }
               },
             );
+
+            // 1d. V151: Cảnh báo mất / khôi phục kết nối camera livestream trong ca trực
+            if (onCameraAlert != null) {
+              client.subscribe(
+                destination: '/topic/guards/$guardId/camera-alerts',
+                callback: (StompFrame frame) {
+                  if (frame.body == null || frame.body!.isEmpty) return;
+                  try {
+                    final decoded = jsonDecode(frame.body!);
+                    if (decoded is Map<String, dynamic>) {
+                      onCameraAlert(decoded);
+                    }
+                  } catch (e) {
+                    debugPrint('[STOMP] Error parsing camera alert: $e');
+                  }
+                },
+              );
+            }
           } else {
             // Global security alerts fallback topic (for general monitoring)
             client.subscribe(

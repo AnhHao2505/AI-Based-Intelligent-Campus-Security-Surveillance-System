@@ -453,6 +453,37 @@
   width: 100%;
 }
 
+.syscfg-select {
+  width: 100%;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 32px 0 12px;
+  background-color: var(--theme-bg-input);
+  border: 1px solid var(--theme-input-border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--theme-text-primary);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.syscfg-select:hover:not(:disabled) {
+  border-color: var(--theme-border-hover);
+}
+
+.syscfg-select:focus-visible {
+  outline: none;
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.syscfg-select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .syscfg-input-unit {
   font-size: 0.875rem;
   font-weight: 500;

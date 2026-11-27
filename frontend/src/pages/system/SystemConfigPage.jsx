@@ -574,22 +574,26 @@ export default function SystemConfigPage() {
 														editedValues[cfg.configKey] ?? cfg.configValue;
 													const hasOptions =
 														Array.isArray(cfg.options) && cfg.options.length > 0;
-													const selectedOptionSet = hasOptions
+													const isMultiSelectOptions =
+														hasOptions && Boolean(cfg.multiSelect);
+													const isSingleSelectEnum =
+														hasOptions && !isMultiSelectOptions;
+													const selectedOptionSet = isMultiSelectOptions
 														? new Set(parseCsvValues(currentValue))
 														: null;
-													const isModified = hasOptions
+													const isModified = isMultiSelectOptions
 														? normalizeCsvForOptions(currentValue, cfg.options) !==
 															normalizeCsvForOptions(cfg.configValue, cfg.options)
 														: String(currentValue) !== String(cfg.configValue);
 													const isOptionEmpty =
-														hasOptions && selectedOptionSet.size === 0;
+														isMultiSelectOptions && selectedOptionSet.size === 0;
 													const isSaving = savingKey === cfg.configKey;
 
 													return (
 														<Card
 															key={cfg.configKey}
 															padding="md"
-															className={`syscfg-item-card ${hasOptions ? "syscfg-item-card--wide" : ""}`}
+															className={`syscfg-item-card ${isMultiSelectOptions ? "syscfg-item-card--wide" : ""}`}
 														>
 															<div className="syscfg-item">
 																{/* Top: Description and Help Tooltip */}
@@ -630,7 +634,7 @@ export default function SystemConfigPage() {
 
 																{/* Middle: Input control based on data type / options metadata */}
 																<div
-																	className={`syscfg-item__control-row ${hasOptions ? "syscfg-item__control-row--stacked" : ""}`}
+																	className={`syscfg-item__control-row ${isMultiSelectOptions ? "syscfg-item__control-row--stacked" : ""}`}
 																>
 																	{cfg.dataType === "BOOLEAN" ? (
 																		<div className="syscfg-toggle-wrapper">
@@ -663,7 +667,28 @@ export default function SystemConfigPage() {
 																					: "Không cho phép (Cấm)"}
 																			</span>
 																		</div>
-																	) : hasOptions ? (
+																	) : isSingleSelectEnum ? (
+																		<div className="syscfg-input-wrapper">
+																			<select
+																				value={currentValue}
+																				onChange={(e) =>
+																					handleValueChange(
+																						cfg.configKey,
+																						e.target.value,
+																					)
+																				}
+																				disabled={!cfg.editable}
+																				aria-labelledby={`syscfg-desc-${cfg.configKey}`}
+																				className="syscfg-select"
+																			>
+																				{cfg.options.map((opt) => (
+																					<option key={opt.value} value={opt.value}>
+																						{opt.label}
+																					</option>
+																				))}
+																			</select>
+																		</div>
+																	) : isMultiSelectOptions ? (
 																		<div
 																			className="syscfg-options-wrapper"
 																			role="group"

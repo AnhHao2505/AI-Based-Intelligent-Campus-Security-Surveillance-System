@@ -839,12 +839,34 @@ export function SecuritySurveillancePage() {
 				loadActiveCameras(true);
 			}
 		};
+		const handleCameraHealthAlert = (e) => {
+			const payload = e?.detail;
+			if (!payload) return;
+			const nextStatus = payload.event === "CAMERA_ONLINE" ? "ONLINE" : "OFFLINE";
+			const targetCode = String(payload.cameraCode || "").trim().toUpperCase();
+			setCameraList((prev) => {
+				let changed = false;
+				const updated = prev.map((c) => {
+					const matched =
+						(payload.cameraId && c.id === payload.cameraId) ||
+						(targetCode && String(c.cameraCode || "").trim().toUpperCase() === targetCode);
+					if (matched && c.status !== nextStatus) {
+						changed = true;
+						return { ...c, status: nextStatus };
+					}
+					return c;
+				});
+				return changed ? updated : prev;
+			});
+		};
 		document.addEventListener("visibilitychange", handleVisibility);
+		window.addEventListener("camera-health-alert", handleCameraHealthAlert);
 
 		return () => {
 			isMounted = false;
 			clearInterval(pollId);
 			document.removeEventListener("visibilitychange", handleVisibility);
+			window.removeEventListener("camera-health-alert", handleCameraHealthAlert);
 		};
 	}, []);
 
