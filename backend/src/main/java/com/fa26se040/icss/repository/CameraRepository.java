@@ -48,7 +48,12 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
 
     List<Camera> findByStatusAndDeletedAtIsNullOrderByCameraCodeAsc(CameraStatus status);
 
-    @Query("SELECT DISTINCT c FROM Camera c LEFT JOIN FETCH c.streamConfiguration WHERE c.status = :status AND c.deletedAt IS NULL ORDER BY c.cameraCode ASC")
+    @Query("SELECT DISTINCT c FROM Camera c " +
+           "LEFT JOIN FETCH c.streamConfiguration " +
+           "LEFT JOIN FETCH c.area a " +
+           "LEFT JOIN FETCH a.floorEntity f " +
+           "LEFT JOIN FETCH f.building " +
+           "WHERE c.status = :status AND c.deletedAt IS NULL ORDER BY c.cameraCode ASC")
     List<Camera> findActiveWithStreamConfigByStatus(@Param("status") CameraStatus status);
 
     List<Camera> findByStatus(CameraStatus status);

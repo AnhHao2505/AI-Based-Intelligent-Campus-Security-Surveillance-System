@@ -12,6 +12,11 @@ import {
 	getActionLabel,
 	renderSystemActor,
 } from "../../utils/auditLabels";
+import {
+	INCIDENT_EVENT_LABELS,
+	INCIDENT_SEVERITY_META,
+	INCIDENT_STATUS_META,
+} from "../../utils/dashboardHelpers";
 import Button from "../../components/ui/Button";
 import PageHeader from "../../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState, Select } from "../../components/ui";
@@ -91,6 +96,18 @@ const AUDIT_FIELD_LABELS = {
 	reviewNotes: "Ghi chú duyệt",
 	affectedCount: "Số ca tạo",
 	clearedCount: "Số ca đã xóa",
+	// V149: sự cố an ninh
+	eventType: "Loại sự cố",
+	severity: "Mức độ",
+	dispatchStage: "Giai đoạn điều phối",
+	subjectUserCode: "Mã đối tượng",
+	claimedByName: "Người tiếp nhận",
+	claimedAt: "Thời điểm tiếp nhận",
+	resolvedByName: "Người xử lý",
+	resolvedAt: "Thời điểm đóng",
+	outcome: "Kết quả xác minh",
+	resolutionCategory: "Phân loại xử lý",
+	resolutionNotes: "Ghi chú xử lý",
 };
 
 const isBlankValue = (v) => v === null || v === undefined;
@@ -141,6 +158,8 @@ const MODULE_OPTIONS_ADMIN = [
 	{ value: "CAMERA", label: "Camera" },
 	// Đội bảo vệ, tăng cường, ca trực — ADMIN & FM (audit_module_roles, V144)
 	{ value: "GUARD", label: "Đội & ca bảo vệ" },
+	// Sự cố an ninh — ADMIN & FM (audit_module_roles, V149)
+	{ value: "INCIDENT", label: "Sự cố an ninh" },
 ];
 
 const MODULE_OPTIONS_FM = [
@@ -149,6 +168,7 @@ const MODULE_OPTIONS_FM = [
 	{ value: "ACCESS_CONTROL", label: "Phân quyền" },
 	{ value: "ACCESS_REQUEST", label: "Yêu cầu truy cập" },
 	{ value: "GUARD", label: "Đội & ca bảo vệ" },
+	{ value: "INCIDENT", label: "Sự cố an ninh" },
 ];
 
 // Chỉ các giá trị có trong enum AuditTargetType của backend (giá trị khác -> API trả 400)
@@ -167,6 +187,7 @@ const TARGET_TYPE_OPTIONS = [
 	{ value: "GUARD_TEAM_DISPATCH", label: "Điều động tăng cường" },
 	{ value: "GUARD_SHIFT", label: "Ca trực bảo vệ" },
 	{ value: "GUARD_SHIFT_REQUEST", label: "Đơn đổi ca / nghỉ phép" },
+	{ value: "SECURITY_INCIDENT", label: "Sự cố an ninh" },
 ];
 
 // Đối tượng của phân hệ GUEST — chỉ ADMIN được đọc (audit_module_roles, V60)
@@ -203,6 +224,7 @@ const TARGET_TYPE_CATEGORY = {
 	GUARD_TEAM_DISPATCH: "warning",
 	GUARD_SHIFT: "success",
 	GUARD_SHIFT_REQUEST: "warning",
+	SECURITY_INCIDENT: "warning",
 };
 
 // "yyyy-MM-dd" theo giờ máy, dùng cho ô ngày và nút "Hôm nay"
@@ -563,6 +585,65 @@ export default function AuditLogPage() {
 									{(newExp ?? oldExp) ? "Bật" : "Tắt"}
 								</strong>
 							)}
+						</div>
+					)}
+				</div>
+			);
+		}
+
+		if (targetType === "SECURITY_INCIDENT") {
+			const oldInc = oldValue || {};
+			const newInc = newValue || {};
+			const snap = newValue || oldValue || {};
+			const camCode = snap.cameraCode;
+			const eventLabel = snap.eventType
+				? INCIDENT_EVENT_LABELS[snap.eventType] || snap.eventType
+				: null;
+			const sevLabel = snap.severity
+				? INCIDENT_SEVERITY_META[snap.severity]?.label || snap.severity
+				: null;
+			const incStatusLabel = (s) => INCIDENT_STATUS_META[s]?.label || s || "—";
+			const stageLabel = (st) =>
+				st === "STEP1" ? "Mời theo đợt" : st === "BROADCAST" ? "Phát toàn bộ" : st || "—";
+			const outcomeLabel = (o) =>
+				o === "VERIFIED" ? "Vi phạm thật" : o === "DISMISSED" ? "Báo động giả" : o || "—";
+
+			return (
+				<div className="audit-detail-rules">
+					{(camCode || eventLabel || sevLabel) && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Sự cố:</span>
+							<strong>
+								{[camCode, eventLabel, sevLabel].filter(Boolean).join(" · ")}
+							</strong>
+						</div>
+					)}
+					{oldInc.status !== newInc.status && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Trạng thái:</span>
+							<span>{incStatusLabel(oldInc.status)}</span>
+							<span className="audit-arrow">→</span>
+							<strong className="audit-val--new">
+								{incStatusLabel(newInc.status)}
+							</strong>
+						</div>
+					)}
+					{oldInc.dispatchStage !== newInc.dispatchStage && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Điều phối:</span>
+							<span>{stageLabel(oldInc.dispatchStage)}</span>
+							<span className="audit-arrow">→</span>
+							<strong className="audit-val--new">
+								{stageLabel(newInc.dispatchStage)}
+							</strong>
+						</div>
+					)}
+					{newInc.outcome && (
+						<div className="audit-detail-row">
+							<span className="audit-row-label">Kết quả:</span>
+							<strong className="audit-val--new">
+								{outcomeLabel(newInc.outcome)}
+							</strong>
 						</div>
 					)}
 				</div>

@@ -428,11 +428,9 @@ class _GuardMapScreenState extends State<GuardMapScreen>
     if (!mounted) return;
     final route = _provider.currentRoute;
     if (route != null) {
-      final startFloor = route.startMode == CampusRouteStartMode.outdoorGps
-          ? 0
-          : route.startFloorOrder;
-      if (_provider.selectedFloorOrder != startFloor) {
-        _provider.selectFloor(startFloor);
+      final displayFloor = route.preferredDisplayFloorOrder;
+      if (_provider.selectedFloorOrder != displayFloor) {
+        _provider.selectFloor(displayFloor);
       }
       _fitRoute(route.latLngs);
       if (route.message != null) _showSnack(route.message!);

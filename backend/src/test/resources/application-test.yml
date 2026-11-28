@@ -18,6 +18,8 @@ spring:
 # Tắt mọi tick chạy theo lịch trong test: test gọi thẳng method job với now truyền vào.
 # Tick thật chạy nền trên DB test dùng chung gây flaky (thông báo lạ gửi tới user của test đang chạy).
 icss:
+  camera:
+    boot-grace-seconds: 0
   scheduler:
     event-mode-tick-cron: "-"
     expire-overdue-cron: "-"

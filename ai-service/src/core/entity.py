@@ -185,7 +185,7 @@ class MotionResult:
 @dataclass
 class SecurityAlertEvent:
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    camera_code: str = "CAM-001"
+    camera_code: str = ""
     event_type: str = "UNKNOWN_PERSON"  # UNKNOWN_PERSON, AUTHORIZED_PERSON, UNAUTHORIZED_PERSON, PERSON_INTRUSION, SUSPICIOUS_MOVING_OBJECT, IDENTITY_UPDATE
     track_id: int = -1
     duration_seconds: float = 0.0

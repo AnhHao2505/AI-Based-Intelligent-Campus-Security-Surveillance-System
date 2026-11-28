@@ -152,3 +152,72 @@ def test_daytime_guest_denied_without_code_keeps_keyword_reason():
     alerts = _run(DAYTIME, False, "NONE", "Khách vào ngoài khung giờ được tiếp đón")
     assert len(alerts) == 1
     assert "Lý do: Ngoài giờ tiếp khách" in alerts[0].details
+
+
+def test_after_hours_removed_source_via_runtime_config_triggers_intrusion_and_guard_stays_exempt():
+    from src.config import settings
+    from src.pipeline.runtime_config import apply_runtime_config
+
+    saved = list(settings.NIGHT_ALLOWED_ACCESS_SOURCES)
+    try:
+        # Bỏ GUEST_VISIT và ACCESS_REQUEST khỏi danh sách miễn giờ giới nghiêm
+        _, errors = apply_runtime_config({
+            "night_allowed_access_sources": ["ASSIGNED_PERSONNEL", "INCIDENT_RESPONSE"]
+        })
+        assert errors == []
+
+        # GUEST_VISIT và ACCESS_REQUEST bị bỏ khỏi danh sách -> bị cảnh báo PERSON_INTRUSION ngay
+        alerts_guest = _run(AFTER_HOURS_TIME, True, "GUEST_VISIT", "Khách tham quan hợp lệ")
+        assert len(alerts_guest) == 1
+        assert alerts_guest[0].event_type == "PERSON_INTRUSION"
+
+        alerts_req = _run(AFTER_HOURS_TIME, True, "ACCESS_REQUEST", "Đơn truy cập đã duyệt")
+        assert len(alerts_req) == 1
+        assert alerts_req[0].event_type == "PERSON_INTRUSION"
+
+        # Nguồn còn trong danh sách vẫn được miễn
+        assert _run(AFTER_HOURS_TIME, True, "ASSIGNED_PERSONNEL", "Nhân sự chỉ định") == []
+
+        # GUARD vẫn luôn được miễn ngoài giờ khi Backend cho phép (kể cả không có source hay source không nằm trong list)
+        assert _run(AFTER_HOURS_TIME, True, None, "Bảo vệ trực ca", role="GUARD") == []
+        assert _run(AFTER_HOURS_TIME, True, "ACCESS_LEVEL", "Bảo vệ vào theo cấp", role="GUARD") == []
+    finally:
+        settings.NIGHT_ALLOWED_ACCESS_SOURCES = saved
+
+
+def test_after_hours_added_open_event_via_runtime_config_is_exempt():
+    from src.config import settings
+    from src.pipeline.runtime_config import apply_runtime_config
+
+    saved = list(settings.NIGHT_ALLOWED_ACCESS_SOURCES)
+    try:
+        _, errors = apply_runtime_config({
+            "night_allowed_access_sources": ["ASSIGNED_PERSONNEL", "OPEN_EVENT"]
+        })
+        assert errors == []
+        assert _run(AFTER_HOURS_TIME, True, "OPEN_EVENT", "Khu vực mở sự kiện") == []
+    finally:
+        settings.NIGHT_ALLOWED_ACCESS_SOURCES = saved
+
+
+def test_after_hours_invalid_runtime_sources_never_empties_list(caplog):
+    import logging
+    from src.config import settings
+    from src.pipeline.runtime_config import apply_runtime_config
+
+    saved = list(settings.NIGHT_ALLOWED_ACCESS_SOURCES)
+    try:
+        settings.NIGHT_ALLOWED_ACCESS_SOURCES = ["ASSIGNED_PERSONNEL", "GUEST_VISIT"]
+        with caplog.at_level(logging.WARNING):
+            _, errors_empty = apply_runtime_config({"night_allowed_access_sources": []})
+            _, errors_bad = apply_runtime_config({"night_allowed_access_sources": ["INVALID_SOURCE"]})
+            _, errors_type = apply_runtime_config({"night_allowed_access_sources": "ASSIGNED_PERSONNEL"})
+
+        assert len(errors_empty) == 1
+        assert len(errors_bad) == 1
+        assert len(errors_type) == 1
+        assert settings.NIGHT_ALLOWED_ACCESS_SOURCES == ["ASSIGNED_PERSONNEL", "GUEST_VISIT"]
+        assert _run(AFTER_HOURS_TIME, True, "ASSIGNED_PERSONNEL", "Nhân sự chỉ định") == []
+        assert any("night_allowed_access_sources" in rec.message for rec in caplog.records)
+    finally:
+        settings.NIGHT_ALLOWED_ACCESS_SOURCES = saved

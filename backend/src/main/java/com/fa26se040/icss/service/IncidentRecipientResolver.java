@@ -5,6 +5,7 @@ import com.fa26se040.icss.entity.SecurityIncident;
 import com.fa26se040.icss.entity.User;
 import com.fa26se040.icss.enums.ShiftStatus;
 import com.fa26se040.icss.repository.OnDutyGuardQueryRepository;
+import com.fa26se040.icss.util.StringNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -62,6 +63,41 @@ public class IncidentRecipientResolver {
             guards.putIfAbsent(guard.getId(), guard);
         }
         return new ArrayList<>(guards.values());
+    }
+
+    /**
+     * V151: tìm bảo vệ đang trực (CHECKED_IN, trong khung giờ, tài khoản hoạt động) thuộc toà nhà của camera.
+     * Nếu camera chưa gắn toà nhà hoặc toà nhà đó hiện không có ca trực nào khớp, fallback trả về toàn bộ
+     * bảo vệ đang CHECKED_IN toàn khuôn viên để không bỏ sót cảnh báo mất góc nhìn camera.
+     */
+    public List<User> findOnDutyGuardsForCameraBuilding(OffsetDateTime now, UUID buildingId, String buildingName) {
+        LocalDateTime nowLocal = now.atZoneSameInstant(VN_ZONE).toLocalDateTime();
+        LocalDate today = nowLocal.toLocalDate();
+        boolean hasBuildingName = buildingName != null && !buildingName.isBlank();
+
+        List<GuardShift> shifts = onDutyGuardQueryRepository.findByStatusAndShiftDateBetween(
+                ShiftStatus.CHECKED_IN, today.minusDays(1), today);
+
+        Map<UUID, User> allOnDuty = new LinkedHashMap<>();
+        Map<UUID, User> matchedBuilding = new LinkedHashMap<>();
+        for (GuardShift shift : shifts) {
+            User guard = shift.getGuard();
+            if (guard == null || guard.getId() == null || !isActiveAccount(guard) || !isWithinShift(shift, nowLocal)) {
+                continue;
+            }
+            allOnDuty.putIfAbsent(guard.getId(), guard);
+            if (shift.getBuilding() != null) {
+                boolean idMatch = buildingId != null && buildingId.equals(shift.getBuilding().getId());
+                boolean nameMatch = hasBuildingName && shift.getBuilding().getName() != null
+                        && StringNormalizer.matchesBuildingName(buildingName, shift.getBuilding().getName());
+                if (idMatch || nameMatch) {
+                    matchedBuilding.putIfAbsent(guard.getId(), guard);
+                }
+            }
+        }
+        return !matchedBuilding.isEmpty()
+                ? new ArrayList<>(matchedBuilding.values())
+                : new ArrayList<>(allOnDuty.values());
     }
 
     /**

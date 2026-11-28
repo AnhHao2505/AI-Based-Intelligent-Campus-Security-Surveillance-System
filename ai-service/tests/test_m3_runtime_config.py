@@ -231,4 +231,30 @@ def test_suspicious_motion_min_duration_runtime_config():
         settings.SUSPICIOUS_MOTION_MIN_DURATION = old_val
 
 
+def test_main_update_ai_runtime_config_night_allowed_sources():
+    """V150: Kiểm tra endpoint /api/v1/system-config/ai-runtime nhận và validate night_allowed_access_sources."""
+    import asyncio
+    old_sources = list(settings.NIGHT_ALLOWED_ACCESS_SOURCES)
+    try:
+        req = AIRuntimeConfigRequest(night_allowed_access_sources=["ASSIGNED_PERSONNEL", "INCIDENT_RESPONSE"])
+        res = asyncio.run(update_ai_runtime_config(req))
+        assert res["success"] is True
+        assert res["night_allowed_access_sources"] == ["ASSIGNED_PERSONNEL", "INCIDENT_RESPONSE"]
+        assert settings.NIGHT_ALLOWED_ACCESS_SOURCES == ["ASSIGNED_PERSONNEL", "INCIDENT_RESPONSE"]
+
+        # Danh sách rỗng -> 400 và giữ nguyên giá trị cũ
+        with pytest.raises(HTTPException) as exc_empty:
+            asyncio.run(update_ai_runtime_config(AIRuntimeConfigRequest(night_allowed_access_sources=[])))
+        assert exc_empty.value.status_code == 400
+        assert settings.NIGHT_ALLOWED_ACCESS_SOURCES == ["ASSIGNED_PERSONNEL", "INCIDENT_RESPONSE"]
+
+        # Giá trị lạ -> 400 và giữ nguyên giá trị cũ
+        with pytest.raises(HTTPException) as exc_bad:
+            asyncio.run(update_ai_runtime_config(AIRuntimeConfigRequest(night_allowed_access_sources=["INVALID"])))
+        assert exc_bad.value.status_code == 400
+        assert settings.NIGHT_ALLOWED_ACCESS_SOURCES == ["ASSIGNED_PERSONNEL", "INCIDENT_RESPONSE"]
+    finally:
+        settings.NIGHT_ALLOWED_ACCESS_SOURCES = old_sources
+
+
 

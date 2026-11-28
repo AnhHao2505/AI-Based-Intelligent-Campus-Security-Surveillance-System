@@ -9,6 +9,8 @@ import java.util.List;
 /**
  * @param eventAdjustments EV-N8 (V115): chỉ có khi lưu AI_AFTER_HOUR_START / AI_AFTER_HOUR_END — các lịch / sự kiện hệ thống
  *                         đã cắt / huỷ / tắt theo khung ban đêm mới (rỗng nếu không có gì bị ảnh hưởng); null ở mọi trường hợp khác
+ * @param options          V150 / V152: danh sách lựa chọn hợp lệ (value, nhãn tiếng Việt, mô tả); null ở khoá nhập tự do
+ * @param multiSelect      V152: true nếu chọn nhiều giá trị CSV (checkbox), false nếu chọn 1 giá trị (select option); null khi options = null
  */
 public record SystemConfigResponse(
     String configKey,
@@ -25,14 +27,16 @@ public record SystemConfigResponse(
     OffsetDateTime updatedAt,
     String updatedByEmail,
     String updatedByName,
-    List<EventNightAdjustment> eventAdjustments
+    List<EventNightAdjustment> eventAdjustments,
+    List<ConfigOptionResponse> options,
+    Boolean multiSelect
 ) {
     public SystemConfigResponse(String configKey, String configValue, String dataType, BigDecimal minValue,
                                 BigDecimal maxValue, String unit, String configGroup, Integer displayOrder,
                                 String description, Boolean editable, OffsetDateTime updatedAt,
                                 String updatedByEmail, String updatedByName) {
         this(configKey, configValue, dataType, minValue, maxValue, unit, configGroup, displayOrder, description,
-                null, editable, updatedAt, updatedByEmail, updatedByName, null);
+                null, editable, updatedAt, updatedByEmail, updatedByName, null, null, null);
     }
 
     public SystemConfigResponse(String configKey, String configValue, String dataType, BigDecimal minValue,
@@ -40,11 +44,29 @@ public record SystemConfigResponse(
                                 String description, String tooltip, Boolean editable, OffsetDateTime updatedAt,
                                 String updatedByEmail, String updatedByName) {
         this(configKey, configValue, dataType, minValue, maxValue, unit, configGroup, displayOrder, description,
-                tooltip, editable, updatedAt, updatedByEmail, updatedByName, null);
+                tooltip, editable, updatedAt, updatedByEmail, updatedByName, null, null, null);
+    }
+
+    public SystemConfigResponse(String configKey, String configValue, String dataType, BigDecimal minValue,
+                                BigDecimal maxValue, String unit, String configGroup, Integer displayOrder,
+                                String description, String tooltip, Boolean editable, OffsetDateTime updatedAt,
+                                String updatedByEmail, String updatedByName, List<EventNightAdjustment> eventAdjustments) {
+        this(configKey, configValue, dataType, minValue, maxValue, unit, configGroup, displayOrder, description,
+                tooltip, editable, updatedAt, updatedByEmail, updatedByName, eventAdjustments, null, null);
+    }
+
+    public SystemConfigResponse(String configKey, String configValue, String dataType, BigDecimal minValue,
+                                BigDecimal maxValue, String unit, String configGroup, Integer displayOrder,
+                                String description, String tooltip, Boolean editable, OffsetDateTime updatedAt,
+                                String updatedByEmail, String updatedByName, List<EventNightAdjustment> eventAdjustments,
+                                List<ConfigOptionResponse> options) {
+        this(configKey, configValue, dataType, minValue, maxValue, unit, configGroup, displayOrder, description,
+                tooltip, editable, updatedAt, updatedByEmail, updatedByName, eventAdjustments, options,
+                options != null ? Boolean.TRUE : null);
     }
 
     public SystemConfigResponse withEventAdjustments(List<EventNightAdjustment> adjustments) {
         return new SystemConfigResponse(configKey, configValue, dataType, minValue, maxValue, unit, configGroup,
-                displayOrder, description, tooltip, editable, updatedAt, updatedByEmail, updatedByName, adjustments);
+                displayOrder, description, tooltip, editable, updatedAt, updatedByEmail, updatedByName, adjustments, options, multiSelect);
     }
 }

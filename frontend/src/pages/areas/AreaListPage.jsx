@@ -227,7 +227,7 @@ export default function AreaListPage() {
 	const [formData, setFormData] = useState({
 		name: "",
 		areaLevel: "PUBLIC",
-		building: "Tòa Alpha",
+		building: "Tòa Epsilon",
 		floor: "Tầng Trệt",
 		floorId: null,
 		centerLatitude: "",
@@ -285,6 +285,8 @@ export default function AreaListPage() {
 		}
 
 		DEFAULT_BUILDINGS_META.forEach((b3d) => {
+			// V97_1 đã bỏ Tòa Alpha (Tòa HCM) khỏi DB -> không chèn lại làm tòa fallback trong danh sách
+			if (matchesBuilding(b3d.name, "Tòa Alpha")) return;
 			const hasAlias = Array.from(mapByName.keys()).some((existing) =>
 				matchesBuilding(existing, b3d.name),
 			);
@@ -298,11 +300,13 @@ export default function AreaListPage() {
 		});
 
 		if (mapByName.size === 0) {
-			return ["Tòa Alpha", "Tòa Epsilon"].map((name) => ({
-				id: null,
-				name,
-				floors: [],
-			}));
+			return [
+				{
+					id: null,
+					name: "Tòa Epsilon",
+					floors: [],
+				},
+			];
 		}
 		return Array.from(mapByName.values());
 	}, [buildingsList, areas]);
@@ -311,7 +315,7 @@ export default function AreaListPage() {
 	useEffect(() => {
 		if (!selectedBuilding && availableBuildings.length > 0) {
 			const defaultB =
-				availableBuildings.find((b) => b.name === "Tòa Alpha") ||
+				availableBuildings.find((b) => matchesBuilding(b.name, "Tòa Epsilon")) ||
 				availableBuildings[0];
 			setSelectedBuilding(defaultB.name);
 		}
@@ -1140,7 +1144,7 @@ export default function AreaListPage() {
 		const areaToEdit = targetArea || selectedArea;
 		if (!areaToEdit) return;
 		setSelectedAreaId(areaToEdit.id);
-		const bName = areaToEdit.building || "Tòa Alpha";
+		const bName = areaToEdit.building || availableBuildings[0]?.name || "Tòa Epsilon";
 		const bObj = availableBuildings.find((b) => b.name === bName);
 		const flName = areaToEdit.floor || "Tầng Trệt";
 		const flObj = bObj?.floors?.find((f) => f.name === flName);

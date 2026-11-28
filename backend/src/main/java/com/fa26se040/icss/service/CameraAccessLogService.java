@@ -251,14 +251,14 @@ public class CameraAccessLogService {
             return AccessResult.UNKNOWN_PERSON;
         }
 
-        // 2. Nếu được phép -> kiểm tra khung giờ ngoài giờ (Luật ban đêm: cấp độ chung không có hiệu lực ban đêm)
+        // 2. Nếu được phép -> kiểm tra khung giờ ngoài giờ (Luật ban đêm): ngoài giờ chỉ nguồn quyền thuộc
+        // AI_NIGHT_ALLOWED_ACCESS_SOURCES (V150, cùng danh sách ai-service dùng) còn hiệu lực. Đọc cấu hình mỗi lần gọi
+        // nên Admin sửa có hiệu lực ngay. Thiếu nguồn hoặc NONE không được miễn, như ai-service.
         if (entryResponse.isAllowed()) {
             if (!isGuard && isAfterHours(at)) {
                 com.fa26se040.icss.enums.AccessSource src = entryResponse.getSource();
-                boolean isNightExempt = src == com.fa26se040.icss.enums.AccessSource.ASSIGNED_PERSONNEL
-                        || src == com.fa26se040.icss.enums.AccessSource.ACCESS_REQUEST
-                        || src == com.fa26se040.icss.enums.AccessSource.GUEST_VISIT
-                        || src == com.fa26se040.icss.enums.AccessSource.INCIDENT_RESPONSE;
+                boolean isNightExempt = src != null && src != com.fa26se040.icss.enums.AccessSource.NONE
+                        && systemConfigService.getNightAllowedAccessSources().contains(src.name());
                 if (!isNightExempt) {
                     return AccessResult.PERSON_INTRUSION;
                 }

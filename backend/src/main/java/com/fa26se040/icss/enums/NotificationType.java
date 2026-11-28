@@ -38,5 +38,7 @@ public enum NotificationType {
     // S5 (V84): ADMIN nhận khi sự cố cần leo thang mà không có Quản lý CSVC nào đang hoạt động
     INCIDENT_ESCALATION_NO_FM,
     // PR-AU (V111): ADMIN nhận khi một tài khoản có thật bị khoá đăng nhập tạm thời do sai mật khẩu nhiều lần
-    ACCOUNT_LOCKED
+    ACCOUNT_LOCKED,
+    // V151: camera đang ONLINE bị mất kết nối đột ngột quá NOTIFICATION_CAMERA_OFFLINE_SECONDS giây
+    CAMERA_OFFLINE
 }

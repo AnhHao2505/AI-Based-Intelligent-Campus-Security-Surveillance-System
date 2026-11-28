@@ -81,6 +81,37 @@ function describeNightAdjustment(a) {
 	return `${head} — đã tắt sự kiện đang mở`;
 }
 
+/** Tách chuỗi CSV cấu hình thành mảng mã đã trim, bỏ rỗng. */
+function parseCsvValues(raw) {
+	return String(raw || "")
+		.split(",")
+		.map((item) => item.trim())
+		.filter(Boolean);
+}
+
+/** Chuẩn hoá chuỗi CSV theo đúng thứ tự danh sách options do Backend cung cấp. */
+function normalizeCsvForOptions(raw, options) {
+	if (!Array.isArray(options) || options.length === 0) {
+		return String(raw ?? "");
+	}
+	const selected = new Set(parseCsvValues(raw));
+	return options
+		.map((opt) => opt.value)
+		.filter((val) => selected.has(val))
+		.join(",");
+}
+
+/** Hiển thị giá trị dạng nhãn tiếng Việt (dựa theo options từ Backend) ở modal xác nhận & bảng lịch sử. */
+function formatConfigDisplayValue(raw, options) {
+	if (!Array.isArray(options) || options.length === 0) {
+		return raw;
+	}
+	const tokens = parseCsvValues(raw);
+	if (tokens.length === 0) return "(trống)";
+	const labelMap = new Map(options.map((opt) => [opt.value, opt.label]));
+	return tokens.map((token) => labelMap.get(token) || token).join(", ");
+}
+
 export default function SystemConfigPage() {
 	const navigate = useNavigate();
 	const reasonLimits = useReasonLimits();
@@ -100,6 +131,7 @@ export default function SystemConfigPage() {
 	const [historyModalOpen, setHistoryModalOpen] = useState(false);
 	const [historyConfigKey, setHistoryConfigKey] = useState("");
 	const [historyConfigName, setHistoryConfigName] = useState("");
+	const [historyConfigOptions, setHistoryConfigOptions] = useState(null);
 	const [historyLogs, setHistoryLogs] = useState([]);
 	const [historyLoading, setHistoryLoading] = useState(false);
 	const [historyError, setHistoryError] = useState(null);
@@ -169,6 +201,12 @@ export default function SystemConfigPage() {
 	const handleOpenSaveModal = (config) => {
 		const key = config.configKey;
 		const value = editedValues[key];
+		if (Array.isArray(config.options) && config.options.length > 0) {
+			if (parseCsvValues(value).length === 0) {
+				setErrorMsg("Vui lòng chọn ít nhất 1 lựa chọn trước khi lưu.");
+				return;
+			}
+		}
 		if (key === "AI_AFTER_HOUR_START" || key === "AI_AFTER_HOUR_END") {
 			const otherKey = key === "AI_AFTER_HOUR_START" ? "AI_AFTER_HOUR_END" : "AI_AFTER_HOUR_START";
 			const otherVal = editedValues[otherKey];
@@ -186,8 +224,19 @@ export default function SystemConfigPage() {
 	const handleConfirmSave = async () => {
 		if (!confirmModalConfig) return;
 		const key = confirmModalConfig.configKey;
-		const value = editedValues[key];
+		const rawValue = editedValues[key];
+		const hasOptions =
+			Array.isArray(confirmModalConfig.options) &&
+			confirmModalConfig.options.length > 0;
+		const value = hasOptions
+			? normalizeCsvForOptions(rawValue, confirmModalConfig.options)
+			: rawValue;
 		const trimmedReason = confirmReason.trim();
+
+		if (hasOptions && parseCsvValues(value).length === 0) {
+			setConfirmError("Vui lòng chọn ít nhất 1 lựa chọn.");
+			return;
+		}
 
 		if (key === "AI_AFTER_HOUR_START" || key === "AI_AFTER_HOUR_END") {
 			const otherKey = key === "AI_AFTER_HOUR_START" ? "AI_AFTER_HOUR_END" : "AI_AFTER_HOUR_START";
@@ -246,6 +295,11 @@ export default function SystemConfigPage() {
 	const handleOpenHistory = async (config) => {
 		setHistoryConfigKey(config.configKey);
 		setHistoryConfigName(config.description || config.configKey);
+		setHistoryConfigOptions(
+			Array.isArray(config.options) && config.options.length > 0
+				? config.options
+				: null,
+		);
 		setHistoryModalOpen(true);
 		setHistoryLoading(true);
 		setHistoryError(null);
@@ -518,15 +572,28 @@ export default function SystemConfigPage() {
 												{sub.items.map((cfg) => {
 													const currentValue =
 														editedValues[cfg.configKey] ?? cfg.configValue;
-													const isModified =
-														String(currentValue) !== String(cfg.configValue);
+													const hasOptions =
+														Array.isArray(cfg.options) && cfg.options.length > 0;
+													const isMultiSelectOptions =
+														hasOptions && Boolean(cfg.multiSelect);
+													const isSingleSelectEnum =
+														hasOptions && !isMultiSelectOptions;
+													const selectedOptionSet = isMultiSelectOptions
+														? new Set(parseCsvValues(currentValue))
+														: null;
+													const isModified = isMultiSelectOptions
+														? normalizeCsvForOptions(currentValue, cfg.options) !==
+															normalizeCsvForOptions(cfg.configValue, cfg.options)
+														: String(currentValue) !== String(cfg.configValue);
+													const isOptionEmpty =
+														isMultiSelectOptions && selectedOptionSet.size === 0;
 													const isSaving = savingKey === cfg.configKey;
 
 													return (
 														<Card
 															key={cfg.configKey}
 															padding="md"
-															className="syscfg-item-card"
+															className={`syscfg-item-card ${isMultiSelectOptions ? "syscfg-item-card--wide" : ""}`}
 														>
 															<div className="syscfg-item">
 																{/* Top: Description and Help Tooltip */}
@@ -565,8 +632,10 @@ export default function SystemConfigPage() {
 																	</Button>
 																</div>
 
-																{/* Middle: Input control based on data type */}
-																<div className="syscfg-item__control-row">
+																{/* Middle: Input control based on data type / options metadata */}
+																<div
+																	className={`syscfg-item__control-row ${isMultiSelectOptions ? "syscfg-item__control-row--stacked" : ""}`}
+																>
 																	{cfg.dataType === "BOOLEAN" ? (
 																		<div className="syscfg-toggle-wrapper">
 																			<button
@@ -597,6 +666,90 @@ export default function SystemConfigPage() {
 																					? "Cho phép"
 																					: "Không cho phép (Cấm)"}
 																			</span>
+																		</div>
+																	) : isSingleSelectEnum ? (
+																		<div className="syscfg-input-wrapper">
+																			<select
+																				value={currentValue}
+																				onChange={(e) =>
+																					handleValueChange(
+																						cfg.configKey,
+																						e.target.value,
+																					)
+																				}
+																				disabled={!cfg.editable}
+																				aria-labelledby={`syscfg-desc-${cfg.configKey}`}
+																				className="syscfg-select"
+																			>
+																				{cfg.options.map((opt) => (
+																					<option key={opt.value} value={opt.value}>
+																						{opt.label}
+																					</option>
+																				))}
+																			</select>
+																		</div>
+																	) : isMultiSelectOptions ? (
+																		<div
+																			className="syscfg-options-wrapper"
+																			role="group"
+																			aria-labelledby={`syscfg-desc-${cfg.configKey}`}
+																		>
+																			<div className="syscfg-options-grid">
+																				{cfg.options.map((opt) => {
+																					const isChecked = selectedOptionSet.has(
+																						opt.value,
+																					);
+																					return (
+																						<label
+																							key={opt.value}
+																							className={`syscfg-option-item ${isChecked ? "syscfg-option-item--checked" : ""} ${!cfg.editable ? "syscfg-option-item--disabled" : ""}`}
+																						>
+																							<input
+																								type="checkbox"
+																								className="syscfg-option-item__checkbox"
+																								checked={isChecked}
+																								disabled={!cfg.editable}
+																								onChange={(e) => {
+																									const next = new Set(
+																										selectedOptionSet,
+																									);
+																									if (e.target.checked) {
+																										next.add(opt.value);
+																									} else {
+																										next.delete(opt.value);
+																									}
+																									const nextCsv = cfg.options
+																										.map((o) => o.value)
+																										.filter((v) => next.has(v))
+																										.join(",");
+																									handleValueChange(
+																										cfg.configKey,
+																										nextCsv,
+																									);
+																								}}
+																							/>
+																							<span className="syscfg-option-item__content">
+																								<span className="syscfg-option-item__label">
+																									{opt.label}
+																								</span>
+																								{opt.description && (
+																									<span className="syscfg-option-item__desc">
+																										{opt.description}
+																									</span>
+																								)}
+																							</span>
+																						</label>
+																					);
+																				})}
+																			</div>
+																			{isOptionEmpty && (
+																				<div className="syscfg-options-error">
+																					<AlertCircle size={13} />
+																					<span>
+																						Phải chọn ít nhất 1 lựa chọn.
+																					</span>
+																				</div>
+																			)}
 																		</div>
 																	) : (
 																		<div className="syscfg-input-wrapper">
@@ -656,7 +809,10 @@ export default function SystemConfigPage() {
 																			icon={<Save size={14} />}
 																			loading={isSaving}
 																			disabled={
-																				!isModified || isSaving || !cfg.editable
+																				!isModified ||
+																				isOptionEmpty ||
+																				isSaving ||
+																				!cfg.editable
 																			}
 																			onClick={() => handleOpenSaveModal(cfg)}
 																		>
@@ -739,6 +895,7 @@ export default function SystemConfigPage() {
 							handleOpenHistory({
 								configKey: historyConfigKey,
 								description: historyConfigName,
+								options: historyConfigOptions,
 							})
 						}
 					/>
@@ -782,12 +939,20 @@ export default function SystemConfigPage() {
 										</td>
 										<td>
 											<span className="syscfg-val-badge syscfg-val-badge--old">
-												{log.oldValue ?? "(trống)"}
+												{log.oldValue != null
+													? formatConfigDisplayValue(
+															log.oldValue,
+															historyConfigOptions,
+														)
+													: "(trống)"}
 											</span>
 										</td>
 										<td>
 											<span className="syscfg-val-badge syscfg-val-badge--new">
-												{log.newValue}
+												{formatConfigDisplayValue(
+													log.newValue,
+													historyConfigOptions,
+												)}
 											</span>
 										</td>
 										<td>
@@ -869,11 +1034,17 @@ export default function SystemConfigPage() {
 							</div>
 							<div style={{ marginTop: "4px" }}>
 								<strong>Giá trị hiện tại:</strong>{" "}
-								{confirmModalConfig.configValue}
+								{formatConfigDisplayValue(
+									confirmModalConfig.configValue,
+									confirmModalConfig.options,
+								)}
 							</div>
 							<div style={{ marginTop: "4px" }}>
 								<strong>Giá trị mới:</strong>{" "}
-								{editedValues[confirmModalConfig.configKey]}
+								{formatConfigDisplayValue(
+									editedValues[confirmModalConfig.configKey],
+									confirmModalConfig.options,
+								)}
 							</div>
 						</div>
 						<div>

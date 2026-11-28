@@ -62,6 +62,9 @@ public class CameraService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private FloorRepository floorRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CameraHealthAlertService cameraHealthAlertService;
+
     // === Camera CRUD ===
 
     public CameraDetailResponse createCamera(CreateCameraRequest request) {
@@ -248,34 +251,34 @@ public class CameraService {
     @Transactional
     public void syncLiveOperationalStatuses() {
         try {
+            OffsetDateTime now = OffsetDateTime.now();
             boolean edgeOnline = edgeMqttControlService != null
                     && edgeMqttControlService.isConnected()
                     && edgeStatusService != null
                     && edgeStatusService.hasActiveOnlineEdge();
             if (edgeOnline) {
-                syncOperationalStatusesFromEdgeHeartbeat();
+                syncOperationalStatusesFromEdgeHeartbeat(now);
                 return;
             }
 
             java.util.Map<String, Boolean> liveStatuses = mediaMtxService.getLivePathStatuses();
-            if (liveStatuses == null) {
-                return;
-            }
+            boolean gatewayUnreachable = (liveStatuses == null);
 
             List<Camera> activeCameras = cameraRepository
                     .findActiveWithStreamConfigByStatus(CameraStatus.ACTIVE);
 
             for (Camera cam : activeCameras) {
                 String pathName = mediaMtxService.formatPathName(cam.getCameraCode());
-                boolean isSubReady = Boolean.TRUE.equals(liveStatuses.get(pathName));
-                boolean isMainReady = Boolean.TRUE.equals(liveStatuses.get(pathName + "_main"));
+                boolean isSubReady = !gatewayUnreachable && Boolean.TRUE.equals(liveStatuses.get(pathName));
+                boolean isMainReady = !gatewayUnreachable && Boolean.TRUE.equals(liveStatuses.get(pathName + "_main"));
                 boolean isReady = isSubReady || isMainReady;
-                boolean hasPathInMediaMtx = liveStatuses.containsKey(pathName) || liveStatuses.containsKey(pathName + "_main");
+                boolean hasPathInMediaMtx = !gatewayUnreachable
+                        && (liveStatuses.containsKey(pathName) || liveStatuses.containsKey(pathName + "_main"));
                 OperationalStatus currentStatus = cam.getOperationalStatus();
 
-                if (!hasPathInMediaMtx && currentStatus == OperationalStatus.ONLINE) {
+                if (!gatewayUnreachable && !hasPathInMediaMtx && currentStatus == OperationalStatus.ONLINE) {
                     if (reregisterMissingMediaMtxPath(cam)) {
-                        cam.setUpdatedAt(OffsetDateTime.now());
+                        cam.setUpdatedAt(now);
                         cameraRepository.save(cam);
                         continue;
                     }
@@ -302,6 +305,10 @@ public class CameraService {
                     }
                 } else if (newStatus == OperationalStatus.ONLINE) {
                     ensureAiWorkerRunningIfNeeded(cam.getCameraCode());
+                }
+
+                if (cameraHealthAlertService != null) {
+                    cameraHealthAlertService.recordStatus(cam, currentStatus, newStatus, now);
                 }
             }
         } catch (Exception e) {
@@ -330,7 +337,7 @@ public class CameraService {
         return true;
     }
 
-    private void syncOperationalStatusesFromEdgeHeartbeat() {
+    private void syncOperationalStatusesFromEdgeHeartbeat(OffsetDateTime now) {
         Map<String, Boolean> edgeCamStatuses = edgeStatusService.getOnlineEdgeCameraStatuses();
         if (edgeCamStatuses == null) {
             return;
@@ -356,6 +363,10 @@ public class CameraService {
                 cameraRepository.save(cam);
                 log.info("🔄 [Cloud-Edge Sync] Cập nhật trạng thái camera [{}]: {} -> {}",
                         cam.getCameraCode(), currentStatus, newStatus);
+            }
+
+            if (cameraHealthAlertService != null) {
+                cameraHealthAlertService.recordStatus(cam, currentStatus, newStatus, now);
             }
         }
     }
@@ -563,6 +574,9 @@ public class CameraService {
 
         Camera saved = cameraRepository.save(camera);
         Camera effective = saved != null ? saved : camera;
+        if (cameraHealthAlertService != null) {
+            cameraHealthAlertService.markPlannedStop(effective);
+        }
         mediaMtxService.deleteCameraPath(camera.getCameraCode());
         stopAiStreamWorkerSafely(camera.getCameraCode());
         if (auditService != null) {
@@ -592,6 +606,9 @@ public class CameraService {
 
         Camera saved = cameraRepository.save(camera);
         Camera effective = saved != null ? saved : camera;
+        if (cameraHealthAlertService != null) {
+            cameraHealthAlertService.markPlannedStop(effective);
+        }
         mediaMtxService.deleteCameraPath(camera.getCameraCode());
         stopAiStreamWorkerSafely(camera.getCameraCode());
         if (auditService != null) {

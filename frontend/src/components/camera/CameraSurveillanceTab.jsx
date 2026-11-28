@@ -2,6 +2,10 @@ import React, { useState, useRef, useEffect } from "react";
 import { Scan, Layers } from "lucide-react";
 import WebRtcPlayer from "../video/WebRtcPlayer";
 import {
+	formatCameraSubLabel,
+	formatCameraTileTitle,
+} from "../../utils/cameraGridHelpers";
+import {
 	computePolygonCentroid,
 	resolveRoiModalSnapshot,
 } from "../../utils/roiUtils";
@@ -37,6 +41,10 @@ export default function CameraSurveillanceTab({ camera, onOpenRoiEditor }) {
 	const roiPolygons = camera?.roiGeometry?.polygons || [];
 	const totalRoiCount = roiPolygons.length;
 	const isOnline = camera?.operationalStatus === "ONLINE";
+	const rawCameraCode = String(camera?.cameraCode || "").trim();
+	const cleanStreamPath = rawCameraCode
+		.toLowerCase()
+		.replace(/[^a-z0-9_-]/g, "");
 
 	const handleOpenEditor = () => {
 		if (!onOpenRoiEditor) return;
@@ -145,14 +153,12 @@ export default function CameraSurveillanceTab({ camera, onOpenRoiEditor }) {
 						>
 							<WebRtcPlayer
 								ref={playerRef}
-								streamPath={
-									camera?.cameraCode
-										?.toLowerCase()
-										.replace(/[^a-z0-9_-]/g, "") || "cam-001"
-								}
-								cameraCode={camera?.cameraCode || "CAM-001"}
+								streamPath={cleanStreamPath}
+								cameraCode={rawCameraCode}
 								cameraName={camera?.name || "Camera"}
-								enabled={true}
+								displayLabel={formatCameraTileTitle(camera)}
+								cameraSubLabel={formatCameraSubLabel(camera)}
+								enabled={Boolean(rawCameraCode)}
 								host={
 									import.meta.env.VITE_MEDIAMTX_HOST ||
 									(typeof window !== "undefined" && window.location.hostname

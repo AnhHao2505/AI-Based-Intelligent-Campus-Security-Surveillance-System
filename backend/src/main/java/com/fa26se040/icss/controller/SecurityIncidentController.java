@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -141,35 +140,6 @@ public class SecurityIncidentController {
         // Guard marking incident alert as seen does NOT cut video anymore.
         // Incident recording is managed by AI Service (starts 2s after detection, ends when detection ceases).
         return ResponseEntity.ok(ApiResponse.success("ALL_ACKNOWLEDGED", "Đã xác nhận xem tất cả sự cố"));
-    }
-
-    @PostMapping("/test-alert")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
-    public ResponseEntity<ApiResponse<IncidentDetailResponse>> triggerTestAlert(
-            @RequestBody IncidentEventDto testEvent
-    ) {
-        log.info("Triggering single test alert for camera [{}] type [{}]", testEvent.getCameraCode(), testEvent.getEventType());
-        IncidentDetailResponse response = securityIncidentService.ingestIncident(testEvent);
-        if (response == null) {
-            return ResponseEntity.status(HttpStatus.OK)
-                    .body(ApiResponse.success(null, "Camera đã ngừng hoạt động (DECOMMISSIONED), sự cố được bỏ qua"));
-        }
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "Test alert broadcast thành công"));
-    }
-
-    @PostMapping("/test-alert/batch")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GUARD')")
-    public ResponseEntity<ApiResponse<List<IncidentDetailResponse>>> triggerBatchTestAlerts(
-            @RequestBody List<IncidentEventDto> testEvents
-    ) {
-        log.info("Triggering batch test alerts: count [{}]", testEvents.size());
-        List<IncidentDetailResponse> results = testEvents.stream()
-                .map(securityIncidentService::ingestIncident)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toList());
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(results, results.size() + " test alerts broadcast thành công"));
     }
 
     /**

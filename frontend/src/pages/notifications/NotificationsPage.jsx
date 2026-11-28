@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   ArrowLeftRight,
   Camera,
+  VideoOff,
   UserCheck,
   UserMinus,
   CalendarOff,
@@ -109,6 +110,20 @@ export default function NotificationsPage() {
     // PR-AU (V111): ACCOUNT_LOCKED (ADMIN được báo khi một tài khoản bị khoá đăng nhập tạm thời) -> màn Quản lý tài khoản
     if (notif.type === 'ACCOUNT_LOCKED') {
       navigate('/admin/accounts');
+      return;
+    }
+
+    // V151: CAMERA_OFFLINE -> ADMIN mở chi tiết camera, FM về bản đồ khuôn viên (Phase 9), GUARD về màn livestream
+    if (notif.type === 'CAMERA_OFFLINE' || (notif.referenceType || notif.reference_type) === 'CAMERA') {
+      const role = user?.role || user?.role_type || '';
+      const refId = notif.referenceId || notif.reference_id;
+      if (role === 'ADMIN') {
+        navigate(refId ? `/admin/cameras/${encodeURIComponent(refId)}` : '/admin/areas');
+      } else if (role === 'FACILITY_MANAGER') {
+        navigate('/admin/areas');
+      } else if (role === 'GUARD') {
+        navigate('/guard');
+      }
       return;
     }
 
@@ -362,6 +377,13 @@ export default function NotificationsPage() {
         return (
           <div className="notif-icon-box notif-icon-box--denied" title="Tài khoản bị khoá đăng nhập tạm thời">
             <ShieldAlert size={16} />
+          </div>
+        );
+      // V151: camera livestream mất kết nối đột ngột
+      case 'CAMERA_OFFLINE':
+        return (
+          <div className="notif-icon-box notif-icon-box--denied" title="Camera mất kết nối đột ngột">
+            <VideoOff size={16} />
           </div>
         );
       default:

@@ -32,5 +32,7 @@ public enum AuditTargetType {
     GUARD_TEAM,
     GUARD_TEAM_DISPATCH,
     GUARD_SHIFT,
-    GUARD_SHIFT_REQUEST
+    GUARD_SHIFT_REQUEST,
+    // V149: sự cố an ninh (thao tác tiếp nhận, từ chối lời mời, xử lý đóng)
+    SECURITY_INCIDENT
 }
