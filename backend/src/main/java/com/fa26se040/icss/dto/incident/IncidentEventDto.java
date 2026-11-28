@@ -59,4 +59,20 @@ public class IncidentEventDto {
     /** Chỉ có ở IDENTITY_UPDATE: tên người AI vừa nhận ra. */
     @JsonProperty("user_name")
     private String userName;
+
+    /** UNVERIFIED_TIMEOUT khi fallback do backend timeout check-entry; null cho sự cố bình thường. */
+    @JsonProperty("verification_status")
+    private String verificationStatus;
+
+    /** NFR-01 trace: thời điểm AI chụp frame (ISO-8601 UTC ms). */
+    @JsonProperty("frame_captured_at")
+    private String frameCapturedAt;
+
+    /** NFR-01 trace: thời điểm AI publish lên MQTT broker (ISO-8601 UTC ms). */
+    @JsonProperty("mqtt_published_at")
+    private String mqttPublishedAt;
+
+    /** NFR-01 trace: thời điểm backend MQTT consumer nhận message (ISO-8601 UTC ms). */
+    @JsonProperty("mqtt_received_at")
+    private String mqttReceivedAt;
 }

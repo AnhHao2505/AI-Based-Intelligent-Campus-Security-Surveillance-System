@@ -32,14 +32,24 @@ public class CameraAccessLogResponse {
     private OffsetDateTime loggedAt;
 
     public static CameraAccessLogResponse from(CameraAccessLog log) {
+        return from(log, null, null);
+    }
+
+    public static CameraAccessLogResponse from(CameraAccessLog log, UUID areaIdOverride, String areaNameOverride) {
         if (log == null) {
             return null;
         }
+        UUID resolvedAreaId = areaIdOverride != null
+                ? areaIdOverride
+                : (log.getArea() != null ? log.getArea().getId() : null);
+        String resolvedAreaName = areaNameOverride != null
+                ? areaNameOverride
+                : (log.getArea() != null ? log.getArea().getName() : null);
         return CameraAccessLogResponse.builder()
                 .id(log.getId())
                 .cameraCode(log.getCameraCode())
-                .areaId(log.getArea() != null ? log.getArea().getId() : null)
-                .areaName(log.getArea() != null ? log.getArea().getName() : null)
+                .areaId(resolvedAreaId)
+                .areaName(resolvedAreaName)
                 .userCode(log.getUserCode())
                 .fullName(log.getFullName())
                 .userAccessLevel(log.getUserAccessLevel())

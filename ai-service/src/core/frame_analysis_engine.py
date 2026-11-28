@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple, Any, Set
 from ..config import settings
 from .entity import (
     TrackedPerson, BoundingBox, Point, SecurityAlertEvent,
-    FaceDetectionResult, RoiPolygonConfig
+    FaceDetectionResult, RoiPolygonConfig, format_utc_iso_ms
 )
 from ..utils.geometry import (
     is_point_in_polygon, scale_polygon_to_frame
@@ -82,6 +82,7 @@ class FrameAnalysisEngine:
         self.track_last_unknown_alert_time: Dict[int, float] = {}  # track_id -> timestamp
         self.track_last_unauthorized_alert_time: Dict[int, float] = {}  # track_id -> timestamp
         self.user_last_unauthorized_alert_time: Dict[str, float] = {}  # matched_code -> timestamp
+        self._zone_unknown_alert_anchors: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}  # (camera_code, zone_label) -> anchors
         self._last_parse_warning_time: Dict[str, float] = {}  # error_key -> timestamp
         self._missing_source_warn_times: Dict[str, float] = {}
 
@@ -373,6 +374,154 @@ class FrameAnalysisEngine:
                 return False
         return True
 
+    @staticmethod
+    def _is_backend_timeout_failure(person: TrackedPerson) -> bool:
+        face = person.face_info if person.face_detected else None
+        if not face:
+            return False
+        if getattr(face, "access_verification_status", None) == "UNVERIFIED_TIMEOUT":
+            return True
+        reason_low = (getattr(face, "access_reason", None) or "").lower()
+        return "backend không phản hồi" in reason_low or "không thể kết nối" in reason_low
+
+    @staticmethod
+    def _build_violation_event_and_details(
+        matched_name: Optional[str],
+        matched_code: Optional[str],
+        reason_str: Optional[str],
+        deny_reason_code: Optional[str],
+        is_active: bool,
+        after_hours: bool,
+        location_display: str,
+        backend_timeout: bool,
+        fallback_reason: str = "Không có quyền",
+    ) -> Tuple[str, str, Optional[str], str]:
+        """Build (event_type, detail_msg, verification_status, minimal_reason) uniformly for ROI & late-upgrade alerts."""
+        clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
+        if is_identity_gone_reason(reason_str, deny_reason_code):
+            if after_hours:
+                return "PERSON_INTRUSION", f"[PERSON_INTRUSION] Vị trí: {location_display}", None, "Ngoài giờ hoạt động"
+            return "UNKNOWN_PERSON", f"[UNKNOWN_PERSON] Vị trí: {location_display}", None, "Người lạ"
+
+        if backend_timeout:
+            timeout_reason = "Không thể xác thực quyền (Backend không phản hồi / quá thời gian)"
+            ev_type = "PERSON_INTRUSION" if after_hours else "UNAUTHORIZED_PERSON"
+            detail = f"[{ev_type}] Tên: {matched_name} ({matched_code})\nLý do: {timeout_reason}\nVị trí: {location_display}"
+            return ev_type, detail, "UNVERIFIED_TIMEOUT", timeout_reason
+
+        if after_hours:
+            detail = f"[PERSON_INTRUSION] Tên: {matched_name} ({matched_code})\nLý do: Ngoài giờ hoạt động\nVị trí: {location_display}"
+            return "PERSON_INTRUSION", detail, None, "Ngoài giờ hoạt động"
+
+        r_low = (clean_reason or "").lower()
+        if deny_reason_code:
+            minimal_reason = GUEST_DENY_REASON_LABELS.get(deny_reason_code, "Không có quyền")
+        elif not is_active:
+            minimal_reason = "Tài khoản bị khóa"
+        elif "cấp độ" in r_low or "level" in r_low:
+            minimal_reason = "Cấp độ không đủ"
+        elif "chưa tới" in r_low and any(k in r_low for k in ["giờ", "đơn", "khung"]):
+            minimal_reason = "Chưa tới giờ duyệt"
+        elif "hết hạn" in r_low and any(k in r_low for k in ["đơn", "lượt", "sử dụng"]):
+            minimal_reason = "Hết hạn đơn duyệt"
+        elif "phân công" in r_low:
+            minimal_reason = "Chưa tới ngày trực" if ("chưa" in r_low) else "Hết hạn phân công"
+        elif "khách" in r_low:
+            minimal_reason = "Ngoài giờ tiếp khách"
+        else:
+            minimal_reason = fallback_reason
+        detail = f"[UNAUTHORIZED_PERSON] Tên: {matched_name} ({matched_code})\nLý do: {minimal_reason}\nVị trí: {location_display}"
+        return "UNAUTHORIZED_PERSON", detail, None, minimal_reason
+
+    def _find_active_zone_unknown_anchor(
+        self,
+        camera_code: str,
+        zone_label: Optional[str],
+        bbox: BoundingBox,
+        current_time: float,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Tìm anchor cảnh báo người lạ/ngoài giờ gần đây tại cùng (camera, zone, vị trí vật lý)
+        khi track cũ đã bị xoá hoặc khuất, giúp giữ nguyên cooldown cho cùng một người đứng tại chỗ.
+        """
+        key = (camera_code or "", zone_label or "DEFAULT")
+        anchors = self._zone_unknown_alert_anchors.get(key)
+        if not anchors:
+            return None
+
+        fresh = [a for a in anchors if (current_time - a["alert_time"]) < self.unknown_alert_cooldown]
+        if fresh:
+            self._zone_unknown_alert_anchors[key] = fresh
+        else:
+            self._zone_unknown_alert_anchors.pop(key, None)
+            return None
+
+        bc = bbox.center
+        bw = max(1.0, bbox.width)
+        bh = max(1.0, bbox.height)
+        for anchor in reversed(fresh):
+            old_tid = anchor["track_id"]
+            old_p = self.active_tracks.get(old_tid)
+            if old_p is not None and getattr(old_p, "is_currently_visible", True):
+                continue
+            ab = anchor["bbox"]
+            ac = ab.center
+            aw = max(1.0, ab.width)
+            ah = max(1.0, ab.height)
+            same_spot = (
+                bbox.iou(ab) > 0.20
+                or bbox.intersection_ratio(ab) > 0.35
+                or (abs(bc.x - ac.x) <= 0.5 * max(bw, aw) and abs(bc.y - ac.y) <= 0.5 * max(bh, ah))
+            )
+            if same_spot:
+                return anchor
+        return None
+
+    def _record_zone_unknown_anchor(
+        self,
+        camera_code: str,
+        zone_label: Optional[str],
+        bbox: BoundingBox,
+        current_time: float,
+        track_id: int,
+        session_id: str,
+    ) -> None:
+        key = (camera_code or "", zone_label or "DEFAULT")
+        anchors = [
+            a for a in self._zone_unknown_alert_anchors.get(key, [])
+            if (current_time - a["alert_time"]) < self.unknown_alert_cooldown and a["track_id"] != track_id
+        ]
+        anchors.append({
+            "bbox": copy.copy(bbox),
+            "alert_time": current_time,
+            "track_id": track_id,
+            "session_id": session_id,
+        })
+        self._zone_unknown_alert_anchors[key] = anchors[-16:]
+
+    def _apply_zone_unknown_cooldown_if_matched(
+        self,
+        person: TrackedPerson,
+        camera_code: str,
+        zone_label: Optional[str],
+        after_hours: bool,
+        current_time: float,
+    ) -> bool:
+        anchor = self._find_active_zone_unknown_anchor(camera_code, zone_label, person.bbox, current_time)
+        if anchor is None:
+            return False
+        alert_t = anchor["alert_time"]
+        person.alert_unknown_sent = True
+        self.track_last_unknown_alert_time[person.track_id] = alert_t
+        person.unknown_verdict_time = alert_t
+        person.unknown_verdict_session_id = anchor["session_id"]
+        if after_hours:
+            person.alert_after_hours_sent = True
+            self._set_security_display_state(person, "INTRUSION", camera_code, "Đột nhập ngoài giờ")
+        else:
+            self._set_security_display_state(person, "UNKNOWN", camera_code, "Người lạ trong vùng ROI")
+        return True
+
     def _emit_identityless_alert(
         self,
         person: TrackedPerson,
@@ -385,6 +534,15 @@ class FrameAnalysisEngine:
         state_reason: str,
     ) -> None:
         """Chốt cảnh báo KHÔNG danh tính cho người chưa xác thực: UNKNOWN_PERSON (trong giờ) / PERSON_INTRUSION (ngoài giờ)."""
+        last_track_ts = self.track_last_unknown_alert_time.get(person.track_id)
+        if last_track_ts is not None and (current_time - last_track_ts) < self.unknown_alert_cooldown:
+            return
+        if self._apply_zone_unknown_cooldown_if_matched(person, camera_code, roi_label, after_hours, current_time):
+            return
+        last_camera_ts = self.last_unknown_alert_time.get(camera_code)
+        if last_camera_ts is not None and (current_time - last_camera_ts) < self.camera_unknown_min_interval:
+            return
+
         target_area_name = getattr(person.face_info, "area_name", None) if person.face_info else None
         raw_loc = target_area_name or area_name or (f"Khu vực camera {camera_code}" if camera_code else "Khu vực giám sát")
         if not isinstance(raw_loc, str):
@@ -400,6 +558,7 @@ class FrameAnalysisEngine:
             evt_type = "UNKNOWN_PERSON"
             det_msg = f"[UNKNOWN_PERSON] Vị trí: {location_display}"
 
+        session_id = self._start_unknown_verdict(person, current_time)
         generated_alerts.append(SecurityAlertEvent(
             camera_code=camera_code,
             event_type=evt_type,
@@ -407,7 +566,7 @@ class FrameAnalysisEngine:
             confidence=person.bbox.confidence,
             details=det_msg,
             location={"label": roi_label},
-            roi_session_id=self._start_unknown_verdict(person, current_time)
+            roi_session_id=session_id
         ))
         logger.debug(
             f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH: [{evt_type}] "
@@ -416,6 +575,7 @@ class FrameAnalysisEngine:
         person.alert_unknown_sent = True
         self.last_unknown_alert_time[camera_code] = current_time
         self.track_last_unknown_alert_time[person.track_id] = current_time
+        self._record_zone_unknown_anchor(camera_code, roi_label, person.bbox, current_time, person.track_id, session_id)
 
     @staticmethod
     def _start_unknown_verdict(person: TrackedPerson, current_time: float) -> str:
@@ -1005,40 +1165,17 @@ class FrameAnalysisEngine:
                         # Đã chốt cảnh báo người lạ cho người này -> luôn gửi IDENTITY_UPDATE để nâng cấp sự cố cũ (kể cả đang trong cooldown user)
                         absorb_now = self._unknown_verdict_active(person, current_time)
                         if should_alert_unauth or absorb_now:
-                            clean_reason = re.sub(r"\[[A-Z0-9_:\s]+\]\s*", "", reason_str or "").strip()
-                            if is_identity_gone_reason(reason_str, deny_reason_code):
-                                if after_hours:
-                                    event_type = "PERSON_INTRUSION"
-                                    detail_msg = f"[PERSON_INTRUSION] Vị trí: {location_display}"
-                                else:
-                                    event_type = "UNKNOWN_PERSON"
-                                    detail_msg = f"[UNKNOWN_PERSON] Vị trí: {location_display}"
-                            elif after_hours:
-                                event_type = "PERSON_INTRUSION"
-                                detail_msg = f"[PERSON_INTRUSION] Tên: {matched_name} ({matched_code})\nLý do: Ngoài giờ hoạt động\nVị trí: {location_display}"
-                            else:
-                                event_type = "UNAUTHORIZED_PERSON"
-                                r_low = (clean_reason or "").lower()
-                                if deny_reason_code:
-                                    # L4: khách bị từ chối -> lý do theo mã backend trả
-                                    minimal_reason = GUEST_DENY_REASON_LABELS.get(deny_reason_code, "Không có quyền")
-                                elif not is_active:
-                                    minimal_reason = "Tài khoản bị khóa"
-                                elif "backend không phản hồi" in r_low or "không thể kết nối" in r_low:
-                                    minimal_reason = "Backend không phản hồi"
-                                elif "cấp độ" in r_low or "level" in r_low:
-                                    minimal_reason = "Cấp độ không đủ"
-                                elif "chưa tới" in r_low and any(k in r_low for k in ["giờ", "đơn", "khung"]):
-                                    minimal_reason = "Chưa tới giờ duyệt"
-                                elif "hết hạn" in r_low and any(k in r_low for k in ["đơn", "lượt", "sử dụng"]):
-                                    minimal_reason = "Hết hạn đơn duyệt"
-                                elif "phân công" in r_low:
-                                    minimal_reason = "Chưa tới ngày trực" if ("chưa" in r_low) else "Hết hạn phân công"
-                                elif "khách" in r_low:
-                                    minimal_reason = "Ngoài giờ tiếp khách"
-                                else:
-                                    minimal_reason = "Không có quyền"
-                                detail_msg = f"[UNAUTHORIZED_PERSON] Tên: {matched_name} ({matched_code})\nLý do: {minimal_reason}\nVị trí: {location_display}"
+                            event_type, detail_msg, ver_status, _ = self._build_violation_event_and_details(
+                                matched_name=matched_name,
+                                matched_code=matched_code,
+                                reason_str=reason_str,
+                                deny_reason_code=deny_reason_code,
+                                is_active=is_active,
+                                after_hours=after_hours,
+                                location_display=location_display,
+                                backend_timeout=self._is_backend_timeout_failure(person),
+                                fallback_reason="Không có quyền",
+                            )
 
                             if absorb_now:
                                 self._absorb_late_identity(person, matched_code, camera_code)
@@ -1050,7 +1187,8 @@ class FrameAnalysisEngine:
                                 track_id=person.track_id,
                                 confidence=person.bbox.confidence,
                                 details=detail_msg,
-                                location=loc_info
+                                location=loc_info,
+                                verification_status=ver_status,
                             )
                             generated_alerts.append(alert)
                             logger.debug(
@@ -1106,6 +1244,10 @@ class FrameAnalysisEngine:
                                 self._set_security_display_state(person, "VERIFYING", camera_code, "Đang chờ khớp khuôn mặt")
                                 continue
 
+                            zone_key_label = person.entered_roi_label or matched_label or "Vùng giám sát"
+                            if self._apply_zone_unknown_cooldown_if_matched(person, camera_code, zone_key_label, after_hours, current_time):
+                                continue
+
                             last_camera_ts = self.last_unknown_alert_time.get(camera_code)
                             camera_interval_ok = (last_camera_ts is None) or ((current_time - last_camera_ts) >= self.camera_unknown_min_interval)
                             if camera_interval_ok:
@@ -1135,6 +1277,9 @@ class FrameAnalysisEngine:
                                 alert.roi_session_id = self._start_unknown_verdict(person, current_time)
                                 self.last_unknown_alert_time[camera_code] = current_time
                                 self.track_last_unknown_alert_time[person.track_id] = current_time
+                                self._record_zone_unknown_anchor(
+                                    camera_code, zone_key_label, person.bbox, current_time, person.track_id, alert.roi_session_id
+                                )
                                 if after_hours:
                                     person.alert_after_hours_sent = True
                                 else:
@@ -1179,33 +1324,20 @@ class FrameAnalysisEngine:
 
                                     if after_hours:
                                         self._set_security_display_state(person, "INTRUSION", camera_code, "Đột nhập ngoài giờ")
-                                        event_type = "PERSON_INTRUSION"
-                                        detail_msg = f"[PERSON_INTRUSION] Tên: {matched_name} ({matched_code})\nLý do: Ngoài giờ hoạt động\nVị trí: {location_display}"
                                     else:
                                         self._set_security_display_state(person, "UNAUTHORIZED", camera_code, "Từ chối truy cập / Không có quyền")
-                                        event_type = "UNAUTHORIZED_PERSON"
-                                        r_low = (clean_reason or "").lower()
-                                        deny_reason_code = getattr(person.face_info, "access_deny_reason", None)
-                                        is_active = getattr(person.face_info, "is_active", True)
-                                        if deny_reason_code:
-                                            minimal_reason = GUEST_DENY_REASON_LABELS.get(deny_reason_code, "Không có quyền")
-                                        elif not is_active:
-                                            minimal_reason = "Tài khoản bị khóa"
-                                        elif "backend không phản hồi" in r_low or "không thể kết nối" in r_low:
-                                            minimal_reason = "Backend không phản hồi"
-                                        elif "cấp độ" in r_low or "level" in r_low:
-                                            minimal_reason = "Cấp độ không đủ"
-                                        elif "chưa tới" in r_low and any(k in r_low for k in ["giờ", "đơn", "khung"]):
-                                            minimal_reason = "Chưa tới giờ duyệt"
-                                        elif "hết hạn" in r_low and any(k in r_low for k in ["đơn", "lượt", "sử dụng"]):
-                                            minimal_reason = "Hết hạn đơn duyệt"
-                                        elif "phân công" in r_low:
-                                            minimal_reason = "Chưa tới ngày trực" if ("chưa" in r_low) else "Hết hạn phân công"
-                                        elif "khách" in r_low:
-                                            minimal_reason = "Ngoài giờ tiếp khách"
-                                        else:
-                                            minimal_reason = clean_reason or "Không có quyền"
-                                        detail_msg = f"[UNAUTHORIZED_PERSON] Tên: {matched_name} ({matched_code})\nLý do: {minimal_reason}\nVị trí: {location_display}"
+
+                                    event_type, detail_msg, ver_status, minimal_reason = self._build_violation_event_and_details(
+                                        matched_name=matched_name,
+                                        matched_code=matched_code,
+                                        reason_str=reason_str,
+                                        deny_reason_code=getattr(person.face_info, "access_deny_reason", None),
+                                        is_active=getattr(person.face_info, "is_active", True),
+                                        after_hours=after_hours,
+                                        location_display=location_display,
+                                        backend_timeout=self._is_backend_timeout_failure(person),
+                                        fallback_reason=clean_reason or "Không có quyền",
+                                    )
 
                                     last_unauth_track_ts = self.track_last_unauthorized_alert_time.get(person.track_id)
                                     last_unauth_user_ts = self.user_last_unauthorized_alert_time.get(matched_code) if matched_code else None
@@ -1229,12 +1361,13 @@ class FrameAnalysisEngine:
                                                 track_id=person.track_id,
                                                 confidence=person.bbox.confidence,
                                                 details=detail_msg,
-                                                location={"label": person.entered_roi_label or "Vùng giám sát"}
+                                                location={"label": person.entered_roi_label or "Vùng giám sát"},
+                                                verification_status=ver_status,
                                             )
                                             generated_alerts.append(alert)
                                             logger.debug(
                                                 f"🚨 [FrameAnalysisEngine:{camera_code}] VI PHẠM AN NINH (Cập nhật danh tính): [{event_type}] "
-                                                f"Người: {matched_name} ({matched_code}), Lý do: {'Ngoài giờ hoạt động' if after_hours else minimal_reason}, Vị trí: {location_display}"
+                                                f"Người: {matched_name} ({matched_code}), Lý do: {minimal_reason}, Vị trí: {location_display}"
                                             )
                                         person.alert_unauthorized_sent = True
                                         self.track_last_unauthorized_alert_time[person.track_id] = current_time

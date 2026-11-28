@@ -11,6 +11,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 @Slf4j
 @Component
@@ -32,15 +34,20 @@ public class SecurityIncidentMqttConsumer implements IMqttMessageListener {
             log.warn("⚠️ [MQTT Consumer] Bỏ qua message null hoặc rỗng từ topic {}", topic);
             return;
         }
+        OffsetDateTime receivedAt = OffsetDateTime.now(ZoneOffset.UTC);
         String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
         log.info("🔔 [MQTT Consumer] Nhận sự kiện từ topic [{}]: {}", topic, payload);
-        processMessage(payload);
+        processMessage(payload, receivedAt);
     }
 
     /**
      * Xử lý payload chuỗi JSON sự kiện an ninh từ AI Service
      */
     public void processMessage(String payload) {
+        processMessage(payload, null);
+    }
+
+    public void processMessage(String payload, OffsetDateTime receivedAt) {
         if (payload == null || payload.isBlank()) {
             log.warn("⚠️ [MQTT Consumer] Payload rỗng hoặc null, bỏ qua");
             return;
@@ -52,6 +59,9 @@ public class SecurityIncidentMqttConsumer implements IMqttMessageListener {
             if (incident == null) {
                 log.warn("⚠️ [MQTT Consumer] Không thể parse IncidentEventDto từ payload");
                 return;
+            }
+            if (receivedAt != null && (incident.getMqttReceivedAt() == null || incident.getMqttReceivedAt().isBlank())) {
+                incident.setMqttReceivedAt(receivedAt.toString());
             }
             eventId = incident.getEventId();
             securityIncidentService.ingestIncident(incident);

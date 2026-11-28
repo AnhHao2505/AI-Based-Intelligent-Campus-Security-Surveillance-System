@@ -51,4 +51,9 @@ public class IncidentDetailResponse {
     // V93 (K6): STEP1 = đang mời một nhóm bảo vệ, chỉ người được mời nhận được; BROADCAST = như trước PR-2
     private IncidentDispatchStage dispatchStage;
     private Integer repeatCount;
+    private String verificationStatus;
+    private OffsetDateTime frameCapturedAt;
+    private OffsetDateTime mqttPublishedAt;
+    private OffsetDateTime mqttReceivedAt;
+    private OffsetDateTime wsPushedAt;
 }

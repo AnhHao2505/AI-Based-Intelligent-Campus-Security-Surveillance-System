@@ -7,6 +7,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.fa26se040.icss.dto.incident.IncidentEventDto;
 import com.fa26se040.icss.service.SecurityIncidentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -162,5 +163,33 @@ class SecurityIncidentMqttConsumerTest {
         } finally {
             detachLogAppender(appender);
         }
+    }
+
+    @Test
+    @DisplayName("6. messageArrived stamps mqtt_received_at and forwards frame_captured_at, mqtt_published_at, verification_status")
+    void messageArrived_stampsMqttReceivedAtAndForwardsTraceFields() {
+        String json = """
+            {
+                "event_id": "EVT-NFR-001",
+                "camera_code": "CAM-005",
+                "event_type": "PERSON_INTRUSION",
+                "verification_status": "UNVERIFIED_TIMEOUT",
+                "frame_captured_at": "2026-11-26T15:00:00.100Z",
+                "mqtt_published_at": "2026-11-26T15:00:00.250Z",
+                "details": "[PERSON_INTRUSION] Tên: Nguyen Van A (SE001)\\nLý do: Không thể xác thực quyền (Backend không phản hồi / quá thời gian)\\nVị trí: Phòng Lab"
+            }
+            """;
+
+        MqttMessage msg = new MqttMessage(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        mqttConsumer.messageArrived("campus/alerts/incidents", msg);
+
+        ArgumentCaptor<IncidentEventDto> captor = ArgumentCaptor.forClass(IncidentEventDto.class);
+        verify(securityIncidentService, times(1)).ingestIncident(captor.capture());
+
+        IncidentEventDto dto = captor.getValue();
+        assertThat(dto.getVerificationStatus()).isEqualTo("UNVERIFIED_TIMEOUT");
+        assertThat(dto.getFrameCapturedAt()).isEqualTo("2026-11-26T15:00:00.100Z");
+        assertThat(dto.getMqttPublishedAt()).isEqualTo("2026-11-26T15:00:00.250Z");
+        assertThat(dto.getMqttReceivedAt()).isNotBlank();
     }
 }

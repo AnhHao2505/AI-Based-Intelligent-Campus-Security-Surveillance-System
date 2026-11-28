@@ -2,6 +2,7 @@ package com.fa26se040.icss.dto.accessdecision;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fa26se040.icss.enums.AccessSource;
+import com.fa26se040.icss.enums.Role;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -37,6 +38,15 @@ public class CheckCameraEntryResponse {
 
     @JsonIgnore
     private String fullName;
+
+    @JsonIgnore
+    private Role userRole;
+
+    @JsonIgnore
+    private Integer userAccessLevel;
+
+    @JsonIgnore
+    private Boolean userKnownAbsent;
 
     public static CheckCameraEntryResponse denied(String cameraCode, String userCode, String reason) {
         String effectiveUserCode = (userCode != null && !userCode.isBlank()) ? userCode : "UNKNOWN";

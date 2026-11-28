@@ -124,6 +124,9 @@ public class SecurityIncident {
     @Builder.Default
     private Integer repeatCount = 1;
 
+    @Column(name = "verification_status", length = 32)
+    private String verificationStatus;
+
     @Version
     @Column(name = "version", nullable = false)
     @Builder.Default

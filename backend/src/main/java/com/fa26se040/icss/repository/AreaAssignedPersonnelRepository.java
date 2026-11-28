@@ -87,6 +87,20 @@ public interface AreaAssignedPersonnelRepository extends JpaRepository<AreaAssig
     );
 
     /**
+     * Bản ghi gán chưa thu hồi của một user tại một area (dùng cho AccessDecisionService#checkEntry bước 6B
+     * để tránh quét toàn bộ phân công của khu vực kèm 3 JOIN FETCH).
+     */
+    @Query("SELECT a FROM AreaAssignedPersonnel a " +
+           "WHERE a.area.id = :areaId " +
+           "AND a.user.id = :userId " +
+           "AND a.revokedAt IS NULL " +
+           "ORDER BY a.validFrom DESC")
+    List<AreaAssignedPersonnel> findNotRevokedByUserIdAndAreaId(
+            @Param("userId") UUID userId,
+            @Param("areaId") UUID areaId
+    );
+
+    /**
      * Khoá dòng users (SELECT ... FOR UPDATE) trong transaction hiện tại để tuần tự hoá các thao tác
      * gán/sửa cho cùng một user, tránh hai FM cùng lúc tạo bản ghi chồng lấn lọt BR-AP-03.
      */

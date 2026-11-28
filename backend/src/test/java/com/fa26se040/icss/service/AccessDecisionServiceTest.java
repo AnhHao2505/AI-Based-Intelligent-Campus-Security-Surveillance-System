@@ -1509,9 +1509,6 @@ class AccessDecisionServiceTest {
                 .startAt(at(14))
                 .endAt(at(16))
                 .build();
-        when(areaEventScheduleRepository.existsByAreaIdAndStatusAndStartAtLessThanEqualAndEndAtGreaterThan(
-                confArea.getId(), com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED, at(15), at(15)))
-                .thenReturn(true);
         when(areaEventScheduleRepository.findByAreaIdAndStatusOrderByStartAtAsc(confArea.getId(), com.fa26se040.icss.enums.AreaEventScheduleStatus.SCHEDULED))
                 .thenReturn(List.of(sched));
 

@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     )
     AI_DEVICE: str = Field(default="auto", validation_alias="AI_DEVICE")
     AI_PREFER_GPU: bool = Field(default=True, validation_alias="AI_PREFER_GPU")
+    DEFAULT_CAMERA_CODE: Optional[str] = Field(default=None, validation_alias="DEFAULT_CAMERA_CODE")
     
     # AI Thresholds & Business Rules
     DEFAULT_DETECTION_CONFIDENCE: float = Field(default=0.35, validation_alias="DEFAULT_DETECTION_CONFIDENCE")

@@ -71,9 +71,68 @@ app.add_middleware(
     allow_headers=["Content-Type", "X-Service-Key"],
 )
 
-# Pipeline mặc định cho Camera 1
+# Pipeline mặc định (resolve từ cấu hình / DB camera thực tế thay vì hardcode CAM-001)
 default_pipeline: Optional[VideoPipeline] = None
 edge_agent = None
+
+
+def _query_first_camera_code_from_db() -> Optional[str]:
+    """Lấy camera_code đầu tiên còn hoạt động từ bảng cameras (nếu AI service kết nối được DB)."""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=settings.DB_HOST,
+            port=settings.DB_PORT,
+            user=settings.POSTGRES_USER,
+            password=settings.POSTGRES_PASSWORD,
+            dbname=settings.POSTGRES_DB,
+            connect_timeout=2,
+        )
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT UPPER(camera_code) FROM cameras WHERE deleted_at IS NULL "
+                    "ORDER BY created_at ASC, camera_code ASC LIMIT 1"
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return str(row[0]).strip().upper()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.debug(f"Không thể truy vấn camera mặc định từ DB: {e}")
+    return None
+
+
+def resolve_default_camera_code() -> str:
+    """
+    Xác định camera_code cho default_pipeline lúc khởi động:
+    1. Biến môi trường DEFAULT_CAMERA_CODE (nếu cấu hình).
+    2. Danh sách camera trong SharedFaceCache (đồng bộ từ Backend /api/internal/ai/sync-data).
+    3. Truy vấn trực tiếp bảng cameras trong PostgreSQL (nếu khả dụng).
+    4. Fallback trung tính 'CAM-DEFAULT' (không hardcode 'CAM-001').
+    """
+    configured = (getattr(settings, "DEFAULT_CAMERA_CODE", None) or "").strip().upper()
+    if configured:
+        return configured
+
+    try:
+        from .core.shared_face_cache import get_shared_face_cache
+        cache = get_shared_face_cache()
+        area_map = getattr(cache, "camera_area_map", None) or {}
+        if not area_map and hasattr(cache, "refresh_cache"):
+            cache.refresh_cache()
+            area_map = getattr(cache, "camera_area_map", None) or {}
+        if area_map:
+            return sorted(str(code).strip().upper() for code in area_map.keys() if code)[0]
+    except Exception as e:
+        logger.debug(f"Không thể lấy camera mặc định từ SharedFaceCache: {e}")
+
+    db_cam = _query_first_camera_code_from_db()
+    if db_cam:
+        return db_cam
+
+    return "CAM-DEFAULT"
 
 async def sync_ai_config_from_backend(max_retries: int = 10, retry_delay: float = 3.0):
     """
@@ -296,8 +355,9 @@ async def startup_event():
         logger.warning(f"⚠️ Không thể khởi động background face cache: {e_cache}")
     global default_pipeline
     try:
+        default_cam_code = await asyncio.to_thread(resolve_default_camera_code)
         default_pipeline = VideoPipeline(
-            camera_code="",
+            camera_code=default_cam_code,
             conf_threshold=settings.DEFAULT_DETECTION_CONFIDENCE
         )
     except Exception as e:

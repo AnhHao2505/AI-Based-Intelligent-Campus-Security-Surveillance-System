@@ -148,6 +148,7 @@ class CameraStreamWorker:
         self.capture_thread: Optional[threading.Thread] = None
         self.analysis_thread: Optional[threading.Thread] = None
         self.raw_frame = None
+        self.raw_frame_captured_ts: Optional[float] = None
         self.frame_id: int = 0
         self.raw_frame_lock = threading.Lock()
         self.latest_frame = None
@@ -308,8 +309,9 @@ class CameraStreamWorker:
                         fail_count = 0
                     continue
                 fail_count = 0
+                capture_ts = time.time()
                 self.is_stream_connected = True
-                self.last_frame_ts = time.time()
+                self.last_frame_ts = capture_ts
 
                 # Ghi hình liên tục vào đĩa (Non-blocking qua hàng đợi)
                 if self.recorder:
@@ -317,6 +319,7 @@ class CameraStreamWorker:
 
                 with self.raw_frame_lock:
                     self.raw_frame = frame
+                    self.raw_frame_captured_ts = capture_ts
                     self.frame_id += 1
                 self.new_frame_event.set()
         except Exception as e:
@@ -352,9 +355,11 @@ class CameraStreamWorker:
                         time.sleep(sleep_dur)
                         continue
 
+                frame_captured_ts = None
                 with self.raw_frame_lock:
                     if self.raw_frame is not None and self.frame_id != last_processed_frame_id:
                         frame = self.raw_frame.copy()
+                        frame_captured_ts = self.raw_frame_captured_ts
                         last_processed_frame_id = self.frame_id
                     else:
                         frame = None
@@ -373,7 +378,8 @@ class CameraStreamWorker:
                     )
                     annotated_frame, tracked_persons, alerts = self.pipeline.process_frame(
                         frame,
-                        need_annotated=need_annotated
+                        need_annotated=need_annotated,
+                        frame_captured_at=frame_captured_ts,
                     )
                     with self.lock:
                         self.latest_frame = annotated_frame
