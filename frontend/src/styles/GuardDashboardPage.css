@@ -477,6 +477,12 @@ body.soc-theater-active .sidebar {
   .guard-main-grid {
     grid-template-columns: 1fr;
   }
+
+  .incident-alerts-panel {
+    position: static;
+    height: 560px;
+    max-height: 75vh;
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -1206,8 +1212,10 @@ body.soc-theater-active .sidebar {
   border: 1px solid var(--theme-border, #e2e8f0);
   border-radius: 6px;
   box-shadow: var(--theme-card-shadow);
-  height: calc(100vh - 100px);
-  max-height: 820px;
+  height: calc(100vh - 24px);
+  height: calc(100dvh - 24px);
+  position: sticky;
+  top: 8px;
   overflow: hidden;
 }
 
