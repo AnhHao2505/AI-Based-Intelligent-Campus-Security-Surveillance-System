@@ -27,8 +27,8 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 class SecurityIncidentAnonymousDedupIntegrationTest extends AbstractIntegrationTest {
 
@@ -86,8 +86,8 @@ class SecurityIncidentAnonymousDedupIntegrationTest extends AbstractIntegrationT
     }
 
     @Test
-    @DisplayName("Anonymous PERSON_INTRUSION alerts within cooldown window merge into 1 open incident instead of storming")
-    void anonymousIntrusionBurst_withinCooldown_mergesIntoSingleOpenIncident() {
+    @DisplayName("Anonymous PERSON_INTRUSION and UNKNOWN_PERSON alerts create separate incidents without merging")
+    void anonymousAlerts_withinCooldown_createSeparateIncidents() {
         OffsetDateTime base = OffsetDateTime.now().minusSeconds(30);
         IncidentDetailResponse first = incidentService.ingestIncident(IncidentEventDto.builder()
                 .eventId(eventIdPrefix + "-1")
@@ -97,26 +97,29 @@ class SecurityIncidentAnonymousDedupIntegrationTest extends AbstractIntegrationT
                 .details("[PERSON_INTRUSION] Vị trí: " + area.getName())
                 .build());
         assertNotNull(first);
+        assertEquals(1, first.getRepeatCount());
 
         for (int i = 2; i <= 5; i++) {
-            IncidentDetailResponse merged = incidentService.ingestIncident(IncidentEventDto.builder()
+            IncidentDetailResponse next = incidentService.ingestIncident(IncidentEventDto.builder()
                     .eventId(eventIdPrefix + "-" + i)
                     .cameraCode(camera.getCameraCode())
-                    .eventType("PERSON_INTRUSION")
+                    .eventType(i % 2 == 0 ? "UNKNOWN_PERSON" : "PERSON_INTRUSION")
                     .detectedAt(base.plusSeconds((i - 1) * 5L).toString())
-                    .details("[PERSON_INTRUSION] Vị trí: " + area.getName())
+                    .details("[" + (i % 2 == 0 ? "UNKNOWN_PERSON" : "PERSON_INTRUSION") + "] Vị trí: " + area.getName())
                     .build());
-            assertNull(merged, "Expected repeated anonymous PERSON_INTRUSION #" + i + " within cooldown to merge");
+            assertNotNull(next, "Expected anonymous alert #" + i + " to create its own incident");
+            assertNotEquals(first.getId(), next.getId());
+            assertEquals(1, next.getRepeatCount());
         }
 
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM security_incidents WHERE camera_code = ?",
                 Integer.class, camera.getCameraCode());
-        Integer repeatCount = jdbc.queryForObject(
-                "SELECT repeat_count FROM security_incidents WHERE id = ?",
-                Integer.class, first.getId());
-        assertEquals(1, count);
-        assertEquals(5, repeatCount);
+        Integer mergedCount = jdbc.queryForObject(
+                "SELECT count(*) FROM security_incidents WHERE camera_code = ? AND repeat_count > 1",
+                Integer.class, camera.getCameraCode());
+        assertEquals(5, count);
+        assertEquals(0, mergedCount);
     }
 
     @Test

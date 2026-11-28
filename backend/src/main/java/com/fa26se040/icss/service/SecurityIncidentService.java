@@ -245,27 +245,6 @@ public class SecurityIncidentService {
                         normalizedEventType, extractedSubjectCode, camCode, current.getId(), dedupMinutes);
                 return null;
             }
-        } else if (!isTestEvent && (extractedSubjectCode == null || extractedSubjectCode.isBlank())
-                && ("PERSON_INTRUSION".equals(normalizedEventType) || "UNKNOWN_PERSON".equals(normalizedEventType))) {
-            int cooldownSeconds = systemConfigService != null
-                    ? systemConfigService.getIntWithinBounds(com.fa26se040.icss.enums.ConfigKey.AI_UNKNOWN_ALERT_COOLDOWN_SECONDS)
-                    : 30;
-            if (cooldownSeconds > 0) {
-                java.time.OffsetDateTime cooldownWindowStart = detectedAt.minusSeconds(cooldownSeconds);
-                java.util.Optional<SecurityIncident> existingOpen = incidentRepository
-                        .findFirstByCameraCodeAndEventTypeAndSubjectUserCodeIsNullAndStatusInAndDetectedAtAfterOrderByDetectedAtDesc(
-                                camCode,
-                                normalizedEventType,
-                                List.of(IncidentStatus.NEW, IncidentStatus.CLAIMED),
-                                cooldownWindowStart);
-                if (existingOpen.isPresent()) {
-                    SecurityIncident current = existingOpen.get();
-                    mergeIntoOpenIncident(current, detectedAt, imageUrl, eventDto.getEventId());
-                    log.info("Gộp cảnh báo ẩn danh [{}] tại camera [{}] vào sự cố đang mở #{} (cooldown {}s).",
-                            normalizedEventType, camCode, current.getId(), cooldownSeconds);
-                    return null;
-                }
-            }
         }
 
         SecurityIncident incident = SecurityIncident.builder()
